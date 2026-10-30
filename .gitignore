@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+.yarn/
+
+# Build output
+dist/
+build/
+dist-ssr/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.*
+!.env.example
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Runtime / data
+graphify-out/
+.taste-skill/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.pid
+*.seed
+*.db
+*.sqlite
+*.sqlite3
+mysql-data/
+
+# Coverage / test
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Secrets / certs
+secrets/
+*.pem
+*.key
+
+# Misc
+bin/
+tmp/
+temp/
+.cache/
