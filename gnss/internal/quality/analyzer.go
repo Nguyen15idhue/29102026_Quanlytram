@@ -2,6 +2,7 @@ package quality
 
 import (
 	"context"
+	"math/bits"
 	"sort"
 	"sync"
 	"time"
@@ -120,6 +121,9 @@ type targetState struct {
 	satellites int
 	signals    int
 	cells      int
+	satMasks   map[int]uint64
+	sigMasks   map[int]uint32
+	cellMasks  map[int]uint64
 	cnrSum     float64
 	cnrCount   int
 
@@ -163,6 +167,9 @@ func newTargetState(target Target) *targetState {
 		messageTypes: make(map[int]uint64),
 		dirtyTypes:   make(map[int]uint64),
 		dirtyBytes:   make(map[int]uint64),
+		satMasks:     make(map[int]uint64),
+		sigMasks:     make(map[int]uint32),
+		cellMasks:    make(map[int]uint64),
 		alerts:       make(map[string]*alertState),
 	}
 }
@@ -363,9 +370,22 @@ func (s *targetState) applyMessage(info messageInfo, frameBytes uint64) {
 	}
 	if info.MSM {
 		s.msm++
-		s.satellites = info.Satellites
-		s.signals = info.Signals
-		s.cells = info.Cells
+		system := info.Number / 10
+		s.satMasks[system] = info.SatelliteMask
+		s.sigMasks[system] = info.SignalMask
+		s.cellMasks[system] = info.CellMask
+		s.satellites = 0
+		s.signals = 0
+		s.cells = 0
+		for _, mask := range s.satMasks {
+			s.satellites += bits.OnesCount64(mask)
+		}
+		for _, mask := range s.sigMasks {
+			s.signals += bits.OnesCount32(mask)
+		}
+		for _, mask := range s.cellMasks {
+			s.cells += bits.OnesCount64(mask)
+		}
 		s.cnrSum += info.CNRSum
 		s.cnrCount += info.CNRCount
 	}
@@ -415,6 +435,32 @@ func (s *targetState) averageCNR() float64 {
 		return 0
 	}
 	return s.cnrSum / float64(s.cnrCount)
+}
+
+func (s *targetState) constellations() []Constellation {
+	names := map[int]string{
+		107: "GPS",
+		108: "GLONASS",
+		109: "Galileo",
+		110: "SBAS",
+		111: "QZSS",
+		112: "BeiDou",
+	}
+	systems := make([]int, 0, len(s.satMasks))
+	for system := range s.satMasks {
+		systems = append(systems, system)
+	}
+	sort.Ints(systems)
+	result := make([]Constellation, 0, len(systems))
+	for _, system := range systems {
+		result = append(result, Constellation{
+			System:     names[system],
+			Satellites: bits.OnesCount64(s.satMasks[system]),
+			Signals:    bits.OnesCount32(s.sigMasks[system]),
+			Cells:      bits.OnesCount64(s.cellMasks[system]),
+		})
+	}
+	return result
 }
 
 func (s *targetState) baselineMedian() (int, int) {
@@ -493,6 +539,7 @@ func (s *targetState) snapshot(now time.Time, opts Options) Snapshot {
 		Satellites:      s.satellites,
 		Signals:         s.signals,
 		Cells:           s.cells,
+		Constellations:  s.constellations(),
 		AvgCnr:          s.averageCNR(),
 		CNRAvailable:    s.cnrCount > 0,
 		Antenna:         s.antenna,
@@ -815,6 +862,7 @@ func (a *Analyzer) emitSamples(now time.Time) {
 				"lengthErrors":      snapshot.LengthErrors,
 				"unknownMessages":   snapshot.UnknownMessages,
 				"reportedStationId": snapshot.ReportedStation,
+				"constellations":    snapshot.Constellations,
 			},
 		}
 		state.mark = sampleMark{

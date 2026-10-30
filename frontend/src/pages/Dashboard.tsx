@@ -1,3 +1,4 @@
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
   AlertTriangle,
@@ -8,8 +9,10 @@ import {
   RefreshCw,
   Unplug
 } from 'lucide-react';
+import { apiFetch } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
 import { useRealtime } from '../realtime/RealtimeProvider';
+import type { AuditLog } from '../types';
 import { Button, PageHeader, StatusBadge } from '../components/ui';
 
 function formatLocal(value: string | null | undefined): string {
@@ -27,6 +30,11 @@ export function Dashboard() {
   const { user, can } = useAuth();
   const { snapshot, connected, revoked, refresh } = useRealtime();
   const summary = snapshot?.summary;
+  const recentAudit = useQuery({
+    queryKey: ['audit-logs', 'dashboard'],
+    enabled: can('audit', 'view'),
+    queryFn: () => apiFetch<{ items: AuditLog[] }>('/api/audit-logs?pageSize=5')
+  });
 
   return (
     <section className="page">
@@ -151,6 +159,35 @@ export function Dashboard() {
           )}
         </div>
       </div>
+
+      {can('audit', 'view') && (
+        <div className="panel">
+          <div className="table-head">
+            <h2>Hoạt động gần đây</h2>
+            <Link className="btn ghost small" to="/history?tab=audit">
+              Xem audit
+            </Link>
+          </div>
+          {recentAudit.data?.items.length ? (
+            <div className="realtime-list">
+              {recentAudit.data.items.map((log) => (
+                <div className="realtime-row" key={log.id}>
+                  <div>
+                    <strong>{log.actorName || `#${log.actorId ?? '—'}`}</strong>
+                    <div className="muted table-subline">
+                      {log.action} · {log.entityType}
+                      {log.entityId ? ` #${log.entityId}` : ''}
+                    </div>
+                  </div>
+                  <span className="mono muted">{formatLocal(log.createdAt)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="table-state">Chưa có hoạt động gần đây.</div>
+          )}
+        </div>
+      )}
 
       <div className="panel">
         <h2>Phiên hiện tại</h2>

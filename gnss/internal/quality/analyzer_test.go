@@ -366,7 +366,8 @@ func Test6T6AlertDebounceAndResolve(t *testing.T) {
 	}
 }
 
-func Test6T9AsyncStoreQueueFullAndFlush(t *testing.T) {	store := &fakeStore{}
+func Test6T9AsyncStoreQueueFullAndFlush(t *testing.T) {
+	store := &fakeStore{}
 	async := NewAsyncStore(store, 1)
 	if err := async.SaveSamples(context.Background(), []Sample{{Score: 1}}); err != nil {
 		t.Fatalf("first enqueue: %v", err)
@@ -386,5 +387,35 @@ func Test6T9AsyncStoreQueueFullAndFlush(t *testing.T) {	store := &fakeStore{}
 	async.Run(ctx)
 	if len(store.samples) != 1 {
 		t.Fatalf("flushed samples = %d, want 1", len(store.samples))
+	}
+}
+func TestSatelliteAggregationAcrossConstellations(t *testing.T) {
+	state := newTargetState(Target{Type: TargetStation, ID: 1})
+	state.applyMessage(messageInfo{
+		Number: 1074, MSM: true,
+		SatelliteMask: 0b111,
+		SignalMask:    0b0001, CellMask: 0b111,
+	}, 0)
+	state.applyMessage(messageInfo{
+		Number: 1084, MSM: true,
+		SatelliteMask: 0b11,
+		SignalMask:    0b0010, CellMask: 0b11,
+	}, 0)
+	state.applyMessage(messageInfo{
+		Number: 1094, MSM: true,
+		SatelliteMask: 0b111,
+		SignalMask:    0b0100, CellMask: 0b111,
+	}, 0)
+	if state.satellites != 8 {
+		t.Fatalf("satellites = %d, want 8", state.satellites)
+	}
+	if state.signals != 3 {
+		t.Fatalf("signals = %d, want 3", state.signals)
+	}
+	if state.cells != 8 {
+		t.Fatalf("cells = %d, want 8", state.cells)
+	}
+	if len(state.constellations()) != 3 {
+		t.Fatalf("constellations = %d, want 3", len(state.constellations()))
 	}
 }

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Lock, Pencil, Plus, Trash2, Unlock } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
 import type { Role, WebUser } from '../types';
 import {
@@ -44,7 +45,9 @@ export function WebUsers() {
   const queryClient = useQueryClient();
   const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
   const [formOpen, setFormOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<WebUser | null>(null);
+  useDirtyGuard(dirty && formOpen);
   const [detail, setDetail] = useState<WebUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WebUser | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -87,6 +90,7 @@ export function WebUsers() {
     },
     onSuccess: async () => {
       setFormOpen(false);
+      setDirty(false);
       setEditing(null);
       setError('');
       push(editing ? 'Đã cập nhật tài khoản' : 'Đã thêm tài khoản', 'success');
@@ -114,6 +118,7 @@ export function WebUsers() {
     setEditing(null);
     setForm(emptyForm);
     setError('');
+    setDirty(false);
     setFormOpen(true);
   }
 
@@ -127,6 +132,7 @@ export function WebUsers() {
       role_id: user.role.id
     });
     setError('');
+    setDirty(false);
     setFormOpen(true);
     setDetail(null);
   }
@@ -251,7 +257,10 @@ export function WebUsers() {
         open={formOpen}
         onOpenChange={(open) => {
           setFormOpen(open);
-          if (!open) setEditing(null);
+          if (!open) {
+            setDirty(false);
+            setEditing(null);
+          }
         }}
         title={editing ? 'Sửa tài khoản web' : 'Thêm tài khoản web'}
         description="Tài khoản dùng session cookie để đăng nhập UI."
@@ -266,7 +275,12 @@ export function WebUsers() {
           </>
         }
       >
-        <form id="web-user-form" className="form-grid" onSubmit={submit}>
+        <form
+          id="web-user-form"
+          className="form-grid"
+          onSubmit={submit}
+          onChange={() => setDirty(true)}
+        >
           <Field label="Username" error={error || undefined}>
             <Input
               value={form.username}

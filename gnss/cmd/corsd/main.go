@@ -13,6 +13,7 @@ import (
 	"cors/gnss/internal/caster"
 	"cors/gnss/internal/config"
 	"cors/gnss/internal/db"
+	"cors/gnss/internal/probe"
 	"cors/gnss/internal/quality"
 	"cors/gnss/internal/relay"
 )
@@ -88,6 +89,17 @@ func main() {
 		casterOptions,
 	)
 
+	probeOptions := probe.DefaultOptions()
+	probeOptions.PollInterval = cfg.ProbePollInterval
+	probeOptions.DialTimeout = cfg.DialTimeout
+	probeOptions.ReadBuffer = cfg.ProbeReadBuffer
+	probeOptions.NMEAInterval = cfg.ProbeNMEAInterval
+	probeOptions.Quality = analyzer
+	probeManager := probe.NewManager(
+		probe.NewMySQLStore(adminDB, cfg.AppEncKey),
+		probeOptions,
+	)
+
 	retentionOptions := relay.RetentionOptions{
 		SessionDays: cfg.SessionRetentionDays,
 		EventDays:   cfg.EventRetentionDays,
@@ -102,6 +114,7 @@ func main() {
 	go analyzer.Run(runCtx)
 	go manager.Run(runCtx)
 	go casterManager.Run(runCtx)
+	go probeManager.Run(runCtx)
 	go relay.RunRetention(runCtx, runtimeDB, retentionOptions)
 	go runQualityRetention(runCtx, qualityStore, cfg)
 
@@ -130,6 +143,7 @@ func main() {
 	}
 	manager.Shutdown(shutdownCtx)
 	casterManager.Shutdown(shutdownCtx)
+	probeManager.Shutdown(shutdownCtx)
 	analyzer.Flush()
 	runCancel()
 

@@ -39,6 +39,10 @@ type Config struct {
 	CasterReadBuffer     int
 	CasterMaxHeaderBytes int
 
+	ProbePollInterval time.Duration
+	ProbeReadBuffer   int
+	ProbeNMEAInterval time.Duration
+
 	QualityQueueSize       int
 	QualitySampleInterval  time.Duration
 	QualityStatsInterval   time.Duration
@@ -119,6 +123,10 @@ func Load() Config {
 		CasterQueueSize:      getenvInt("CASTER_QUEUE_SIZE", 64),
 		CasterReadBuffer:     getenvInt("CASTER_READ_BUFFER", 32*1024),
 		CasterMaxHeaderBytes: getenvInt("CASTER_MAX_HEADER_BYTES", 16*1024),
+
+		ProbePollInterval: getenvSeconds("PROBE_POLL_INTERVAL_SEC", 10*time.Second),
+		ProbeReadBuffer:   getenvInt("PROBE_READ_BUFFER", 32*1024),
+		ProbeNMEAInterval: getenvSeconds("PROBE_NMEA_INTERVAL_SEC", 10*time.Second),
 
 		QualityQueueSize:       getenvInt("QUALITY_QUEUE_SIZE", 2048),
 		QualitySampleInterval:  getenvSeconds("QUALITY_SAMPLE_INTERVAL_SEC", 60*time.Second),

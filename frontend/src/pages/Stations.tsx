@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
 import type { Station } from '../types';
 import {
@@ -43,7 +44,9 @@ export function Stations() {
   const queryClient = useQueryClient();
   const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
   const [formOpen, setFormOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<Station | null>(null);
+  useDirtyGuard(dirty && formOpen);
   const [detail, setDetail] = useState<Station | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Station | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -76,6 +79,7 @@ export function Stations() {
     },
     onSuccess: async () => {
       setFormOpen(false);
+      setDirty(false);
       setEditing(null);
       setError('');
       push(editing ? 'Đã cập nhật trạm' : 'Đã thêm trạm', 'success');
@@ -100,6 +104,7 @@ export function Stations() {
     setEditing(null);
     setForm(emptyForm);
     setError('');
+    setDirty(false);
     setFormOpen(true);
   }
 
@@ -116,6 +121,7 @@ export function Stations() {
       notes: station.notes
     });
     setError('');
+    setDirty(false);
     setFormOpen(true);
     setDetail(null);
   }
@@ -228,7 +234,10 @@ export function Stations() {
         open={formOpen}
         onOpenChange={(open) => {
           setFormOpen(open);
-          if (!open) setEditing(null);
+          if (!open) {
+            setDirty(false);
+            setEditing(null);
+          }
         }}
         title={editing ? 'Sửa trạm' : 'Thêm trạm'}
         description="Thông tin trạm vật lý; không gắn trực tiếp vào relay."
@@ -243,7 +252,12 @@ export function Stations() {
           </>
         }
       >
-        <form id="station-form" className="form-grid" onSubmit={submit}>
+        <form
+          id="station-form"
+          className="form-grid"
+          onSubmit={submit}
+          onChange={() => setDirty(true)}
+        >
           <Field label="Mã trạm" error={error || undefined}>
             <Input
               value={form.code}

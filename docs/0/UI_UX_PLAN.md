@@ -186,6 +186,9 @@ Quy ước mới:
   chi tiết ở menu **Danh sách online**.
 - Caster có tab **Kết nối live** và force disconnect.
 - Trang cá nhân không nằm trong menu; mở từ avatar/tên người dùng.
+- Drawer chi tiết trạm desktop rộng **1080px**; mobile `100vw`.
+- Quality UI kiểu onocoy/CGBAS; metric thiếu dữ liệu hiện disabled + chú thích.
+- Sky Plot thật/cycle slip/RMS/latency/neighboring stations: Phase 8–9.
 - Chi tiết trường theo nhóm: `docs/0/PHASES_7_12_PLAN.md` §8.
 
 ## 10. Phụ thuộc dự kiến

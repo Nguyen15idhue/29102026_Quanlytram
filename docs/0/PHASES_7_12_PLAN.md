@@ -179,6 +179,7 @@ Quyết định đã chốt:
 - Mọi bảng server-side pagination, **mặc định 10**, luôn hiển thị kể cả `0–0 / 0`; cho chọn `10/20/50`.
 - Search debounce; filter/page lưu URL; loading/empty/error đủ.
 - CRUD dùng Dialog/Drawer; xóa dùng AlertDialog; không form inline.
+- Drawer chi tiết trạm desktop rộng **1080px**; mobile `100vw`.
 - Toolbar list: Thêm, Import, Export Excel, Tải lại.
 - Row actions: Xem, Sửa, Xóa; màn hình chất lượng có thêm “Xem chất lượng”.
 - Import: template `.xlsx`, preview, lỗi theo dòng `Line {0} column {1} {2}`, transaction, audit.
@@ -219,7 +220,7 @@ Quyết định đã chốt:
 - **Vận hành read-only:** trạng thái, dữ liệu cuối, quality, số mountpoint, phiên online.
 - **Custom fields:** trường động theo dictionary.
 
-**Popup chi tiết — tab:** Tổng quan / Kết nối / Mountpoint / Chất lượng / Lịch sử. Nút **Sửa** mở popup sửa riêng.
+**Popup chi tiết — tab:** Tổng quan / Kết nối / Mountpoint / Chất lượng / Lịch sử. Nút **Sửa** mở popup sửa riêng. Desktop rộng **1080px**.
 
 ### 8.4 CORS → Bản đồ online
 **Nhìn thấy:**
@@ -325,7 +326,11 @@ Mở khi bấm avatar/tên người dùng.
 
 ### Phase 8 — Bản đồ & chi tiết trạm
 - Bản đồ trạm Leaflet/OSM, marker trạng thái, panel danh sách.
-- Popup chi tiết trạm: Tổng quan/Kết nối/Mountpoint/Chất lượng/Lịch sử.
+- Popup chi tiết trạm: Tổng quan/Kết nối/Mountpoint/Chất lượng/Lịch sử; rộng 1080px.
+- Quality UI kiểu onocoy/CGBAS: KPI, activity timeline, metric selector,
+  constellation breakdown. Metric chưa có dữ liệu hiện **disabled** + chú thích.
+- Sky Plot thật/cycle slip/RMS/latency/neighboring stations: **Phase 8–9**,
+  cần ephemeris/GSV/raw observation; không hiện số giả.
 - Bản đồ online: marker tài khoản có toạ độ; badge số tài khoản không gửi toạ độ.
 - Danh sách online: bảng chi tiết, filter, export; force disconnect nếu có quyền.
 
@@ -369,3 +374,5 @@ Mở khi bấm avatar/tên người dùng.
 - `CASTER_PORT=1509` trong `.env.local`.
 - Graphify cập nhật: 1734 nodes, 4486 edges, 112 communities.
 - Ghi nhận khảo sát CGBAS, menu/field spec và quyết định `exceljs`/online map/import user/caster live.
+- Đã nối probe runner Go, sửa aggregate satellite theo chòm, thêm audit API/tab Audit,
+  load 50 job PASS; giữ 2 relay + 2 station + 2 probe đang bật.

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FlaskConical, Pencil, Play, Plus, RotateCw, Square, Trash2 } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
 import type { RelayJob } from '../types';
 import {
@@ -52,7 +53,9 @@ export function RelayJobs() {
   const queryClient = useQueryClient();
   const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
   const [formOpen, setFormOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<RelayJob | null>(null);
+  useDirtyGuard(dirty && formOpen);
   const [detail, setDetail] = useState<RelayJob | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RelayJob | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -90,6 +93,7 @@ export function RelayJobs() {
     },
     onSuccess: async () => {
       setFormOpen(false);
+      setDirty(false);
       setEditing(null);
       setError('');
       push(editing ? 'Đã cập nhật relay job' : 'Đã thêm relay job', 'success');
@@ -127,6 +131,7 @@ export function RelayJobs() {
     setEditing(null);
     setForm(emptyForm);
     setError('');
+    setDirty(false);
     setFormOpen(true);
   }
 
@@ -144,6 +149,7 @@ export function RelayJobs() {
       downstreamMode: job.downstreamMode
     });
     setError('');
+    setDirty(false);
     setFormOpen(true);
     setDetail(null);
   }
@@ -313,7 +319,10 @@ export function RelayJobs() {
         open={formOpen}
         onOpenChange={(open) => {
           setFormOpen(open);
-          if (!open) setEditing(null);
+          if (!open) {
+            setDirty(false);
+            setEditing(null);
+          }
         }}
         title={editing ? 'Sửa relay job' : 'Thêm relay job'}
         description="Cấu hình bridge upstream → downstream."
@@ -329,7 +338,12 @@ export function RelayJobs() {
           </>
         }
       >
-        <form id="relay-form" className="form-grid" onSubmit={submit}>
+        <form
+          id="relay-form"
+          className="form-grid"
+          onSubmit={submit}
+          onChange={() => setDirty(true)}
+        >
           <Field label="Tên" error={error || undefined}>
             <Input
               value={form.name}

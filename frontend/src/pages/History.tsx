@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { History as HistoryIcon } from 'lucide-react';
 import { apiFetch } from '../api/client';
+import { useAuth } from '../auth/AuthProvider';
 import { useListParams } from '../lib/useListParams';
 import type {
+  AuditLog,
   RelayEvent,
   RelayHourly,
   RelayJob,
@@ -16,6 +18,7 @@ import {
   Input,
   PageHeader,
   Pagination,
+  SearchInput,
   Select,
   StatusBadge,
   Tabs
@@ -28,11 +31,16 @@ interface HistoryList {
   total: number;
 }
 
+interface AuditList {
+  items: AuditLog[];
+  total: number;
+}
+
 interface RelayJobList {
   items: RelayJob[];
 }
 
-type TabValue = 'sessions' | 'events' | 'hourly';
+type TabValue = 'sessions' | 'events' | 'hourly' | 'audit';
 
 function formatLocal(value: string | null): string {
   if (!value) return '—';
@@ -59,8 +67,9 @@ function closeKind(reason: string): 'ok' | 'warn' | 'error' | 'neutral' {
 }
 
 export function History() {
+  const { can } = useAuth();
   const [tab, setTab] = useState<TabValue>('sessions');
-  const { page, pageSize, setPage, setPageSize, getParam, setParam } = useListParams();
+  const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } = useListParams();
   const jobId = getParam('jobId');
   const from = getParam('from');
   const to = getParam('to');
@@ -72,6 +81,7 @@ export function History() {
 
   const list = useQuery({
     queryKey: ['relay-history', tab, page, pageSize, jobId, from, to],
+    enabled: tab !== 'audit',
     queryFn: () => {
       const params = new URLSearchParams({
         page: String(page),
@@ -84,6 +94,21 @@ export function History() {
     }
   });
 
+  const audit = useQuery({
+    queryKey: ['audit-logs', page, pageSize, q, from, to],
+    enabled: tab === 'audit' && can('audit', 'view'),
+    queryFn: () => {
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize)
+      });
+      if (q) params.set('q', q);
+      if (from) params.set('from', toIso(from));
+      if (to) params.set('to', toIso(to));
+      return apiFetch<AuditList>(`/api/audit-logs?${params.toString()}`);
+    }
+  });
+
   useEffect(() => {
     setPage(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -92,8 +117,12 @@ export function History() {
   return (
     <section className="page">
       <PageHeader
-        title="Lịch sử relay"
-        description="Phiên, sự kiện và thống kê giờ theo phạm vi quyền."
+        title={tab === 'audit' ? 'Lịch sử thao tác' : 'Lịch sử relay'}
+        description={
+          tab === 'audit'
+            ? 'Audit thao tác quản trị, đã redact secret.'
+            : 'Phiên, sự kiện và thống kê giờ theo phạm vi quyền.'
+        }
         actions={<HistoryIcon size={20} className="muted" aria-hidden="true" />}
       />
 
@@ -103,22 +132,31 @@ export function History() {
         options={[
           { value: 'sessions', label: 'Phiên' },
           { value: 'events', label: 'Sự kiện' },
-          { value: 'hourly', label: 'Theo giờ' }
+          { value: 'hourly', label: 'Theo giờ' },
+          ...(can('audit', 'view')
+            ? [{ value: 'audit' as const, label: 'Audit' }]
+            : [])
         ]}
       />
 
       <div className="panel">
         <div className="table-head history-filters">
-          <Field label="Relay job">
-            <Select value={jobId} onChange={(event) => setParam('jobId', event.target.value)}>
-              <option value="">Tất cả</option>
-              {jobs.data?.items.map((job) => (
-                <option key={job.id} value={job.id}>
-                  {job.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+          {tab === 'audit' ? (
+            <Field label="Tìm kiếm">
+              <SearchInput value={q} onChange={setQ} placeholder="Người dùng, hành động, đối tượng" />
+            </Field>
+          ) : (
+            <Field label="Relay job">
+              <Select value={jobId} onChange={(event) => setParam('jobId', event.target.value)}>
+                <option value="">Tất cả</option>
+                {jobs.data?.items.map((job) => (
+                  <option key={job.id} value={job.id}>
+                    {job.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
           <Field label="Từ (giờ máy)">
             <Input
               type="datetime-local"
@@ -269,10 +307,54 @@ export function History() {
           />
         )}
 
+        {tab === 'audit' && (
+          <DataTable
+            items={audit.data?.items ?? []}
+            rowKey={(row) => `a-${row.id}`}
+            loading={audit.isLoading}
+            error={audit.isError ? 'Không tải được audit.' : undefined}
+            empty="Chưa có bản ghi audit."
+            columns={[
+              {
+                key: 'time',
+                header: 'Thời điểm',
+                cell: (row) => <span className="mono">{formatLocal(row.createdAt)}</span>
+              },
+              {
+                key: 'actor',
+                header: 'Người thực hiện',
+                cell: (row) => <strong>{row.actorName || `#${row.actorId ?? '—'}`}</strong>
+              },
+              {
+                key: 'action',
+                header: 'Hành động',
+                cell: (row) => <StatusBadge label={row.action} />
+              },
+              {
+                key: 'entity',
+                header: 'Đối tượng',
+                hideOnMobile: true,
+                cell: (row) => (
+                  <span className="mono">
+                    {row.entityType}
+                    {row.entityId ? ` #${row.entityId}` : ''}
+                  </span>
+                )
+              },
+              {
+                key: 'ip',
+                header: 'IP',
+                hideOnMobile: true,
+                cell: (row) => <span className="mono">{row.ip || '—'}</span>
+              }
+            ]}
+          />
+        )}
+
         <Pagination
           page={page}
           pageSize={pageSize}
-          total={list.data?.total ?? 0}
+          total={tab === 'audit' ? audit.data?.total ?? 0 : list.data?.total ?? 0}
           onPageChange={setPage}
           onPageSizeChange={setPageSize}
         />

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
 import type { Mountpoint, Station } from '../types';
 import {
@@ -43,7 +44,9 @@ export function Mountpoints() {
   const queryClient = useQueryClient();
   const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
   const [formOpen, setFormOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<Mountpoint | null>(null);
+  useDirtyGuard(dirty && formOpen);
   const [detail, setDetail] = useState<Mountpoint | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Mountpoint | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -77,6 +80,7 @@ export function Mountpoints() {
     },
     onSuccess: async () => {
       setFormOpen(false);
+      setDirty(false);
       setEditing(null);
       setError('');
       push(editing ? 'Đã cập nhật mountpoint' : 'Đã thêm mountpoint', 'success');
@@ -101,6 +105,7 @@ export function Mountpoints() {
     setEditing(null);
     setForm(emptyForm);
     setError('');
+    setDirty(false);
     setFormOpen(true);
   }
 
@@ -113,6 +118,7 @@ export function Mountpoints() {
       requires_auth: Boolean(item.requires_auth)
     });
     setError('');
+    setDirty(false);
     setFormOpen(true);
     setDetail(null);
   }
@@ -230,7 +236,10 @@ export function Mountpoints() {
         open={formOpen}
         onOpenChange={(open) => {
           setFormOpen(open);
-          if (!open) setEditing(null);
+          if (!open) {
+            setDirty(false);
+            setEditing(null);
+          }
         }}
         title={editing ? 'Sửa mountpoint' : 'Thêm mountpoint'}
         description="Endpoint dữ liệu; có thể chưa gắn trạm."
@@ -245,7 +254,12 @@ export function Mountpoints() {
           </>
         }
       >
-        <form id="mountpoint-form" className="form-grid" onSubmit={submit}>
+        <form
+          id="mountpoint-form"
+          className="form-grid"
+          onSubmit={submit}
+          onChange={() => setDirty(true)}
+        >
           <Field label="Tên mountpoint" error={error || undefined}>
             <Input
               value={form.name}

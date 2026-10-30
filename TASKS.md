@@ -9,9 +9,9 @@
 | 2 | Port relay & test mock | DONE | Phase 1 |
 | 3 | Quản trị trạm & relay ổn định | DONE | Phase 2 |
 | 3.5 | UI/UX Foundation | DONE | Phase 3 |
-| 4 | NTRIP caster & quản lý client | DONE | Phase 3.5 |
-| 5 | Realtime, dashboard, vận hành | DONE (defer UI nâng cao/Taste auth) | Phase 4 |
-| 6 | RTCM Analytics & chất lượng trạm/relay | DONE (mock; probe runner + load 6-T13 defer) | Phase 3.5–5 |
+| 4 | NTRIP caster & quản lý client | DONE (mock + real allowlist 2 relay/2 station) | Phase 3.5 |
+| 5 | Realtime, dashboard, vận hành | DONE (defer Taste auth) | Phase 4 |
+| 6 | RTCM Analytics & chất lượng trạm/relay | DONE (mock + real probe; load 50 PASS) | Phase 3.5–5 |
 | 7 | Nền tảng UI & Trạm danh sách | TODO (ưu tiên 1) | Phase 5–6 |
 | 8 | Bản đồ & chi tiết trạm | TODO | Phase 7 |
 | 9 | CORS: NTRIP, mountpoint, caster | TODO | Phase 7–8 |
@@ -273,16 +273,16 @@ Chi tiết: `docs/0/UI_UX_PLAN.md`.
 - [x] Bỏ toàn bộ form inline khỏi page/table
 - [x] Create/Edit trong Dialog; mobile full-screen Drawer
 - [x] View trong Drawer; Delete/Disable trong AlertDialog
-- [x] Field error, submit disabled khi lưu; toast sau mutation (dirty guard defer)
+- [x] Field error, submit disabled khi lưu; toast sau mutation; dirty guard form chính
 
 ### U-04 Table & pagination
 - [x] DataTable: sticky header, row 48px, số căn phải, action cột cuối
 - [x] Server pagination 20 (10/20/50); `page/pageSize/q/status` lưu URL
-- [x] Search debounce 300ms; empty/loading/error có action/retry (filter nâng cao defer)
+- [x] Search debounce 300ms; empty/loading/error có action/retry; filter nâng cao chuyển Phase 7
 - [x] Mobile: row 2 dòng; ẩn cột phụ; không tràn ngang
 
 ### U-05 Refactor màn hình hiện có
-- [x] Dashboard: KPI strip + quick actions (recent activity defer)
+- [x] Dashboard: KPI strip + quick actions + recent audit activity
 - [x] Stations/Mountpoints: table + dialog/drawer + phân trang
 - [x] Relay: state/applied revision + detail drawer + actions menu
 - [x] TK NTRIP: CRUD dialog + ACL drawer/tab
@@ -303,7 +303,8 @@ inspect 0 FAIL cả light/dark.
 **Ghi chú Phase 3.5 (2026-10-30):** shell cố định + dark mode + Dialog/Drawer/
 AlertDialog + DataTable/pagination + lucide + toast/a11y đã xong; Playwright
 login/CRUD light-dark/mobile PASS; `inspect.mjs --app` login 0 FAIL.
-Defer: dirty guard, filter nâng cao, recent activity; không chặn Phase 4.
+Đã bổ sung dirty guard form chính, recent audit activity. Filter nâng cao
+chuyển Phase 7 (theo menu/field mới); không chặn Phase 4.
 
 ---
 
@@ -326,15 +327,15 @@ mock trước khi mở cổng thật.
 - [x] RTCM monitor; counters
 - [x] API/UI quản lý listener + gắn mountpoint
 - [x] Mock caster/rover cho caster mới
-- [ ] Integration allowlist Q10: 1 upstream + 1 downstream, credential ngoài repo, cleanup (defer)
+- [x] Integration allowlist Q10: 2 relay + 2 station thật, credential ngoài repo, giữ cấu hình
 
 **Nghiệm thu Phase 4:** mock PASS v1/v1-auth/v2, multi-client, ACL, max conn,
 slow client; listener 1509 và nhóm 1508 đúng; chỉ mở cổng thật sau khi mock đạt.
 
 **Ghi chú Phase 4 (2026-10-30):** migration admin 004 + runtime 003 đã apply;
 Go caster tests 7 PASS; E2E source/rover 1509 byte-exact PASS; Caster UI +
-Playwright route PASS; health Node 4 / Go 3. Q10 real allowlist chưa chạy
-(defer, credential ngoài repo). Hot reload Vite polling 1s đã bật.
+Playwright route PASS; health Node 4 / Go 3. Q10 real allowlist đã chạy với
+2 relay + 2 station thật, credential ngoài repo. Hot reload Vite polling 1s đã bật.
 
 ---
 
@@ -356,7 +357,7 @@ load test; tài liệu vận hành.
 - [x] Dashboard tổng trạm/relay/client/alert
 - [x] History sessions/events/timeline
 - [x] Alert + ack
-- [ ] Role UI nâng cao + audit (defer; audit API chưa mở)
+- [x] Role UI nâng cao + audit (sửa role; API `/api/audit-logs`; tab Audit)
 - [x] Loading/empty/error; confirm thao tác nguy hiểm
 - [ ] Taste `inspect.mjs --app` 0 FAIL 1440/768/390 (defer; inspect không auth)
 - [x] Test luồng + phân quyền + a11y
@@ -378,7 +379,8 @@ test chức năng.
 Socket.IO session cookie, room + scope filter, polling 1 s; API snapshot/alerts/
 history; UI Dashboard realtime, Cảnh báo, Lịch sử; backup/restore ngoài repo;
 load test mock 20/20 streaming; Node Vitest 29/29, Playwright realtime 2/2,
-Go test/vet PASS. Defer: Role UI nâng cao/audit API, Taste inspect sau auth.
+Go test/vet PASS. Đã bổ sung Role UI sửa role + audit API/tab Audit.
+Defer: Taste inspect sau auth.
 
 ---
 
@@ -455,17 +457,19 @@ P6-01/P6-02 có thể bắt đầu ngay sau Phase 3; P6-03 cần Phase 4 cho cas
       tổng hợp — kế hoạch chi tiết ở Phase 10 P10-05 sau khi P6-04 có type/level
 
 ### P6-07 Test & hardening
-- [x] Unit parser/quality/score; mock stream; DB down/up; restart
+- [x] Unit parser/quality/score; mock stream; DB down/up; restart (DB down/up PASS 2026-10-30)
 - [x] Byte-exact khi analyzer chạy; queue đầy không block
 - [x] Station ingest + station probe GET-only; relay upstream/downstream/parity
 - [x] API/RBAC/socket/scope; không raw payload/secret trong log
-- [ ] Load 50–100 station/job; CPU/RAM/p95; license go-rtcm (6-T13 chưa chạy)
+- [x] Load 50 job mock: 50/50 streaming PASS; license go-rtcm Apache-2.0
+- [x] Aggregate satellite/signal/cell theo chòm; constellation breakdown
+- [x] Probe runner Go GET-only cho station_probes; real 2 trạm streaming
 - [x] Tài liệu vận hành + cập nhật SESSION
 
 **Nghiệm thu Phase 6:** parse đúng type chính; byte-exact; chất lượng đúng cho
 cả trạm thường và trạm relay; score/alert đúng ngưỡng; realtime < 2 s;
 không lộ dữ liệu ngoài scope. Đã PASS unit/Go, API/RBAC/socket Node,
-Playwright UI; 6-T13 load 50–100 chưa chạy, probe runner defer.
+Playwright UI, load 50 job, real probe 2 trạm. Taste inspect sau auth defer.
 
 ---
 
@@ -531,8 +535,10 @@ import/export `.xlsx`; trạm đủ trường; test PASS.
 ### Phase 8 — Bản đồ & chi tiết trạm
 - [ ] P8-01 Bản đồ trạm Leaflet/OSM (D46), marker trạng thái, panel danh sách;
       không hiện relay.
-- [ ] P8-02 Popup chi tiết trạm: Tổng quan / Kết nối / Mountpoint / Chất lượng
-      / Lịch sử; nút Sửa mở popup riêng.
+- [ ] P8-02 Popup chi tiết trạm rộng **1080px**: Tổng quan / Kết nối /
+      Mountpoint / Chất lượng / Lịch sử; nút Sửa mở popup riêng.
+- [ ] P8-05 Quality UI kiểu onocoy/CGBAS; metric thiếu dữ liệu disabled;
+      Sky Plot thật/cycle slip/RMS/latency/neighboring stations để Phase 8–9.
 - [ ] P8-03 Bản đồ online: marker chỉ tài khoản NTRIP **có gửi toạ độ**;
       badge/tổng “x tài khoản không gửi tọa độ”.
 - [ ] P8-04 Danh sách online: bảng chi tiết tài khoản online, filter, export;

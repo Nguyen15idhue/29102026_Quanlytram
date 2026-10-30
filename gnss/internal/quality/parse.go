@@ -10,26 +10,29 @@ import (
 )
 
 type messageInfo struct {
-	Number     int
-	Unknown    bool
-	MSM        bool
-	Satellites int
-	Signals    int
-	Cells      int
-	CNRSum     float64
-	CNRCount   int
-	Has1005    bool
-	Has1006    bool
-	Has1007    bool
-	Has1008    bool
-	Has1033    bool
-	HasStation bool
-	StationID  uint16
-	HasARP     bool
-	ARPX       int64
-	ARPY       int64
-	ARPZ       int64
-	Antenna    string
+	Number        int
+	Unknown       bool
+	MSM           bool
+	Satellites    int
+	Signals       int
+	Cells         int
+	SatelliteMask uint64
+	SignalMask    uint32
+	CellMask      uint64
+	CNRSum        float64
+	CNRCount      int
+	Has1005       bool
+	Has1006       bool
+	Has1007       bool
+	Has1008       bool
+	Has1033       bool
+	HasStation    bool
+	StationID     uint16
+	HasARP        bool
+	ARPX          int64
+	ARPY          int64
+	ARPZ          int64
+	Antenna       string
 }
 
 func normalizeText(value string) string {
@@ -142,6 +145,9 @@ func decodeMessage(payload []byte) (info messageInfo, err error) {
 		info.Satellites = header.SatelliteCount()
 		info.Signals = bits.OnesCount32(header.SignalMask)
 		info.Cells = bits.OnesCount64(header.CellMask)
+		info.SatelliteMask = header.SatelliteMask
+		info.SignalMask = header.SignalMask
+		info.CellMask = header.CellMask
 		info.HasStation = true
 		info.StationID = header.ReferenceStationId
 		if info.Number%10 == 7 {

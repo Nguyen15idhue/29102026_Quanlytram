@@ -2,16 +2,16 @@
 
 ## 1. Thông tin phiên
 
-- Thời điểm: 2026-10-30 17:50 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: Phase 6 — DONE (mock; probe runner + load 6-T13 defer)
+- Thời điểm: 2026-10-30 18:50 (Asia/Ho_Chi_Minh, +07:00)
+- Phase hiện tại: Phase 6 — DONE (mock + real probe; load 50 PASS; Taste auth defer)
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
 - Trạng thái Phase 3: DONE
 - Trạng thái Phase 3.5: DONE (UI/UX Foundation)
-- Trạng thái Phase 4: DONE (mock; Q10 allowlist defer)
-- Trạng thái Phase 5: DONE (realtime/dashboard/history/alerts/ops)
-- Trạng thái Phase 6: DONE (mock; panel nhúng popup trạm/relay; probe runner defer)
+- Trạng thái Phase 4: DONE (mock + real allowlist 2 relay/2 station)
+- Trạng thái Phase 5: DONE (realtime/dashboard/history/alerts/ops + audit)
+- Trạng thái Phase 6: DONE (mock + real probe; load 50 PASS; Taste auth defer)
 - Trạng thái Phase 7–12: PLANNED (roadmap chi tiết trong `docs/0/PHASES_7_12_PLAN.md`)
 - Người thực hiện: OpenCode
 
@@ -488,8 +488,9 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - Rebuild web Docker; health Node `schemaVersion=6`.
 - Test: `go test ./...` PASS; `npm test` server 33/33 PASS; Playwright 5/5
   PASS (quality embedded, edit tách, mobile/dark mode).
-- Chưa chạy: load 6-T13 50–100 station/job; Taste `inspect.mjs` sau auth;
-  probe runner defer.
+- Đã bổ sung: probe runner Go, aggregate chòm sao, audit API/tab Audit,
+  load 50 job PASS, real 2 relay/2 station streaming, DB down/up PASS.
+- Còn defer: Taste `inspect.mjs` sau auth (Phase 8 UI).
 
 ### 8.12. Khảo sát CGBAS lần 2 & roadmap 7–12 (2026-10-30)
 
@@ -515,6 +516,14 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   CRUD + tab live/force disconnect.
 - Cập nhật `TASKS.md`, `KE_HOACH` §7.11/§14, `CAC_BUOC`, `UI_UX_PLAN`,
   `RTCM_QUALITY_PLAN` §12, `README`, `AGENTS`.
+- Đã hoàn thiện tồn đọng Phase 4–6:
+  - Probe runner Go đọc `station_probes`, GET-only, feed quality station.
+  - Aggregate satellite/signal/cell theo chòm; station 79 = 31 SV, station 80 = 38 SV.
+  - Audit API `/api/audit-logs` + tab Audit + recent activity dashboard; sửa role.
+  - Load test mock 50 job: 50/50 streaming PASS.
+  - Giữ 2 relay + 2 station + 2 probe đang bật; config thật ở `secrets/` (ignored).
+- Quyết định UI: drawer trạm 1080px; metric thiếu dữ liệu disabled; Sky Plot
+  thật/cycle slip/RMS/latency/neighboring stations chuyển Phase 8–9.
 - Chưa triển khai code Phase 7; thứ tự: 7 (UI/list/trạm) → 8 (map/detail/online)
   → 9 (CORS) → 10 (Relay/Hệ thống) → 11 (cá nhân/config/report) → 12 (hardening).
 
@@ -554,8 +563,11 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 | Phase 6 | `frontend/src/components/{QualityPanel,charts}.tsx`, `pages/{Stations,RelayJobs}.tsx` | Panel nhúng popup, bỏ menu quality |
 | Phase 6 | `frontend/tests/quality.spec.ts`, `server/tests/quality.test.ts` | Test UI embedded + API |
 | Hotfix | `frontend/Stations.tsx`, `server/routes/{stations,relayJobs}.ts`, `admin/001,002,007`, `seed.ts`, `.env.local` | Default port 1509 |
+| Phase 6 | `gnss/internal/probe/*`, `gnss/cmd/corsd/main.go`, `quality/{analyzer,parse}.go` | Probe runner + aggregate chòm sao |
+| Phase 5 | `server/src/routes/audit.ts`, `frontend/src/pages/{History,Dashboard,Roles}.tsx` | Audit API/tab + sửa role + recent activity |
+| Test | `scripts/load-test-mock.ps1` 50 job | 50/50 streaming PASS; real 2 relay/2 station |
 | Docs | `docs/0/PHASES_7_12_PLAN.md`, `TASKS`, `KE_HOACH`, `CAC_BUOC`, `UI_UX_PLAN`, `RTCM_QUALITY_PLAN`, `README`, `AGENTS`, `SESSION` | Menu/UI field spec + quyết định D50–D53 |
 
 ## 10. Cập nhật lần cuối
 
-- 2026-10-30 17:50 +07:00
+- 2026-10-30 18:50 +07:00

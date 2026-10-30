@@ -548,7 +548,7 @@ function publicProbe(row: any) {
     ownerWebUserId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    runner: 'deferred'
+    runner: 'go'
   };
 }
 

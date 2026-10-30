@@ -695,11 +695,15 @@ P6-01/P6-02 có thể bắt đầu sau Phase 3.
 | 6-T6 | Metadata/ARP | unit | alert đúng | NOT RUN | |
 | 6-T7 | Relay parity | mock | phát hiện suy giảm | NOT RUN | |
 | 6-T8 | Station ingest/probe | integration | đúng chất lượng trạm | NOT RUN | |
-| 6-T9 | DB down/up | integration | không chặn RTCM | NOT RUN | |
+| 6-T9 | DB down/up | integration | không chặn RTCM | PASS | MySQL stop/start; relays recovered |
 | 6-T10 | API/RBAC | API | đúng scope station/relay | NOT RUN | |
 | 6-T11 | Socket | FE/socket | <2 s, đúng quyền | NOT RUN | |
 | 6-T12 | FE/Taste | inspect | 0 FAIL + luồng đúng | NOT RUN | |
 | 6-T13 | Load/license | script | không crash | NOT RUN | |
+
+**Kết quả thực tế 2026-10-30:** Go test PASS; Node 33/33; Playwright 5/5;
+load mock 50/50 streaming; real 2 relay streaming; probe 2 trạm cho 31/38 SV.
+6-T9 DB down/up PASS (relay tự phục hồi); Taste inspect sau auth defer Phase 8.
 
 ## 6.5. Ghi chú
 - Không tuyên bố PASS khi chưa có bằng chứng.
@@ -831,10 +835,12 @@ disconnect.
 
 ### Phase 8 — Bản đồ & chi tiết trạm
 - [ ] P8-01 Bản đồ trạm Leaflet/OSM, marker trạng thái, panel danh sách
-- [ ] P8-02 Popup chi tiết trạm: Tổng quan/Kết nối/Mountpoint/Chất lượng/Lịch sử
+- [ ] P8-02 Popup chi tiết trạm rộng 1080px: Tổng quan/Kết nối/Mountpoint/Chất lượng/Lịch sử
 - [ ] P8-03 Bản đồ online: marker tài khoản có toạ độ + tổng số không tọa độ
 - [ ] P8-04 Danh sách online: bảng chi tiết, filter, export, force disconnect
-- [ ] P8-05 Test G8
+- [ ] P8-05 Quality UI kiểu onocoy/CGBAS; metric thiếu dữ liệu disabled;
+      Sky Plot thật/cycle slip/RMS/latency/neighboring stations Phase 8–9
+- [ ] P8-06 Test G8
 
 ### Phase 9 — CORS
 - [ ] P9-01 Tài khoản NTRIP CRUD/ACL/hiệu lực/import/export/online
@@ -872,6 +878,7 @@ disconnect.
 - Online map: chỉ marker tài khoản có toạ độ; không có toạ độ → chỉ đếm/tổng.
 - Import user: không cột password; mật khẩu mặc định `123456`; audit.
 - Caster: listener CRUD + live/force disconnect.
+- Drawer chi tiết trạm desktop 1080px; metric thiếu dữ liệu disabled.
 - Dictionary không hardcode option; RBAC/audit/redaction đúng.
 
 ## 7.4. Checklist test

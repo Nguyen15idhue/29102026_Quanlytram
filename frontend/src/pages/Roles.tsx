@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { useDirtyGuard } from '../lib/useDirtyGuard';
 import type { Role, Scope } from '../types';
 import {
   Button,
@@ -43,6 +44,9 @@ export function Roles() {
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [scopes, setScopes] = useState<Record<string, Scope>>({});
   const [formOpen, setFormOpen] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [editingRole, setEditingRole] = useState<Role | null>(null);
+  useDirtyGuard(dirty && formOpen);
   const [deleteTarget, setDeleteTarget] = useState<Role | null>(null);
   const [newRole, setNewRole] = useState(emptyRole);
   const [error, setError] = useState('');
@@ -91,8 +95,8 @@ export function Roles() {
 
   const create = useMutation({
     mutationFn: () =>
-      apiFetch('/api/roles', {
-        method: 'POST',
+      apiFetch(editingRole ? `/api/roles/${editingRole.id}` : '/api/roles', {
+        method: editingRole ? 'PATCH' : 'POST',
         csrfToken,
         body: {
           code: newRole.code,
@@ -103,9 +107,11 @@ export function Roles() {
       }),
     onSuccess: async () => {
       setFormOpen(false);
+      setDirty(false);
+      setEditingRole(null);
       setNewRole(emptyRole);
       setError('');
-      push('Đã tạo role', 'success');
+      push(editingRole ? 'Đã cập nhật role' : 'Đã tạo role', 'success');
       await queryClient.invalidateQueries({ queryKey: ['roles'] });
     },
     onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Tạo role thất bại')
@@ -138,6 +144,27 @@ export function Roles() {
     create.mutate();
   }
 
+  function openCreateRole() {
+    setEditingRole(null);
+    setNewRole(emptyRole);
+    setError('');
+    setDirty(false);
+    setFormOpen(true);
+  }
+
+  function openEditRole(role: Role) {
+    setEditingRole(role);
+    setNewRole({
+      code: role.code,
+      name: role.name,
+      level: role.level,
+      description: role.description
+    });
+    setError('');
+    setDirty(false);
+    setFormOpen(true);
+  }
+
   return (
     <section className="page">
       <PageHeader
@@ -145,7 +172,7 @@ export function Roles() {
         description="Ma trận view/add/edit/delete + scope all/subtree/own."
         actions={
           can('roles', 'add') && (
-            <Button variant="primary" onClick={() => setFormOpen(true)}>
+            <Button variant="primary" onClick={openCreateRole}>
               <Plus size={16} aria-hidden="true" /> Tạo role
             </Button>
           )
@@ -192,6 +219,14 @@ export function Roles() {
                 </div>
                 <div className="row-actions">
                   {Number(selected.is_system) === 1 && <StatusBadge label="Hệ thống" />}
+                  {can('roles', 'edit') && Number(selected.is_system) === 0 && (
+                    <IconButton
+                      label={`Sửa role ${selected.code}`}
+                      onClick={() => openEditRole(selected)}
+                    >
+                      <Pencil size={16} aria-hidden="true" />
+                    </IconButton>
+                  )}
                   {can('roles', 'delete') && Number(selected.is_system) === 0 && (
                     <IconButton
                       label={`Xóa role ${selected.code}`}
@@ -258,11 +293,13 @@ export function Roles() {
         onOpenChange={(open) => {
           setFormOpen(open);
           if (!open) {
+            setDirty(false);
+            setEditingRole(null);
             setNewRole(emptyRole);
             setError('');
           }
         }}
-        title="Tạo role"
+        title={editingRole ? 'Sửa role' : 'Tạo role'}
         description="Role custom có level 1–99."
         footer={
           <>
@@ -270,17 +307,23 @@ export function Roles() {
               Hủy
             </Button>
             <Button variant="primary" type="submit" form="role-form" loading={create.isPending}>
-              Tạo role
+              {editingRole ? 'Cập nhật' : 'Tạo role'}
             </Button>
           </>
         }
       >
-        <form id="role-form" className="form-grid" onSubmit={createRole}>
+        <form
+          id="role-form"
+          className="form-grid"
+          onSubmit={createRole}
+          onChange={() => setDirty(true)}
+        >
           <Field label="Code" error={error || undefined}>
             <Input
               value={newRole.code}
               onChange={(event) => setNewRole({ ...newRole, code: event.target.value })}
               placeholder="operator"
+              disabled={Boolean(editingRole)}
               required
             />
           </Field>

@@ -1,4 +1,4 @@
-import express from 'express';
+﻿import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -21,6 +21,7 @@ import { alertsRouter } from './routes/alerts';
 import { historyRouter } from './routes/history';
 import { snapshotRouter } from './routes/snapshot';
 import { qualityRouter } from './routes/quality';
+import { auditRouter } from './routes/audit';
 
 const logger = pino({
   level: config.logLevel,
@@ -123,6 +124,7 @@ app.use('/api/alerts', alertsRouter);
 app.use('/api/history', historyRouter);
 app.use('/api/snapshot', snapshotRouter);
 app.use('/api', qualityRouter);
+app.use('/api/audit-logs', auditRouter);
 
 app.use(notFound);
 app.use(errorHandler);

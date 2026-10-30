@@ -532,6 +532,8 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
   - D52: Import người dùng không có cột password; mật khẩu mặc định `123456`;
     không export password.
   - D53: Caster listener CRUD + tab live/force disconnect.
+- Drawer chi tiết trạm 1080px; metric thiếu dữ liệu disabled; Sky Plot thật/
+  cycle slip/RMS/latency/neighboring stations để Phase 8–9.
 - Roadmap 7–12:
   - **7** Nền tảng UI & Trạm danh sách: menu, shared list/pagination 10,
     import/export `.xlsx`, hồ sơ trạm, form/list.

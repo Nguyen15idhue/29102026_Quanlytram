@@ -379,3 +379,16 @@ export interface StationProbe {
   updatedAt: string;
   runner: string;
 }
+
+export interface AuditLog {
+  id: number;
+  actorId: number | null;
+  actorName: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  before: unknown;
+  after: unknown;
+  ip: string;
+  createdAt: string;
+}
