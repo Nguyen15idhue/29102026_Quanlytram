@@ -7,6 +7,7 @@ Nguồn sự thật đầy đủ nằm ở:
 
 - `docs/0/KE_HOACH_CHI_TIET.md` (v2)
 - `docs/0/CAC_BUOC_THUC_HIEN.md` (v2)
+- `docs/0/RTCM_QUALITY_PLAN.md` (Phase 6)
 - `docs/0/XÂY DỰNG HỆ THỐNG QUẢN LÝ TRẠM CORS.docx` (yêu cầu gốc)
 
 Nếu tài liệu này mâu thuẫn với docs v2, docs v2 thắng.
@@ -22,6 +23,7 @@ giám sát realtime và cấu hình hệ thống.
 - Frontend: React + Vite + TypeScript + Socket.IO client.
 - Management: Node.js + Express + TypeScript + Socket.IO server.
 - GNSS/relay: Go.
+- RTCM parser: `github.com/go-gnss/rtcm` (Apache-2.0), parse-only.
 - Database: MySQL only (hai schema `cors_admin`, `cors_runtime`).
 - Triển khai: Docker Compose.
 - Không dùng Redis, Kafka, RabbitMQ, Kubernetes.
@@ -84,7 +86,14 @@ giám sát realtime và cấu hình hệ thống.
 
 - Relay bridge: GET upstream -> POST/SOURCE downstream, passthrough nguyên byte.
 - Caster: Phase 4; v1 legacy, v1 auth, v2.
-- RTCM monitor chỉ parse để đếm; không sửa byte.
+- RTCM monitor/analyzer chỉ parse để đếm/đo; không sửa byte, không serialize lại.
+- Chất lượng dùng chung cho `station` (ingest) và `relay_job` (upstream/downstream)
+  theo `target_type` + `target_id` + `direction`; không FK giữa relay và station.
+- Trạm thường lấy từ caster ingest hoặc station probe GET-only (mặc định disabled).
+- Analyzer dùng queue giới hạn; đầy thì drop sample, không chặn relay/caster.
+- Không lưu raw RTCM/payload; chỉ aggregate/sample; không auto-disable job/probe.
+- Realtime quality: Go RAM -> Node pull internal API -> Socket.IO; Node không trên đường byte.
+- Kế hoạch chi tiết: `docs/0/RTCM_QUALITY_PLAN.md` (Phase 6).
 - Phân biệt rõ `HTTP 200`, `ICY 200`, `SOURCETABLE 200` theo ngữ cảnh.
 - Không test thật với mountpoint công cộng; chỉ endpoint được phép.
 - Loop guard: self-loop + cycle nội bộ; ghi rõ giới hạn với hệ thống ngoài.

@@ -7,11 +7,17 @@ giám sát realtime và cấu hình hệ thống.
 > Trạng thái hiện tại: **Phase 2 — Port relay & test mock (DONE)**.
 > Hệ thống chạy end-to-end với MySQL, Node API, Go relay bridge và React UI.
 > Relay đã được kiểm thử byte-exact bằng mock; chưa chạm caster thật.
+>
+> Kế hoạch bổ sung **Phase 6 — RTCM Analytics & chất lượng trạm/relay**:
+> parse RTCM3 bằng `go-gnss/rtcm`, đánh giá chất lượng cho trạm thường và
+> trạm relay, có API + realtime + FE quản trị. Xem
+> `docs/0/RTCM_QUALITY_PLAN.md`.
 
 ## 1. Tài liệu
 
 - `docs/0/KE_HOACH_CHI_TIET.md` — kế hoạch chi tiết (v2)
 - `docs/0/CAC_BUOC_THUC_HIEN.md` — các bước thực hiện theo phase (v2)
+- `docs/0/RTCM_QUALITY_PLAN.md` — kế hoạch Phase 6: chất lượng trạm/relay
 - `AGENTS.md` — quy tắc làm việc
 - `TASKS.md` — backlog và tiến độ
 - `SESSION.md` — trạng thái phiên
@@ -30,7 +36,7 @@ giám sát realtime và cấu hình hệ thống.
 ```text
 frontend/        React + Vite + TypeScript
 server/          Node + Express + TypeScript + Socket.IO
-gnss/            Go: relay bridge + caster + RTCM monitor
+gnss/            Go: relay bridge + caster + RTCM monitor/analyzer
 db/migrations/   admin/ + runtime/
 scripts/         mock-ntrip (caster/rover/source), fixtures, e2e relay
 docs/0/          tài liệu dự án

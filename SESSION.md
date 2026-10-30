@@ -2,11 +2,12 @@
 
 ## 1. Thông tin phiên
 
-- Thời điểm: 2026-10-30 10:45 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: Phase 2 — Port relay & test mock
+- Thời điểm: 2026-10-30 11:00 (Asia/Ho_Chi_Minh, +07:00)
+- Phase hiện tại: Phase 2 — DONE; chuẩn bị Phase 3
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
+- Trạng thái Phase 6: PLANNED (kế hoạch, chưa triển khai)
 - Người thực hiện: OpenCode
 
 ## 2. Trạng thái
@@ -27,6 +28,7 @@
 
 ### Tiếp theo
 - Phase 3 — Quản trị trạm & relay ổn định.
+- Phase 6 (bổ sung) — RTCM Analytics & chất lượng trạm/relay; xem mục 7.7.
 
 ### Blocker
 - Không có. `go test -race` chưa chạy được vì môi trường Windows không bật
@@ -248,6 +250,20 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
 - `go test -race` chưa chạy do thiếu cgo/C compiler trên Windows.
 - Job/credential E2E đã dọn khỏi DB test; audit giữ lại.
 
+### 7.7. Bổ sung kế hoạch Phase 6 (2026-10-30)
+
+- Thêm kế hoạch **RTCM Analytics & chất lượng trạm/relay**:
+  `docs/0/RTCM_QUALITY_PLAN.md`.
+- Dùng `github.com/go-gnss/rtcm` (Apache-2.0, package `rtcm3`) để parse-only.
+- Chất lượng dùng chung theo `target_type` + `target_id` + `direction`:
+  - `station` + `ingest`: trạm thường, từ caster ingest hoặc station probe GET-only.
+  - `relay_job` + `upstream/downstream`: trạm relay, thêm chỉ số `parity`.
+- Có backend tổng hợp, API, Socket.IO realtime và FE quản trị hai tab Trạm/Relay.
+- Không sửa byte RTCM, không lưu raw payload, không auto-disable job/probe.
+- Đã cập nhật `KE_HOACH_CHI_TIET.md`, `TASKS.md`, `CAC_BUOC_THUC_HIEN.md`,
+  `docs/api.md`, `AGENTS.md`, `README.md`.
+- Chưa triển khai code Phase 6; chỉ chốt kế hoạch/task.
+
 ## 8. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |
@@ -259,7 +275,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
 | Phase 2 | `db/migrations/*/002_*`, `server/src/routes/relayJobs.ts`, `server/src/lib/*` | Schema + API relay |
 | Phase 2 | `gnss/internal/{relay,ntrip,rtcm,nmea,secret,proxy,api}`, `cmd/corsd` | Bridge + HMAC |
 | Phase 2 | `scripts/mock-ntrip`, `scripts/fixtures`, `scripts/e2e-relay-mock.ps1` | Mock + E2E |
+| Phase 6 | `docs/0/RTCM_QUALITY_PLAN.md`, `KE_HOACH`, `TASKS`, `CAC_BUOC`, `api.md` | Kế hoạch chất lượng trạm/relay |
 
 ## 9. Cập nhật lần cuối
 
-- 2026-10-30 10:50 +07:00
+- 2026-10-30 11:00 +07:00

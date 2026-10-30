@@ -10,6 +10,7 @@
 | 3 | Quản trị trạm & relay ổn định | TODO | Phase 2 |
 | 4 | NTRIP caster & quản lý client | TODO | Phase 3 |
 | 5 | Realtime, dashboard, vận hành | TODO | Phase 4 |
+| 6 | RTCM Analytics & chất lượng trạm/relay | TODO | Phase 3–5 |
 
 Quy tắc: không chuyển phase nếu checklist của phase hiện tại chưa PASS.
 
@@ -281,8 +282,89 @@ test chức năng.
 
 ---
 
-## 8. Ghi chú điều phối
+## 8. Phase 6 — RTCM Analytics & chất lượng trạm/relay
+
+**Mục tiêu:** dùng `go-gnss/rtcm` parse RTCM3 để đánh giá chất lượng cho
+**trạm thường** (`station`, hướng `ingest`) và **trạm relay** (`relay_job`,
+hướng `upstream`/`downstream`); có API + realtime + FE quản trị.
+Chi tiết: `docs/0/RTCM_QUALITY_PLAN.md`.
+
+**Phụ thuộc:** Phase 3 (station/relay job/RBAC). P6-04/P6-05 cần realtime Phase 5.
+P6-01/P6-02 có thể bắt đầu ngay sau Phase 3; P6-03 cần Phase 4 cho caster ingest
+(hoặc làm station probe GET-only sớm hơn).
+
+### P6-01 Parser go-rtcm
+- [ ] Thêm `github.com/go-gnss/rtcm` (Apache-2.0), package `rtcm3`
+- [ ] Parse frame/type: 1005/1006/1007/1008/1033, MSM 1074–1077,
+      1084–1087, 1094–1097, 1104–1107, 1114–1117, 1124–1127, 1230
+- [ ] Queue parse giới hạn; drop sample có counter; không chặn relay/caster
+- [ ] Byte-in == byte-out; không serialize/sửa byte
+- [ ] Fixtures valid/CRC sai/truncated/unknown/mảnh read/nhiều frame
+
+### P6-02 Quality model & score dùng chung
+- [ ] Migration `runtime/003_rtcm_quality.sql`
+- [ ] Migration `admin/003_quality_permissions.sql` (`quality.view`, `quality.ack`, `station_probes`)
+- [ ] `rtcm_message_stats`, `quality_samples`, `quality_alerts` dùng chung
+      `target_type ENUM('station','relay_job')` + `target_id` + `mountpoint_id`
+      (relay=0) + `direction`
+- [ ] `quality_alert_acks` (admin); không FK xuyên schema
+- [ ] Score 0–100: transport/integrity/MSM/metadata/signal/latency
+- [ ] Station score theo `ingest`; relay score upstream/downstream + `parity`
+- [ ] Baseline MSM 10 phút; relay job score = min(upstream, downstream)
+- [ ] Retention: sample 60 s/30 ngày, hourly 90 ngày, alert 90 ngày
+
+### P6-03 Nguồn chất lượng trạm thường
+- [ ] Caster ingest (Phase 4): phân tích luồng SOURCE/POST theo mountpoint/station
+- [ ] Station probe GET-only cho trạm ngoài hệ thống; mặc định disabled
+- [ ] `station_probes` (admin): station/mountpoint, interval, credential ref
+- [ ] Không tạo downstream; chỉ endpoint được phép; mock-first
+- [ ] Tránh trùng nguồn ingest/probe; ưu tiên ingest nếu cả hai bật
+- [ ] Trạm không có nguồn chất lượng → trạng thái `unknown`, không báo sai
+
+### P6-04 API & realtime BE
+- [ ] Internal `GET /internal/rtcm/snapshot`, `/internal/rtcm/health`
+- [ ] REST `/api/quality/overview` (station + relay)
+- [ ] REST `/api/stations/:id/quality`, `/api/stations/:id/rtcm/messages`
+- [ ] REST `/api/stations/:id/probes`, `/api/station-probes/:id` (CRUD/enable/disable)
+- [ ] REST `/api/relay-jobs/:id/quality`, `/api/relay-jobs/:id/rtcm/messages`
+- [ ] REST `/api/quality/alerts`, `/:id/ack`, `/api/quality/export`
+- [ ] RBAC scope all/subtree/own cho cả station và relay
+- [ ] Socket.IO `quality.snapshot/updated/alert/ack`; room `station:<id>`/`relay:<id>`
+- [ ] Throttle ~1 s; reconnect snapshot; đổi quyền cập nhật socket
+
+### P6-05 FE quản trị realtime
+- [ ] Menu **Chất lượng** với tab **Trạm** và **Relay**
+- [ ] Tab Trạm: tổng quan, score, message type/rate, sat/cell, CNR, metadata
+- [ ] Tab Relay: upstream/downstream, parity, chart score/sat/cell/CNR/age/gap
+- [ ] Chi tiết trạm/relay: ARP, station ID, antenna, ARP jump
+- [ ] Alert list/filter/ack; loading/empty/error; responsive 1440/768/390
+- [ ] Taste `inspect.mjs --app` 0 FAIL + test luồng/a11y
+
+### P6-06 Alerts, retention, export
+- [ ] Alert debounce 3 cửa sổ; first/last/resolved
+- [ ] Ack lưu admin + audit; không auto-disable job/probe
+- [ ] Export CSV giới hạn dòng + audit
+- [ ] Prune sample/alert theo retention; không xóa alert đang mở
+
+### P6-07 Test & hardening
+- [ ] Unit parser/quality/score; mock stream; DB down/up; restart
+- [ ] Byte-exact khi analyzer chạy; queue đầy không block
+- [ ] Station ingest + station probe GET-only; relay upstream/downstream/parity
+- [ ] API/RBAC/socket/scope; không raw payload/secret trong log
+- [ ] Load 50–100 station/job; CPU/RAM/p95; license go-rtcm
+- [ ] Tài liệu vận hành + cập nhật SESSION
+
+**Nghiệm thu Phase 6:** parse đúng type chính; byte-exact; chất lượng đúng cho
+cả trạm thường và trạm relay; score/alert đúng ngưỡng; realtime < 2 s;
+không lộ dữ liệu ngoài scope; tải 50–100 station/job không crash;
+test 6-T1..6-T13 PASS.
+
+---
+
+## 9. Ghi chú điều phối
 
 - Không chuyển phase nếu checklist chưa PASS.
 - Mỗi task cập nhật trạng thái vào file này.
 - Mọi thay đổi kiến trúc phải cập nhật docs v2 trước.
+- Phase 6 chỉ bổ sung sau khi docs được chốt; không làm thay đổi bất biến
+  Node/Go ownership hoặc đường byte RTCM.

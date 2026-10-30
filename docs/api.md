@@ -210,3 +210,64 @@ Node gọi Go qua `GO_INTERNAL_URL` (mặc định `http://gnss:7080`). Mọi re
 | POST | `/internal/reconcile` | Body `{ jobIds?: number[] }`; reconcile theo revision |
 | POST | `/internal/test` | Body `{ jobId }`; handshake test |
 | GET | `/internal/snapshot` | Metrics RAM: bytes, frames, CRC errors, state, last data |
+
+## 12. RTCM Quality (Phase 6 — planned, chưa triển khai)
+
+> Kế hoạch chi tiết: `docs/0/RTCM_QUALITY_PLAN.md`.
+
+Quyền mới: `quality.view`, `quality.ack` (scope all/subtree/own).
+Quản lý station probe dùng `stations.view` / `stations.edit`.
+Áp dụng cho cả **trạm thường** (`targetType=station`, `direction=ingest`) và
+**trạm relay** (`targetType=relay_job`, `direction=upstream|downstream`).
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| GET | `/api/quality/overview?targetType=&window=&owner=` | Tổng quan score/alert theo scope |
+| GET | `/api/stations/:id/quality?mountpointId=&direction=ingest&window=` | Sample/score trạm thường |
+| GET | `/api/stations/:id/rtcm/messages?mountpointId=&from=&to=` | Message type/rate trạm |
+| GET | `/api/relay-jobs/:id/quality?direction=&window=` | Sample/score upstream/downstream |
+| GET | `/api/relay-jobs/:id/rtcm/messages?from=&to=&direction=` | Message type/rate relay |
+| GET | `/api/quality/alerts?targetType=&status=open&severity=` | Danh sách cảnh báo |
+| POST | `/api/quality/alerts/:id/ack` | Ack cảnh báo; ghi audit |
+| GET | `/api/quality/export?targetType=&format=csv&from=&to=` | Export CSV giới hạn dòng |
+| GET | `/api/stations/:id/probes` | Danh sách station probe |
+| POST | `/api/stations/:id/probes` | Tạo probe GET-only (mặc định disabled) |
+| PATCH/DELETE | `/api/station-probes/:id` | Sửa/xóa probe |
+| POST | `/api/station-probes/:id/enable` | Bật probe |
+| POST | `/api/station-probes/:id/disable` | Tắt probe |
+
+Response quality (rút gọn):
+
+```json
+{
+  "item": {
+    "targetType": "relay_job",
+    "targetId": 12,
+    "mountpointId": 0,
+    "direction": "upstream",
+    "ts": "2026-10-30T03:00:00.000Z",
+    "score": 86,
+    "state": "streaming",
+    "frames": 1200,
+    "crcErrors": 0,
+    "parseErrors": 0,
+    "msmEpochs": 120,
+    "satellites": 24,
+    "signals": 48,
+    "cells": 96,
+    "avgCnr": 42.5,
+    "reportedStationId": 1001,
+    "ageMs": 850,
+    "gaps": 0
+  }
+}
+```
+
+- `targetType`: `station | relay_job`.
+- `direction`: `ingest | upstream | downstream`.
+- Không trả raw RTCM/payload, credential, DSN.
+- Export CSV có giới hạn dòng + audit.
+- Socket.IO: `quality.snapshot`, `quality.updated`, `quality.alert`,
+  `quality.alert.ack`; room `station:<id>`/`relay:<id>` sau kiểm tra quyền;
+  throttle ~1 s.
+- Internal (HMAC): `GET /internal/rtcm/snapshot`, `GET /internal/rtcm/health`.

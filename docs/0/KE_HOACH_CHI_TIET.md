@@ -56,6 +56,14 @@ Xây dựng MVP hệ thống quản lý trạm CORS/NTRIP/RTCM chạy thực t�
 | D22 | **Audit redaction** | Không ghi secret/password/token/DSN vào audit |
 | D23 | **Không dùng room role cho dữ liệu nhạy cảm** | Room theo tài nguyên sau khi kiểm tra quyền |
 | D24 | **Go restart phải có test** | Job enabled tự chạy lại; session cũ đóng đúng |
+| D25 | **Dùng `github.com/go-gnss/rtcm` (Apache-2.0) để parse RTCM3** | Chỉ parse/đọc; không serialize/sửa byte; xác minh license trước phân phối |
+| D26 | **Chất lượng dùng chung theo `target_type` + `target_id` + `direction`** | Áp dụng cho `station` (ingest) và `relay_job` (upstream/downstream); không FK giữa relay và station |
+| D27 | **Realtime quality: Go RAM → Node pull → Socket.IO** | Node không nằm trên đường byte; snapshot 1 s |
+| D28 | **Chỉ lưu aggregate/sample, không lưu raw RTCM/payload** | Giảm dung lượng, tránh lộ dữ liệu; retention rõ |
+| D29 | **Điểm chất lượng minh bạch, ngưỡng cấu hình được** | Không auto-disable job/probe; chỉ cảnh báo |
+| D30 | **Cảnh báo có debounce** | Không báo lặp mỗi giây; có first_seen/last_seen/resolved_at |
+| D31 | **Trạm thường: caster ingest; nếu ngoài hệ thống thì station probe GET-only** | Probe mặc định disabled; mock-first; không tạo downstream |
+| D32 | **Relay có chỉ số parity upstream↔downstream** | Phát hiện relay suy giảm; vẫn giữ điểm upstream/downstream riêng |
 
 ---
 
@@ -128,7 +136,8 @@ Go GNSS service
    │  MySQL cors_runtime (RW)
    ├─ Relay Bridge (Phase 2)
    ├─ NTRIP Caster (Phase 4)
-   └─ RTCM monitor (parse-only)
+   ├─ RTCM monitor (parse-only)
+   └─ RTCM Analyzer (Phase 6, go-rtcm parse-only)
 ```
 
 ### 4.1. Ranh giới trách nhiệm
@@ -139,6 +148,11 @@ Go GNSS service
 - Go **không** sửa cấu hình; Node **không** ghi trạng thái runtime.
 - Trạng thái chạy của job nằm ở `cors_runtime.relay_job_state`.
 - Live metrics nằm RAM của Go; Node lấy snapshot qua internal API.
+- RTCM Analyzer (Phase 6) chỉ parse/đo chất lượng; không sửa byte, không chặn relay/caster.
+- Chất lượng dùng chung cho `station` (ingest) và `relay_job` (upstream/downstream);
+  không FK giữa relay và station.
+- Trạm thường lấy từ caster ingest hoặc station probe GET-only; relay lấy từ bridge.
+- Node không nằm trên đường byte; realtime quality đi qua pull internal API + Socket.IO.
 
 ### 4.2. Cổng
 
@@ -157,9 +171,10 @@ Go GNSS service
 AGENTS.md  TASKS.md  SESSION.md  README.md  .env.example  .gitignore
 docker-compose.yml
 docs/0/  docs/architecture.md  docs/relay-parity.md  docs/test-plan.md
+docs/0/RTCM_QUALITY_PLAN.md  (Phase 6)
 frontend/        React + Vite + TS
 server/          Node + Express + TS + Socket.IO
-gnss/            Go: caster + bridge + monitor
+gnss/            Go: caster + bridge + monitor + analyzer
 db/migrations/   admin/ + runtime/ (hai tập, hai version)
 scripts/         ntrip-probe, seed-relay, mock-caster, fixtures
 graphify-out/    (gitignore)
@@ -237,6 +252,11 @@ mountpoints(
   enabled, requires_auth,
   owner_web_user_id FK, created_by, created_at, updated_at
 )
+station_probes(
+  id, station_id FK, mountpoint_id FK NULL,
+  enabled, probe_interval_sec, credential_id NULL,
+  owner_web_user_id FK, created_by, created_at, updated_at
+)
 
 -- Relay
 relay_credentials(
@@ -267,6 +287,36 @@ relay_events(id, relay_job_id, ts, type, message, duration_sec)
 relay_hourly(relay_job_id, hour_start_utc, online_sec, sessions, errors, timeouts,
              auth_errors, proxy_errors, nmea_errors, retries)
 
+-- RTCM quality (Phase 6; Go ghi runtime, Node đọc)
+-- target_type='station' (direction='ingest') hoặc 'relay_job' (upstream/downstream)
+rtcm_message_stats(
+  target_type ENUM('station','relay_job'), target_id BIGINT,
+  mountpoint_id BIGINT NOT NULL DEFAULT 0,
+  direction ENUM('ingest','upstream','downstream'),
+  hour_start_utc DATETIME(3), message_type INT,
+  count BIGINT, bytes BIGINT, last_seen_at DATETIME(3),
+  PRIMARY KEY(target_type, target_id, mountpoint_id, direction, hour_start_utc, message_type)
+)
+quality_samples(
+  id, target_type, target_id, mountpoint_id BIGINT NOT NULL DEFAULT 0,
+  direction, ts DATETIME(3), window_sec INT,
+  score TINYINT, state VARCHAR(32),
+  frames BIGINT, bytes BIGINT, crc_errors BIGINT, parse_errors BIGINT,
+  unknown_messages BIGINT, msm_epochs BIGINT,
+  satellites INT, signals INT, cells INT, avg_cnr DECIMAL(5,2),
+  reported_station_id INT NULL, arp_x BIGINT NULL, arp_y BIGINT NULL, arp_z BIGINT NULL,
+  arp_delta_m DECIMAL(8,3) NULL, antenna VARCHAR(64) NULL,
+  age_ms INT, gaps INT, cnr_available TINYINT(1), details JSON NULL,
+  KEY(target_type, target_id, mountpoint_id, direction, ts)
+)
+quality_alerts(
+  id, target_type, target_id, mountpoint_id BIGINT NOT NULL DEFAULT 0,
+  direction, code VARCHAR(64),
+  severity ENUM('info','warning','critical'),
+  first_seen DATETIME(3), last_seen DATETIME(3), resolved_at DATETIME(3) NULL,
+  details JSON NULL, KEY(target_type, target_id, mountpoint_id, last_seen)
+)
+
 -- NTRIP account (khác web account)
 ntrip_accounts(
   id, username UNIQUE, password_hash, enabled, max_connections,
@@ -280,6 +330,7 @@ connections(id, mountpoint_id, account_id, remote_addr, user_agent,
 alerts(id, severity, source_type, source_id, message, created_at, acknowledged_at)
 audit_logs(id, actor_web_user_id, action, entity_type, entity_id,
            before_redacted JSON, after_redacted JSON, ip, created_at)
+quality_alert_acks(alert_id, web_user_id, acked_at, note, PRIMARY KEY(alert_id, web_user_id))
 internal_nonces(nonce PK, expires_at)
 settings(key, value_json, updated_at)
 ```
@@ -291,6 +342,12 @@ settings(key, value_json, updated_at)
 - `relay_sessions.close_reason`: `config_changed`, `disabled`, `deleted`, `service_restart`, `auth_failed`, `timeout`, `network`, `manual`.
 - `audit_logs` chỉ lưu JSON đã **redact**.
 - `internal_nonces` dùng chống replay; có thể kết hợp in-memory + DB.
+- `quality_samples`/`rtcm_message_stats`/`quality_alerts` (Phase 6) dùng chung cho
+  `station` và `relay_job`; chỉ lưu aggregate/sample, không raw RTCM/payload.
+- `mountpoint_id` dùng cho chất lượng theo mountpoint của trạm; relay dùng `0`.
+- `station_probes` mặc định disabled; chỉ GET, không tạo downstream;
+  `credential_id` tham chiếu credential mã hóa hiện có, không log/không trả API.
+- `quality_alert_acks` ở admin để Node ghi ack; không FK xuyên schema.
 
 ---
 
@@ -330,7 +387,7 @@ settings(key, value_json, updated_at)
 - `own`: `owner_web_user_id = actor`.
 - `none`: mặc định.
 
-Áp dụng cho: `web_users`, `stations`, `mountpoints`, `relay_jobs`, `relay_credentials`, `ntrip_accounts`, `connections` (qua mountpoint/station), `audit` (theo actor).
+Áp dụng cho: `web_users`, `stations`, `mountpoints`, `relay_jobs`, `relay_credentials`, `ntrip_accounts`, `connections` (qua mountpoint/station), `quality` (theo owner station/relay), `audit` (theo actor).
 
 **Quy tắc chống nâng quyền**
 - Không tạo/sửa user có level ≥ level của mình (trừ `super_admin`).
@@ -388,6 +445,23 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 - Audit là append-only ở tầng ứng dụng; tài khoản app không có quyền xóa audit.
 - Lỗi audit không được chặn vòng RTCM.
 
+### 7.9. RTCM Analytics & chất lượng trạm/relay (Phase 6)
+
+- Dùng `github.com/go-gnss/rtcm` (`rtcm3`) để parse RTCM3; **chỉ đọc**.
+- Phân tích song song, queue giới hạn; đầy thì drop sample, không chặn relay/caster.
+- Đối tượng chất lượng dùng chung:
+  - `station` + `direction='ingest'`: trạm thường, lấy từ caster ingest hoặc
+    station probe GET-only (mặc định disabled).
+  - `relay_job` + `direction='upstream'|'downstream'`: trạm relay.
+- Chỉ số: transport, CRC/parse errors, message type/rate, MSM epoch/sat/signal/cell,
+  CNR, metadata 1005/1006/1007/1008/1033, station ID, ARP jump, age/gap.
+- Relay có thêm `parity` so sánh upstream/downstream; job score = min(upstream, downstream).
+- Điểm 0–100 minh bạch, ngưỡng cấu hình; không auto-disable job/probe.
+- Cảnh báo có debounce; ack lưu admin, có audit.
+- Realtime: Go RAM (1 s) → Node pull `/internal/rtcm/snapshot` → Socket.IO → FE.
+- DB: sample 60 s (30 ngày), aggregate giờ (90 ngày), alert 90 ngày; không raw payload.
+- Chi tiết: `docs/0/RTCM_QUALITY_PLAN.md`.
+
 ---
 
 ## 8. API contract (chuẩn hóa)
@@ -413,6 +487,18 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 | GET | `/api/relay-jobs/:id/sessions` | Lịch sử phiên |
 | GET | `/api/relay-jobs/:id/events` | Sự kiện |
 | GET | `/api/relay-jobs/:id/metrics` | Metrics |
+| GET | `/api/quality/overview` | Tổng quan chất lượng RTCM (station + relay) |
+| GET | `/api/stations/:id/quality` | Chất lượng trạm thường (ingest) |
+| GET | `/api/stations/:id/rtcm/messages` | Message type/rate của trạm |
+| GET | `/api/relay-jobs/:id/quality` | Chất lượng upstream/downstream |
+| GET | `/api/relay-jobs/:id/rtcm/messages` | Phân bố message type/rate |
+| GET | `/api/quality/alerts` | Cảnh báo chất lượng (station + relay) |
+| POST | `/api/quality/alerts/:id/ack` | Xác nhận cảnh báo |
+| GET | `/api/quality/export` | Export CSV có giới hạn |
+| GET/POST | `/api/stations/:id/probes` | Danh sách/tạo station probe GET-only |
+| PATCH/DELETE | `/api/station-probes/:id` | Sửa/xóa probe |
+| POST | `/api/station-probes/:id/enable` | Bật probe |
+| POST | `/api/station-probes/:id/disable` | Tắt probe |
 | POST | `/api/relay-jobs/discover` | Discover sourcetable |
 | POST | `/api/relay-jobs/bulk` | Tạo hàng loạt |
 | DELETE | `/api/relay-jobs?originRef=...` | Xóa hàng loạt |
@@ -441,10 +527,14 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 |---|---|---|
 | GET | `/internal/health` | Health |
 | GET | `/internal/snapshot` | Live snapshot |
+| GET | `/internal/rtcm/snapshot` | Quality snapshot RAM (Phase 6) |
+| GET | `/internal/rtcm/health` | Queue/drop/parse errors |
 | POST | `/internal/events` | HMAC + nonce |
 | POST | `/internal/reconcile` | Áp dụng revision |
 
-**Socket.IO:** `snapshot`, `station.updated`, `relay.updated`, `relay.session`, `connection.updated`, `alert.created`.
+**Socket.IO:** `snapshot`, `station.updated`, `relay.updated`, `relay.session`,
+`connection.updated`, `alert.created`, `quality.snapshot`, `quality.updated`,
+`quality.alert`, `quality.alert.ack`.
 
 ---
 
@@ -502,6 +592,9 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 | RBAC | scope all/subtree/own; chống nâng quyền; field allowlist |
 | Realtime | session auth; room theo quyền; đổi quyền khi đang mở socket |
 | Internal API | HMAC sai, timestamp lệch, nonce replay, body sai |
+| RTCM parser (Phase 6) | 1005/1006/1007/1008/MSM/1230; CRC/length/truncated/unknown; byte-exact |
+| Quality (Phase 6) | station ingest/probe + relay upstream/downstream/parity; score, baseline, station ID, ARP jump, CNR |
+| Quality realtime | Socket auth/room/throttle <2 s; scope; reconnect snapshot |
 | Audit | redaction secret; append-only |
 | Timezone | lưu UTC; hiển thị +07; bucket/ngày giờ |
 | API/FE | vitest + supertest + Playwright; loading/empty/error; a11y |
@@ -551,8 +644,11 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 | R12 | Scope quá rộng | Mặc định deny; review role; audit |
 | R13 | Slow client | Queue giới hạn/drop; đo p95 |
 | R14 | Docker public port | Bind nội bộ; không public MySQL/Go API |
-| R15 | License | Xác minh license phiên bản thực tế trước phân phối |
-| R16 | MVP quá rộng | Phase 0–5, tiêu chí từng phase |
+| R15 | License | Xác minh license phiên bản thực tế trước phân phối (go-rtcm Apache-2.0) |
+| R16 | MVP quá rộng | Phase 0–6, tiêu chí từng phase |
+| R17 | Parser RTCM chặn relay | Queue giới hạn/drop sample; test byte-exact + tải |
+| R18 | Cảnh báo chất lượng nhiễu | Baseline + debounce 3 cửa sổ; ngưỡng cấu hình |
+| R19 | Lộ vị trí/metadata trạm | Lọc theo scope; không raw payload; export có audit |
 
 ---
 
@@ -567,6 +663,9 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 - Realtime đúng quyền; không lộ dữ liệu ngoài scope.
 - Audit không chứa secret; internal API chống replay.
 - Timezone: lưu UTC, hiển thị +07 nhất quán.
+- Phase 6: parse RTCM không sửa byte; chất lượng cho trạm thường (ingest/probe)
+  và trạm relay (upstream/downstream/parity) realtime <2 s; cảnh báo có debounce;
+  không lộ metadata ngoài scope.
 
 ---
 
@@ -580,8 +679,11 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 | 3 | Quản trị trạm & relay ổn định | CRUD, import có kiểm soát, RBAC scope, reconcile, soft-delete |
 | 4 | NTRIP caster & quản lý client | Mock trước, sau đó cổng thật |
 | 5 | Realtime, dashboard, vận hành | Socket, history, alert, backup, load test |
+| 6 | RTCM Analytics & chất lượng trạm/relay | go-rtcm parse-only, quality score, alert, FE realtime |
 
-Chi tiết: `docs/0/CAC_BUOC_THUC_HIEN.md`.
+Chi tiết: `docs/0/CAC_BUOC_THUC_HIEN.md`; Phase 6: `docs/0/RTCM_QUALITY_PLAN.md`.
+P6-01/P6-02 có thể bắt đầu sau Phase 3; P6-03 cần Phase 4 cho caster ingest
+(hoặc station probe GET-only sớm hơn); P6-04/P6-05 cần realtime Phase 5.
 
 ---
 
