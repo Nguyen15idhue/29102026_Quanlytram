@@ -35,6 +35,8 @@ const permissions = [
   ['settings.edit', 'settings', 'edit'],
   ['alerts.view', 'alerts', 'view'],
   ['alerts.ack', 'alerts', 'ack'],
+  ['quality.view', 'quality', 'view'],
+  ['quality.ack', 'quality', 'ack'],
   ['audit.view', 'audit', 'view']
 ] as const;
 
@@ -47,6 +49,7 @@ function roleMatrix(role: string, code: string): Scope {
     if (code.startsWith('web_users.')) return 'subtree';
     if (code.startsWith('roles.')) return 'none';
     if (code.startsWith('alerts.')) return 'subtree';
+    if (code.startsWith('quality.')) return 'subtree';
     if (code === 'audit.view') return 'subtree';
     if (code.endsWith('.view') || code.endsWith('.add') || code.endsWith('.edit') || code.endsWith('.delete')) {
       return 'subtree';
@@ -183,7 +186,7 @@ async function main(): Promise<void> {
   ): Promise<number> => {
     await adminPool.query(
       `INSERT INTO stations (code, name, host, port, connection_type, owner_web_user_id, created_by)
-       VALUES (?, ?, ?, 2101, 'ntrip', ?, ?)
+       VALUES (?, ?, ?, 1509, 'ntrip', ?, ?)
        ON DUPLICATE KEY UPDATE name = VALUES(name), owner_web_user_id = VALUES(owner_web_user_id)`,
       [code, name, 'example.invalid', ownerId, createdBy]
     );

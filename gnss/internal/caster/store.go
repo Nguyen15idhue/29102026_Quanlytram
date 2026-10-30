@@ -53,7 +53,7 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 	listenerRows.Close()
 
 	mountpointRows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, enabled, requires_auth FROM mountpoints ORDER BY id`)
+		`SELECT id, name, COALESCE(station_id, 0), enabled, requires_auth FROM mountpoints ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("load mountpoints: %w", err)
 	}
@@ -63,7 +63,7 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 			enabled      int
 			requiresAuth int
 		)
-		if err := mountpointRows.Scan(&mountpoint.ID, &mountpoint.Name, &enabled, &requiresAuth); err != nil {
+		if err := mountpointRows.Scan(&mountpoint.ID, &mountpoint.Name, &mountpoint.StationID, &enabled, &requiresAuth); err != nil {
 			mountpointRows.Close()
 			return nil, err
 		}

@@ -25,7 +25,7 @@ const credentialPatch = z.object({
 
 const endpointSchema = z.object({
   host: z.string().min(1).max(190),
-  port: z.number().int().min(1).max(65535).optional().default(2101),
+  port: z.number().int().min(1).max(65535).optional().default(1509),
   mount: z.string().min(1).max(128),
   proxy: z.string().max(255).optional().default(''),
   ssl: z.boolean().optional().default(false),

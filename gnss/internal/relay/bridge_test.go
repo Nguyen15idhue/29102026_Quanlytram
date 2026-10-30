@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"cors/gnss/internal/quality"
 	"cors/gnss/internal/rtcm"
 )
 
@@ -470,5 +471,47 @@ func TestOnFirstByteFiresOnce(t *testing.T) {
 	}
 	if got := calls.Load(); got != 1 {
 		t.Fatalf("OnFirstByte calls = %d, want 1", got)
+	}
+}
+
+func Test6T3ByteExactWithAnalyzer(t *testing.T) {
+	payload := append(append(rtcmFrame([]byte{0x3E, 0x00, 0x01}), rtcmFrame([]byte{0x3E, 0x00, 0x02, 0x11})...), deterministicPayload(2048)...)
+	upstream := newMockServer(t, upstreamHandler(upstreamOptions{payload: payload, fragment: 37}))
+	downstream := newMockServer(t, downstreamHandler(downstreamOptions{}))
+
+	analyzer := quality.NewAnalyzer(quality.Options{QueueSize: 128}, nil)
+	analyzerCtx, analyzerCancel := context.WithCancel(context.Background())
+	go analyzer.Run(analyzerCtx)
+	defer func() {
+		analyzerCancel()
+		analyzer.Shutdown()
+	}()
+
+	cfg := testConfig(upstream, downstream, "source")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	err := RunSession(ctx, cfg, Options{
+		DialTimeout:   2 * time.Second,
+		MonitorBuffer: 64,
+		ReadBuffer:    512,
+		NMEAInterval:  time.Hour,
+		Quality:       analyzer,
+	}, rtcm.NewMonitor(1<<20), &Metrics{})
+	if !acceptableBridgeError(err) {
+		t.Fatalf("RunSession: %v", err)
+	}
+	got := waitCaptured(t, downstream, 5*time.Second)
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("payload mismatch with analyzer: got %d bytes, want %d", len(got), len(payload))
+	}
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if analyzer.Health().Targets >= 2 {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if analyzer.Health().Targets < 2 {
+		t.Fatalf("analyzer did not observe relay upstream/downstream")
 	}
 }

@@ -8,6 +8,7 @@ Nguồn sự thật đầy đủ nằm ở:
 - `docs/0/KE_HOACH_CHI_TIET.md` (v2)
 - `docs/0/CAC_BUOC_THUC_HIEN.md` (v2)
 - `docs/0/RTCM_QUALITY_PLAN.md` (Phase 6)
+- `docs/0/PHASES_7_12_PLAN.md` (Phase 7–12)
 - `docs/0/UI_UX_PLAN.md` (Phase 3.5)
 - `docs/0/XÂY DỰNG HỆ THỐNG QUẢN LÝ TRẠM CORS.docx` (yêu cầu gốc)
 
@@ -21,12 +22,17 @@ giám sát realtime và cấu hình hệ thống.
 
 ## 3. Stack đã chốt
 
-- Frontend: React + Vite + TypeScript + Socket.IO client.
+- Frontend: React + Vite + TypeScript + Socket.IO client, `@tanstack/react-query`.
 - UI: `lucide-react`, Radix Dialog/AlertDialog, IBM Plex Sans/Mono self-host;
   không thêm UI kit/Tailwind.
+- Chart: tự vẽ SVG/light zero-dep (D45); không thêm chart lib.
+- Map: `leaflet` + tile OSM công cộng, attribution bắt buộc (D46); không key
+  dịch vụ bản đồ thương mại.
 - Management: Node.js + Express + TypeScript + Socket.IO server.
 - GNSS/relay: Go.
 - RTCM parser: `github.com/go-gnss/rtcm` (Apache-2.0), parse-only.
+- Excel: `exceljs` phía Node cho import/export `.xlsx` (D50); không export
+  password/secret.
 - Database: MySQL only (hai schema `cors_admin`, `cors_runtime`).
 - Triển khai: Docker Compose.
 - Không dùng Redis, Kafka, RabbitMQ, Kubernetes.
@@ -74,6 +80,8 @@ giám sát realtime và cấu hình hệ thống.
 - Chống nâng quyền: không quản lý user level >= mình; không sửa/xóa
   `super_admin`; không xóa `super_admin` cuối cùng.
 - `user` tự sửa chỉ được allowlist: `display_name`, `email`, `password`.
+- Import người dùng: file `.xlsx` không có cột password; hệ thống tạo mật khẩu
+  mặc định `123456`, ghi audit; không export password/secret.
 - Mọi thay đổi quyền ghi audit; audit phải redact secret.
 
 ## 8. Dữ liệu

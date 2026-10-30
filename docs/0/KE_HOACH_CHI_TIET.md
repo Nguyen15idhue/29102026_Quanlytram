@@ -75,6 +75,16 @@ Xây dựng MVP hệ thống quản lý trạm CORS/NTRIP/RTCM chạy thực t�
 | D41 | **Caster listener mặc định 1509** | Áp dụng cho source và rover; tùy chỉnh theo listener; không dùng 2101/8081 |
 | D42 | **Nhóm mountpoint ↔ listener many-to-many** | Một mountpoint có thể nghe trên nhiều port; ví dụ A,B,C→1509 và A,C→1508 |
 | D43 | **Real endpoint chỉ dùng allowlist, credential ngoài repo** | Mock-first; chỉ endpoint được duyệt; không log/commit secret |
+| D44 | **Phase 7–12 học từ CGBAS theo nhóm chức năng** | 7 dữ liệu trạm/IA → 8 vận hành/map → 9 notification → 10 quản trị hệ thống → 11 báo cáo/export → 12 hardening; không copy lỗ hổng CGBAS (password plaintext, i18n lệch menu/route, bundle không menu) |
+| D45 *(đã chốt 2026-10-30: phương án (a))* | **Chart lib: tự vẽ SVG/light component (zero-dep)** — không thêm dependency; `recharts`/lib tương tự chỉ cân nhắc khi phát hiện nhu cầu chart phức tạp (tooltip/zoom/legend) | Áp cho P6-05 và P11-03 |
+| D46 *(đã chốt 2026-10-30: phương án (a))* | **Map lib: Leaflet + tile OSM công cộng**; attribution bắt buộc; KHÔNG key dịch vụ thương mại (tianditu/googleMaps); tile self-host chỉ cân nhắc sau nếu tải cao | 'Station map overview + rover' tách Phase 8 (P8-01) |
+| D47 *(đã chốt 2026-10-30: ĐÓNG)* | **i18n VN/EN + resource bundle: postpone**; chỉ mở lại khi có yêu cầu khách hàng tiếng Anh | Không nằm trong Phase 7–12; reopen bằng quyết định mới |
+| D48 | **Export mặc định `.xlsx` qua `exceljs`** (D50) | CSV UTF-8 BOM chỉ dùng khi có yêu cầu riêng; giới hạn dòng + audit mỗi lần export |
+| D49 | **Alert phân loại/mức theo mô hình CGBAS**: `event_type` × `level` (critical/major/minor/info) | Mở rộng bảng `alerts` ở Phase 10 sau khi P6-04 gán type/level |
+| D50 | **Excel `.xlsx` dùng `exceljs`** | Import/export mọi list; template + preview + lỗi theo dòng; không export password/secret |
+| D51 | **Bản đồ online chỉ marker tài khoản NTRIP có toạ độ** | Tài khoản không gửi toạ độ chỉ hiện tổng “x tài khoản không gửi tọa độ”; thêm menu **Danh sách online** |
+| D52 | **Import người dùng không có cột password** | Hệ thống tạo mật khẩu mặc định `123456`, ghi audit, không export password |
+| D53 | **Caster listener CRUD + tab live/force disconnect** | Listener vẫn là cấu hình; live connections chỉ đọc/force disconnect |
 
 ---
 
@@ -506,6 +516,37 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 - Phase 3.5 làm trước Phase 4; Phase 4/5/6 dùng lại foundation, không làm lại shell.
 - Chi tiết: `docs/0/UI_UX_PLAN.md`.
 
+### 7.11. Hoàn thiện theo CGBAS (Phase 7–12 — khảo sát 2026-10-30)
+
+- Menu chốt:
+  - **Dashboard**
+  - **Trạm**: Bản đồ trạm, Danh sách trạm.
+  - **CORS**: Bản đồ online, Danh sách online, Tài khoản NTRIP, Mountpoint, Caster.
+  - **Relay**
+  - **Hệ thống**: Phân quyền, Người dùng, Lịch sử, Cảnh báo.
+  - **Ẩn menu**: Trang cá nhân mở bằng avatar/tên người dùng.
+- Quyết định mới:
+  - D50: Excel `.xlsx` dùng `exceljs`; template/preview/lỗi theo dòng; audit.
+  - D51: Bản đồ online chỉ marker tài khoản có toạ độ; hiện tổng số tài khoản
+    không gửi tọa độ; thêm menu **Danh sách online**.
+  - D52: Import người dùng không có cột password; mật khẩu mặc định `123456`;
+    không export password.
+  - D53: Caster listener CRUD + tab live/force disconnect.
+- Roadmap 7–12:
+  - **7** Nền tảng UI & Trạm danh sách: menu, shared list/pagination 10,
+    import/export `.xlsx`, hồ sơ trạm, form/list.
+  - **8** Bản đồ trạm + chi tiết trạm + bản đồ online + danh sách online.
+  - **9** CORS: NTRIP account, mountpoint, caster live/force disconnect.
+  - **10** Relay + Hệ thống: phân quyền, người dùng, lịch sử, cảnh báo.
+  - **11** Trang cá nhân, notification center, dictionary/config, báo cáo.
+  - **12** Load 50–100, security, E2E, backup/restore, release.
+- Giữ D45 chart SVG zero-dep; D46 Leaflet + OSM public (map Phase 8);
+  D47 i18n đóng.
+- Ngoài phạm vi: VRS/subnet/grid/transfer/subscribe, storage raw FTP/SFTP,
+  displacement monitor, SpEL, Open API khách.
+- Chi tiết trường UI: `docs/0/PHASES_7_12_PLAN.md` §8; checklist `TASKS.md`;
+  bước/test `docs/0/CAC_BUOC_THUC_HIEN.md`.
+
 ---
 
 ## 8. API contract (chuẩn hóa)
@@ -736,8 +777,15 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 | 4 | NTRIP caster & quản lý client | Mock trước, sau đó cổng thật |
 | 5 | Realtime, dashboard, vận hành | Socket, history, alert, backup, load test |
 | 6 | RTCM Analytics & chất lượng trạm/relay | go-rtcm parse-only, quality score, alert, FE realtime |
+| 7 | Nền tảng UI & Trạm danh sách | Menu nhóm, shared list/pagination 10, import/export `.xlsx`, hồ sơ trạm, form/list |
+| 8 | Bản đồ & chi tiết trạm | Bản đồ trạm, chi tiết trạm, bản đồ online, danh sách online |
+| 9 | CORS | Tài khoản NTRIP, mountpoint, caster listener + live/force disconnect |
+| 10 | Relay & Hệ thống | Relay, phân quyền, người dùng, lịch sử, cảnh báo |
+| 11 | Cá nhân, cấu hình & báo cáo | Trang cá nhân, notification center, dictionary/config, báo cáo |
+| 12 | Hardening, load test & release | Load 50–100, security, E2E, backup/restore, release |
 
-Chi tiết: `docs/0/CAC_BUOC_THUC_HIEN.md`; Phase 3.5: `docs/0/UI_UX_PLAN.md`;
+Chi tiết: `docs/0/PHASES_7_12_PLAN.md`; bước/test:
+`docs/0/CAC_BUOC_THUC_HIEN.md`; Phase 3.5: `docs/0/UI_UX_PLAN.md`;
 Phase 6: `docs/0/RTCM_QUALITY_PLAN.md`.
 Phase 3.5 làm trước Phase 4; Phase 4/5/6 dùng lại UI foundation.
 P6-01/P6-02 có thể bắt đầu sau Phase 3; P6-03 cần Phase 4 cho caster ingest

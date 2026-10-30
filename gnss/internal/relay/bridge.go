@@ -9,6 +9,7 @@ import (
 
 	"cors/gnss/internal/nmea"
 	"cors/gnss/internal/ntrip"
+	"cors/gnss/internal/quality"
 	"cors/gnss/internal/rtcm"
 )
 
@@ -21,6 +22,7 @@ type Options struct {
 	RetryMax      time.Duration
 	PollInterval  time.Duration
 	OnFirstByte   func()
+	Quality       *quality.Analyzer
 }
 
 func DefaultOptions() Options {
@@ -174,6 +176,18 @@ func RunSession(
 			metrics.AddUp(n)
 			metrics.AddDown(n)
 			sample := append([]byte(nil), buffer[:n]...)
+			if opts.Quality != nil {
+				opts.Quality.Feed(quality.Target{
+					Type:      quality.TargetRelayJob,
+					ID:        cfg.ID,
+					Direction: quality.DirectionUpstream,
+				}, sample)
+				opts.Quality.Feed(quality.Target{
+					Type:      quality.TargetRelayJob,
+					ID:        cfg.ID,
+					Direction: quality.DirectionDownstream,
+				}, sample)
+			}
 			select {
 			case monitorCh <- sample:
 			default:

@@ -18,6 +18,7 @@ import {
   SearchInput,
   StatusBadge
 } from '../components/ui';
+import { QualityPanel } from '../components/QualityPanel';
 import { useToast } from '../components/ToastProvider';
 
 interface StationList {
@@ -29,7 +30,7 @@ const emptyForm = {
   code: '',
   name: '',
   host: '',
-  port: 2101,
+  port: 1509,
   connection_type: 'ntrip',
   lat: '',
   lon: '',
@@ -309,6 +310,7 @@ export function Stations() {
         title={detail?.name ?? 'Chi tiết trạm'}
         description={detail?.code}
         side="right"
+        size="lg"
         footer={
           detail && (
             <>
@@ -351,6 +353,13 @@ export function Stations() {
               <dd>{detail.notes || '—'}</dd>
             </div>
           </dl>
+        )}
+        {detail && can('quality', 'view') && (
+          <QualityPanel
+            key={detail.id}
+            targetType="station"
+            targetId={detail.id}
+          />
         )}
       </Modal>
 

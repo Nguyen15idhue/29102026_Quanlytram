@@ -17,7 +17,7 @@ const createSchema = z.object({
   code: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/),
   name: z.string().min(1).max(160),
   host: z.string().max(190).optional().default(''),
-  port: z.number().int().min(1).max(65535).optional().default(2101),
+  port: z.number().int().min(1).max(65535).optional().default(1509),
   connection_type: z.string().max(32).optional().default('ntrip'),
   lat: z.number().min(-90).max(90).nullable().optional(),
   lon: z.number().min(-180).max(180).nullable().optional(),

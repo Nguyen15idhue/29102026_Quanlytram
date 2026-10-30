@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"cors/gnss/internal/quality"
 	"golang.org/x/crypto/argon2"
 )
 
@@ -404,4 +405,62 @@ func TestSlowClientDropped(t *testing.T) {
 	if !found {
 		t.Fatalf("slow client was not dropped; ends=%+v", ends)
 	}
+}
+
+func Test6T3ByteExactWithQualityAnalyzer(t *testing.T) {
+	analyzer := quality.NewAnalyzer(quality.Options{QueueSize: 64}, nil)
+	analyzerCtx, analyzerCancel := context.WithCancel(context.Background())
+	go analyzer.Run(analyzerCtx)
+	defer func() {
+		analyzerCancel()
+		analyzer.Shutdown()
+	}()
+
+	cfg := &Config{
+		Mountpoints: map[int64]*MountpointConfig{
+			1: {ID: 1, Name: "M", StationID: 99, Enabled: true},
+		},
+		Listeners: []*ListenerConfig{
+			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: {ID: 1, Name: "M", StationID: 99, Enabled: true}}},
+		},
+	}
+	manager, _ := newTestManagerWithOptions(t, cfg, Options{
+		BindAddr:      "127.0.0.1",
+		PollInterval:  time.Hour,
+		HeaderTimeout: 2 * time.Second,
+		WriteTimeout:  2 * time.Second,
+		DBTimeout:     time.Second,
+		ReadBuffer:    1024,
+		QueueSize:     4,
+		MaxHeader:     8192,
+		Quality:       analyzer,
+	})
+	port := listenerPort(t, manager, 1)
+
+	source, _, _ := connect(t, port, "SOURCE /M HTTP/1.0\r\n\r\n")
+	defer source.Close()
+	rover, reader, _ := connect(t, port, "GET /M HTTP/1.0\r\n\r\n")
+	defer rover.Close()
+
+	payload := []byte{0xD3, 0x00, 0x03, 0x3E, 0x00, 0x01, 0x4E, 0x01, 0xB4}
+	if _, err := source.Write(payload); err != nil {
+		t.Fatalf("source write: %v", err)
+	}
+	got := make([]byte, len(payload))
+	if _, err := io.ReadFull(reader, got); err != nil {
+		t.Fatalf("rover read: %v", err)
+	}
+	if string(got) != string(payload) {
+		t.Fatalf("byte mismatch: got %x want %x", got, payload)
+	}
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		snapshots := analyzer.Snapshot()
+		if len(snapshots) > 0 && snapshots[0].TargetType == quality.TargetStation && snapshots[0].TargetID == 99 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("analyzer did not observe station ingest")
 }

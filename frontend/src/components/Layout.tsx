@@ -88,9 +88,9 @@ export function Layout() {
             })}
         </nav>
         <div className="sidebar-foot">
-          <span>Phase 5</span>
+          <span>Phase 6</span>
           <span className="dot" aria-hidden="true" />
-          <span>Realtime</span>
+          <span>RTCM</span>
         </div>
       </aside>
 

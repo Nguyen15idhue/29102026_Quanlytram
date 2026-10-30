@@ -339,3 +339,32 @@ Sự kiện: `snapshot`, `relay.updated`, `relay.session`, `connection.updated`,
   phản hồi; cooldown 5 phút; ack không tự tắt job.
 - Migration: `db/migrations/admin/005_alerts_settings.sql` (admin schema 5).
 - Ops: xem `docs/OPS.md` (backup/restore, load test mock, log/health).
+
+## 16. Planned API Phase 7–12 (chưa triển khai)
+
+> Các endpoint dưới đây là hợp đồng dự kiến; chỉ đánh dấu DONE khi có code + test.
+
+| Method | Endpoint | Quyền / ghi chú |
+|---|---|---|
+| POST | `/api/stations/import` | `stations.add`; `.xlsx`; preview/validate/audit |
+| GET | `/api/stations/export` | `stations.view`; `.xlsx`; theo filter |
+| POST | `/api/ntrip-accounts/import` | `ntrip_accounts.add`; `.xlsx`; không password |
+| GET | `/api/ntrip-accounts/export` | `ntrip_accounts.view`; `.xlsx`; không password |
+| POST | `/api/mountpoints/import` | `mountpoints.add`; `.xlsx` |
+| GET | `/api/mountpoints/export` | `mountpoints.view`; `.xlsx` |
+| POST | `/api/caster/listeners/import` | `settings.edit`; `.xlsx` |
+| GET | `/api/caster/listeners/export` | `settings.view`; `.xlsx` |
+| POST | `/api/relay-jobs/import` | `relay.add`; `.xlsx` |
+| GET | `/api/relay-jobs/export` | `relay.view`; `.xlsx` |
+| POST | `/api/roles/import` | `roles.add`; role + matrix; role hệ thống khóa |
+| GET | `/api/roles/export` | `roles.view`; `.xlsx` |
+| POST | `/api/web-users/import` | `web_users.add`; `.xlsx`; không cột password; mật khẩu 123456 |
+| GET | `/api/web-users/export` | `web_users.view`; `.xlsx`; không password |
+| GET | `/api/online/accounts` | `connections.view`; danh sách online + cờ có/không tọa độ |
+| GET | `/api/online/stations` | `stations.view`; trạng thái trạm realtime cho map |
+| GET | `/api/profile` | Đăng nhập; hồ sơ cá nhân |
+| PATCH | `/api/profile` | Đăng nhập; allowlist display_name/email/phone/avatar |
+| POST | `/api/profile/password` | Đăng nhập; mật khẩu hiện tại + mới |
+| GET | `/api/profile/sessions` | Đăng nhập; phiên hiện tại |
+| GET | `/api/dictionaries?code=` | Đăng nhập; dictionary cho select |
+| GET | `/api/audit-logs?module=&from=&to=&q=` | `audit.view`; redaction |

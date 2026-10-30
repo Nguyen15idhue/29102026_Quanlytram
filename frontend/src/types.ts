@@ -244,3 +244,138 @@ export interface RelayHourly {
   nmeaErrors: number;
   retries: number;
 }
+
+export interface QualityScoreParts {
+  transport: number;
+  integrity: number;
+  msm: number;
+  metadata: number;
+  signal: number;
+  latency: number;
+}
+
+export interface QualityLiveItem {
+  targetType: 'station' | 'relay_job';
+  targetId: number;
+  mountpointId: number;
+  direction: 'ingest' | 'upstream' | 'downstream';
+  ts: string;
+  score: number;
+  scoreParts: QualityScoreParts;
+  state: string;
+  frames: number;
+  bytes: number;
+  crcErrors: number;
+  parseErrors: number;
+  lengthErrors: number;
+  unknownMessages: number;
+  msmEpochs: number;
+  satellites: number;
+  signals: number;
+  cells: number;
+  avgCnr: number;
+  cnrAvailable: boolean;
+  reportedStationId?: number;
+  arpX?: number;
+  arpY?: number;
+  arpZ?: number;
+  arpDeltaM?: number;
+  antenna?: string;
+  ageMs: number;
+  gaps: number;
+  metadataOk: boolean;
+  baselineSatellites: number;
+  baselineCells: number;
+  messageTypes: Record<string, number>;
+  parity?: number;
+  jobScore?: number;
+  live: boolean;
+}
+
+export interface QualityOverviewItem extends QualityLiveItem {
+  name: string;
+  ownerWebUserId: number | null;
+  alertsOpen: number;
+  parity?: number;
+  jobScore?: number;
+}
+
+export interface QualitySample {
+  id: number;
+  targetType: 'station' | 'relay_job';
+  targetId: number;
+  mountpointId: number;
+  direction: 'ingest' | 'upstream' | 'downstream';
+  ts: string;
+  windowSec: number;
+  score: number;
+  state: string;
+  frames: number;
+  bytes: number;
+  crcErrors: number;
+  parseErrors: number;
+  unknownMessages: number;
+  msmEpochs: number;
+  satellites: number;
+  signals: number;
+  cells: number;
+  avgCnr: number | null;
+  reportedStationId: number | null;
+  arpX: number | null;
+  arpY: number | null;
+  arpZ: number | null;
+  arpDeltaM: number | null;
+  antenna: string | null;
+  ageMs: number;
+  gaps: number;
+  cnrAvailable: boolean;
+  details: unknown;
+}
+
+export interface QualityAlertItem {
+  id: number;
+  targetType: 'station' | 'relay_job';
+  targetId: number;
+  mountpointId: number;
+  direction: 'ingest' | 'upstream' | 'downstream';
+  eventType: string;
+  code: string;
+  level: 'critical' | 'major' | 'minor' | 'info';
+  severity: 'critical' | 'warning' | 'info';
+  firstSeen: string;
+  lastSeen: string;
+  resolvedAt: string | null;
+  status: 'open' | 'resolved';
+  details: unknown;
+  ownerWebUserId: number | null;
+  ackedAt: string | null;
+  ackedBy: number | null;
+  ackNote: string | null;
+}
+
+export interface QualityMessageStat {
+  targetType: string;
+  targetId: number;
+  mountpointId: number;
+  direction: string;
+  hourStartUtc: string;
+  messageType: number;
+  count: number;
+  bytes: number;
+  ratePerMinute: number;
+  lastSeenAt: string;
+}
+
+export interface StationProbe {
+  id: number;
+  stationId: number;
+  mountpointId: number | null;
+  enabled: boolean;
+  probeIntervalSec: number;
+  credentialId: number | null;
+  hasCredential: boolean;
+  ownerWebUserId: number | null;
+  createdAt: string;
+  updatedAt: string;
+  runner: string;
+}

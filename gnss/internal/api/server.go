@@ -17,6 +17,7 @@ import (
 
 	"cors/gnss/internal/caster"
 	"cors/gnss/internal/db"
+	"cors/gnss/internal/quality"
 	"cors/gnss/internal/relay"
 )
 
@@ -33,23 +34,30 @@ type CasterManager interface {
 	Listeners() []caster.ListenerSnapshot
 }
 
+type QualityAnalyzer interface {
+	Snapshot() []quality.Snapshot
+	Health() quality.Health
+}
+
 type Server struct {
 	db         *sql.DB
 	adminDB    string
 	manager    RelayManager
 	caster     CasterManager
+	quality    QualityAnalyzer
 	hmacSecret string
 
 	nonceMu sync.Mutex
 	nonces  map[string]time.Time
 }
 
-func New(database *sql.DB, adminDB string, manager RelayManager, casterManager CasterManager, hmacSecret string) *Server {
+func New(database *sql.DB, adminDB string, manager RelayManager, casterManager CasterManager, analyzer QualityAnalyzer, hmacSecret string) *Server {
 	return &Server{
 		db:         database,
 		adminDB:    adminDB,
 		manager:    manager,
 		caster:     casterManager,
+		quality:    analyzer,
 		hmacSecret: hmacSecret,
 		nonces:     make(map[string]time.Time),
 	}
@@ -65,6 +73,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/internal/caster/disconnect", s.requireSignature(s.handleCasterDisconnect, http.MethodPost))
 	mux.HandleFunc("/internal/caster/reconcile", s.requireSignature(s.handleCasterReconcile, http.MethodPost))
 	mux.HandleFunc("/internal/caster/listeners", s.requireSignature(s.handleCasterListeners, http.MethodGet))
+	mux.HandleFunc("/internal/rtcm/snapshot", s.requireSignature(s.handleQualitySnapshot, http.MethodGet))
+	mux.HandleFunc("/internal/rtcm/health", s.requireSignature(s.handleQualityHealth, http.MethodGet))
 	return mux
 }
 
@@ -87,7 +97,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		httpStatus = http.StatusServiceUnavailable
 	} else {
 		v, err := db.SchemaVersion(ctx, s.db, s.adminDB)
-		if err != nil || v < 3 {
+		if err != nil || v < 4 {
 			status = "degraded"
 			httpStatus = http.StatusServiceUnavailable
 		} else {
@@ -265,6 +275,25 @@ func (s *Server) handleCasterListeners(w http.ResponseWriter, _ *http.Request, _
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"items": s.caster.Listeners()})
+}
+
+func (s *Server) handleQualitySnapshot(w http.ResponseWriter, _ *http.Request, _ []byte) {
+	if s.quality == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"items": []any{}, "time": time.Now().UTC().Format(time.RFC3339)})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items": s.quality.Snapshot(),
+		"time":  time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (s *Server) handleQualityHealth(w http.ResponseWriter, _ *http.Request, _ []byte) {
+	if s.quality == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"status": "disabled"})
+		return
+	}
+	writeJSON(w, http.StatusOK, s.quality.Health())
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

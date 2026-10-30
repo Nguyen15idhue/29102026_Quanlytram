@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"cors/gnss/internal/quality"
 )
 
 type Options struct {
@@ -21,6 +23,7 @@ type Options struct {
 	ReadBuffer    int
 	QueueSize     int
 	MaxHeader     int
+	Quality       *quality.Analyzer
 }
 
 func DefaultOptions() Options {
@@ -164,7 +167,7 @@ func (m *manager) Reconcile(ctx context.Context) error {
 			existing.setMountpoint(mountpoint)
 			hubs[id] = existing
 		} else {
-			hubs[id] = newHub(mountpoint)
+			hubs[id] = newHub(mountpoint, m.opts.Quality)
 		}
 	}
 	m.mountpoints = mountpoints

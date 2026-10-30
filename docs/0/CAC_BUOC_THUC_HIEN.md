@@ -35,7 +35,13 @@
 | 3.5 | UI/UX Foundation | DONE |
 | 4 | NTRIP caster & quản lý client | DONE |
 | 5 | Realtime, dashboard, vận hành | DONE (defer UI nâng cao/Taste auth) |
-| 6 | RTCM Analytics & chất lượng trạm/relay | TODO |
+| 6 | RTCM Analytics & chất lượng trạm/relay | DONE (mock; probe runner + load 6-T13 defer) |
+| 7 | Nền tảng dữ liệu trạm & IA | TODO (ưu tiên 1) |
+| 8 | Vận hành trạm, bản đồ & NTRIP/caster | TODO |
+| 9 | Notification center & alert operations | TODO |
+| 10 | Quản trị hệ thống & cấu hình | TODO |
+| 11 | Báo cáo, export/import & dữ liệu vận hành | TODO |
+| 12 | Hardening, load test & release | TODO |
 
 ---
 
@@ -639,11 +645,12 @@ P6-01/P6-02 có thể bắt đầu sau Phase 3.
 - [ ] Throttle ~1 s; reconnect snapshot; đổi quyền cập nhật socket
 
 ### E. FE quản trị realtime
-- [ ] Menu **Chất lượng** với tab **Trạm** và **Relay**
-- [ ] Tab Trạm: tổng quan, score, message type/rate, sat/cell, CNR, metadata
-- [ ] Tab Relay: upstream/downstream, parity, chart score/sat/cell/CNR/age/gap
-- [ ] Chi tiết trạm/relay: ARP, station ID, antenna, ARP jump
-- [ ] Alert list/filter/ack; loading/empty/error; responsive 1440/768/390
+- [ ] Không tạo menu/trang Chất lượng riêng
+- [ ] Nhúng panel chất lượng vào popup chi tiết trạm; nút **Sửa** mở popup sửa riêng
+- [ ] Nhúng panel chất lượng vào popup chi tiết relay; tab upstream/downstream
+- [ ] Panel trạm: score, message type/rate, sat/cell, CNR, metadata, ARP
+- [ ] Panel relay: upstream/downstream, parity, chart score/sat/cell/CNR/age/gap
+- [ ] Alert list/ack; loading/empty/error; responsive 1440/768/390
 - [ ] Taste `inspect.mjs --app` 0 FAIL + test luồng/a11y
 
 ### F. Alert, retention, hardening
@@ -777,6 +784,112 @@ Cách chạy lại:
 4. Không secret trong diff.
 5. Diff review.
 6. Tài liệu cập nhật.
+
+---
+
+# PHASE 7–12 — HOÀN THIỆN THEO CGBAS
+
+**Mục tiêu:** đưa sản phẩm từ CRUD + realtime + quality thành phần mềm quản
+trị CORS dùng được hằng ngày. Chi tiết khảo sát/gap/roadmap:
+`docs/0/PHASES_7_12_PLAN.md`. Checklist thực thi: `TASKS.md` Phase 7–12.
+
+**Phụ thuộc:** Phase 7 sau Phase 6; Phase 8 sau Phase 7; Phase 9 sau 7–8;
+Phase 10 sau 7–9; Phase 11 sau 7–10; Phase 12 sau 7–11.
+
+**Ngoài phạm vi:** VRS/subnet/grid/transfer/subscribe; storage raw FTP/SFTP
+cron; displacement monitor/RTK engine; SpEL; Open API khách.
+
+## 7.1. Menu chốt
+
+```text
+Dashboard
+Trạm: Bản đồ trạm | Danh sách trạm
+CORS: Bản đồ online | Danh sách online | Tài khoản NTRIP | Mountpoint | Caster
+Relay
+Hệ thống: Phân quyền | Người dùng | Lịch sử | Cảnh báo
+(Ẩn) Trang cá nhân — mở bằng avatar/tên người dùng
+```
+
+Quyết định: Excel `.xlsx` dùng `exceljs`; online map chỉ marker tài khoản có
+toạ độ, hiện tổng số tài khoản không gửi tọa độ; import user không có cột
+password, mật khẩu mặc định `123456`; caster listener CRUD + tab live/force
+disconnect.
+
+## 7.2. Công việc theo phase
+
+### Phase 7 — Nền tảng UI & Trạm danh sách
+- [x] P7-00 Hotfix default 1509 (form/API/DB/seed/migration 007)
+- [ ] P7-01 Shell/menu nhóm mới; bỏ footer dev; entry trang cá nhân
+- [ ] P7-02 Shared list: pagination 10 luôn hiển thị; filter URL; states
+- [ ] P7-03 Import/export `.xlsx` bằng `exceljs`; template/preview/line error/audit
+- [ ] P7-04 Migration hồ sơ trạm (`admin/008_station_profile.sql`)
+- [ ] P7-05 Migration dictionary/custom fields (`admin/009_*`)
+- [ ] P7-06 API trạm v2 + validation + audit
+- [ ] P7-07 Danh sách trạm CRUD/quality/import/export/filter
+- [ ] P7-08 Form trạm nhóm + dictionary + test connection
+- [ ] P7-09 Test G7
+
+### Phase 8 — Bản đồ & chi tiết trạm
+- [ ] P8-01 Bản đồ trạm Leaflet/OSM, marker trạng thái, panel danh sách
+- [ ] P8-02 Popup chi tiết trạm: Tổng quan/Kết nối/Mountpoint/Chất lượng/Lịch sử
+- [ ] P8-03 Bản đồ online: marker tài khoản có toạ độ + tổng số không tọa độ
+- [ ] P8-04 Danh sách online: bảng chi tiết, filter, export, force disconnect
+- [ ] P8-05 Test G8
+
+### Phase 9 — CORS
+- [ ] P9-01 Tài khoản NTRIP CRUD/ACL/hiệu lực/import/export/online
+- [ ] P9-02 Mountpoint CRUD/broadcast config/runtime/import/export
+- [ ] P9-03 Caster listener CRUD/import/export
+- [ ] P9-04 Caster tab live/force disconnect
+- [ ] P9-05 Test G9
+
+### Phase 10 — Relay & Hệ thống
+- [ ] P10-01 Relay CRUD/quality/detail/test/restart/import/export
+- [ ] P10-02 Phân quyền role + permission matrix + import/export
+- [ ] P10-03 Người dùng CRUD + import Excel mật khẩu 123456, không cột password
+- [ ] P10-04 Lịch sử phiên/sự kiện/theo giờ + export
+- [ ] P10-05 Cảnh báo filter/ack/read + notification center cơ bản
+- [ ] P10-06 Test G10
+
+### Phase 11 — Cá nhân, cấu hình & báo cáo
+- [ ] P11-01 Trang cá nhân ẩn menu: profile/password/sessions
+- [ ] P11-02 Notification center nâng cao/event config/email optional
+- [ ] P11-03 Dictionary/custom fields admin/system params/brand/logo/log viewer
+- [ ] P11-04 Dashboard chart/report/retention/backup-restore UI
+- [ ] P11-05 Test G11
+
+### Phase 12 — Hardening, load test & release
+- [ ] P12-01 Load 50–100; CPU/RAM/p95; backpressure
+- [ ] P12-02 Security/RBAC/CSRF/HMAC/secret scan/rate limit
+- [ ] P12-03 E2E + a11y + responsive + dark mode
+- [ ] P12-04 Migration/backup/restore/release/rollback
+- [ ] P12-05 Observability + Definition of Done
+
+## 7.3. Yêu cầu cần đạt
+
+- Không đổi stack ngoài quyết định `exceljs`; chart D45 zero-dep; map D46.
+- Mọi list pagination 10 luôn hiển thị; import/export `.xlsx`.
+- Online map: chỉ marker tài khoản có toạ độ; không có toạ độ → chỉ đếm/tổng.
+- Import user: không cột password; mật khẩu mặc định `123456`; audit.
+- Caster: listener CRUD + live/force disconnect.
+- Dictionary không hardcode option; RBAC/audit/redaction đúng.
+
+## 7.4. Checklist test
+
+| ID | Nội dung | Hình thức | Kỳ vọng | Kết quả |
+|---|---|---|---|---|
+| G7 | Menu/shell + list/pagination 10 + import/export `.xlsx` + trạm | API/UI | đúng menu; file mở Excel; lỗi theo dòng | NOT RUN |
+| G8 | Bản đồ trạm + chi tiết + online map/list | browser | marker/status đúng; đếm tài khoản không tọa độ | NOT RUN |
+| G9 | NTRIP + mountpoint + caster live/force disconnect | API/UI | CRUD/ACL/live đúng; RBAC | NOT RUN |
+| G10 | Relay + role/user/history/alert | API/UI | import user 123456; không export password | NOT RUN |
+| G11 | User center + notification/config/report | API/UI | profile/password; config; report | NOT RUN |
+| G12 | Load/security/E2E/release | script/browser | 50–100 job không crash; không secret | NOT RUN |
+
+## 7.5. Ghi chú
+
+- Không học từ CGBAS: password plaintext, i18n lệch menu/route, bundle không menu.
+- Email notice (SMTP) làm riêng sau Phase 11, cần môi trường gửi thư được duyệt.
+- Cập nhật `SESSION.md` sau mỗi phase; không chuyển phase khi gate chưa PASS.
 
 ---
 

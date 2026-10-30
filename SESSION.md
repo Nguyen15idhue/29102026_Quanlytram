@@ -2,8 +2,8 @@
 
 ## 1. Thông tin phiên
 
-- Thời điểm: 2026-10-30 15:45 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: Phase 5 — DONE; chuẩn bị Phase 6
+- Thời điểm: 2026-10-30 17:50 (Asia/Ho_Chi_Minh, +07:00)
+- Phase hiện tại: Phase 6 — DONE (mock; probe runner + load 6-T13 defer)
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
@@ -11,7 +11,8 @@
 - Trạng thái Phase 3.5: DONE (UI/UX Foundation)
 - Trạng thái Phase 4: DONE (mock; Q10 allowlist defer)
 - Trạng thái Phase 5: DONE (realtime/dashboard/history/alerts/ops)
-- Trạng thái Phase 6: PLANNED (kế hoạch, chưa triển khai)
+- Trạng thái Phase 6: DONE (mock; panel nhúng popup trạm/relay; probe runner defer)
+- Trạng thái Phase 7–12: PLANNED (roadmap chi tiết trong `docs/0/PHASES_7_12_PLAN.md`)
 - Người thực hiện: OpenCode
 
 ## 2. Trạng thái
@@ -34,13 +35,15 @@
   runtime connections, UI Caster; xem mục 8.8.
 - Phase 5: realtime Socket.IO, dashboard, history, alerts/ack, backup/restore,
   load test mock, ops doc; xem mục 8.9.
+- Phase 6: parser/analyzer/store quality, migrations admin006/runtime004,
+  REST/RBAC/socket, panel nhúng popup trạm/relay; xem mục 8.11.
 
 ### Đang làm
-- Không có (Phase 5 đã đóng; chờ commit).
+- Không có (Phase 6 đã đóng phần mock; chờ commit).
 
 ### Tiếp theo
-- Commit Phase 5 (không push).
-- Phase 6 — RTCM Analytics & chất lượng trạm/relay; xem mục 7.7.
+- Phase 7 — Nền tảng UI & Trạm danh sách; xem `docs/0/PHASES_7_12_PLAN.md`.
+- Commit Phase 6 + hotfix 1509 sau khi rà soát diff (không push).
 
 ### Blocker
 - Không có. `go test -race` chưa chạy được vì môi trường Windows không bật
@@ -442,9 +445,78 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 ```
 
 - Defer: Role UI nâng cao/audit API; Taste `inspect.mjs` sau đăng nhập;
-  Q10 allowlist thật; Phase 6 chưa triển khai.
+  Q10 allowlist thật. Phase 6 đã triển khai mock, xem mục 8.11.
 - Không dùng endpoint thật/credential thật; không bind 2101/8081; không commit
   dump backup.
+
+### 8.10. Khảo sát CGBAS & cập nhật kế hoạch (2026-10-30)
+
+- Khảo sát đối chiếu tính năng CGBAS (CORS management platform 上海华测导航
+  技术股份有限公司, Trung Quốc) → báo cáo tổng hợp trong hội thoại; không thêm code.
+- Kết luận: UI foundation (3.5) đã đạt chuẩn app-screen; khoảng cách là
+  **nội dung nghiệp vụ** (bản đồ, biểu đồ, notification center, dictionary
+  trạm, export/import, log viewer), không phải khung UX.
+- Thêm **Phase 7–12 — hoàn thiện theo CGBAS** (roadmap):
+  - A quick win: export Excel `.xlsx` (`exceljs`), log viewer, user center,
+    brand runtime, dirty-guard.
+  - B (đè P6): notification center + event config (không làm expression
+    engine), cảnh báo caster/rover, dictionary trạm, statistical graph.
+  - C đã chốt mở (bổ sung cùng phiên): D45 chart lib=(a), D46 map+tiles=(a),
+    D47 i18n=(đóng).
+  - D roadmap xa: VRS/NRTK, storage file thô, displacement monitor, Open API.
+- Thêm quyết định D44–D49 vào
+  `KE_HOACH_CHI_TIET.md` §2; thêm §7.11 + dòng Phase 7 ở §14 lộ trình.
+- `TASKS.md`: bảng phase + checklist Phase 7–12; P6-04/P6-05/P6-06 ghi chú
+  giao tiếp với Phase 9/11 (type/level alert, chart/export dùng chung).
+- `CAC_BUOC_THUC_HIEN.md`: bảng phase + gate G7–G12 (NOT RUN).
+- `RTCM_QUALITY_PLAN.md`: mục 12 ghi phụ thuộc Phase 9/11.
+- Không học từ CGBAS: password plaintext, i18n lệch menu/route,
+  trang có bundle không menu.
+- **Chốt quyết định (2026-10-30 16:10):** D45=(a) chart tự vẽ SVG zero-dep;
+  D46=(a) `leaflet` + tile OSM công cộng (attribution bắt buộc, không key
+  thương mại), map tách Phase 8 (P8-01); D47=(đóng) i18n postpone,
+  reopen khi có khách EN. Nhóm C mở trong Phase 7–8. `AGENTS.md` §3 bổ sung dòng
+  Chart + Map để khớp quy ước "lib mới phải qua quyết định".
+
+### 8.11. Phase 6 — Kết quả (2026-10-30)
+
+- Triển khai parser/analyzer/store quality Go, migration `admin/006`,
+  `runtime/004`, REST/RBAC/socket Node, panel quality FE.
+- **Sửa theo yêu cầu UI:** bỏ menu/route `/quality`; nhúng `QualityPanel`
+  vào popup chi tiết trạm/relay. Bấm trạm → popup có quality; bấm **Sửa**
+  → popup sửa riêng. Xóa `frontend/src/pages/Quality.tsx`.
+- Rebuild web Docker; health Node `schemaVersion=6`.
+- Test: `go test ./...` PASS; `npm test` server 33/33 PASS; Playwright 5/5
+  PASS (quality embedded, edit tách, mobile/dark mode).
+- Chưa chạy: load 6-T13 50–100 station/job; Taste `inspect.mjs` sau auth;
+  probe runner defer.
+
+### 8.12. Khảo sát CGBAS lần 2 & roadmap 7–12 (2026-10-30)
+
+- Cập nhật graphify repo: **1734 nodes / 4486 edges / 112 communities**
+  (code-only; docs semantic chưa chạy).
+- Đối chiếu graphify CGBAS: **3453 nodes / 8619 edges / 267 communities**;
+  trích route/menu và trường dữ liệu từ chunk `station-manage`,
+  `station-overview`, `data-inspect`, `station-control`, `notification-center`,
+  `dictionary`, `user-manage`, `operate-log`, `user-center`, `broadcast-*`.
+- Kết luận: UI hiện tại sơ sài do **dữ liệu trạm quá mỏng + IA phẳng**, không
+  chỉ do CSS. CGBAS có hồ sơ trạm đầy đủ, menu nhóm, notification center,
+  dictionary/custom fields, log viewer, user center, map/online user.
+- Đã sửa ngay: default port trạm/relay/DB/seed/API/form → **1509**; thêm
+  `db/migrations/admin/007_port_defaults.sql`; `.env.local` CASTER_PORT=1509.
+- Tài liệu mới: `docs/0/PHASES_7_12_PLAN.md` (audit + gap + **đặc tả UI/field
+  theo nhóm** + roadmap).
+- Menu chốt: Dashboard; Trạm (Bản đồ trạm, Danh sách trạm); CORS (Bản đồ
+  online, **Danh sách online**, Tài khoản NTRIP, Mountpoint, Caster); Relay;
+  Hệ thống (Phân quyền, Người dùng, Lịch sử, Cảnh báo); trang cá nhân ẩn menu.
+- Quyết định mới: D50 `exceljs` cho `.xlsx`; D51 online map chỉ marker tài
+  khoản có toạ độ + tổng số tài khoản không gửi tọa độ + menu Danh sách online;
+  D52 import user không cột password, mật khẩu `123456`; D53 caster listener
+  CRUD + tab live/force disconnect.
+- Cập nhật `TASKS.md`, `KE_HOACH` §7.11/§14, `CAC_BUOC`, `UI_UX_PLAN`,
+  `RTCM_QUALITY_PLAN` §12, `README`, `AGENTS`.
+- Chưa triển khai code Phase 7; thứ tự: 7 (UI/list/trạm) → 8 (map/detail/online)
+  → 9 (CORS) → 10 (Relay/Hệ thống) → 11 (cá nhân/config/report) → 12 (hardening).
 
 ## 9. Nhật ký thay đổi
 
@@ -477,7 +549,13 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 | Phase 5 | `frontend/src/realtime/*`, `pages/{Dashboard,Alerts,History}.tsx`, `Layout/App/types`, proxy | UI realtime/history/alerts |
 | Phase 5 | `scripts/{backup,restore,load-test}-*.ps1`, `docs/OPS.md`, `docs/api.md` | Ops + tài liệu |
 | Phase 5 | `server/tests/realtime.test.ts`, `frontend/tests/realtime.spec.ts` | Test realtime/scope/socket |
+| Phase 6 | `gnss/internal/quality/*`, `db/migrations/{admin/006,runtime/004}_*` | Parser/analyzer/store + schema |
+| Phase 6 | `server/src/{routes/quality.ts,lib/quality.ts,lib/csv.ts,realtime/qualityBus.ts}` | REST/RBAC/socket quality |
+| Phase 6 | `frontend/src/components/{QualityPanel,charts}.tsx`, `pages/{Stations,RelayJobs}.tsx` | Panel nhúng popup, bỏ menu quality |
+| Phase 6 | `frontend/tests/quality.spec.ts`, `server/tests/quality.test.ts` | Test UI embedded + API |
+| Hotfix | `frontend/Stations.tsx`, `server/routes/{stations,relayJobs}.ts`, `admin/001,002,007`, `seed.ts`, `.env.local` | Default port 1509 |
+| Docs | `docs/0/PHASES_7_12_PLAN.md`, `TASKS`, `KE_HOACH`, `CAC_BUOC`, `UI_UX_PLAN`, `RTCM_QUALITY_PLAN`, `README`, `AGENTS`, `SESSION` | Menu/UI field spec + quyết định D50–D53 |
 
 ## 10. Cập nhật lần cuối
 
-- 2026-10-30 15:50 +07:00
+- 2026-10-30 17:50 +07:00

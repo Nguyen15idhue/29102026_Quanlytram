@@ -5,9 +5,11 @@ import { config } from '../config';
 import { query } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
 import { evaluateAlerts } from '../lib/alerts';
+import { fetchLiveQuality, mapAlert, type QualityLive } from '../lib/quality';
 import { sha256 } from '../lib/token';
 import { permissionsForRole } from '../rbac/permissions';
-import { subtreeIds } from '../rbac/scope';
+import { inScope, subtreeIds } from '../rbac/scope';
+import { qualityBus } from './qualityBus';
 import { loadBaseData, loadOpenAlerts } from './data';
 import {
   buildSnapshot,
@@ -34,7 +36,9 @@ interface SocketState {
   subtreeIds: number[];
   lastRelaySig: string;
   lastConnSig: string;
+  lastQualitySig: string;
   knownAlertIds: Set<number>;
+  knownQualityAlertIds: Set<number>;
 }
 
 export interface RealtimeHandle {
@@ -128,7 +132,9 @@ async function stateForSocket(socket: Socket): Promise<SocketState | null> {
     state.subtreeIds = ids;
     state.lastRelaySig = '';
     state.lastConnSig = '';
+    state.lastQualitySig = '';
     state.knownAlertIds = new Set();
+    state.knownQualityAlertIds = new Set();
   }
   return state;
 }
@@ -138,8 +144,7 @@ async function sendSnapshot(
   state: SocketState,
   raw?: RawData,
   alerts?: Awaited<ReturnType<typeof loadOpenAlerts>>
-): Promise<void> {
-  const data = raw ?? (await loadBaseData());
+): Promise<void> {  const data = raw ?? (await loadBaseData());
   const alertItems = alerts ?? (await loadOpenAlerts());
   const snapshot = buildSnapshot(
     data,
@@ -154,6 +159,16 @@ async function sendSnapshot(
   state.knownAlertIds = new Set(snapshot.alerts.map((alert) => alert.id));
 }
 
+function qualityOwner(data: RawData, targetType: string, targetId: number): number | null {
+  if (targetType === 'station') {
+    return data.stations.find((station) => station.id === targetId)?.ownerId ?? null;
+  }
+  if (targetType === 'relay_job') {
+    return data.jobs.find((job) => job.id === targetId)?.ownerId ?? null;
+  }
+  return null;
+}
+
 export function initRealtime(httpServer: HttpServer): RealtimeHandle {
   const io = new SocketServer(httpServer, {
     path: '/socket.io',
@@ -163,6 +178,11 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
     },
     serveClient: false
   });
+
+  const onQualityAck = (event: unknown) => {
+    io.emit('quality.alert.ack', event);
+  };
+  qualityBus.on('ack', onQualityAck);
 
   io.use(async (socket, next) => {
     try {
@@ -179,7 +199,9 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
         subtreeIds: ids,
         lastRelaySig: '',
         lastConnSig: '',
-        knownAlertIds: new Set()
+        lastQualitySig: '',
+        knownAlertIds: new Set(),
+        knownQualityAlertIds: new Set()
       };
       socket.data.state = state;
       next();
@@ -216,9 +238,9 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
         }
         const request = payload as { type?: string; id?: number };
         const resourceId = Number(request?.id ?? 0);
-        if (request?.type === 'relay' && resourceId > 0) {
+        if (request?.type === 'station' && resourceId > 0) {
           const rows = await query<RowDataPacket[]>(
-            'SELECT owner_web_user_id FROM relay_jobs WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+            'SELECT owner_web_user_id FROM stations WHERE id = ? LIMIT 1',
             [resourceId]
           );
           const ownerId = rows[0]?.owner_web_user_id ?? null;
@@ -226,12 +248,42 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
             rows.length === 0 ||
             !canSubscribeResource(
               current.permissions,
-              'relay.view',
+              'quality.view',
               current.auth.userId,
               current.subtreeIds,
               ownerId === null ? null : Number(ownerId)
             )
           ) {
+            ack?.({ ok: false, error: 'FORBIDDEN' });
+            return;
+          }
+          socket.join(`station:${resourceId}`);
+          ack?.({ ok: true, room: `station:${resourceId}` });
+          return;
+        }
+        if (request?.type === 'relay' && resourceId > 0) {
+          const rows = await query<RowDataPacket[]>(
+            'SELECT owner_web_user_id FROM relay_jobs WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+            [resourceId]
+          );
+          const ownerId = rows[0]?.owner_web_user_id ?? null;
+          const owner = ownerId === null ? null : Number(ownerId);
+          const allowed =
+            canSubscribeResource(
+              current.permissions,
+              'relay.view',
+              current.auth.userId,
+              current.subtreeIds,
+              owner
+            ) ||
+            canSubscribeResource(
+              current.permissions,
+              'quality.view',
+              current.auth.userId,
+              current.subtreeIds,
+              owner
+            );
+          if (rows.length === 0 || !allowed) {
             ack?.({ ok: false, error: 'FORBIDDEN' });
             return;
           }
@@ -270,6 +322,15 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
       const data = await loadBaseData();
       await evaluateAlerts(data);
       const alerts = await loadOpenAlerts();
+      const [liveQuality, qualityAlertRows] = await Promise.all([
+        fetchLiveQuality(),
+        runtimeQuery<RowDataPacket[]>(
+          `SELECT * FROM quality_alerts
+            WHERE resolved_at IS NULL
+            ORDER BY last_seen DESC
+            LIMIT 500`
+        )
+      ]);
 
       const maxRows = await runtimeQuery<RowDataPacket[]>(
         'SELECT MAX(id) AS max_id FROM relay_sessions'
@@ -324,6 +385,51 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
           socket.emit('alert.created', { ts: snapshot.ts, items: newAlerts });
         }
 
+        const qualityScope = scopeOf(state.permissions, 'quality.view');
+        const visibleQuality: QualityLive[] =
+          qualityScope === 'none'
+            ? []
+            : liveQuality.items.filter((item) =>
+                inScope(
+                  qualityScope,
+                  state.auth.userId,
+                  state.subtreeIds,
+                  qualityOwner(data, item.targetType, item.targetId)
+                )
+              );
+        socket.emit('quality.snapshot', { ts: liveQuality.ts, items: visibleQuality });
+        const qualitySig = JSON.stringify(visibleQuality);
+        if (qualitySig !== state.lastQualitySig) {
+          socket.emit('quality.updated', { ts: liveQuality.ts, items: visibleQuality });
+          state.lastQualitySig = qualitySig;
+        }
+
+        const visibleQualityAlerts =
+          qualityScope === 'none'
+            ? []
+            : (qualityAlertRows as any[])
+                .filter((row) =>
+                  inScope(
+                    qualityScope,
+                    state.auth.userId,
+                    state.subtreeIds,
+                    qualityOwner(data, String(row.target_type), Number(row.target_id))
+                  )
+                )
+                .map((row) =>
+                  mapAlert(
+                    row,
+                    qualityOwner(data, String(row.target_type), Number(row.target_id))
+                  )
+                );
+        const newQualityAlerts = visibleQualityAlerts.filter(
+          (alert) => !state.knownQualityAlertIds.has(alert.id)
+        );
+        state.knownQualityAlertIds = new Set(visibleQualityAlerts.map((alert) => alert.id));
+        if (newQualityAlerts.length > 0) {
+          socket.emit('quality.alert', { ts: liveQuality.ts, items: newQualityAlerts });
+        }
+
         if (newSessions.length > 0) {
           const visibleJobIds = new Set(snapshot.relays.map((relay) => relay.jobId));
           for (const row of newSessions) {
@@ -359,6 +465,7 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
     stop: async () => {
       running = false;
       clearInterval(timer);
+      qualityBus.off('ack', onQualityAck);
       await new Promise<void>((resolve) => {
         io.close(() => resolve());
       });

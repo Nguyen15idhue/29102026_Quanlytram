@@ -4,27 +4,43 @@ Dự án xây dựng hệ thống quản lý trạm CORS/NTRIP/RTCM ở mức MV
 quản lý trạm, mountpoint, tài khoản web, tài khoản NTRIP, relay bridge,
 giám sát realtime và cấu hình hệ thống.
 
-> Trạng thái hiện tại: **Phase 5 — Realtime & vận hành (DONE)**.
-> Hệ thống chạy end-to-end với MySQL, Node API, Go relay/caster và React UI.
-> Đã có Socket.IO realtime, dashboard, history, alerts/ack, backup/restore,
-> load test mock, dark mode, CRUD dialog/drawer; hot reload Vite polling 1s.
+> Trạng thái hiện tại: **Phase 6 — RTCM Analytics & chất lượng (DONE mock)**.
+> Hệ thống chạy end-to-end với MySQL, Node API, Go relay/caster/quality và React UI.
+> Đã có Socket.IO realtime, dashboard, history, alerts/ack, quality panel trong
+> popup trạm/relay, dark mode, CRUD dialog/drawer; hot reload Vite polling 1s.
 >
-> Kế hoạch bổ sung **Phase 6 — RTCM Analytics & chất lượng trạm/relay**:
-> parse RTCM3 bằng `go-gnss/rtcm`, đánh giá chất lượng cho trạm thường và
-> trạm relay, có API + realtime + FE quản trị. Xem
-> `docs/0/RTCM_QUALITY_PLAN.md`.
+> Roadmap hoàn thiện **Phase 7–12** theo menu mới: Trạm (bản đồ/danh sách),
+> CORS (bản đồ online/danh sách online/NTRIP/mountpoint/caster), Relay,
+> Hệ thống (phân quyền/người dùng/lịch sử/cảnh báo), trang cá nhân ẩn menu.
+> Xem `docs/0/PHASES_7_12_PLAN.md`.
 
 ## 1. Tài liệu
 
 - `docs/0/KE_HOACH_CHI_TIET.md` — kế hoạch chi tiết (v2)
 - `docs/0/CAC_BUOC_THUC_HIEN.md` — các bước thực hiện theo phase (v2)
 - `docs/0/RTCM_QUALITY_PLAN.md` — kế hoạch Phase 6: chất lượng trạm/relay
+- `docs/0/PHASES_7_12_PLAN.md` — khảo sát CGBAS + roadmap hoàn thiện Phase 7–12
 - `docs/0/UI_UX_PLAN.md` — kế hoạch Phase 3.5: UI/UX Foundation
 - `AGENTS.md` — quy tắc làm việc
 - `TASKS.md` — backlog và tiến độ
 - `SESSION.md` — trạng thái phiên
 
-## 2. Yêu cầu môi trường
+## 2. Menu mục tiêu
+
+```text
+Dashboard
+Trạm: Bản đồ trạm | Danh sách trạm
+CORS: Bản đồ online | Danh sách online | Tài khoản NTRIP | Mountpoint | Caster
+Relay
+Hệ thống: Phân quyền | Người dùng | Lịch sử | Cảnh báo
+(Ẩn) Trang cá nhân — mở bằng avatar/tên người dùng
+```
+
+Mọi danh sách dùng phân trang mặc định **10**, luôn hiển thị; import/export
+`.xlsx` bằng `exceljs`; import người dùng không có cột password, mật khẩu mặc
+định `123456`.
+
+## 3. Yêu cầu môi trường
 
 - Node.js 22+
 - Go 1.24+
@@ -33,7 +49,7 @@ giám sát realtime và cấu hình hệ thống.
 - Chrome/Edge/Chromium (cho Taste Skill)
 - Windows để phát triển, Linux để triển khai
 
-## 3. Cấu trúc thư mục dự kiến
+## 4. Cấu trúc thư mục dự kiến
 
 ```text
 frontend/        React + Vite + TypeScript
@@ -44,7 +60,7 @@ scripts/         mock-ntrip (caster/rover/source), fixtures, e2e relay
 docs/0/          tài liệu dự án
 ```
 
-## 4. Cách chạy dự kiến
+## 5. Cách chạy dự kiến
 
 ```bash
 # 1. Tạo file môi trường
@@ -63,7 +79,7 @@ curl http://localhost:4000/health
 curl http://localhost:7080/health
 ```
 
-## 5. Cổng dịch vụ
+## 6. Cổng dịch vụ
 
 | Thành phần | Port |
 |---|---|
@@ -76,13 +92,13 @@ curl http://localhost:7080/health
 
 MySQL và Go internal không public ra ngoài.
 
-## 6. Thời gian
+## 7. Thời gian
 
 - Hiển thị/log: `Asia/Ho_Chi_Minh` (+07:00), TP. Hồ Chí Minh, Việt Nam.
 - Lưu trữ: UTC/epoch.
 - MySQL: `default-time-zone=+00:00`.
 
-## 7. Quy tắc an toàn
+## 8. Quy tắc an toàn
 
 - Không sửa, ghi, xóa file trong `relayrtcm\backup`.
 - Không chạy relay cũ, không chiếm cổng `8081`/`2101`.
@@ -90,7 +106,7 @@ MySQL và Go internal không public ra ngoài.
 - Không commit secret; chỉ dùng `.env.local`.
 - Không thêm Redis/Kafka/RabbitMQ/K8s.
 
-## 8. Kiểm thử
+## 9. Kiểm thử
 
 ```bash
 cd gnss && go test ./... && go vet ./...
@@ -113,7 +129,7 @@ Kiểm thử UI bằng Taste Skill (app screen):
 node ~/.config/opencode/skills/design-taste-frontend/scripts/inspect.mjs <url> --app
 ```
 
-## 9. Ghi chú
+## 10. Ghi chú
 
 - Phase 0 không tạo mã nguồn, không chạy Docker, không cài package.
 - Không tuyên bố hoàn thành khi chưa có bằng chứng test.

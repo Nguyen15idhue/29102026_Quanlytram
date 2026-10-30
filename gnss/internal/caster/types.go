@@ -17,6 +17,7 @@ const (
 type MountpointConfig struct {
 	ID           int64
 	Name         string
+	StationID    int64
 	Enabled      bool
 	RequiresAuth bool
 }

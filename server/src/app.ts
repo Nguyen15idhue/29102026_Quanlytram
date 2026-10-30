@@ -20,6 +20,7 @@ import { casterConnectionsRouter, casterRouter } from './routes/caster';
 import { alertsRouter } from './routes/alerts';
 import { historyRouter } from './routes/history';
 import { snapshotRouter } from './routes/snapshot';
+import { qualityRouter } from './routes/quality';
 
 const logger = pino({
   level: config.logLevel,
@@ -90,7 +91,7 @@ app.get(
         "SELECT MAX(version) AS version FROM schema_migrations WHERE scope = 'admin'"
       );
       const schemaVersion = Number(rows[0]?.version ?? 0);
-      const healthy = schemaVersion >= 5;
+      const healthy = schemaVersion >= 6;
       res.status(healthy ? 200 : 503).json({
         status: healthy ? 'ok' : 'degraded',
         db: 'ok',
@@ -121,6 +122,7 @@ app.use('/api/connections', casterConnectionsRouter);
 app.use('/api/alerts', alertsRouter);
 app.use('/api/history', historyRouter);
 app.use('/api/snapshot', snapshotRouter);
+app.use('/api', qualityRouter);
 
 app.use(notFound);
 app.use(errorHandler);

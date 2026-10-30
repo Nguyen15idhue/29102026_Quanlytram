@@ -3,22 +3,25 @@ package caster
 import (
 	"sync"
 
+	"cors/gnss/internal/quality"
 	"cors/gnss/internal/rtcm"
 )
 
 type hub struct {
 	mountpoint *MountpointConfig
 	monitor    *rtcm.Monitor
+	quality    *quality.Analyzer
 
 	mu     sync.Mutex
 	source *connection
 	rovers map[int64]*connection
 }
 
-func newHub(mountpoint *MountpointConfig) *hub {
+func newHub(mountpoint *MountpointConfig, analyzer *quality.Analyzer) *hub {
 	return &hub{
 		mountpoint: mountpoint,
 		monitor:    rtcm.NewMonitor(64 * 1024),
+		quality:    analyzer,
 		rovers:     make(map[int64]*connection),
 	}
 }
@@ -83,6 +86,18 @@ func (h *hub) removeRover(c *connection) {
 func (h *hub) publish(data []byte) {
 	copied := append([]byte(nil), data...)
 	h.monitor.Feed(copied)
+
+	h.mu.Lock()
+	mountpoint := h.mountpoint
+	h.mu.Unlock()
+	if h.quality != nil && mountpoint != nil && mountpoint.StationID > 0 {
+		h.quality.Feed(quality.Target{
+			Type:         quality.TargetStation,
+			ID:           mountpoint.StationID,
+			MountpointID: mountpoint.ID,
+			Direction:    quality.DirectionIngest,
+		}, copied)
+	}
 
 	h.mu.Lock()
 	rovers := make([]*connection, 0, len(h.rovers))

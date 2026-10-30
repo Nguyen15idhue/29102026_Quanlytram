@@ -157,13 +157,36 @@ light mode** nên trên máy mặc định dark mode nhiều thành phần khó 
 | Phase 3.5 | Foundation + sửa toàn bộ màn hình hiện có | Làm trước Phase 4 |
 | Phase 4 | Màn hình caster/client dùng lại foundation | Không làm lại shell/table/modal |
 | Phase 5 | Dashboard/history/alert dùng foundation | P5-02 chỉ bổ sung nội dung mới |
-| Phase 6 | Quality station/relay dùng foundation | P6-05 chỉ bổ sung tab/chart/alert |
+| Phase 6 | Quality station/relay dùng foundation | P6-05 nhúng panel/chart/alert vào popup trạm/relay |
+| Phase 7–12 | Dùng lại foundation; không làm lại shell | Bổ sung dictionary, form nhóm, detail tab, notification, log viewer |
 
 - Phase 3 vẫn DONE; Phase 3.5 là cross-cutting, không mở lại checklist Phase 3.
-- Phase 5 Taste gate vẫn là gate cuối cho dashboard/quality; Phase 3.5 có gate riêng
+- Phase 5 Taste gate vẫn là gate cuối cho dashboard/panel quality; Phase 3.5 có gate riêng
   cho các màn hình hiện có.
 - Không thay đổi API/DB trong Phase 3.5 (trừ bug UI nhỏ); nếu cần API mới thì
   ghi rõ và cập nhật `docs/api.md` trước.
+
+### 9.1. Menu Phase 7–12
+
+```text
+Dashboard
+Trạm: Bản đồ trạm | Danh sách trạm
+CORS: Bản đồ online | Danh sách online | Tài khoản NTRIP | Mountpoint | Caster
+Relay
+Hệ thống: Phân quyền | Người dùng | Lịch sử | Cảnh báo
+(Ẩn) Trang cá nhân — mở bằng avatar/tên người dùng
+```
+
+Quy ước mới:
+- Mọi danh sách có pagination server-side **mặc định 10**, luôn hiển thị; chọn 10/20/50.
+- Toolbar list: Thêm, Import, Export Excel, Tải lại.
+- Import/export `.xlsx` dùng `exceljs`; template + preview + lỗi theo dòng.
+- Bản đồ trạm chỉ trạm; bản đồ online chỉ marker tài khoản NTRIP có toạ độ.
+- Tài khoản online không có toạ độ: hiện tổng “x tài khoản không gửi tọa độ”,
+  chi tiết ở menu **Danh sách online**.
+- Caster có tab **Kết nối live** và force disconnect.
+- Trang cá nhân không nằm trong menu; mở từ avatar/tên người dùng.
+- Chi tiết trường theo nhóm: `docs/0/PHASES_7_12_PLAN.md` §8.
 
 ## 10. Phụ thuộc dự kiến
 

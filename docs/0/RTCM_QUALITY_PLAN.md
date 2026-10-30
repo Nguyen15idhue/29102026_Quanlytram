@@ -193,7 +193,7 @@ quality_alert_acks(
 | GET | `/api/relay-jobs/:id/rtcm/messages?from=&to=&direction=` | `quality.view` |
 | GET | `/api/quality/alerts?targetType=&status=open&severity=` | `quality.view` |
 | POST | `/api/quality/alerts/:id/ack` | `quality.ack` |
-| GET | `/api/quality/export?targetType=&format=csv&from=&to=` | `quality.view` |
+| GET | `/api/quality/export?targetType=&format=csv&from=&to=` | `quality.view`; hiện CSV, Phase 11 bổ sung `.xlsx` |
 | GET | `/api/stations/:id/probes` | `stations.view` |
 | POST | `/api/stations/:id/probes` | `stations.edit` |
 | PATCH/DELETE | `/api/station-probes/:id` | `stations.edit` |
@@ -204,7 +204,7 @@ quality_alert_acks(
 - Trạm: scope theo `owner_web_user_id` của station/mountpoint.
 - Relay: scope theo `owner_web_user_id` của relay job.
 - Response không chứa payload RTCM, credential, DSN.
-- Export CSV có giới hạn dòng + audit.
+- Export CSV hiện có; Phase 11 bổ sung `.xlsx` (`exceljs`), giới hạn dòng + audit.
 
 ### 7.2. Internal (Go, HMAC)
 
@@ -223,15 +223,15 @@ quality_alert_acks(
 
 ## 8. FE quản trị realtime
 
-- Menu mới: **Chất lượng** với hai tab **Trạm** và **Relay**.
-- Tab Trạm:
-  - Tổng quan trạm: score, mất MSM/metadata, alert mở.
-  - Chi tiết: score, message type/rate, sat/cell, CNR, age/gap.
+- **Không** tạo menu/trang Chất lượng riêng.
+- Panel chất lượng nhúng trong popup chi tiết trạm (mở bằng cách bấm vào trạm).
+  - Nút **Sửa** trong popup mở popup sửa thông tin riêng.
+  - Score, message type/rate, sat/cell, CNR, age/gap.
   - Metadata: station ID, ARP, antenna, ARP jump.
-- Tab Relay:
-  - Tổng quan relay: score upstream/downstream, parity, alert.
-  - Chi tiết: hai luồng upstream/downstream, so sánh type/rate.
-- Alert list/filter/ack; loading/empty/error; responsive 1440/768/390.
+- Panel chất lượng nhúng trong popup chi tiết relay job.
+  - Hai luồng upstream/downstream, parity, so sánh type/rate.
+- Alert list/ack; loading/empty/error; responsive 1440/768/390.
+- Playwright: không còn menu Chất lượng, panel nằm trong popup, nút Sửa tách riêng.
 - Taste `inspect.mjs --app` 0 FAIL; test luồng + a11y.
 
 ## 9. Phase 6 — Tasks
@@ -282,7 +282,9 @@ quality_alert_acks(
 - P6-01/P6-02 có thể bắt đầu sau Phase 3.
 - P6-03 cần Phase 4 cho caster ingest; station probe có thể làm sớm hơn.
 - P6-04/P6-05 cần Socket.IO/realtime của Phase 5.
-- Migration dự kiến: `runtime/<next>_rtcm_quality.sql`,
-  `admin/<next>_quality_permissions.sql` (permission + `station_probes`).
-  `<next>` chốt sau migration Phase 4/5; không trùng version đã có (admin 003 đã dùng).
+- P6-05 chart dùng khuôn mẫu Phase 11 (D45); P6-06 export dùng khuôn mẫu
+  Phase 11 (D48/D50); alert gán `event_type`/`level` theo D49 để giao tiếp
+  với notification center Phase 10/11.
+- Migration đã dùng: `runtime/004_rtcm_quality.sql`,
+  `admin/006_quality_permissions.sql`; migration Phase 7 bắt đầu từ admin 008.
 - Cập nhật `docs/api.md`, `TASKS.md`, `SESSION.md` khi triển khai.

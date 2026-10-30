@@ -9,6 +9,8 @@ import {
 import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../auth/AuthProvider';
 import type {
+  QualityAlertItem,
+  QualityLiveItem,
   RealtimeAlert,
   RealtimeConnection,
   RealtimeRelay,
@@ -17,6 +19,9 @@ import type {
 
 interface RealtimeContextValue {
   snapshot: RealtimeSnapshot | null;
+  quality: QualityLiveItem[];
+  qualityAlerts: QualityAlertItem[];
+  lastQualityAck: { alertId: number; webUserId: number; ts: string } | null;
   connected: boolean;
   revoked: boolean;
   lastSession: { jobId: number; id: number; closeReason: string } | null;
@@ -42,6 +47,10 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [snapshot, setSnapshot] = useState<RealtimeSnapshot | null>(null);
+  const [quality, setQuality] = useState<QualityLiveItem[]>([]);
+  const [qualityAlerts, setQualityAlerts] = useState<QualityAlertItem[]>([]);
+  const [lastQualityAck, setLastQualityAck] =
+    useState<RealtimeContextValue['lastQualityAck']>(null);
   const [connected, setConnected] = useState(false);
   const [revoked, setRevoked] = useState(false);
   const [lastSession, setLastSession] = useState<RealtimeContextValue['lastSession']>(null);
@@ -49,6 +58,9 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user) {
       setSnapshot(null);
+      setQuality([]);
+      setQualityAlerts([]);
+      setLastQualityAck(null);
       setConnected(false);
       setRevoked(false);
       return;
@@ -119,6 +131,31 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
         setLastSession(payload.session);
       }
     );
+    instance.on('quality.snapshot', (payload: { items: QualityLiveItem[] }) => {
+      setQuality(payload.items ?? []);
+    });
+    instance.on('quality.updated', (payload: { items: QualityLiveItem[] }) => {
+      setQuality(payload.items ?? []);
+    });
+    instance.on('quality.alert', (payload: { items: QualityAlertItem[] }) => {
+      setQualityAlerts((previous) => {
+        const known = new Set(previous.map((alert) => alert.id));
+        return [...(payload.items ?? []).filter((alert) => !known.has(alert.id)), ...previous];
+      });
+    });
+    instance.on(
+      'quality.alert.ack',
+      (payload: { alertId: number; webUserId: number; ts: string }) => {
+        setLastQualityAck(payload);
+        setQualityAlerts((previous) =>
+          previous.map((alert) =>
+            alert.id === payload.alertId
+              ? { ...alert, ackedAt: payload.ts, ackedBy: payload.webUserId }
+              : alert
+          )
+        );
+      }
+    );
 
     return () => {
       instance.disconnect();
@@ -129,12 +166,15 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const value = useMemo<RealtimeContextValue>(
     () => ({
       snapshot,
+      quality,
+      qualityAlerts,
+      lastQualityAck,
       connected,
       revoked,
       lastSession,
       refresh: () => socket?.emit('snapshot:request')
     }),
-    [snapshot, connected, revoked, lastSession, socket]
+    [snapshot, quality, qualityAlerts, lastQualityAck, connected, revoked, lastSession, socket]
   );
 
   return <RealtimeContext.Provider value={value}>{children}</RealtimeContext.Provider>;

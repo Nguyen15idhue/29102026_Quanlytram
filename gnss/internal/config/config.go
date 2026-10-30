@@ -38,6 +38,21 @@ type Config struct {
 	CasterQueueSize      int
 	CasterReadBuffer     int
 	CasterMaxHeaderBytes int
+
+	QualityQueueSize       int
+	QualitySampleInterval  time.Duration
+	QualityStatsInterval   time.Duration
+	QualityEvalInterval    time.Duration
+	QualityAlertWindows    int
+	QualityGapThreshold    time.Duration
+	QualityStaleAfter      time.Duration
+	QualityBaselineWindow  int
+	QualitySampleWindowSec int
+	QualityStoreQueueSize  int
+	QualitySampleDays      int
+	QualityAlertDays       int
+	QualityPruneBatch      int
+	QualityPruneInterval   time.Duration
 }
 
 func getenv(key, fallback string) string {
@@ -104,5 +119,20 @@ func Load() Config {
 		CasterQueueSize:      getenvInt("CASTER_QUEUE_SIZE", 64),
 		CasterReadBuffer:     getenvInt("CASTER_READ_BUFFER", 32*1024),
 		CasterMaxHeaderBytes: getenvInt("CASTER_MAX_HEADER_BYTES", 16*1024),
+
+		QualityQueueSize:       getenvInt("QUALITY_QUEUE_SIZE", 2048),
+		QualitySampleInterval:  getenvSeconds("QUALITY_SAMPLE_INTERVAL_SEC", 60*time.Second),
+		QualityStatsInterval:   getenvSeconds("QUALITY_STATS_INTERVAL_SEC", 10*time.Second),
+		QualityEvalInterval:    getenvSeconds("QUALITY_EVAL_INTERVAL_SEC", 5*time.Second),
+		QualityAlertWindows:    getenvInt("QUALITY_ALERT_WINDOWS", 3),
+		QualityGapThreshold:    time.Duration(getenvInt("QUALITY_GAP_MS", 2000)) * time.Millisecond,
+		QualityStaleAfter:      getenvSeconds("QUALITY_STALE_AFTER_SEC", 5*time.Second),
+		QualityBaselineWindow:  getenvInt("QUALITY_BASELINE_WINDOW", 120),
+		QualitySampleWindowSec: getenvInt("QUALITY_SAMPLE_WINDOW_SEC", 60),
+		QualityStoreQueueSize:  getenvInt("QUALITY_STORE_QUEUE_SIZE", 4096),
+		QualitySampleDays:      getenvInt("QUALITY_SAMPLE_RETENTION_DAYS", 30),
+		QualityAlertDays:       getenvInt("QUALITY_ALERT_RETENTION_DAYS", 90),
+		QualityPruneBatch:      getenvInt("QUALITY_PRUNE_BATCH", 1000),
+		QualityPruneInterval:   getenvSeconds("QUALITY_PRUNE_INTERVAL_SEC", 6*time.Hour),
 	}
 }

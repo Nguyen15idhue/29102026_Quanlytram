@@ -19,6 +19,7 @@ import {
   Select,
   StatusBadge
 } from '../components/ui';
+import { QualityPanel } from '../components/QualityPanel';
 import { useToast } from '../components/ToastProvider';
 
 interface RelayJobList {
@@ -409,6 +410,7 @@ export function RelayJobs() {
         title={detail?.name ?? 'Chi tiết relay job'}
         description={detail ? `${detail.upstream.mount} → ${detail.downstream.mount}` : undefined}
         side="right"
+        size="lg"
         footer={
           detail && (
             <>
@@ -456,6 +458,13 @@ export function RelayJobs() {
               </div>
             </dl>
             {detail.state?.lastError && <div className="alert error">{detail.state.lastError}</div>}
+            {can('quality', 'view') && (
+              <QualityPanel
+                key={detail.id}
+                targetType="relay_job"
+                targetId={detail.id}
+              />
+            )}
           </>
         )}
       </Modal>

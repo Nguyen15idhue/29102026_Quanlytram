@@ -11,7 +11,13 @@
 | 3.5 | UI/UX Foundation | DONE | Phase 3 |
 | 4 | NTRIP caster & quản lý client | DONE | Phase 3.5 |
 | 5 | Realtime, dashboard, vận hành | DONE (defer UI nâng cao/Taste auth) | Phase 4 |
-| 6 | RTCM Analytics & chất lượng trạm/relay | TODO | Phase 3.5–5 |
+| 6 | RTCM Analytics & chất lượng trạm/relay | DONE (mock; probe runner + load 6-T13 defer) | Phase 3.5–5 |
+| 7 | Nền tảng UI & Trạm danh sách | TODO (ưu tiên 1) | Phase 5–6 |
+| 8 | Bản đồ & chi tiết trạm | TODO | Phase 7 |
+| 9 | CORS: NTRIP, mountpoint, caster | TODO | Phase 7–8 |
+| 10 | Relay & Hệ thống | TODO | Phase 7–9 |
+| 11 | Cá nhân, cấu hình & báo cáo | TODO | Phase 7–10 |
+| 12 | Hardening, load test & release | TODO | Phase 7–11 |
 
 Quy tắc: không chuyển phase nếu checklist của phase hiện tại chưa PASS.
 
@@ -388,74 +394,197 @@ P6-01/P6-02 có thể bắt đầu ngay sau Phase 3; P6-03 cần Phase 4 cho cas
 (hoặc làm station probe GET-only sớm hơn).
 
 ### P6-01 Parser go-rtcm
-- [ ] Thêm `github.com/go-gnss/rtcm` (Apache-2.0), package `rtcm3`
-- [ ] Parse frame/type: 1005/1006/1007/1008/1033, MSM 1074–1077,
+- [x] Thêm `github.com/go-gnss/rtcm` (Apache-2.0), package `rtcm3`
+- [x] Parse frame/type: 1005/1006/1007/1008/1033, MSM 1074–1077,
       1084–1087, 1094–1097, 1104–1107, 1114–1117, 1124–1127, 1230
-- [ ] Queue parse giới hạn; drop sample có counter; không chặn relay/caster
-- [ ] Byte-in == byte-out; không serialize/sửa byte
-- [ ] Fixtures valid/CRC sai/truncated/unknown/mảnh read/nhiều frame
+- [x] Queue parse giới hạn; drop sample có counter; không chặn relay/caster
+- [x] Byte-in == byte-out; không serialize/sửa byte
+- [x] Fixtures valid/CRC sai/truncated/unknown/mảnh read/nhiều frame
 
 ### P6-02 Quality model & score dùng chung
-- [ ] Migration `runtime/<next>_rtcm_quality.sql`
-- [ ] Migration `admin/<next>_quality_permissions.sql` (`quality.view`, `quality.ack`, `station_probes`)
-- [ ] `rtcm_message_stats`, `quality_samples`, `quality_alerts` dùng chung
+- [x] Migration `runtime/<next>_rtcm_quality.sql`
+- [x] Migration `admin/<next>_quality_permissions.sql` (`quality.view`, `quality.ack`, `station_probes`)
+- [x] `rtcm_message_stats`, `quality_samples`, `quality_alerts` dùng chung
       `target_type ENUM('station','relay_job')` + `target_id` + `mountpoint_id`
       (relay=0) + `direction`
-- [ ] `quality_alert_acks` (admin); không FK xuyên schema
-- [ ] Score 0–100: transport/integrity/MSM/metadata/signal/latency
-- [ ] Station score theo `ingest`; relay score upstream/downstream + `parity`
-- [ ] Baseline MSM 10 phút; relay job score = min(upstream, downstream)
-- [ ] Retention: sample 60 s/30 ngày, hourly 90 ngày, alert 90 ngày
+- [x] `quality_alert_acks` (admin); không FK xuyên schema
+- [x] Score 0–100: transport/integrity/MSM/metadata/signal/latency
+- [x] Station score theo `ingest`; relay score upstream/downstream + `parity`
+- [x] Baseline MSM 10 phút; relay job score = min(upstream, downstream)
+- [x] Retention: sample 60 s/30 ngày, hourly 90 ngày, alert 90 ngày
 
 ### P6-03 Nguồn chất lượng trạm thường
-- [ ] Caster ingest (Phase 4): phân tích luồng SOURCE/POST theo mountpoint/station
-- [ ] Station probe GET-only cho trạm ngoài hệ thống; mặc định disabled
-- [ ] `station_probes` (admin): station/mountpoint, interval, credential ref
-- [ ] Không tạo downstream; chỉ endpoint được phép; mock-first
-- [ ] Tránh trùng nguồn ingest/probe; ưu tiên ingest nếu cả hai bật
-- [ ] Trạm không có nguồn chất lượng → trạng thái `unknown`, không báo sai
+- [x] Caster ingest (Phase 4): phân tích luồng SOURCE/POST theo mountpoint/station
+- [x] Station probe GET-only cho trạm ngoài hệ thống; mặc định disabled
+- [x] `station_probes` (admin): station/mountpoint, interval, credential ref
+- [x] Không tạo downstream; chỉ endpoint được phép; mock-first
+- [x] Tránh trùng nguồn ingest/probe; ưu tiên ingest nếu cả hai bật
+- [x] Trạm không có nguồn chất lượng → trạng thái `unknown`, không báo sai
 
 ### P6-04 API & realtime BE
-- [ ] Internal `GET /internal/rtcm/snapshot`, `/internal/rtcm/health`
-- [ ] REST `/api/quality/overview` (station + relay)
-- [ ] REST `/api/stations/:id/quality`, `/api/stations/:id/rtcm/messages`
-- [ ] REST `/api/stations/:id/probes`, `/api/station-probes/:id` (CRUD/enable/disable)
-- [ ] REST `/api/relay-jobs/:id/quality`, `/api/relay-jobs/:id/rtcm/messages`
-- [ ] REST `/api/quality/alerts`, `/:id/ack`, `/api/quality/export`
-- [ ] RBAC scope all/subtree/own cho cả station và relay
-- [ ] Socket.IO `quality.snapshot/updated/alert/ack`; room `station:<id>`/`relay:<id>`
-- [ ] Throttle ~1 s; reconnect snapshot; đổi quyền cập nhật socket
+- [x] Internal `GET /internal/rtcm/snapshot`, `/internal/rtcm/health`
+- [x] REST `/api/quality/overview` (station + relay)
+- [x] REST `/api/stations/:id/quality`, `/api/stations/:id/rtcm/messages`
+- [x] REST `/api/stations/:id/probes`, `/api/station-probes/:id` (CRUD/enable/disable)
+- [x] REST `/api/relay-jobs/:id/quality`, `/api/relay-jobs/:id/rtcm/messages`
+- [x] REST `/api/quality/alerts`, `/:id/ack`, `/api/quality/export`
+- [x] Event type + level gán theo mô hình D49 (critical/major/minor/info)
+      để sau này giao tiếp với notification center Phase 7
+- [x] RBAC scope all/subtree/own cho cả station và relay
+- [x] Socket.IO `quality.snapshot/updated/alert/ack`; room `station:<id>`/`relay:<id>`
+- [x] Throttle ~1 s; reconnect snapshot; đổi quyền cập nhật socket
 
 ### P6-05 FE quản trị realtime (dùng foundation Phase 3.5)
-- [ ] Menu **Chất lượng** với tab **Trạm** và **Relay**
-- [ ] Tab Trạm: tổng quan, score, message type/rate, sat/cell, CNR, metadata
-- [ ] Tab Relay: upstream/downstream, parity, chart score/sat/cell/CNR/age/gap
-- [ ] Chi tiết trạm/relay: ARP, station ID, antenna, ARP jump
-- [ ] Alert list/filter/ack; loading/empty/error; responsive 1440/768/390
-- [ ] Taste `inspect.mjs --app` 0 FAIL + test luồng/a11y
+- [x] Không có menu/trang Chất lượng riêng
+- [x] Nhúng panel chất lượng vào popup chi tiết trạm; nút **Sửa** mở popup sửa riêng
+- [x] Nhúng panel chất lượng vào popup chi tiết relay; tab upstream/downstream
+- [x] Panel trạm: score, message type/rate, sat/cell, CNR, metadata, ARP
+- [x] Panel relay: upstream/downstream, parity, chart score/sat/cell/CNR/age/gap
+- [x] Chart vẽ theo quyết định chart lib của Phase 7 (D45 đã chốt: component
+      SVG/dot-grid tự vẽ, zero-dep, không thêm dep)
+- [x] Alert list/ack; loading/empty/error; responsive 1440/768/390
+- [x] Playwright kiểm tra menu không còn, panel trong popup, nút Sửa tách riêng
 
 ### P6-06 Alerts, retention, export
-- [ ] Alert debounce 3 cửa sổ; first/last/resolved
-- [ ] Ack lưu admin + audit; không auto-disable job/probe
-- [ ] Export CSV giới hạn dòng + audit
-- [ ] Prune sample/alert theo retention; không xóa alert đang mở
+- [x] Alert debounce 3 cửa sổ; first/last/resolved
+- [x] Ack lưu admin + audit; không auto-disable job/probe
+- [x] Export CSV giới hạn dòng + audit (Phase 11 bổ sung `.xlsx`/`exceljs`)
+- [x] Prune sample/alert theo retention; không xóa alert đang mở
+- [x] Cảnh báo kiểu caster/rover (login fail 7 biến thể, GGA out-of-range,
+      GGA age/interval, out-of-zone, exit đột ngột) sinh event từ Go; Node
+      tổng hợp — kế hoạch chi tiết ở Phase 10 P10-05 sau khi P6-04 có type/level
 
 ### P6-07 Test & hardening
-- [ ] Unit parser/quality/score; mock stream; DB down/up; restart
-- [ ] Byte-exact khi analyzer chạy; queue đầy không block
-- [ ] Station ingest + station probe GET-only; relay upstream/downstream/parity
-- [ ] API/RBAC/socket/scope; không raw payload/secret trong log
-- [ ] Load 50–100 station/job; CPU/RAM/p95; license go-rtcm
-- [ ] Tài liệu vận hành + cập nhật SESSION
+- [x] Unit parser/quality/score; mock stream; DB down/up; restart
+- [x] Byte-exact khi analyzer chạy; queue đầy không block
+- [x] Station ingest + station probe GET-only; relay upstream/downstream/parity
+- [x] API/RBAC/socket/scope; không raw payload/secret trong log
+- [ ] Load 50–100 station/job; CPU/RAM/p95; license go-rtcm (6-T13 chưa chạy)
+- [x] Tài liệu vận hành + cập nhật SESSION
 
 **Nghiệm thu Phase 6:** parse đúng type chính; byte-exact; chất lượng đúng cho
 cả trạm thường và trạm relay; score/alert đúng ngưỡng; realtime < 2 s;
-không lộ dữ liệu ngoài scope; tải 50–100 station/job không crash;
-test 6-T1..6-T13 PASS.
+không lộ dữ liệu ngoài scope. Đã PASS unit/Go, API/RBAC/socket Node,
+Playwright UI; 6-T13 load 50–100 chưa chạy, probe runner defer.
 
 ---
 
-## 9. Ghi chú điều phối
+## 9. Phase 7–12 — Hoàn thiện phần mềm theo CGBAS (2026-10-30)
+
+**Mục tiêu:** đưa sản phẩm từ “CRUD + realtime + quality” thành phần mềm quản
+trị CORS dùng được hằng ngày: dữ liệu trạm đầy đủ, IA rõ, vận hành trạm/caster,
+thông báo, quản trị hệ thống, báo cáo và hardening.
+
+**Nguồn đối chiếu:** graphify repo hiện tại (1734 nodes/4486 edges/112
+communities) và graphify CGBAS (3453 nodes/8619 edges/267 communities); mã
+nguồn CGBAS tại `F:\3.Laptrinh\1. Project\1. GNSS\CGBAS\...`; ảnh UI người
+dùng cung cấp. Chi tiết khảo sát/gap: `docs/0/PHASES_7_12_PLAN.md`.
+
+**Ngoài phạm vi (không làm trong 7–12):** VRS/subnet/grid division/transfer/
+subscribe; storage task dữ liệu thô (obs_type/sample rate/FTP-SFTP cron);
+displacement monitor/RTK engine; expression engine kiểu SpEL; Open API khách.
+CGBAS chỉ dùng để tham chiếu IA, cách tổ chức thông tin và trường dữ liệu.
+
+### P7-00 Hotfix nhất quán (đã làm)
+- [x] Đổi default port trạm/relay/DB/seed sang **1509** (form, API, schema,
+      migration `admin/007_port_defaults.sql`)
+- [x] `CASTER_PORT=1509` trong `.env.local`; không dùng 2101 cho caster
+- [x] Bỏ menu/trang Chất lượng riêng; panel quality nằm trong popup trạm/relay
+
+### Menu chốt
+```text
+Dashboard
+Trạm: Bản đồ trạm | Danh sách trạm
+CORS: Bản đồ online | Danh sách online | Tài khoản NTRIP | Mountpoint | Caster
+Relay
+Hệ thống: Phân quyền | Người dùng | Lịch sử | Cảnh báo
+(Ẩn) Trang cá nhân — mở bằng avatar/tên người dùng
+```
+
+### Phase 7 — Nền tảng UI & Trạm danh sách
+**Mục tiêu:** shell/menu mới + shared list/import/export + hồ sơ trạm + danh sách trạm.
+
+- [ ] P7-01 Shell/IA: menu nhóm mới; breadcrumb; topbar tên sản phẩm + user;
+      bỏ footer dev; mobile drawer; entry trang cá nhân.
+- [ ] P7-02 Shared list framework: pagination server-side **mặc định 10**,
+      luôn hiển thị; filter/page lưu URL; loading/empty/error.
+- [ ] P7-03 Import/export `.xlsx` bằng **`exceljs`** (D50): template, preview,
+      lỗi theo dòng, transaction, audit; không export secret/password.
+- [ ] P7-04 Migration `admin/008_station_profile.sql`: `station_type`,
+      `receiver_type`, `receiver_sn`, `receiver_firmware`, `antenna_type`,
+      `antenna_sn`, `antenna_height`, `elevation_mask`, `contractor`,
+      `region`, `address`, `device_id`, `network_type`, `network_mode`,
+      `protocol`, `custom_fields JSON`, `enabled`, `last_seen_at`.
+- [ ] P7-05 Migration `admin/009_dictionary_custom_fields.sql`: `dictionaries`
+      + `custom_field_defs`; seed receiver/antenna; select đọc DB.
+- [ ] P7-06 API trạm v2: owner name, mountpoint count, quality summary,
+      last data; filter status/owner/region; audit before/after.
+- [ ] P7-07 Danh sách trạm: cột trạng thái, mã/tên, receiver/antenna, vị trí,
+      mountpoint, dữ liệu cuối, quality; CRUD + quality + import/export.
+- [ ] P7-08 Form trạm nhóm: Định danh / Vị trí / Thiết bị / Kết nối / Vận hành
+      / Custom fields; test connection GET-only.
+- [ ] P7-09 Test G7: list/pagination 10/import/export/form/menu/a11y.
+
+**Nghiệm thu Phase 7:** menu mới; mọi list có pagination 10 luôn hiển thị;
+import/export `.xlsx`; trạm đủ trường; test PASS.
+
+### Phase 8 — Bản đồ & chi tiết trạm
+- [ ] P8-01 Bản đồ trạm Leaflet/OSM (D46), marker trạng thái, panel danh sách;
+      không hiện relay.
+- [ ] P8-02 Popup chi tiết trạm: Tổng quan / Kết nối / Mountpoint / Chất lượng
+      / Lịch sử; nút Sửa mở popup riêng.
+- [ ] P8-03 Bản đồ online: marker chỉ tài khoản NTRIP **có gửi toạ độ**;
+      badge/tổng “x tài khoản không gửi tọa độ”.
+- [ ] P8-04 Danh sách online: bảng chi tiết tài khoản online, filter, export;
+      force disconnect nếu có quyền.
+- [ ] P8-05 Test G8: map/marker/popup/online list/responsive/a11y.
+
+### Phase 9 — CORS: NTRIP, mountpoint, caster
+- [ ] P9-01 Tài khoản NTRIP: company/contact/phone/email/hiệu lực/max conn/
+      ACL; reset password; import/export `.xlsx`; drawer phiên online.
+- [ ] P9-02 Mountpoint: trạm/trạng thái/auth/service type/position mode/
+      satellite systems/caster interval/code protocol; import/export.
+- [ ] P9-03 Caster listener CRUD: name/port/role/enabled/description/mountpoints;
+      import/export.
+- [ ] P9-04 Caster tab live: connections, bytes, uptime, force disconnect.
+- [ ] P9-05 Test G9: CRUD/ACL/listener/live/force disconnect/RBAC.
+
+### Phase 10 — Relay & Hệ thống
+- [ ] P10-01 Relay: CRUD, quality/parity, detail tab, test/restart, import/export.
+- [ ] P10-02 Phân quyền: role CRUD, permission matrix module×action×scope,
+      import/export; role hệ thống khóa.
+- [ ] P10-03 Người dùng: CRUD, role/parent/status/locked; import Excel **không
+      cột password**, mật khẩu mặc định **123456**, audit; export không password.
+- [ ] P10-04 Lịch sử: Phiên/Sự kiện/Theo giờ, filter, pagination 10, export.
+- [ ] P10-05 Cảnh báo: level/event type/target/status/unread; filter/ack/read;
+      notification center cơ bản.
+- [ ] P10-06 Test G10: relay/system/import user/alert/RBAC/audit.
+
+### Phase 11 — Cá nhân, cấu hình & báo cáo
+- [ ] P11-01 Trang cá nhân ẩn menu: profile/avatar/email/phone/password/sessions.
+- [ ] P11-02 Notification center nâng cao: All/Unread/read-all/event config/
+      silence/threshold; email optional.
+- [ ] P11-03 Dictionary/custom fields admin, system params, brand/logo,
+      log viewer login/operate.
+- [ ] P11-04 Dashboard chart/report, retention, backup/restore UI.
+- [ ] P11-05 Test G11: user center/notification/config/report/retention.
+
+### Phase 12 — Hardening, load test & release
+- [ ] P12-01 Load 50–100 station/job; CPU/RAM/p95; queue/backpressure.
+- [ ] P12-02 Security: RBAC scope, CSRF, HMAC, secret scan, rate limit,
+      audit redaction; không log secret.
+- [ ] P12-03 E2E: login/CRUD/map/station detail/online/caster/relay/system;
+      a11y + responsive + dark mode.
+- [ ] P12-04 Migration/backup/restore/release runbook; rollback.
+- [ ] P12-05 Observability: health, logs, metrics tối thiểu.
+- [ ] P12-06 Definition of Done + tag release (không push nếu chưa xác nhận).
+
+**Nghiệm thu Phase 7–12:** mỗi phase có checklist PASS + bằng chứng; không mở
+phase sau khi phase trước còn FAIL; không làm các mục ngoài phạm vi ở trên.
+
+---
+
+## 10. Ghi chú điều phối
 
 - Không chuyển phase nếu checklist chưa PASS.
 - Mỗi task cập nhật trạng thái vào file này.
