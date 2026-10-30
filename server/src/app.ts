@@ -23,6 +23,7 @@ import { snapshotRouter } from './routes/snapshot';
 import { qualityRouter } from './routes/quality';
 import { auditRouter } from './routes/audit';
 import { dictionariesRouter } from './routes/dictionaries';
+import { profileRouter } from './routes/profile';
 
 const logger = pino({
   level: config.logLevel,
@@ -127,6 +128,7 @@ app.use('/api/snapshot', snapshotRouter);
 app.use('/api', qualityRouter);
 app.use('/api/audit-logs', auditRouter);
 app.use('/api/dictionaries', dictionariesRouter);
+app.use('/api/profile', profileRouter);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -15,6 +15,7 @@ import { Caster } from './pages/Caster';
 import { WebUsers } from './pages/WebUsers';
 import { Alerts } from './pages/Alerts';
 import { History } from './pages/History';
+import { Profile } from './pages/Profile';
 
 function Protected() {
   const { user, loading } = useAuth();
@@ -42,6 +43,7 @@ export function App() {
         <Route path="/ntrip-accounts" element={<NtripAccounts />} />
         <Route path="/web-users" element={<WebUsers />} />
         <Route path="/roles" element={<Roles />} />
+        <Route path="/profile" element={<Profile />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

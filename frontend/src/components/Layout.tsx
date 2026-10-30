@@ -34,7 +34,8 @@ const titles: Record<string, string> = {
   '/caster': 'Caster',
   '/ntrip-accounts': 'Tài khoản NTRIP',
   '/web-users': 'Người dùng web',
-  '/roles': 'Vai trò & quyền'
+  '/roles': 'Vai trò & quyền',
+  '/profile': 'Trang cá nhân'
 };
 
 export function Layout() {
@@ -138,7 +139,9 @@ export function Layout() {
           </div>
           <div className="topbar-actions">
             <ThemeToggle />
-            <span className="topbar-user">{user?.displayName}</span>
+            <NavLink className="topbar-user" to="/profile">
+              {user?.displayName}
+            </NavLink>
             <IconButton label="Đăng xuất" onClick={handleLogout}>
               <LogOut size={18} aria-hidden="true" />
             </IconButton>

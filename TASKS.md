@@ -16,7 +16,7 @@
 | 8 | Bản đồ & chi tiết trạm | DONE (core; sky plot/advanced metrics defer) | Phase 7 |
 | 9 | CORS: NTRIP, mountpoint, caster | DONE (core; import/export defer) | Phase 7–8 |
 | 10 | Relay & Hệ thống | DONE (core; relay/role import-export defer) | Phase 7–9 |
-| 11 | Cá nhân, cấu hình & báo cáo | TODO | Phase 7–10 |
+| 11 | Cá nhân, cấu hình & báo cáo | DONE (core; notification/config/log defer) | Phase 7–10 |
 | 12 | Hardening, load test & release | TODO | Phase 7–11 |
 
 Quy tắc: không chuyển phase nếu checklist của phase hiện tại chưa PASS.
@@ -567,7 +567,7 @@ import/export `.xlsx`; trạm đủ trường; test PASS.
 - [x] P10-06 Test G10: relay/system/import user/alert/RBAC/audit.
 
 ### Phase 11 — Cá nhân, cấu hình & báo cáo
-- [ ] P11-01 Trang cá nhân ẩn menu: profile/avatar/email/phone/password/sessions.
+- [x] P11-01 Trang cá nhân ẩn menu: profile/avatar/email/phone/password/sessions.
 - [ ] P11-02 Notification center nâng cao: All/Unread/read-all/event config/
       silence/threshold; email optional.
 - [ ] P11-03 Dictionary/custom fields admin, system params, brand/logo,

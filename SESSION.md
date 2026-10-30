@@ -566,6 +566,15 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - Test: import dry-run 4 user PASS; alerts trả level/eventType; Playwright 6/6.
 - Defer: import/export relay/role; notification center nâng cao/event config.
 
+### 8.17. Phase 11 — Kết quả core (2026-10-30)
+
+- Thêm `/api/profile`: xem/cập nhật hồ sơ, đổi mật khẩu, danh sách phiên.
+- Trang `/profile` ẩn menu; mở bằng tên người dùng trên topbar.
+- Đổi mật khẩu xóa các phiên khác; audit thao tác.
+- Test API profile/sessions PASS; frontend build PASS.
+- Defer: notification center nâng cao/event config, dictionary admin,
+  system params/brand/logo, log viewer, dashboard report/retention.
+
 ## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |
