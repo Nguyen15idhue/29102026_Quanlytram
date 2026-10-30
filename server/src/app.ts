@@ -14,6 +14,7 @@ import { mountpointsRouter } from './routes/mountpoints';
 import { webUsersRouter } from './routes/webUsers';
 import { rolesRouter } from './routes/roles';
 import { permissionsRouter } from './routes/permissions';
+import { relayJobsRouter } from './routes/relayJobs';
 
 const logger = pino({
   level: config.logLevel,
@@ -74,7 +75,7 @@ app.get(
         "SELECT MAX(version) AS version FROM schema_migrations WHERE scope = 'admin'"
       );
       const schemaVersion = Number(rows[0]?.version ?? 0);
-      const healthy = schemaVersion >= 1;
+      const healthy = schemaVersion >= 2;
       res.status(healthy ? 200 : 503).json({
         status: healthy ? 'ok' : 'degraded',
         db: 'ok',
@@ -98,6 +99,7 @@ app.use('/api/mountpoints', mountpointsRouter);
 app.use('/api/web-users', webUsersRouter);
 app.use('/api/roles', rolesRouter);
 app.use('/api/permissions', permissionsRouter);
+app.use('/api/relay-jobs', relayJobsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

@@ -2,10 +2,11 @@
 
 ## 1. Thông tin phiên
 
-- Thời điểm: 2026-10-30 09:34 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: Phase 1 — Skeleton & hợp đồng dữ liệu
+- Thời điểm: 2026-10-30 10:45 (Asia/Ho_Chi_Minh, +07:00)
+- Phase hiện tại: Phase 2 — Port relay & test mock
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
+- Trạng thái Phase 2: DONE
 - Người thực hiện: OpenCode
 
 ## 2. Trạng thái
@@ -16,15 +17,20 @@
 - Phase 1: Docker Compose, MySQL hai schema/migration, Node auth + RBAC,
   CRUD stations/mountpoints/web-users/roles, Go health, React frontend,
   API contract, seed dữ liệu test.
+- Phase 2: schema relay admin/runtime, Node API relay-jobs + actions + audit,
+  Go relay bridge/NTRIP/RTCM/NMEA/SOCKS5/TLS, loop guard, reconcile theo
+  revision, runtime writer buffer, mock caster/rover/source + fixtures,
+  test mock 2-T1..2-T9 và E2E Node -> Go -> mock.
 
 ### Đang làm
-- Không có (Phase 1 đã đóng).
+- Không có (Phase 2 đã đóng).
 
 ### Tiếp theo
-- Phase 2 — Port relay & test mock.
+- Phase 3 — Quản trị trạm & relay ổn định.
 
 ### Blocker
-- Không có.
+- Không có. `go test -race` chưa chạy được vì môi trường Windows không bật
+  cgo/C compiler; đã chạy `go test ./...` và `go vet ./...`.
 
 ## 3. Baseline relay (read-only)
 
@@ -158,7 +164,91 @@ Không chạm relay backup, không dùng cổng 8081/2101.
 - NTRIP account vs web account cần test đầy đủ khi có caster.
 - Docker image build lần đầu khá lâu; nên build trên CI/máy local.
 
-## 7. Nhật ký thay đổi
+## 7. Phase 2 — Kết quả
+
+### 7.1. Data model & API
+- Migration `db/migrations/admin/002_relay.sql`: `relay_credentials`,
+  `relay_jobs` (unique `external_key`, unique cặp endpoint, soft-delete,
+  `desired_revision`).
+- Migration `db/migrations/runtime/002_relay_runtime.sql`: `relay_job_state`,
+  `relay_sessions`, `relay_events`, `relay_hourly`; `runtime_meta=2`.
+- API Node `/api/relay-jobs`: list/detail/create/patch/soft-delete +
+  enable/disable/restart/test; audit redacted; không trả secret.
+- Internal API Go: reconcile/test/snapshot, ký HMAC + timestamp + nonce.
+- Reconcile theo `desired_revision`; Go ghi `applied_revision`,
+  `runtime_state`, `last_error`.
+- Endpoint key chuẩn hóa `scheme://host:port/mount`; self-loop + DFS cycle.
+
+### 7.2. Go bridge
+- `internal/ntrip`: NTRIP v1 ICY, v2 HTTP/chunked, GET, POST, SOURCE,
+  auto fallback, Basic auth, TLS (RootCAs injectable), SOURCETABLE reject.
+- `internal/relay`: bridge byte-copy, metrics, backoff/jitter, NMEA,
+  loop guard, manager, bounded runtime writer, `service_restart`.
+- `internal/rtcm`: CRC24Q, resync, bounded buffer, counts only (không sửa byte).
+- `internal/proxy`: SOCKS5 (no-auth + auth config), lỗi không lộ credential.
+- `internal/secret`: AES-256-GCM `v1:nonce:cipher:tag`.
+- `internal/api`: HMAC, ±60s, nonce replay 2 phút, health schema >= 2.
+
+### 7.3. Mock & E2E
+- `scripts/mock-ntrip`: caster/source/rover, chunked, fragment, delay,
+  repeat, capture; bind mặc định loopback.
+- Fixtures: `rtcm3-valid.hex`, `rtcm3-badcrc.hex`.
+- `scripts/e2e-relay-mock.ps1`: login superadmin -> tạo job có credential ->
+  Go stream mock -> capture byte-exact -> state streaming -> test action ->
+  disable -> soft-delete; kiểm tra API không lộ secret.
+
+### 7.4. Bằng chứng kiểm thử
+
+| Mục | Kết quả | Bằng chứng |
+|---|---|---|
+| Migration SQL fresh (temp schema) | PASS | admin 12 bảng, runtime 5 bảng, `runtime_meta=2` |
+| Migration idempotent (Compose) | PASS | `[migrate] done admin=0 runtime=0` |
+| Node health | PASS | `schemaVersion=2`, `db=ok` |
+| Go health | PASS | `schemaVersion=2`, `db=ok` |
+| Node tsc | PASS | `npx tsc --noEmit` sạch |
+| Node Vitest | PASS | 19/19 (relay 10 + rbac 9) |
+| Go test | PASS | relay/ntrip/rtcm/nmea/secret/proxy/config |
+| Go vet | PASS | `go vet ./...` sạch |
+| Go TLS handshake | PASS | `TestGetTLS` với CA cục bộ |
+| Go SOCKS5 | PASS | `TestSOCKS5NoAuthDial` |
+| Byte-exact 1KB/1MB | PASS | `Test2T1ByteExactSource/Post` |
+| Mảnh read / nhiều frame | PASS | `Test2T2`, `Test2T3` |
+| Slow client | PASS | `Test2T5` (4MB, client chậm không chặn job khác) |
+| Reconnect/backoff/timeout | PASS | `Test2T4`, `backoff_test` |
+| Go restart `service_restart` | PASS | `Test2T6` |
+| DB down/up không chặn RTCM | PASS | `Test2T7`, `writer_test` |
+| Loop/self-loop | PASS | `Test2T8`, `loopguard_test` |
+| Không lộ secret | PASS | `Test2T9`, E2E kiểm tra response/log |
+| Streaming state | PASS | `TestOnFirstByteFiresOnce`, E2E `state=streaming` |
+| Disable không bị ghi đè | PASS | `TestDisabledStateNotOverwrittenByStopped` |
+| E2E mock | PASS | job 5/6/7: capture byte-exact, streaming, test OK, disable + soft-delete |
+| RBAC list relay scope | PASS | admin subtree + user1 own list 200; sửa cột owner bị ambiguous khi JOIN credential |
+| Compose rebuild | PASS | migrate/server/gnss rebuilt, containers healthy |
+
+### 7.5. Lệnh chạy
+
+```bash
+cd gnss && go test ./... && go vet ./...
+cd server && npx tsc --noEmit && npm test
+docker compose build migrate server gnss
+docker compose run --rm migrate
+docker compose up -d --force-recreate server gnss
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
+```
+
+### 7.6. Ghi chú / hạn chế
+
+- `APP_ENC_KEY` cũ trong `.env.local` không giải mã đủ 32 byte; đã xoay sang
+  key base64 32 byte (chỉ `.env.local`, không commit). Credential cũ (nếu có)
+  sẽ không giải mã được với key mới.
+- E2E dùng `host.docker.internal:2102`; không dùng cổng `8081`/`2101`.
+- Mock chỉ kiểm tra byte/handshake, không mô phỏng đầy đủ RTCM message semantics.
+- Loop guard chỉ phát hiện vòng nội bộ theo endpoint key; không phát hiện vòng
+  qua hệ thống ngoài.
+- `go test -race` chưa chạy do thiếu cgo/C compiler trên Windows.
+- Job/credential E2E đã dọn khỏi DB test; audit giữ lại.
+
+## 8. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |
 |---|---|---|
@@ -166,7 +256,10 @@ Không chạm relay backup, không dùng cổng 8081/2101.
 | Phase 1 | `docker-compose.yml`, `db/`, `server/`, `gnss/`, `frontend/` | Skeleton + RBAC |
 | Phase 1 | `docs/api.md`, `.env.example`, `.gitattributes` | API contract, env, LF |
 | Phase 1 | `server/src/routes/webUsers.ts`, `roles.ts`, `mountpoints.ts`, `app.ts`, `lib/validation.ts` | Rà soát + sửa 7 lỗi |
+| Phase 2 | `db/migrations/*/002_*`, `server/src/routes/relayJobs.ts`, `server/src/lib/*` | Schema + API relay |
+| Phase 2 | `gnss/internal/{relay,ntrip,rtcm,nmea,secret,proxy,api}`, `cmd/corsd` | Bridge + HMAC |
+| Phase 2 | `scripts/mock-ntrip`, `scripts/fixtures`, `scripts/e2e-relay-mock.ps1` | Mock + E2E |
 
-## 8. Cập nhật lần cuối
+## 9. Cập nhật lần cuối
 
-- 2026-10-30 09:56 +07:00
+- 2026-10-30 10:50 +07:00

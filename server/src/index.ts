@@ -1,6 +1,7 @@
 import { app } from './app';
 import { config } from './config';
 import { closePool } from './db/pool';
+import { closeRuntimePool } from './db/runtimePool';
 
 const server = app.listen(config.port, '0.0.0.0', () => {
   console.log(`[server] listening on :${config.port}`);
@@ -11,6 +12,7 @@ async function shutdown(signal: string): Promise<void> {
   server.close(async () => {
     try {
       await closePool();
+      await closeRuntimePool();
     } finally {
       process.exit(0);
     }

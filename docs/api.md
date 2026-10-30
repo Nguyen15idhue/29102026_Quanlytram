@@ -1,4 +1,4 @@
-# API Contract (Phase 1)
+# API Contract (Phase 1–2)
 
 Base URL: `/api`
 Auth: session cookie `cors_sid` (HttpOnly, SameSite=Lax).
@@ -112,4 +112,101 @@ Role custom: level 1–99; không xóa nếu đang được gán.
 
 - Không dùng lẫn `/api/relay-jobs` và `/api/relay/jobs`; Phase 2 dùng `/api/relay-jobs`.
 - Không trả `password_hash` trong bất kỳ response nào.
-- Mọi thay đổi quyền/người dùng/trạm/mountpoint ghi audit đã redact.
+- Mọi thay đổi quyền/người dùng/trạm/mountpoint/relay job ghi audit đã redact.
+
+## 10. Relay jobs (Phase 2)
+
+| Method | Endpoint | Quyền |
+|---|---|---|
+| GET | `/api/relay-jobs?q=&page=&pageSize=` | `relay.view` |
+| GET | `/api/relay-jobs/:id` | `relay.view` |
+| POST | `/api/relay-jobs` | `relay.add` |
+| PATCH | `/api/relay-jobs/:id` | `relay.edit` |
+| DELETE | `/api/relay-jobs/:id` | `relay.delete` |
+| POST | `/api/relay-jobs/:id/enable` | `relay.edit` |
+| POST | `/api/relay-jobs/:id/disable` | `relay.edit` |
+| POST | `/api/relay-jobs/:id/restart` | `relay.edit` |
+| POST | `/api/relay-jobs/:id/test` | `relay.edit` |
+
+Body tạo job:
+
+```json
+{
+  "externalKey": "optional-unique-key",
+  "name": "Relay HN -> HCM",
+  "enabled": false,
+  "upstream": {
+    "host": "caster.example",
+    "port": 2101,
+    "mount": "UPSTREAM",
+    "proxy": "",
+    "ssl": false,
+    "ntripVersion": "v2"
+  },
+  "downstream": {
+    "host": "caster2.example",
+    "port": 2101,
+    "mount": "DOWNSTREAM",
+    "proxy": "",
+    "ssl": false,
+    "ntripVersion": "v2"
+  },
+  "upstreamCredential": { "username": "user", "password": "secret" },
+  "downstreamCredential": null,
+  "downstreamMode": "auto",
+  "lat": 21.0285,
+  "lon": 105.8542,
+  "uaPrefix": "CORS-MVP",
+  "nmeaIntervalSec": 0,
+  "origin": "manual",
+  "originRef": "",
+  "tags": null,
+  "ownerWebUserId": null
+}
+```
+
+- `downstreamMode`: `auto` (POST rồi fallback SOURCE), `post`, `source`.
+- Credential: `password` bắt buộc khi tạo mới; khi PATCH, bỏ `password` để giữ secret cũ,
+  gửi `null` để gỡ credential.
+- Response chỉ trả `credential: { id, username, hasSecret }`; không bao giờ trả
+  `password_enc`/`password`.
+- `DELETE` là soft-delete (`deleted_at`), job biến mất khỏi list/detail.
+- Unique: `externalKey` và cặp `(upstream_key, downstream_key)`;
+  `endpointKey = scheme://host:port/mount` đã chuẩn hóa.
+- Mọi thao tác ghi tăng `desiredRevision`; Go reconcile và ghi `appliedRevision`.
+- Loop guard chỉ phát hiện self-loop và cycle nội bộ theo endpoint key;
+  không phát hiện vòng đi qua hệ thống ngoài.
+
+`item.state` (từ `cors_runtime.relay_job_state`):
+
+```json
+{
+  "runtimeState": "streaming",
+  "appliedRevision": 3,
+  "lastError": null,
+  "lastAppliedAt": "2026-10-30T03:00:00.000Z",
+  "updatedAt": "2026-10-30T03:00:01.000Z"
+}
+```
+
+`runtimeState`: `disabled | pending | connecting | streaming | backoff | error | stopped`.
+
+Lỗi nghiệp vụ: `SELF_LOOP` (409), `LOOP_DETECTED` (409), `DUPLICATE_ENDPOINT` (409),
+`CREDENTIAL_PASSWORD_REQUIRED` (400), `INVALID_OWNER` (400), `RELAY_TEST_FAILED` (502).
+
+`POST /:id/test` gọi Go kiểm tra handshake upstream rồi downstream, trả
+`{ result: { ok, stage, upstream, downstream, latencyMs, error } }`.
+
+## 11. Internal API Go (không public)
+
+Node gọi Go qua `GO_INTERNAL_URL` (mặc định `http://gnss:7080`). Mọi request ký HMAC:
+
+- `X-Timestamp` (epoch ms), `X-Nonce`, `X-Body-SHA256`, `X-Signature`.
+- `signature = HMAC-SHA256(INTERNAL_HMAC_SECRET, method + "\n" + path + "\n" + timestamp + "\n" + nonce + "\n" + bodyHash)`.
+- Cửa sổ ±60 giây; nonce chống replay 2 phút.
+
+| Method | Endpoint | Mô tả |
+|---|---|---|
+| POST | `/internal/reconcile` | Body `{ jobIds?: number[] }`; reconcile theo revision |
+| POST | `/internal/test` | Body `{ jobId }`; handshake test |
+| GET | `/internal/snapshot` | Metrics RAM: bytes, frames, CRC errors, state, last data |

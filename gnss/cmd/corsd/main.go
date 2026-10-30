@@ -12,29 +12,57 @@ import (
 	"cors/gnss/internal/api"
 	"cors/gnss/internal/config"
 	"cors/gnss/internal/db"
+	"cors/gnss/internal/relay"
 )
 
 func main() {
 	cfg := config.Load()
 	ctx := context.Background()
 
-	database, err := db.Open(ctx, cfg)
+	runtimeDB, err := db.Open(ctx, cfg)
 	if err != nil {
-		log.Fatalf("open database: %v", err)
+		log.Fatalf("open runtime database: %v", err)
 	}
-	defer database.Close()
+	defer runtimeDB.Close()
 
-	version, err := db.SchemaVersion(ctx, database, cfg.AdminDB)
+	adminDB, err := db.OpenAdmin(ctx, cfg)
+	if err != nil {
+		log.Fatalf("open admin database: %v", err)
+	}
+	defer adminDB.Close()
+
+	version, err := db.SchemaVersion(ctx, runtimeDB, cfg.AdminDB)
 	if err != nil {
 		log.Fatalf("check schema: %v", err)
 	}
-	if version < 1 {
-		log.Fatalf("runtime schema version %d is not compatible", version)
+	if version < 2 {
+		log.Fatalf("runtime schema version %d is not compatible (need >= 2)", version)
 	}
+	if cfg.AppEncKey == "" {
+		log.Printf("warning: APP_ENC_KEY is empty; relay credentials cannot be decrypted")
+	}
+	if cfg.InternalHMACSecret == "" {
+		log.Printf("warning: INTERNAL_HMAC_SECRET is empty; internal API calls will be rejected")
+	}
+
+	store := relay.NewMySQLStore(adminDB, cfg.AppEncKey)
+	writer := relay.NewBufferedWriter(runtimeDB, cfg.QueueSize, cfg.BatchSize, cfg.FlushInterval)
+
+	options := relay.DefaultOptions()
+	options.DialTimeout = cfg.DialTimeout
+	options.PollInterval = cfg.PollInterval
+	options.RetryMin = time.Second
+	options.RetryMax = 30 * time.Second
+
+	manager := relay.NewManager(store, writer, options)
+
+	runCtx, runCancel := context.WithCancel(context.Background())
+	go writer.Run(runCtx)
+	go manager.Run(runCtx)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           api.New(database, cfg.AdminDB).Handler(),
+		Handler:           api.New(runtimeDB, cfg.AdminDB, manager, cfg.InternalHMACSecret).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -49,9 +77,18 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
 	defer cancel()
+
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("shutdown: %v", err)
+		log.Printf("http shutdown: %v", err)
+	}
+	manager.Shutdown(shutdownCtx)
+	runCancel()
+
+	select {
+	case <-writer.Done():
+	case <-shutdownCtx.Done():
+		log.Printf("runtime writer did not flush before shutdown timeout")
 	}
 }

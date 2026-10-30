@@ -4,9 +4,9 @@ Dự án xây dựng hệ thống quản lý trạm CORS/NTRIP/RTCM ở mức MV
 quản lý trạm, mountpoint, tài khoản web, tài khoản NTRIP, relay bridge,
 giám sát realtime và cấu hình hệ thống.
 
-> Trạng thái hiện tại: **Phase 1 — Skeleton & hợp đồng dữ liệu (DONE)**.
-> Hệ thống đã chạy end-to-end với MySQL, Node API, Go health và React UI.
-> Phase 2 sẽ port relay bridge và test bằng mock.
+> Trạng thái hiện tại: **Phase 2 — Port relay & test mock (DONE)**.
+> Hệ thống chạy end-to-end với MySQL, Node API, Go relay bridge và React UI.
+> Relay đã được kiểm thử byte-exact bằng mock; chưa chạm caster thật.
 
 ## 1. Tài liệu
 
@@ -32,7 +32,7 @@ frontend/        React + Vite + TypeScript
 server/          Node + Express + TypeScript + Socket.IO
 gnss/            Go: relay bridge + caster + RTCM monitor
 db/migrations/   admin/ + runtime/
-scripts/         ntrip-probe, seed-relay, mock caster, fixtures
+scripts/         mock-ntrip (caster/rover/source), fixtures, e2e relay
 docs/0/          tài liệu dự án
 ```
 
@@ -82,13 +82,22 @@ MySQL và Go internal không public ra ngoài.
 - Không commit secret; chỉ dùng `.env.local`.
 - Không thêm Redis/Kafka/RabbitMQ/K8s.
 
-## 8. Kiểm thử dự kiến
+## 8. Kiểm thử
 
 ```bash
-cd gnss && go test ./...
-cd server && npm test
+cd gnss && go test ./... && go vet ./...
+cd server && npx tsc --noEmit && npm test
 cd frontend && npm test
 ```
+
+Mock relay (không dùng caster thật, không chiếm 8081/2101):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
+```
+
+Mock/fixtures nằm ở `scripts/mock-ntrip`, `scripts/fixtures`; chi tiết
+nghiệm thu Phase 2 ở `SESSION.md` mục 7.
 
 Kiểm thử UI bằng Taste Skill (app screen):
 

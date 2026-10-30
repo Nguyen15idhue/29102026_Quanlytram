@@ -6,7 +6,7 @@
 |---|---|---|---|
 | 0 | Chuẩn bị & xác minh | DONE | - |
 | 1 | Skeleton & hợp đồng dữ liệu | DONE | Phase 0 |
-| 2 | Port relay & test mock | TODO | Phase 1 |
+| 2 | Port relay & test mock | DONE | Phase 1 |
 | 3 | Quản trị trạm & relay ổn định | TODO | Phase 2 |
 | 4 | NTRIP caster & quản lý client | TODO | Phase 3 |
 | 5 | Realtime, dashboard, vận hành | TODO | Phase 4 |
@@ -125,46 +125,62 @@ timezone UTC/+07 nhất quán, API contract thống nhất.
 Chưa chạm dịch vụ thật.
 
 ### P2-01 Data model & API
-- [ ] `relay_credentials`, `relay_jobs`, `relay_job_state`
-- [ ] `relay_sessions`, `relay_events`, `relay_hourly`
-- [ ] `desired_revision`, `applied_revision`, `runtime_state`, `last_error`
-- [ ] Unique index `(external_key)`, `(upstream_key, downstream_key)`
-- [ ] `deleted_at`
-- [ ] API CRUD + actions enable/disable/restart/test
-- [ ] Không trả secret; chỉ `hasSecret` + `username`
+- [x] `relay_credentials`, `relay_jobs`, `relay_job_state`
+- [x] `relay_sessions`, `relay_events`, `relay_hourly`
+- [x] `desired_revision`, `applied_revision`, `runtime_state`, `last_error`
+- [x] Unique index `(external_key)`, `(upstream_key, downstream_key)`
+- [x] `deleted_at`
+- [x] API CRUD + actions enable/disable/restart/test
+- [x] Không trả secret; chỉ `hasSecret` + `username`
 
 ### P2-02 Go bridge
-- [ ] GET upstream, POST downstream, `ICY 200`, chunked
-- [ ] SOCKS5 proxy, TLS, backoff, byte counters, last-data
-- [ ] NMEA GGA/GSA/RMC + jitter + device UA
-- [ ] `downstream_mode=auto`: POST -> fallback SOURCE
-- [ ] RTCM monitor: preamble/len/CRC24Q; buffer giới hạn + resync
-- [ ] Ghi runtime MySQL theo batch; buffer giới hạn
-- [ ] Đọc config RO; reconcile theo revision
+- [x] GET upstream, POST downstream, `ICY 200`, chunked
+- [x] SOCKS5 proxy, TLS, backoff, byte counters, last-data
+- [x] NMEA GGA/GSA/RMC + jitter + device UA
+- [x] `downstream_mode=auto`: POST -> fallback SOURCE
+- [x] RTCM monitor: preamble/len/CRC24Q; buffer giới hạn + resync
+- [x] Ghi runtime MySQL theo batch; buffer giới hạn
+- [x] Đọc config RO; reconcile theo revision
 
 ### P2-03 Mock & fixtures
-- [ ] Mock caster (v1/v2), mock rover, mock source
-- [ ] Fixtures RTCM3 hợp lệ + CRC sai
-- [ ] Script byte-exact, mảnh read, nhiều frame/read
-- [ ] Script slow client
+- [x] Mock caster (v1/v2), mock rover, mock source
+- [x] Fixtures RTCM3 hợp lệ + CRC sai
+- [x] Script byte-exact, mảnh read, nhiều frame/read
+- [x] Script slow client
 
 ### P2-04 Loop guard
-- [ ] Key endpoint: `scheme + host + port + mount` chuẩn hóa
-- [ ] Self-loop + DFS cycle nội bộ
-- [ ] Unique index; Go kiểm tra lại khi load
-- [ ] Ghi rõ giới hạn với hệ thống ngoài
+- [x] Key endpoint: `scheme + host + port + mount` chuẩn hóa
+- [x] Self-loop + DFS cycle nội bộ
+- [x] Unique index; Go kiểm tra lại khi load
+- [x] Ghi rõ giới hạn với hệ thống ngoài
 
 ### P2-05 Test mock
-- [ ] Byte-in == byte-out
-- [ ] Reconnect/backoff/timeout
-- [ ] Chunked; nhiều frame/read; CRC sai
-- [ ] Slow client không làm nghẽn
-- [ ] Go restart: session cũ đóng `service_restart`
-- [ ] DB down/up: buffer giới hạn; không chặn RTCM
-- [ ] Không chứa secret trong log
+- [x] Byte-in == byte-out
+- [x] Reconnect/backoff/timeout
+- [x] Chunked; nhiều frame/read; CRC sai
+- [x] Slow client không làm nghẽn
+- [x] Go restart: session cũ đóng `service_restart`
+- [x] DB down/up: buffer giới hạn; không chặn RTCM
+- [x] Không chứa secret trong log
 
 **Nghiệm thu Phase 2:** mock PASS toàn bộ; byte-exact; monitor không ảnh
 hưởng tốc độ; reconcile rõ ràng; loop guard hoạt động.
+
+**Ghi chú Phase 2 (2026-10-30):**
+
+- Migration `002_relay.sql` + `002_relay_runtime.sql`; schema admin/runtime = 2.
+- Go test PASS: `relay` (2-T1..2-T9, manager, writer, loop guard, backoff),
+  `ntrip` (v1 ICY, v2 chunked, POST/SOURCE/auto, 401, SOURCETABLE, TLS),
+  `rtcm`, `nmea`, `secret`, `proxy` (SOCKS5 no-auth).
+- Node: `tsc --noEmit` sạch; Vitest 19/19; list relay scope admin/user1 OK.
+- E2E mock PASS: Node login -> tạo job -> Go GET upstream -> SOURCE downstream
+  -> capture byte-exact -> state `streaming` -> action `test` OK -> disable ->
+  soft-delete ẩn khỏi API.
+- Mock/fixtures: `scripts/mock-ntrip`, `scripts/fixtures/rtcm3-valid.hex`,
+  `scripts/fixtures/rtcm3-badcrc.hex`, `scripts/e2e-relay-mock.ps1`.
+- Loop guard chỉ phát hiện self-loop/cycle nội bộ theo endpoint key; không
+  phát hiện vòng đi qua hệ thống ngoài (giới hạn đã ghi ở `docs/api.md`).
+- Không chạy relay cũ, không dùng cổng `8081`/`2101`, không chạm backup.
 
 ---
 

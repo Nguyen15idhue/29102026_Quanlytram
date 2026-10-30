@@ -12,12 +12,20 @@ import (
 )
 
 func Open(ctx context.Context, cfg config.Config) (*sql.DB, error) {
+	return openDatabase(ctx, cfg, cfg.RuntimeDB, 5)
+}
+
+func OpenAdmin(ctx context.Context, cfg config.Config) (*sql.DB, error) {
+	return openDatabase(ctx, cfg, cfg.AdminDB, 2)
+}
+
+func openDatabase(ctx context.Context, cfg config.Config, databaseName string, maxConns int) (*sql.DB, error) {
 	mysqlConfig := mysql.Config{
 		User:                 cfg.DBUser,
 		Passwd:               cfg.DBPassword,
 		Net:                  "tcp",
 		Addr:                 fmt.Sprintf("%s:%s", cfg.DBHost, cfg.DBPort),
-		DBName:               cfg.RuntimeDB,
+		DBName:               databaseName,
 		ParseTime:            true,
 		Loc:                  time.UTC,
 		AllowNativePasswords: true,
@@ -31,8 +39,8 @@ func Open(ctx context.Context, cfg config.Config) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	database.SetMaxOpenConns(5)
-	database.SetMaxIdleConns(2)
+	database.SetMaxOpenConns(maxConns)
+	database.SetMaxIdleConns(1)
 	database.SetConnMaxLifetime(30 * time.Minute)
 
 	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)

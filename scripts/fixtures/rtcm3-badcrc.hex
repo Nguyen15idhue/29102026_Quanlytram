@@ -1,0 +1,5 @@
+# valid frame, then same frame with last CRC byte flipped, then valid frame
+d300033e00014e01b4
+# CRC must be cf1a04; last byte corrupted to fb
+d300043e000211cf1afb
+d300053e00032233472248
