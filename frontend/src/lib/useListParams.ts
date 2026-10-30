@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+﻿import { useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 const PAGE_SIZES = [10, 20, 50];
@@ -6,8 +6,8 @@ const PAGE_SIZES = [10, 20, 50];
 export function useListParams() {
   const [params, setParams] = useSearchParams();
   const page = Math.max(1, Number(params.get('page') ?? 1) || 1);
-  const requestedSize = Number(params.get('pageSize') ?? 20);
-  const pageSize = PAGE_SIZES.includes(requestedSize) ? requestedSize : 20;
+  const requestedSize = Number(params.get('pageSize') ?? 10);
+  const pageSize = PAGE_SIZES.includes(requestedSize) ? requestedSize : 10;
   const q = params.get('q') ?? '';
 
   const update = useCallback(

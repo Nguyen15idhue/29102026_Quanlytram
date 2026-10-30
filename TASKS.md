@@ -12,7 +12,7 @@
 | 4 | NTRIP caster & quản lý client | DONE (mock + real allowlist 2 relay/2 station) | Phase 3.5 |
 | 5 | Realtime, dashboard, vận hành | DONE (defer Taste auth) | Phase 4 |
 | 6 | RTCM Analytics & chất lượng trạm/relay | DONE (mock + real probe; load 50 PASS) | Phase 3.5–5 |
-| 7 | Nền tảng UI & Trạm danh sách | TODO (ưu tiên 1) | Phase 5–6 |
+| 7 | Nền tảng UI & Trạm danh sách | DONE (core; test connection defer Phase 8) | Phase 5–6 |
 | 8 | Bản đồ & chi tiết trạm | TODO | Phase 7 |
 | 9 | CORS: NTRIP, mountpoint, caster | TODO | Phase 7–8 |
 | 10 | Relay & Hệ thống | TODO | Phase 7–9 |
@@ -508,26 +508,26 @@ Hệ thống: Phân quyền | Người dùng | Lịch sử | Cảnh báo
 ### Phase 7 — Nền tảng UI & Trạm danh sách
 **Mục tiêu:** shell/menu mới + shared list/import/export + hồ sơ trạm + danh sách trạm.
 
-- [ ] P7-01 Shell/IA: menu nhóm mới; breadcrumb; topbar tên sản phẩm + user;
+- [x] P7-01 Shell/IA: menu nhóm mới; breadcrumb; topbar tên sản phẩm + user;
       bỏ footer dev; mobile drawer; entry trang cá nhân.
-- [ ] P7-02 Shared list framework: pagination server-side **mặc định 10**,
+- [x] P7-02 Shared list framework: pagination server-side **mặc định 10**,
       luôn hiển thị; filter/page lưu URL; loading/empty/error.
-- [ ] P7-03 Import/export `.xlsx` bằng **`exceljs`** (D50): template, preview,
+- [x] P7-03 Import/export `.xlsx` bằng **`exceljs`** (D50): template, preview,
       lỗi theo dòng, transaction, audit; không export secret/password.
-- [ ] P7-04 Migration `admin/008_station_profile.sql`: `station_type`,
+- [x] P7-04 Migration `admin/008_station_profile.sql`: `station_type`,
       `receiver_type`, `receiver_sn`, `receiver_firmware`, `antenna_type`,
       `antenna_sn`, `antenna_height`, `elevation_mask`, `contractor`,
       `region`, `address`, `device_id`, `network_type`, `network_mode`,
       `protocol`, `custom_fields JSON`, `enabled`, `last_seen_at`.
-- [ ] P7-05 Migration `admin/009_dictionary_custom_fields.sql`: `dictionaries`
+- [x] P7-05 Migration `admin/009_dictionary_custom_fields.sql`: `dictionaries`
       + `custom_field_defs`; seed receiver/antenna; select đọc DB.
-- [ ] P7-06 API trạm v2: owner name, mountpoint count, quality summary,
+- [x] P7-06 API trạm v2: owner name, mountpoint count, quality summary,
       last data; filter status/owner/region; audit before/after.
-- [ ] P7-07 Danh sách trạm: cột trạng thái, mã/tên, receiver/antenna, vị trí,
+- [x] P7-07 Danh sách trạm: cột trạng thái, mã/tên, receiver/antenna, vị trí,
       mountpoint, dữ liệu cuối, quality; CRUD + quality + import/export.
-- [ ] P7-08 Form trạm nhóm: Định danh / Vị trí / Thiết bị / Kết nối / Vận hành
+- [x] P7-08 Form trạm nhóm: Định danh / Vị trí / Thiết bị / Kết nối / Vận hành
       / Custom fields; test connection GET-only.
-- [ ] P7-09 Test G7: list/pagination 10/import/export/form/menu/a11y.
+- [x] P7-09 Test G7: list/pagination 10/import/export/form/menu/a11y.
 
 **Nghiệm thu Phase 7:** menu mới; mọi list có pagination 10 luôn hiển thị;
 import/export `.xlsx`; trạm đủ trường; test PASS.

@@ -188,7 +188,19 @@ p {
 
 .nav {
   display: grid;
+  gap: 14px;
+}
+
+.nav-group {
+  display: grid;
   gap: 2px;
+}
+
+.nav-group-label {
+  padding: 0 10px 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
 }
 
 .nav-item {
@@ -518,6 +530,23 @@ textarea.input {
 .form-grid .span-2,
 .form-grid .form-actions {
   grid-column: 1 / -1;
+}
+
+.form-section {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  margin: 0;
+}
+
+.form-section legend {
+  padding: 0 6px;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .form-actions {

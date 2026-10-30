@@ -45,17 +45,36 @@ export function Layout() {
     navigate('/login', { replace: true });
   }
 
-  const nav = [
-    { to: '/', label: 'Dashboard', icon: LayoutDashboard, show: true },
-    { to: '/stations', label: 'Trạm', icon: RadioTower, show: can('stations', 'view') },
-    { to: '/mountpoints', label: 'Mountpoint', icon: Network, show: can('mountpoints', 'view') },
-    { to: '/relay-jobs', label: 'Relay', icon: Radio, show: can('relay', 'view') },
-    { to: '/history', label: 'Lịch sử', icon: History, show: can('relay', 'view') },
-    { to: '/alerts', label: 'Cảnh báo', icon: Bell, show: can('alerts', 'view') },
-    { to: '/caster', label: 'Caster', icon: Antenna, show: can('settings', 'view') },
-    { to: '/ntrip-accounts', label: 'TK NTRIP', icon: KeyRound, show: can('ntrip_accounts', 'view') },
-    { to: '/web-users', label: 'Người dùng web', icon: Users, show: can('web_users', 'view') },
-    { to: '/roles', label: 'Vai trò & quyền', icon: ShieldCheck, show: can('roles', 'view') }
+  const navGroups = [
+    {
+      label: 'Tổng quan',
+      items: [{ to: '/', label: 'Dashboard', icon: LayoutDashboard, show: true }]
+    },
+    {
+      label: 'Trạm',
+      items: [{ to: '/stations', label: 'Danh sách trạm', icon: RadioTower, show: can('stations', 'view') }]
+    },
+    {
+      label: 'CORS',
+      items: [
+        { to: '/caster', label: 'Caster', icon: Antenna, show: can('settings', 'view') },
+        { to: '/ntrip-accounts', label: 'Tài khoản NTRIP', icon: KeyRound, show: can('ntrip_accounts', 'view') },
+        { to: '/mountpoints', label: 'Mountpoint', icon: Network, show: can('mountpoints', 'view') }
+      ]
+    },
+    {
+      label: 'Relay',
+      items: [{ to: '/relay-jobs', label: 'Relay', icon: Radio, show: can('relay', 'view') }]
+    },
+    {
+      label: 'Hệ thống',
+      items: [
+        { to: '/history', label: 'Lịch sử', icon: History, show: can('relay', 'view') || can('audit', 'view') },
+        { to: '/alerts', label: 'Cảnh báo', icon: Bell, show: can('alerts', 'view') },
+        { to: '/web-users', label: 'Người dùng', icon: Users, show: can('web_users', 'view') },
+        { to: '/roles', label: 'Phân quyền', icon: ShieldCheck, show: can('roles', 'view') }
+      ]
+    }
   ];
 
   return (
@@ -70,28 +89,30 @@ export function Layout() {
           </div>
         </div>
         <nav className="nav" aria-label="Điều hướng chính">
-          {nav
-            .filter((item) => item.show)
-            .map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === '/'}
-                  className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
-                >
-                  <Icon size={18} aria-hidden="true" />
-                  <span>{item.label}</span>
-                </NavLink>
-              );
-            })}
+          {navGroups.map((group) => {
+            const items = group.items.filter((item) => item.show);
+            if (items.length === 0) return null;
+            return (
+              <div className="nav-group" key={group.label}>
+                <div className="nav-group-label">{group.label}</div>
+                {items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <NavLink
+                      key={item.to}
+                      to={item.to}
+                      end={item.to === '/'}
+                      className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                    >
+                      <Icon size={18} aria-hidden="true" />
+                      <span>{item.label}</span>
+                    </NavLink>
+                  );
+                })}
+              </div>
+            );
+          })}
         </nav>
-        <div className="sidebar-foot">
-          <span>Phase 6</span>
-          <span className="dot" aria-hidden="true" />
-          <span>RTCM</span>
-        </div>
       </aside>
 
       <div className="main">

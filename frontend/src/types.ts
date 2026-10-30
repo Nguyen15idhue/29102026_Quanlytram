@@ -41,6 +41,29 @@ export interface Station {
   lon: number | null;
   notes: string;
   owner_web_user_id: number | null;
+  owner_name?: string;
+  station_type?: string;
+  enabled?: boolean | number;
+  receiver_type?: string;
+  receiver_sn?: string;
+  receiver_firmware?: string;
+  antenna_type?: string;
+  antenna_sn?: string;
+  antenna_height?: number | null;
+  elevation_mask?: number | null;
+  contractor?: string;
+  region?: string;
+  address?: string;
+  device_id?: string;
+  network_type?: string;
+  network_mode?: string;
+  protocol?: string;
+  custom_fields?: unknown;
+  last_seen_at?: string | null;
+  mountpoint_count?: number;
+  quality_score?: number | null;
+  quality_state?: string;
+  last_data_at?: string | null;
 }
 
 export interface Mountpoint {

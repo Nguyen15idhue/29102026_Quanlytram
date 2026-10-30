@@ -527,6 +527,16 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - Chưa triển khai code Phase 7; thứ tự: 7 (UI/list/trạm) → 8 (map/detail/online)
   → 9 (CORS) → 10 (Relay/Hệ thống) → 11 (cá nhân/config/report) → 12 (hardening).
 
+### 8.13. Phase 7 — Kết quả core (2026-10-30)
+
+- Thêm `exceljs`; import/export `.xlsx` cho trạm: preview, lỗi dòng, transaction, audit.
+- Migration `admin/008_station_profile.sql`, `admin/009_dictionary_custom_fields.sql` đã apply.
+- API trạm v2: owner name, mountpoint count, quality summary, last data; filter q/region/owner/receiver.
+- Menu nhóm mới; bỏ footer dev; pagination mặc định 10; dirty guard.
+- Form trạm nhóm: Định danh / Vị trí / Thiết bị / Kết nối; select dictionary.
+- Test: Go PASS, Node 33/33, Playwright 5/5; export/import dry-run 5 dòng PASS.
+- Defer Phase 8: test connection GET-only, bản đồ, drawer 1080, quality UI.
+
 ## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |

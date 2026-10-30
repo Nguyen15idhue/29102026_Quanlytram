@@ -24,8 +24,8 @@ test.describe('Phase 3.5 UI', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await page.screenshot({ path: 'test-results/dashboard-light.png', fullPage: true });
 
-    await page.getByRole('link', { name: 'Trạm', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Trạm', exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'Danh sách trạm', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Danh sách trạm', exact: true })).toBeVisible();
     await expect(page.getByText(/\d+–\d+ \/ \d+/)).toBeVisible();
     await page.screenshot({ path: 'test-results/stations-light.png', fullPage: true });
 
@@ -83,8 +83,8 @@ test.describe('Phase 3.5 mobile', () => {
     await expect(page.getByRole('navigation', { name: 'Điều hướng chính' })).toBeVisible();
     await page.waitForTimeout(250);
     await page.screenshot({ path: 'test-results/mobile-drawer.png', fullPage: true });
-    await page.getByRole('link', { name: 'Trạm', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Trạm', exact: true })).toBeVisible();
+    await page.getByRole('link', { name: 'Danh sách trạm', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Danh sách trạm', exact: true })).toBeVisible();
     await page.waitForTimeout(250);
     await page.screenshot({ path: 'test-results/stations-mobile.png', fullPage: true });
   });
