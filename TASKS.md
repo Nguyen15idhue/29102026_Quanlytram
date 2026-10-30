@@ -5,7 +5,7 @@
 | Phase | Tên | Trạng thái | Phụ thuộc |
 |---|---|---|---|
 | 0 | Chuẩn bị & xác minh | DONE | - |
-| 1 | Skeleton & hợp đồng dữ liệu | TODO | Phase 0 |
+| 1 | Skeleton & hợp đồng dữ liệu | DONE | Phase 0 |
 | 2 | Port relay & test mock | TODO | Phase 1 |
 | 3 | Quản trị trạm & relay ổn định | TODO | Phase 2 |
 | 4 | NTRIP caster & quản lý client | TODO | Phase 3 |
@@ -54,64 +54,68 @@ không có mã nguồn ứng dụng.
 trước CRUD lớn.
 
 ### P1-01 Hạ tầng
-- [ ] Docker Compose: MySQL 8, Node, Go, FE (dev), network nội bộ
-- [ ] MySQL volume + healthcheck; `default-time-zone=+00:00`
-- [ ] `TZ=Asia/Ho_Chi_Minh`, `APP_TIMEZONE=Asia/Ho_Chi_Minh` cho Node/Go
-- [ ] Ports: FE 5173/3000, Node 4000, Go 7080, MySQL 3307->3306
-- [ ] Không public MySQL/Go internal
-- [ ] `.env.example` + `.env.local`
-- [ ] Bật Docker Desktop
+- [x] Docker Compose: MySQL 8, Node, Go, FE (dev), network nội bộ
+- [x] MySQL volume + healthcheck; `default-time-zone=+00:00`
+- [x] `TZ=Asia/Ho_Chi_Minh`, `APP_TIMEZONE=Asia/Ho_Chi_Minh` cho Node/Go
+- [x] Ports: FE 5173/3000, Node 4000, Go 7080, MySQL 3307->3306
+- [x] Không public MySQL/Go internal
+- [x] `.env.example` + `.env.local`
+- [x] Bật Docker Desktop
 
 ### P1-02 Database & ownership
-- [ ] `db/migrations/admin/`, `db/migrations/runtime/`
-- [ ] `schema_migrations(scope, version)`; hai version riêng
-- [ ] `cors_admin`, `cors_runtime`
-- [ ] User `cors_app`, `cors_relay` đúng quyền
-- [ ] Bảng RBAC: `roles`, `permissions`, `role_permissions`, `web_users`, `web_sessions`
-- [ ] Bảng nghiệp vụ: `stations` (không mountpoint), `mountpoints`, `ntrip_accounts`
-- [ ] `owner_web_user_id`, `created_by`
-- [ ] Seed role `super_admin` 100, `admin` 50, `user` 10
-- [ ] Seed permission + scope `none`
-- [ ] Seed super_admin đầu tiên
-- [ ] Go kiểm tra schema runtime version
+- [x] `db/migrations/admin/`, `db/migrations/runtime/`
+- [x] `schema_migrations(scope, version)`; hai version riêng
+- [x] `cors_admin`, `cors_runtime`
+- [x] User `cors_app`, `cors_relay` đúng quyền
+- [x] Bảng RBAC: `roles`, `permissions`, `role_permissions`, `web_users`, `web_sessions`
+- [x] Bảng nghiệp vụ: `stations` (không mountpoint), `mountpoints`, `ntrip_accounts`
+- [x] `owner_web_user_id`, `created_by`
+- [x] Seed role `super_admin` 100, `admin` 50, `user` 10
+- [x] Seed permission + scope `none`
+- [x] Seed super_admin đầu tiên
+- [x] Go kiểm tra schema runtime version
 
 ### P1-03 Auth & RBAC nền
-- [ ] Session cookie server-side + CSRF
-- [ ] Argon2id; `HttpOnly`, `SameSite=Lax`, `Secure` khi HTTPS
-- [ ] Thu hồi session khi khóa/đổi mật khẩu
-- [ ] `auth/me` trả role + permission/scope
-- [ ] `requirePermission(module, action)` + scope filter
-- [ ] Chống nâng quyền; field allowlist
-- [ ] Audit redaction
+- [x] Session cookie server-side + CSRF
+- [x] Argon2id; `HttpOnly`, `SameSite=Lax`, `Secure` khi HTTPS
+- [x] Thu hồi session khi khóa/đổi mật khẩu
+- [x] `auth/me` trả role + permission/scope
+- [x] `requirePermission(module, action)` + scope filter
+- [x] Chống nâng quyền; field allowlist
+- [x] Audit redaction
 
 ### P1-04 API contract
-- [ ] Chốt endpoint (docs v2 mục 8)
-- [ ] Không dùng lẫn `/api/relay-jobs` và `/api/relay/jobs`
-- [ ] Chuẩn lỗi JSON, status code, pagination
-- [ ] `docs/api.md` hoặc OpenAPI
+- [x] Chốt endpoint (docs v2 mục 8)
+- [x] Không dùng lẫn `/api/relay-jobs` và `/api/relay/jobs`
+- [x] Chuẩn lỗi JSON, status code, pagination
+- [x] `docs/api.md`
 
 ### P1-05 Go service
-- [ ] `cmd/corsd` + `/health`
-- [ ] Kết nối MySQL runtime + ping + schema check
-- [ ] Graceful shutdown
-- [ ] Chưa cần NTRIP
+- [x] `cmd/corsd` + `/health`
+- [x] Kết nối MySQL runtime + ping + schema check
+- [x] Graceful shutdown
+- [x] Chưa cần NTRIP
 
 ### P1-06 Frontend
-- [ ] React + Vite + TS + Router + TanStack Query
-- [ ] Menu: Dashboard, Trạm, Relay, Mountpoints, TK NTRIP,
-      Người dùng web, Vai trò & quyền, Kết nối, Nhật ký, Cấu hình
-- [ ] Login, Dashboard shell, Stations list/detail
-- [ ] Web users + Roles (ma trận quyền + scope)
-- [ ] Loading/empty/error; ẩn/hiện nút theo `auth/me`
-- [ ] Design tokens (Taste, app screen)
+- [x] React + Vite + TS + Router + TanStack Query
+- [x] Menu Phase 1: Dashboard, Trạm, Người dùng web, Vai trò & quyền
+- [x] Login, Dashboard shell, Stations list/detail
+- [x] Web users + Roles (ma trận quyền + scope)
+- [x] Loading/empty/error; ẩn/hiện nút theo `auth/me`
+- [x] Design tokens cơ bản; Taste gate đầy đủ để Phase 5
 
 ### P1-07 Dữ liệu test
-- [ ] Seed 2–3 trạm; 2–3 mountpoint
-- [ ] Seed 1 super_admin, 1 admin, 2 user (subtree) để test scope
+- [x] Seed 2–3 trạm; 2–3 mountpoint
+- [x] Seed 1 super_admin, 1 admin, 2 user (subtree) để test scope
 
 **Nghiệm thu Phase 1:** Compose Up, health OK, login/session OK, CRUD trạm/
 mountpoint/web user/role OK, RBAC đúng scope, web/NTRIP tách biệt,
 timezone UTC/+07 nhất quán, API contract thống nhất.
+
+**Ghi chú Phase 1:**
+- Menu Relay/Mountpoints/TK NTRIP/Kết nối/Nhật ký/Cấu hình để Phase 2+.
+- Web account dùng để xác thực NTRIP: chưa test được vì caster ở Phase 4.
+- Taste gate 0 FAIL đầy đủ để Phase 5; Phase 1 mới có token/layout cơ bản.
 
 ---
 
