@@ -18,7 +18,8 @@ import {
   Pagination,
   SearchInput,
   Select,
-  StatusBadge
+  StatusBadge,
+  Tabs
 } from '../components/ui';
 import { QualityPanel } from '../components/QualityPanel';
 import { useToast } from '../components/ToastProvider';
@@ -90,6 +91,7 @@ export function Stations() {
   const [editing, setEditing] = useState<Station | null>(null);
   useDirtyGuard(dirty && formOpen);
   const [detail, setDetail] = useState<Station | null>(null);
+  const [detailTab, setDetailTab] = useState<'overview' | 'connection' | 'quality'>('quality');
   const [deleteTarget, setDeleteTarget] = useState<Station | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
@@ -303,7 +305,10 @@ export function Stations() {
           loading={list.isLoading}
           error={list.isError ? 'Không tải được danh sách trạm.' : undefined}
           empty="Chưa có trạm nào."
-          onRowClick={setDetail}
+          onRowClick={(station) => {
+            setDetail(station);
+            setDetailTab('quality');
+          }}
           columns={[
             {
               key: 'code',
@@ -661,6 +666,19 @@ export function Stations() {
         }
       >
         {detail && (
+          <Tabs
+            value={detailTab}
+            options={[
+              { value: 'overview', label: 'Tổng quan' },
+              { value: 'connection', label: 'Kết nối' },
+              ...(can('quality', 'view')
+                ? [{ value: 'quality' as const, label: 'Chất lượng' }]
+                : [])
+            ]}
+            onChange={(value) => setDetailTab(value as 'overview' | 'connection' | 'quality')}
+          />
+        )}
+        {detail && detailTab !== 'quality' && (
           <dl className="facts">
             <div>
               <dt>Host</dt>
@@ -717,7 +735,7 @@ export function Stations() {
             </div>
           </dl>
         )}
-        {detail && can('quality', 'view') && (
+        {detail && detailTab === 'quality' && can('quality', 'view') && (
           <QualityPanel key={detail.id} targetType="station" targetId={detail.id} />
         )}
       </Modal>

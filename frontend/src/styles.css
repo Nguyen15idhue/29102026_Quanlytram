@@ -806,6 +806,10 @@ label.check input {
   animation: drawer-in 180ms ease-out;
 }
 
+.modal-content.drawer.size-lg {
+  width: min(1080px, 100vw);
+}
+
 .modal-head {
   display: flex;
   align-items: flex-start;
@@ -1100,7 +1104,8 @@ label.check input {
 }
 
 @media (max-width: 640px) {
-  .form-grid {
+  .form-grid,
+  .form-section {
     grid-template-columns: 1fr;
   }
 
@@ -1155,6 +1160,92 @@ label.check input {
 
   .modal-content.drawer {
     width: 100vw;
+  }
+}
+
+/* Phase 8 maps */
+.map-shell {
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  gap: 16px;
+  min-height: 70vh;
+}
+
+.map-side {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  max-height: 76vh;
+  overflow: auto;
+}
+
+.map-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.map-list {
+  display: grid;
+  gap: 6px;
+}
+
+.map-list-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.map-list-item:hover,
+.map-list-item.active {
+  background: var(--raised-2);
+}
+
+.map-list-item small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.map-canvas {
+  min-height: 70vh;
+  padding: 0;
+  overflow: hidden;
+}
+
+.map-canvas .leaflet-container {
+  width: 100%;
+  height: 100%;
+  min-height: 70vh;
+  background: var(--surface-2);
+}
+
+.leaflet-container {
+  font-family: inherit;
+}
+
+@media (max-width: 900px) {
+  .map-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .map-side {
+    max-height: none;
+  }
+
+  .map-canvas,
+  .map-canvas .leaflet-container {
+    min-height: 55vh;
   }
 }
 
@@ -1362,6 +1453,48 @@ label.check input {
   align-items: center;
   gap: 20px;
   flex-wrap: wrap;
+}
+
+.quality-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.quality-kpis > div {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--surface-2, var(--surface));
+}
+
+.quality-kpis strong {
+  font-size: 22px;
+  font-weight: 500;
+}
+
+.quality-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.quality-kpis > div {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--surface-2, var(--surface));
+}
+
+.quality-kpis strong {
+  font-size: 22px;
+  font-weight: 500;
 }
 
 .quality-score-parts {

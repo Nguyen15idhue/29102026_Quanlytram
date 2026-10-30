@@ -537,6 +537,16 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - Test: Go PASS, Node 33/33, Playwright 5/5; export/import dry-run 5 dòng PASS.
 - Defer Phase 8: test connection GET-only, bản đồ, drawer 1080, quality UI.
 
+### 8.14. Phase 8 — Kết quả core (2026-10-30)
+
+- Thêm Leaflet + OSM: `/stations/map`, `/online/map`, `/online`.
+- Drawer trạm rộng 1080px, tab Tổng quan/Kết nối/Chất lượng; nút Sửa tách riêng.
+- Quality panel: KPI score/availability/min, constellation breakdown, metric nâng cao disabled.
+- Online map chỉ marker tài khoản có tọa độ; hiển thị tổng số không gửi tọa độ.
+- Online list: bảng kết nối, search, force disconnect nếu có quyền.
+- Test: Playwright map + quality PASS; Go/Node PASS.
+- Defer: Sky Plot thật/cycle slip/RMS/latency/neighboring stations (Phase 8–9).
+
 ## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |

@@ -5,6 +5,9 @@ import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Roles } from './pages/Roles';
 import { Stations } from './pages/Stations';
+import { StationMap } from './pages/StationMap';
+import { OnlineMap } from './pages/OnlineMap';
+import { OnlineList } from './pages/OnlineList';
 import { Mountpoints } from './pages/Mountpoints';
 import { NtripAccounts } from './pages/NtripAccounts';
 import { RelayJobs } from './pages/RelayJobs';
@@ -28,6 +31,9 @@ export function App() {
       <Route element={<Protected />}>
         <Route index element={<Dashboard />} />
         <Route path="/stations" element={<Stations />} />
+        <Route path="/stations/map" element={<StationMap />} />
+        <Route path="/online/map" element={<OnlineMap />} />
+        <Route path="/online" element={<OnlineList />} />
         <Route path="/mountpoints" element={<Mountpoints />} />
         <Route path="/relay-jobs" element={<RelayJobs />} />
         <Route path="/history" element={<History />} />

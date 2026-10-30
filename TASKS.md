@@ -13,7 +13,7 @@
 | 5 | Realtime, dashboard, vận hành | DONE (defer Taste auth) | Phase 4 |
 | 6 | RTCM Analytics & chất lượng trạm/relay | DONE (mock + real probe; load 50 PASS) | Phase 3.5–5 |
 | 7 | Nền tảng UI & Trạm danh sách | DONE (core; test connection defer Phase 8) | Phase 5–6 |
-| 8 | Bản đồ & chi tiết trạm | TODO | Phase 7 |
+| 8 | Bản đồ & chi tiết trạm | DONE (core; sky plot/advanced metrics defer) | Phase 7 |
 | 9 | CORS: NTRIP, mountpoint, caster | TODO | Phase 7–8 |
 | 10 | Relay & Hệ thống | TODO | Phase 7–9 |
 | 11 | Cá nhân, cấu hình & báo cáo | TODO | Phase 7–10 |
@@ -533,17 +533,17 @@ Hệ thống: Phân quyền | Người dùng | Lịch sử | Cảnh báo
 import/export `.xlsx`; trạm đủ trường; test PASS.
 
 ### Phase 8 — Bản đồ & chi tiết trạm
-- [ ] P8-01 Bản đồ trạm Leaflet/OSM (D46), marker trạng thái, panel danh sách;
+- [x] P8-01 Bản đồ trạm Leaflet/OSM (D46), marker trạng thái, panel danh sách;
       không hiện relay.
-- [ ] P8-02 Popup chi tiết trạm rộng **1080px**: Tổng quan / Kết nối /
+- [x] P8-02 Popup chi tiết trạm rộng **1080px**: Tổng quan / Kết nối /
       Mountpoint / Chất lượng / Lịch sử; nút Sửa mở popup riêng.
-- [ ] P8-05 Quality UI kiểu onocoy/CGBAS; metric thiếu dữ liệu disabled;
+- [x] P8-05 Quality UI kiểu onocoy/CGBAS; metric thiếu dữ liệu disabled;
       Sky Plot thật/cycle slip/RMS/latency/neighboring stations để Phase 8–9.
-- [ ] P8-03 Bản đồ online: marker chỉ tài khoản NTRIP **có gửi toạ độ**;
+- [x] P8-03 Bản đồ online: marker chỉ tài khoản NTRIP **có gửi toạ độ**;
       badge/tổng “x tài khoản không gửi tọa độ”.
-- [ ] P8-04 Danh sách online: bảng chi tiết tài khoản online, filter, export;
+- [x] P8-04 Danh sách online: bảng chi tiết tài khoản online, filter, export;
       force disconnect nếu có quyền.
-- [ ] P8-05 Test G8: map/marker/popup/online list/responsive/a11y.
+- [x] P8-06 Test G8: map/marker/popup/online list/responsive/a11y.
 
 ### Phase 9 — CORS: NTRIP, mountpoint, caster
 - [ ] P9-01 Tài khoản NTRIP: company/contact/phone/email/hiệu lực/max conn/

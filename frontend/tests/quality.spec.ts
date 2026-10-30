@@ -20,8 +20,8 @@ test.describe('Phase 6 quality', () => {
     const nav = page.getByRole('navigation', { name: 'Điều hướng chính' });
     await expect(nav.getByRole('link', { name: 'Chất lượng' })).toHaveCount(0);
 
-    await nav.getByRole('link', { name: 'Trạm' }).click();
-    await expect(page.getByRole('heading', { name: 'Trạm' })).toBeVisible();
+    await nav.getByRole('link', { name: 'Danh sách trạm' }).click();
+    await expect(page.getByRole('heading', { name: 'Danh sách trạm' })).toBeVisible();
 
     await page.getByRole('row', { name: /TEST_HNI_01/ }).first().click();
     await expect(page.getByRole('heading', { name: 'Chất lượng RTCM' })).toBeVisible();

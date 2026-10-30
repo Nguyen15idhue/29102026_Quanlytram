@@ -180,6 +180,15 @@ export function QualityPanel({ targetType, targetId, mountpointId }: QualityPane
   const ageValues = samples.map((sample) => sample.ageMs);
   const gapValues = samples.map((sample) => sample.gaps);
   const hasData = Boolean(latest) || samples.length > 0;
+  const availability = samples.length
+    ? Math.round(
+        (samples.filter((sample) => sample.state === 'streaming').length / samples.length) * 100
+      )
+    : latest?.state === 'streaming'
+      ? 100
+      : 0;
+  const minScore = samples.length ? Math.min(...scoreValues) : latest?.score ?? 0;
+  const constellations = latestLive?.constellations ?? [];
 
   return (
     <div className="quality-embedded">
@@ -234,6 +243,21 @@ export function QualityPanel({ targetType, targetId, mountpointId }: QualityPane
             )}
           </div>
 
+          <div className="quality-kpis">
+            <div>
+              <span className="muted">Quality score</span>
+              <strong className="mono">{latest?.score ?? 0}</strong>
+            </div>
+            <div>
+              <span className="muted">Availability</span>
+              <strong className="mono">{availability}%</strong>
+            </div>
+            <div>
+              <span className="muted">Min score</span>
+              <strong className="mono">{minScore}</strong>
+            </div>
+          </div>
+
           {!isStation && (
             <Tabs
               value={direction}
@@ -263,6 +287,55 @@ export function QualityPanel({ targetType, targetId, mountpointId }: QualityPane
               <LineChart values={ageValues} label="Age" suffix=" ms" min={0} />
               <LineChart values={gapValues} label="Gap" min={0} />
             </div>
+          </div>
+
+          <div className="quality-card">
+            <h3>Constellation breakdown</h3>
+            {constellations.length === 0 ? (
+              <p className="muted">Chưa có breakdown theo chòm sao.</p>
+            ) : (
+              <div className="table-wrap">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Chòm</th>
+                      <th className="align-right">Vệ tinh</th>
+                      <th className="align-right">Signal</th>
+                      <th className="align-right">Cell</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {constellations.map((item) => (
+                      <tr key={item.system}>
+                        <td>{item.system}</td>
+                        <td className="align-right mono">{item.satellites}</td>
+                        <td className="align-right mono">{item.signals}</td>
+                        <td className="align-right mono">{item.cells}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="quality-card">
+            <h3>Chỉ số nâng cao</h3>
+            <div className="toolbar">
+              {['Sky Plot', 'Cycle slip', 'Code & Phase RMS', 'Latency'].map((label) => (
+                <Button
+                  key={label}
+                  variant="ghost"
+                  disabled
+                  title="Chưa có dữ liệu từ luồng hiện tại"
+                >
+                  {label}
+                </Button>
+              ))}
+            </div>
+            <p className="muted">
+              Các chỉ số này cần ephemeris/GSV/raw observation; đang để Phase 8–9.
+            </p>
           </div>
 
           <div className="quality-grid two">

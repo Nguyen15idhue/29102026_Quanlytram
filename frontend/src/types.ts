@@ -277,6 +277,13 @@ export interface QualityScoreParts {
   latency: number;
 }
 
+export interface QualityConstellation {
+  system: string;
+  satellites: number;
+  signals: number;
+  cells: number;
+}
+
 export interface QualityLiveItem {
   targetType: 'station' | 'relay_job';
   targetId: number;
@@ -296,6 +303,7 @@ export interface QualityLiveItem {
   satellites: number;
   signals: number;
   cells: number;
+  constellations?: QualityConstellation[];
   avgCnr: number;
   cnrAvailable: boolean;
   reportedStationId?: number;
