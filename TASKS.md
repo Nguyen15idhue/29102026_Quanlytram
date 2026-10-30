@@ -8,9 +8,10 @@
 | 1 | Skeleton & hợp đồng dữ liệu | DONE | Phase 0 |
 | 2 | Port relay & test mock | DONE | Phase 1 |
 | 3 | Quản trị trạm & relay ổn định | DONE | Phase 2 |
-| 4 | NTRIP caster & quản lý client | TODO | Phase 3 |
+| 3.5 | UI/UX Foundation | DONE | Phase 3 |
+| 4 | NTRIP caster & quản lý client | TODO | Phase 3.5 |
 | 5 | Realtime, dashboard, vận hành | TODO | Phase 4 |
-| 6 | RTCM Analytics & chất lượng trạm/relay | TODO | Phase 3–5 |
+| 6 | RTCM Analytics & chất lượng trạm/relay | TODO | Phase 3.5–5 |
 
 Quy tắc: không chuyển phase nếu checklist của phase hiện tại chưa PASS.
 
@@ -239,13 +240,76 @@ reconcile saved/applied rõ; soft delete giữ history.
 
 ---
 
+## 5.5. Phase 3.5 — UI/UX Foundation
+
+**Mục tiêu:** sửa toàn bộ UI hiện có trước khi thêm màn hình Phase 4/5/6:
+shell cố định, CRUD bằng dialog/drawer, phân trang server-side, icon lucide,
+trạng thái loading/empty/error, a11y. Không đổi API/DB (trừ bug UI nhỏ).
+Chi tiết: `docs/0/UI_UX_PLAN.md`.
+
+**Phụ thuộc:** Phase 3 DONE. Phase 4/5/6 dùng lại foundation này.
+
+### U-01 Shell & tokens
+- [x] `framed-sheet`: sidebar 228px + topbar 48px cố định; chỉ content cuộn
+- [x] Mobile <1024px: sidebar drawer; topbar menu; content full width
+- [x] Tokens màu/type/spacing/radius; IBM Plex Sans/Mono self-host
+- [x] Dark mode `system/light/dark`; token dark; `color-scheme`; chống FOUC
+- [x] Active nav neutral; một accent; không gradient/glass/shadow ở rest
+
+### U-02 Component layer
+- [x] `Button/IconButton`, `Field/Input/Select/Switch`, `PageHeader`
+- [x] `Dialog` + `Drawer` + `AlertDialog` (Radix), focus trap/Esc/restore
+- [x] `Toast`, `StatusBadge`, `Tabs`, `EmptyState/Skeleton/ErrorState`
+- [x] `ThemeToggle` (Sun/Moon) + lưu lựa chọn; theo `prefers-color-scheme`
+- [x] `lucide-react` 16–20px, stroke 1.5, currentColor; không icon màu/tinted chip
+
+### U-03 CRUD pattern
+- [x] Bỏ toàn bộ form inline khỏi page/table
+- [x] Create/Edit trong Dialog; mobile full-screen Drawer
+- [x] View trong Drawer; Delete/Disable trong AlertDialog
+- [x] Field error, submit disabled khi lưu; toast sau mutation (dirty guard defer)
+
+### U-04 Table & pagination
+- [x] DataTable: sticky header, row 48px, số căn phải, action cột cuối
+- [x] Server pagination 20 (10/20/50); `page/pageSize/q/status` lưu URL
+- [x] Search debounce 300ms; empty/loading/error có action/retry (filter nâng cao defer)
+- [x] Mobile: row 2 dòng; ẩn cột phụ; không tràn ngang
+
+### U-05 Refactor màn hình hiện có
+- [x] Dashboard: KPI strip + quick actions (recent activity defer)
+- [x] Stations/Mountpoints: table + dialog/drawer + phân trang
+- [x] Relay: state/applied revision + detail drawer + actions menu
+- [x] TK NTRIP: CRUD dialog + ACL drawer/tab
+- [x] WebUsers/Roles: dialog + role matrix drawer; bỏ `window.confirm`
+
+### U-06 A11y, motion, QA
+- [x] Keyboard/focus/aria/contrast cả light/dark; reduced-motion
+- [x] Dark mode: system default, toggle persist, không FOUC; table/form/chart rõ
+- [x] Playwright: login → CRUD → search/page → delete confirm; light + dark
+- [x] `inspect.mjs --app` 0 FAIL tại 1440/768/390
+- [x] Không gây lỗi hồi quy API/RBAC/reconcile; cập nhật SESSION/TASKS
+
+**Nghiệm thu Phase 3.5:** không còn form inline/`window.confirm`; mọi bảng có
+phân trang; shell không cuộn cùng content; icon monochrome; CRUD dialog/drawer;
+loading/empty/error/toast đầy đủ; keyboard/a11y; dark mode system/toggle rõ;
+inspect 0 FAIL cả light/dark.
+
+**Ghi chú Phase 3.5 (2026-10-30):** shell cố định + dark mode + Dialog/Drawer/
+AlertDialog + DataTable/pagination + lucide + toast/a11y đã xong; Playwright
+login/CRUD light-dark/mobile PASS; `inspect.mjs --app` login 0 FAIL.
+Defer: dirty guard, filter nâng cao, recent activity; không chặn Phase 4.
+
+---
+
 ## 6. Phase 4 — NTRIP caster & quản lý client
 
 **Mục tiêu:** caster tự phát mountpoint; quản lý NTRIP account/ACL/giới hạn;
 mock trước khi mở cổng thật.
 
 ### P4-01 Caster
-- [ ] Listener 2101 (configurable)
+- [ ] Listener mặc định **1509** (source + rover), tùy chỉnh; không 2101/8081
+- [ ] `caster_listeners` + `caster_listener_mountpoints` many-to-many
+- [ ] Một mountpoint có thể nghe nhiều port (A,B,C→1509; A,C→1508)
 - [ ] Parse `SOURCE` (v1), `POST` (v2), `GET` (rover); đúng ngữ cảnh
 - [ ] `ICY 200` / `HTTP 200` / `SOURCETABLE 200`
 - [ ] Auth Basic; no-auth chỉ khi cấu hình rõ ràng
@@ -254,10 +318,12 @@ mock trước khi mở cổng thật.
 - [ ] NTRIP account RBAC + owner scope
 - [ ] `connections` runtime; disconnect chủ động
 - [ ] RTCM monitor; counters
+- [ ] API/UI quản lý listener + gắn mountpoint
 - [ ] Mock caster/rover cho caster mới
+- [ ] Integration allowlist Q10: 1 upstream + 1 downstream, credential ngoài repo, cleanup
 
 **Nghiệm thu Phase 4:** mock PASS v1/v1-auth/v2, multi-client, ACL, max conn,
-slow client; chỉ mở cổng thật sau khi mock đạt.
+slow client; listener 1509 và nhóm 1508 đúng; chỉ mở cổng thật sau khi mock đạt.
 
 ---
 
@@ -275,7 +341,7 @@ load test; tài liệu vận hành.
 - [ ] Throttle ~1 s; payload có `ts`
 - [ ] `/api/snapshot` + reconnect
 
-### P5-02 Dashboard/UI
+### P5-02 Dashboard/UI (dùng foundation Phase 3.5)
 - [ ] Dashboard tổng trạm/relay/client/alert
 - [ ] History sessions/events/timeline
 - [ ] Alert + ack
@@ -319,8 +385,8 @@ P6-01/P6-02 có thể bắt đầu ngay sau Phase 3; P6-03 cần Phase 4 cho cas
 - [ ] Fixtures valid/CRC sai/truncated/unknown/mảnh read/nhiều frame
 
 ### P6-02 Quality model & score dùng chung
-- [ ] Migration `runtime/003_rtcm_quality.sql`
-- [ ] Migration `admin/003_quality_permissions.sql` (`quality.view`, `quality.ack`, `station_probes`)
+- [ ] Migration `runtime/<next>_rtcm_quality.sql`
+- [ ] Migration `admin/<next>_quality_permissions.sql` (`quality.view`, `quality.ack`, `station_probes`)
 - [ ] `rtcm_message_stats`, `quality_samples`, `quality_alerts` dùng chung
       `target_type ENUM('station','relay_job')` + `target_id` + `mountpoint_id`
       (relay=0) + `direction`
@@ -349,7 +415,7 @@ P6-01/P6-02 có thể bắt đầu ngay sau Phase 3; P6-03 cần Phase 4 cho cas
 - [ ] Socket.IO `quality.snapshot/updated/alert/ack`; room `station:<id>`/`relay:<id>`
 - [ ] Throttle ~1 s; reconnect snapshot; đổi quyền cập nhật socket
 
-### P6-05 FE quản trị realtime
+### P6-05 FE quản trị realtime (dùng foundation Phase 3.5)
 - [ ] Menu **Chất lượng** với tab **Trạm** và **Relay**
 - [ ] Tab Trạm: tổng quan, score, message type/rate, sat/cell, CNR, metadata
 - [ ] Tab Relay: upstream/downstream, parity, chart score/sat/cell/CNR/age/gap

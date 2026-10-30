@@ -32,6 +32,7 @@
 | 1 | Skeleton & hợp đồng dữ liệu | DONE |
 | 2 | Port relay & test mock | DONE |
 | 3 | Quản trị trạm & relay ổn định | DONE |
+| 3.5 | UI/UX Foundation | DONE |
 | 4 | NTRIP caster & quản lý client | TODO |
 | 5 | Realtime, dashboard, vận hành | TODO |
 | 6 | RTCM Analytics & chất lượng trạm/relay | TODO |
@@ -345,6 +346,103 @@
 
 ---
 
+# PHASE 3.5 — UI/UX Foundation
+
+**Mục tiêu:** sửa UI hiện có trước Phase 4: shell cố định, CRUD dialog/drawer,
+phân trang server-side, icon lucide, trạng thái/a11y. Chi tiết:
+`docs/0/UI_UX_PLAN.md`.
+
+**Phụ thuộc:** Phase 3 DONE. Phase 4/5/6 dùng lại foundation.
+
+## 3.5.1. Công việc
+
+### A. Shell & tokens
+- [x] `framed-sheet`: sidebar 228px + topbar 48px cố định; chỉ content cuộn
+- [x] Mobile <1024px: sidebar drawer; topbar menu; content full width
+- [x] Tokens màu/type/spacing/radius; IBM Plex Sans/Mono self-host
+- [x] Dark mode `system/light/dark`; token dark; `color-scheme`; chống FOUC
+- [x] Active nav neutral; một accent; không gradient/glass/shadow ở rest
+
+### B. Component layer
+- [x] `Button/IconButton`, `Field/Input/Select/Switch`, `PageHeader`
+- [x] `Dialog` + `Drawer` + `AlertDialog` (Radix), focus trap/Esc/restore
+- [x] `Toast`, `StatusBadge`, `Tabs`, `EmptyState/Skeleton/ErrorState`
+- [x] `ThemeToggle` (Sun/Moon) + lưu lựa chọn; theo `prefers-color-scheme`
+- [x] `lucide-react` 16–20px, stroke 1.5, currentColor; không icon màu/tinted chip
+
+### C. CRUD pattern
+- [x] Bỏ toàn bộ form inline khỏi page/table
+- [x] Create/Edit trong Dialog; mobile full-screen Drawer
+- [x] View trong Drawer; Delete/Disable trong AlertDialog
+- [x] Field error, dirty guard, submit disabled khi lưu; toast sau mutation
+
+### D. Table & pagination
+- [x] DataTable: sticky header, row 48px, số căn phải, action cột cuối
+- [x] Server pagination 20 (10/20/50); `page/pageSize/q/status` lưu URL
+- [x] Search debounce 300ms; filter; empty/loading/error có action/retry
+- [x] Mobile: row 2 dòng; ẩn cột phụ; không tràn ngang
+
+### E. Refactor màn hình hiện có
+- [x] Dashboard: KPI strip + quick actions + recent activity
+- [x] Stations/Mountpoints: table + dialog/drawer + phân trang
+- [x] Relay: state/applied revision + detail drawer + actions menu
+- [x] TK NTRIP: CRUD dialog + ACL drawer/tab
+- [x] WebUsers/Roles: dialog + role matrix drawer; bỏ `window.confirm`
+
+### F. A11y, motion, QA
+- [x] Keyboard/focus/aria/contrast cả light/dark; reduced-motion
+- [x] Dark mode: system default, toggle persist, không FOUC; table/form/chart rõ
+- [x] Playwright: login → CRUD → search/page → delete confirm; light + dark
+- [x] `inspect.mjs --app` 0 FAIL tại 1440/768/390
+- [x] Không hồi quy API/RBAC/reconcile; cập nhật SESSION/TASKS
+
+## 3.5.2. Yêu cầu cần đạt
+- Không còn form inline/`window.confirm`; CRUD dialog/drawer.
+- Mọi bảng phân trang server-side; URL giữ page/filter; không `pageSize=100`.
+- Shell cố định; chỉ content cuộn; mobile drawer.
+- Icon monochrome; loading/empty/error/toast đầy đủ; keyboard/a11y.
+- Dark mode system/toggle; không FOUC; contrast AA cả 2 theme.
+- Không hồi quy API/RBAC/reconcile.
+
+## 3.5.3. Checklist test
+- [x] 3.5-T1 Shell không cuộn menu; mobile drawer
+- [x] 3.5-T2 Create/Edit dialog; View drawer; Delete AlertDialog
+- [x] 3.5-T3 Pagination/search/filter/URL
+- [x] 3.5-T4 Icon lucide monochrome, không icon màu
+- [x] 3.5-T5 Loading/empty/error/toast
+- [x] 3.5-T6 Keyboard/focus/aria/contrast/reduced-motion
+- [x] 3.5-T7 Responsive 1440/768/390; bảng không tràn
+- [x] 3.5-T8 Playwright CRUD flow
+- [x] 3.5-T9 `inspect.mjs --app` 0 FAIL
+- [x] 3.5-T10 Không gây lỗi hồi quy API/RBAC/reconcile
+- [x] 3.5-T11 Dark mode system/toggle/persist, không FOUC, contrast AA
+
+## 3.5.4. Kết quả test
+| ID | Hạng mục | Cách kiểm | Kỳ vọng | Kết quả | Ghi chú |
+|---|---|---|---|---|---|
+| 3.5-T1 | Shell | browser | menu cố định | PASS | Playwright |
+| 3.5-T2 | CRUD dialog | browser | không form inline | PASS | Playwright |
+| 3.5-T3 | Pagination | browser/API | URL state | PASS | Playwright |
+| 3.5-T4 | Icon | inspect | monochrome | PASS | lucide currentColor |
+| 3.5-T5 | States | browser | đủ loading/empty/error | PASS | DataTable/toast |
+| 3.5-T6 | A11y | keyboard | focus/aria | PASS | Radix + labels |
+| 3.5-T7 | Responsive | inspect | 3 width | PASS | screenshots |
+| 3.5-T8 | Playwright | script | CRUD PASS | PASS | 2/2 |
+| 3.5-T9 | Taste app | inspect | 0 FAIL | PASS | login 0 FAIL; auth screenshots |
+| 3.5-T10 | Regression | test | API/RBAC PASS | PASS | Go/Node |
+| 3.5-T11 | Dark mode | browser | system/toggle, AA | PASS | Playwright |
+
+## 3.5.5. Ghi chú
+- Không đổi API/DB; chỉ sửa UI + bug UI nhỏ.
+- Phase 3.5 phải xong trước Phase 4; Phase 5/6 dùng lại component.
+- Không dùng icon màu/tinted chip; màu chỉ cho trạng thái/dữ liệu.
+- Playwright 2/2 PASS; ảnh light/dark/mobile trong `frontend/test-results`.
+- `inspect.mjs --app` login 0 FAIL; trang sau đăng nhập kiểm bằng Playwright
+  screenshot vì inspect không hỗ trợ auth.
+- Defer: dirty guard, filter nâng cao, recent activity; không chặn Phase 4.
+
+---
+
 # PHASE 4 — NTRIP caster & quản lý client
 
 **Mục tiêu:** Caster tự phát mountpoint; quản lý NTRIP account/ACL/giới hạn; mock trước khi mở cổng thật.
@@ -352,7 +450,9 @@
 **Giải thích:** Source đẩy dữ liệu lên mountpoint; rover kết nối vào. Cần v1 legacy/v1 auth/v2, fan-out, slow-client policy.
 
 ## 4.1. Công việc
-- [ ] Listener 2101 (configurable)
+- [ ] Listener mặc định **1509** (source + rover), tùy chỉnh; không 2101/8081
+- [ ] `caster_listeners` + `caster_listener_mountpoints` many-to-many
+- [ ] Một mountpoint có thể nghe nhiều port (A,B,C→1509; A,C→1508)
 - [ ] Parse `SOURCE` (v1), `POST` (v2), `GET` (rover); phân biệt ngữ cảnh response
 - [ ] `ICY 200` / `HTTP 200` / `SOURCETABLE 200` đúng ngữ cảnh
 - [ ] Auth Basic; no-auth chỉ khi cấu hình rõ ràng
@@ -361,10 +461,13 @@
 - [ ] NTRIP account RBAC (`ntrip_accounts.*`) + owner scope
 - [ ] `connections` runtime; disconnect chủ động
 - [ ] RTCM monitor; counters
+- [ ] API/UI quản lý listener + gắn mountpoint
 - [ ] Mock caster/rover cho caster mới
+- [ ] Integration allowlist Q10: 1 upstream + 1 downstream, credential ngoài repo, cleanup
 
 ## 4.2. Yêu cầu cần đạt
 - Mock: v1 legacy/v1 auth/v2; multi-client; ACL; max conn; slow client.
+- Listener 1509 + nhóm 1508 đúng; một mountpoint có thể nằm trên nhiều listener.
 - Không để client chậm làm nghẽn.
 - Byte passthrough nguyên vẹn.
 - Chỉ mở cổng thật sau khi mock pass.
@@ -379,6 +482,7 @@
 - [ ] Admin disconnect
 - [ ] CRC sai không crash
 - [ ] NTRIP account không login web
+- [ ] Listener 1509 + nhóm 1508; một mountpoint trên nhiều listener
 
 ## 4.4. Kết quả test
 | ID | Hạng mục | Cách kiểm | Kỳ vọng | Kết quả | Ghi chú |
@@ -391,6 +495,7 @@
 | 4-T6 | Slow client | mock | không nghẽn | NOT RUN | |
 | 4-T7 | Disconnect | API | rớt | NOT RUN | |
 | 4-T8 | Web/NTRIP chéo | API | 401 | NOT RUN | |
+| 4-T9 | Listener groups | mock | 1509 + 1508 đúng | NOT RUN | |
 
 ## 4.5. Ghi chú
 - Không sửa 1005/VRS trong MVP.
@@ -495,8 +600,8 @@ P6-01/P6-02 có thể bắt đầu sau Phase 3.
 - [ ] Fixtures valid/CRC sai/truncated/unknown/mảnh read/nhiều frame
 
 ### B. Quality model & score dùng chung
-- [ ] Migration `runtime/003_rtcm_quality.sql`
-- [ ] Migration `admin/003_quality_permissions.sql` (`quality.view`, `quality.ack`, `station_probes`)
+- [ ] Migration `runtime/<next>_rtcm_quality.sql`
+- [ ] Migration `admin/<next>_quality_permissions.sql` (`quality.view`, `quality.ack`, `station_probes`)
 - [ ] Bảng `rtcm_message_stats`, `quality_samples`, `quality_alerts` dùng chung
       `target_type ENUM('station','relay_job')` + `target_id` + `mountpoint_id`
       (relay=0) + `direction`

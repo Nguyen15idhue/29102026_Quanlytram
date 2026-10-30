@@ -1,8 +1,21 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, Trash2 } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
 import type { Role, Scope } from '../types';
+import {
+  Button,
+  ConfirmDialog,
+  Field,
+  IconButton,
+  Input,
+  Modal,
+  PageHeader,
+  Select,
+  StatusBadge
+} from '../components/ui';
+import { useToast } from '../components/ToastProvider';
 
 interface RoleList {
   items: Role[];
@@ -21,13 +34,18 @@ interface RolePermissions {
   permissions: PermissionRow[];
 }
 
+const emptyRole = { code: '', name: '', level: 20, description: '' };
+
 export function Roles() {
   const { can, csrfToken } = useAuth();
+  const { push } = useToast();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [scopes, setScopes] = useState<Record<string, Scope>>({});
+  const [formOpen, setFormOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Role | null>(null);
+  const [newRole, setNewRole] = useState(emptyRole);
   const [error, setError] = useState('');
-  const [newRole, setNewRole] = useState({ code: '', name: '', level: 20, description: '' });
 
   const roles = useQuery({
     queryKey: ['roles'],
@@ -65,10 +83,10 @@ export function Roles() {
         }
       }),
     onSuccess: async () => {
-      setError('');
+      push('Đã lưu quyền', 'success');
       await queryClient.invalidateQueries({ queryKey: ['role-permissions', selectedId] });
     },
-    onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Lưu quyền thất bại')
+    onError: (err) => push(err instanceof ApiClientError ? err.message : 'Lưu quyền thất bại', 'error')
   });
 
   const create = useMutation({
@@ -84,20 +102,24 @@ export function Roles() {
         }
       }),
     onSuccess: async () => {
-      setNewRole({ code: '', name: '', level: 20, description: '' });
+      setFormOpen(false);
+      setNewRole(emptyRole);
       setError('');
+      push('Đã tạo role', 'success');
       await queryClient.invalidateQueries({ queryKey: ['roles'] });
     },
     onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Tạo role thất bại')
   });
 
   const remove = useMutation({
-    mutationFn: (id: number) => apiFetch(`/api/roles/${id}`, { method: 'DELETE', csrfToken }),
+    mutationFn: (role: Role) => apiFetch(`/api/roles/${role.id}`, { method: 'DELETE', csrfToken }),
     onSuccess: async () => {
+      setDeleteTarget(null);
       setSelectedId(null);
+      push('Đã xóa role', 'success');
       await queryClient.invalidateQueries({ queryKey: ['roles'] });
     },
-    onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Xóa role thất bại')
+    onError: (err) => push(err instanceof ApiClientError ? err.message : 'Xóa role thất bại', 'error')
   });
 
   const grouped = useMemo(() => {
@@ -118,65 +140,23 @@ export function Roles() {
 
   return (
     <section className="page">
-      <header className="page-head">
-        <div>
-          <h1>Vai trò & quyền</h1>
-          <p className="muted">Ma trận view/add/edit/delete + scope all/subtree/own.</p>
-        </div>
-      </header>
-
-      {error && <div className="alert error">{error}</div>}
-
-      {can('roles', 'add') && (
-        <form className="panel form-grid" onSubmit={createRole}>
-          <h2>Tạo role</h2>
-          <label>
-            Code
-            <input
-              value={newRole.code}
-              onChange={(event) => setNewRole({ ...newRole, code: event.target.value })}
-              placeholder="operator"
-              required
-            />
-          </label>
-          <label>
-            Tên
-            <input
-              value={newRole.name}
-              onChange={(event) => setNewRole({ ...newRole, name: event.target.value })}
-              required
-            />
-          </label>
-          <label>
-            Level
-            <input
-              type="number"
-              min={1}
-              max={99}
-              value={newRole.level}
-              onChange={(event) => setNewRole({ ...newRole, level: Number(event.target.value) })}
-            />
-          </label>
-          <label>
-            Mô tả
-            <input
-              value={newRole.description}
-              onChange={(event) => setNewRole({ ...newRole, description: event.target.value })}
-            />
-          </label>
-          <div className="form-actions">
-            <button className="btn primary" type="submit" disabled={create.isPending}>
-              Tạo role
-            </button>
-          </div>
-        </form>
-      )}
+      <PageHeader
+        title="Vai trò & quyền"
+        description="Ma trận view/add/edit/delete + scope all/subtree/own."
+        actions={
+          can('roles', 'add') && (
+            <Button variant="primary" onClick={() => setFormOpen(true)}>
+              <Plus size={16} aria-hidden="true" /> Tạo role
+            </Button>
+          )
+        }
+      />
 
       <div className="split">
         <aside className="panel role-list">
           <h2>Roles</h2>
           {roles.isLoading ? (
-            <p className="state">Đang tải...</p>
+            <p className="muted">Đang tải...</p>
           ) : (
             <ul>
               {roles.data?.items.map((role) => (
@@ -190,7 +170,7 @@ export function Roles() {
                       <strong>{role.name}</strong>
                       <small className="mono">{role.code}</small>
                     </span>
-                    <span className="badge">{role.level}</span>
+                    <StatusBadge label={String(role.level)} />
                   </button>
                 </li>
               ))}
@@ -200,9 +180,9 @@ export function Roles() {
 
         <article className="panel">
           {!selected ? (
-            <p className="state">Chọn một role.</p>
+            <p className="muted">Chọn một role.</p>
           ) : detail.isLoading ? (
-            <p className="state">Đang tải quyền...</p>
+            <p className="muted">Đang tải quyền...</p>
           ) : (
             <>
               <div className="table-head">
@@ -211,23 +191,20 @@ export function Roles() {
                   <p className="muted mono">{selected.code}</p>
                 </div>
                 <div className="row-actions">
-                  {Number(selected.is_system) === 1 && <span className="badge">Hệ thống</span>}
+                  {Number(selected.is_system) === 1 && <StatusBadge label="Hệ thống" />}
                   {can('roles', 'delete') && Number(selected.is_system) === 0 && (
-                    <button
-                      className="btn small danger"
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm(`Xóa role ${selected.code}?`)) remove.mutate(selected.id);
-                      }}
+                    <IconButton
+                      label={`Xóa role ${selected.code}`}
+                      onClick={() => setDeleteTarget(selected)}
                     >
-                      Xóa
-                    </button>
+                      <Trash2 size={16} aria-hidden="true" />
+                    </IconButton>
                   )}
                 </div>
               </div>
 
               <div className="table-wrap">
-                <table className="table compact">
+                <table className="data-table">
                   <thead>
                     <tr>
                       <th>Module</th>
@@ -244,7 +221,7 @@ export function Roles() {
                           <td>{row.action}</td>
                           <td className="mono muted">{row.code}</td>
                           <td>
-                            <select
+                            <Select
                               value={scopes[row.code] ?? 'none'}
                               disabled={Number(selected.is_system) === 1 || !can('roles', 'edit')}
                               onChange={(event) =>
@@ -255,7 +232,7 @@ export function Roles() {
                               <option value="own">own</option>
                               <option value="subtree">subtree</option>
                               <option value="all">all</option>
-                            </select>
+                            </Select>
                           </td>
                         </tr>
                       ))
@@ -266,20 +243,80 @@ export function Roles() {
 
               {Number(selected.is_system) === 0 && can('roles', 'edit') && (
                 <div className="form-actions">
-                  <button
-                    className="btn primary"
-                    type="button"
-                    onClick={() => save.mutate()}
-                    disabled={save.isPending}
-                  >
+                  <Button variant="primary" onClick={() => save.mutate()} loading={save.isPending}>
                     Lưu quyền
-                  </button>
+                  </Button>
                 </div>
               )}
             </>
           )}
         </article>
       </div>
+
+      <Modal
+        open={formOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open);
+          if (!open) {
+            setNewRole(emptyRole);
+            setError('');
+          }
+        }}
+        title="Tạo role"
+        description="Role custom có level 1–99."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setFormOpen(false)}>
+              Hủy
+            </Button>
+            <Button variant="primary" type="submit" form="role-form" loading={create.isPending}>
+              Tạo role
+            </Button>
+          </>
+        }
+      >
+        <form id="role-form" className="form-grid" onSubmit={createRole}>
+          <Field label="Code" error={error || undefined}>
+            <Input
+              value={newRole.code}
+              onChange={(event) => setNewRole({ ...newRole, code: event.target.value })}
+              placeholder="operator"
+              required
+            />
+          </Field>
+          <Field label="Tên">
+            <Input
+              value={newRole.name}
+              onChange={(event) => setNewRole({ ...newRole, name: event.target.value })}
+              required
+            />
+          </Field>
+          <Field label="Level">
+            <Input
+              type="number"
+              min={1}
+              max={99}
+              value={newRole.level}
+              onChange={(event) => setNewRole({ ...newRole, level: Number(event.target.value) })}
+            />
+          </Field>
+          <Field label="Mô tả">
+            <Input
+              value={newRole.description}
+              onChange={(event) => setNewRole({ ...newRole, description: event.target.value })}
+            />
+          </Field>
+        </form>
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Xóa role?"
+        description={`Role ${deleteTarget?.code ?? ''} sẽ bị xóa.`}
+        pending={remove.isPending}
+        onConfirm={() => deleteTarget && remove.mutate(deleteTarget)}
+      />
     </section>
   );
 }

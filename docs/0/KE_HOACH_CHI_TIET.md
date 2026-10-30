@@ -64,6 +64,17 @@ Xây dựng MVP hệ thống quản lý trạm CORS/NTRIP/RTCM chạy thực t�
 | D30 | **Cảnh báo có debounce** | Không báo lặp mỗi giây; có first_seen/last_seen/resolved_at |
 | D31 | **Trạm thường: caster ingest; nếu ngoài hệ thống thì station probe GET-only** | Probe mặc định disabled; mock-first; không tạo downstream |
 | D32 | **Relay có chỉ số parity upstream↔downstream** | Phát hiện relay suy giảm; vẫn giữ điểm upstream/downstream riêng |
+| D33 | **Phase 3.5 UI/UX Foundation trước Phase 4** | Sửa shell/modal/table/pagination cho màn hình hiện có; Phase 4/5/6 tái sử dụng |
+| D34 | **Shell cố định: sidebar + topbar; chỉ content cuộn** | Không cuộn menu cùng nội dung; mobile dùng drawer |
+| D35 | **CRUD dùng Dialog/Drawer; không form inline trong bảng** | Create/Edit dialog; View drawer; Delete AlertDialog |
+| D36 | **Phân trang server-side + search/filter + URL state** | Không `pageSize=100`; mặc định 20, page size 10/20/50 |
+| D37 | **Icon `lucide-react` monochrome 16–20px; không icon màu/tinted chip** | Icon chỉ để nhận diện hành động; `currentColor` |
+| D38 | **Radix Dialog/AlertDialog + focus trap; bỏ `window.confirm`** | Accessible, keyboard, Esc, restore focus |
+| D39 | **Hướng UI `framed-sheet` + IBM Plex Sans/Mono self-host** | Một accent; không gradient/glass/shadow ở trạng thái nghỉ |
+| D40 | **Dark mode `system/light/dark` + token, không hardcode light** | Toggle topbar; `color-scheme`; chống FOUC; test contrast cả 2 theme |
+| D41 | **Caster listener mặc định 1509** | Áp dụng cho source và rover; tùy chỉnh theo listener; không dùng 2101/8081 |
+| D42 | **Nhóm mountpoint ↔ listener many-to-many** | Một mountpoint có thể nghe trên nhiều port; ví dụ A,B,C→1509 và A,C→1508 |
+| D43 | **Real endpoint chỉ dùng allowlist, credential ngoài repo** | Mock-first; chỉ endpoint được duyệt; không log/commit secret |
 
 ---
 
@@ -117,7 +128,7 @@ Bằng chứng: `main.go:680-728`, `main.go:816-846`.
 | Go | Đã cài |
 | Docker/Compose | Đã cài, daemon đang tắt |
 | MySQL | Chưa cài (dùng container) |
-| Cổng 3306/3307/2101/4000/5173/7080/8081 | Trống |
+| Cổng 3306/3307/1509/2101/4000/5173/7080/8081 | Trống |
 | graphify / design-taste-frontend | Đã cài global |
 
 ---
@@ -161,7 +172,7 @@ Go GNSS service
 | Frontend dev/prod | 5173 / 3000 | |
 | Node API + Socket.IO | 4000 | |
 | Go internal HTTP | 7080 | bind loopback/docker network |
-| NTRIP caster | 2101 | Phase 4 |
+| NTRIP caster | 1509 | Phase 4; tùy chỉnh theo listener |
 | MySQL | 3307→3306 | không public |
 | Relay cũ | 8081 | không đụng |
 
@@ -172,6 +183,7 @@ AGENTS.md  TASKS.md  SESSION.md  README.md  .env.example  .gitignore
 docker-compose.yml
 docs/0/  docs/architecture.md  docs/relay-parity.md  docs/test-plan.md
 docs/0/RTCM_QUALITY_PLAN.md  (Phase 6)
+docs/0/UI_UX_PLAN.md         (Phase 3.5)
 frontend/        React + Vite + TS
 server/          Node + Express + TS + Socket.IO
 gnss/            Go: caster + bridge + monitor + analyzer
@@ -323,7 +335,13 @@ ntrip_accounts(
   owner_web_user_id FK, created_by, created_at, updated_at
 )
 account_mountpoint_acl(account_id, mountpoint_id)
-connections(id, mountpoint_id, account_id, remote_addr, user_agent,
+caster_listeners(
+  id, name, port UNIQUE, enabled, role ENUM('both','source','rover'),
+  description, created_by, created_at, updated_at
+)
+caster_listener_mountpoints(listener_id, mountpoint_id,
+  PRIMARY KEY(listener_id, mountpoint_id))
+connections(id, listener_id, mountpoint_id, account_id, remote_addr, user_agent,
             start_ts, end_ts, bytes_sent, bytes_received, disconnect_reason)
 
 -- Khác
@@ -347,6 +365,8 @@ settings(key, value_json, updated_at)
 - `mountpoint_id` dùng cho chất lượng theo mountpoint của trạm; relay dùng `0`.
 - `station_probes` mặc định disabled; chỉ GET, không tạo downstream;
   `credential_id` tham chiếu credential mã hóa hiện có, không log/không trả API.
+- `caster_listeners.port` mặc định seed 1509; mỗi listener gắn 0..n mountpoint;
+  một mountpoint có thể nằm trên nhiều listener.
 - `quality_alert_acks` ở admin để Node ghi ack; không FK xuyên schema.
 
 ---
@@ -412,12 +432,17 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 
 ### 7.5. Caster (Phase 4)
 
+- Listener mặc định **1509** cho source và rover; tùy chỉnh theo listener.
+- Nhóm mountpoint ↔ listener many-to-many: một mountpoint có thể nghe trên
+  nhiều port (ví dụ A,B,C→1509; A,C→1508).
 - NTRIP v1 legacy, v1 auth, v2.
 - Source uplink + rover client; multi-client/mountpoint.
 - Queue giới hạn; **drop slow client**; không để một client làm nghẽn.
 - ACL + max connections.
 - RTCM passthrough; monitor parse-only; buffer giới hạn, resync khi mất đồng bộ, không chặn vòng relay.
 - Test mock trước; chỉ mở cổng thật khi mock đạt.
+- Integration thật chỉ endpoint allowlist Q10; credential ngoài repo; 1 upstream +
+  1 downstream; cleanup sau test.
 
 ### 7.6. Realtime & phân quyền
 
@@ -461,6 +486,25 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 - Realtime: Go RAM (1 s) → Node pull `/internal/rtcm/snapshot` → Socket.IO → FE.
 - DB: sample 60 s (30 ngày), aggregate giờ (90 ngày), alert 90 ngày; không raw payload.
 - Chi tiết: `docs/0/RTCM_QUALITY_PLAN.md`.
+
+### 7.10. UI/UX app shell & CRUD patterns (Phase 3.5)
+
+- Hướng: **framed-sheet** (light), chrome tinted L-frame, content white sheet;
+  một accent; không gradient/glass/shadow ở trạng thái nghỉ.
+- Shell: sidebar 228px + topbar 48px cố định; chỉ content cuộn; mobile drawer.
+- CRUD: create/edit trong Dialog (mobile full-screen Drawer); view trong Drawer;
+  delete/disable trong AlertDialog; **không form inline trong bảng**.
+- Bảng: server pagination 20 (10/20/50), search debounce 300ms, filter, URL state;
+  sticky header; số căn phải; không zebra; row action menu.
+- Icon: `lucide-react` 16–20px, stroke 1.5, `currentColor`; không icon màu,
+  không icon trong ô tinted.
+- Form: label/help/error; submit disabled khi lưu; dirty guard; toast success/error.
+- A11y: focus trap, Esc, restore focus, aria-label, contrast AA, reduced-motion.
+- Type: IBM Plex Sans (400/500/600) + IBM Plex Mono cho ID/key/số bảng; self-host.
+- Dark mode: `system` mặc định, toggle `light/dark`; token dark near-black,
+  `color-scheme`, chống FOUC; mọi component đọc token, không hardcode light.
+- Phase 3.5 làm trước Phase 4; Phase 4/5/6 dùng lại foundation, không làm lại shell.
+- Chi tiết: `docs/0/UI_UX_PLAN.md`.
 
 ---
 
@@ -511,6 +555,11 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 | POST | `/api/ntrip-accounts/:id/lock` | Khóa |
 | POST | `/api/ntrip-accounts/:id/unlock` | Mở khóa |
 | GET/PUT | `/api/ntrip-accounts/:id/mountpoints` | ACL placeholder mountpoint |
+| GET/POST | `/api/caster/listeners` | Listener caster (mặc định 1509) |
+| GET/PATCH/DELETE | `/api/caster/listeners/:id` | Chi tiết/sửa/xóa listener |
+| POST | `/api/caster/listeners/:id/enable` | Bật listener |
+| POST | `/api/caster/listeners/:id/disable` | Tắt listener |
+| GET/PUT | `/api/caster/listeners/:id/mountpoints` | Gắn mountpoint vào listener |
 | GET/POST | `/api/roles` | Role |
 | GET/PATCH/DELETE | `/api/roles/:id` | Chi tiết/sửa/xóa |
 | GET/PUT | `/api/roles/:id/permissions` | Ma trận quyền |
@@ -599,6 +648,7 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 | Audit | redaction secret; append-only |
 | Timezone | lưu UTC; hiển thị +07; bucket/ngày giờ |
 | API/FE | vitest + supertest + Playwright; loading/empty/error; a11y |
+| UI/UX (Phase 3.5) | modal/drawer CRUD, pagination, fixed shell, lucide, dark mode, keyboard; `inspect.mjs --app` 0 FAIL |
 
 ### 11.2. Test NTRIP thật (có kiểm soát)
 
@@ -648,6 +698,10 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 | R15 | License | Xác minh license phiên bản thực tế trước phân phối (go-rtcm Apache-2.0) |
 | R16 | MVP quá rộng | Phase 0–6, tiêu chí từng phase |
 | R17 | Parser RTCM chặn relay | Queue giới hạn/drop sample; test byte-exact + tải |
+| R20 | UI refactor ảnh hưởng luồng đang chạy | Playwright trước/sau; làm Phase 3.5, không đổi API/DB |
+| R21 | Icon/màu lòe loẹt | Lucide monochrome; accent chỉ cho primary/active; status dùng badge |
+| R22 | Phase 3.5 kéo dài sang Phase 4 | Chốt foundation + gate trước khi mở màn hình mới |
+| R23 | Dark mode sai contrast/FOUC | Token dark riêng; script inline; test status/focus/table/form cả 2 theme |
 | R18 | Cảnh báo chất lượng nhiễu | Baseline + debounce 3 cửa sổ; ngưỡng cấu hình |
 | R19 | Lộ vị trí/metadata trạm | Lọc theo scope; không raw payload; export có audit |
 
@@ -678,11 +732,14 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 | 1 | Skeleton & hợp đồng dữ liệu | Compose, schema, auth, API contract, RBAC nền |
 | 2 | Port relay & test mock | Bridge parity, mock tests, chưa chạm dịch vụ thật |
 | 3 | Quản trị trạm & relay ổn định | CRUD, import có kiểm soát, RBAC scope, reconcile, soft-delete |
+| 3.5 | UI/UX Foundation | Shell, modal/drawer, table/pagination, icon, a11y |
 | 4 | NTRIP caster & quản lý client | Mock trước, sau đó cổng thật |
 | 5 | Realtime, dashboard, vận hành | Socket, history, alert, backup, load test |
 | 6 | RTCM Analytics & chất lượng trạm/relay | go-rtcm parse-only, quality score, alert, FE realtime |
 
-Chi tiết: `docs/0/CAC_BUOC_THUC_HIEN.md`; Phase 6: `docs/0/RTCM_QUALITY_PLAN.md`.
+Chi tiết: `docs/0/CAC_BUOC_THUC_HIEN.md`; Phase 3.5: `docs/0/UI_UX_PLAN.md`;
+Phase 6: `docs/0/RTCM_QUALITY_PLAN.md`.
+Phase 3.5 làm trước Phase 4; Phase 4/5/6 dùng lại UI foundation.
 P6-01/P6-02 có thể bắt đầu sau Phase 3; P6-03 cần Phase 4 cho caster ingest
 (hoặc station probe GET-only sớm hơn); P6-04/P6-05 cần realtime Phase 5.
 
@@ -722,7 +779,7 @@ SESSION_SECRET
 APP_ENC_KEY
 INTERNAL_HMAC_SECRET
 GO_INTERNAL_URL
-CASTER_PORT=2101
+CASTER_PORT=1509
 RELAY_IMPORT_PATH
 RELAY_IMPORT_IDS
 NTRIP_TEST_HOST

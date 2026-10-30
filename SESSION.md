@@ -2,12 +2,13 @@
 
 ## 1. Thông tin phiên
 
-- Thời điểm: 2026-10-30 11:00 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: Phase 3 — DONE; chuẩn bị Phase 4
+- Thời điểm: 2026-10-30 13:10 (Asia/Ho_Chi_Minh, +07:00)
+- Phase hiện tại: Phase 3.5 — DONE; chuẩn bị Phase 4
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
 - Trạng thái Phase 3: DONE
+- Trạng thái Phase 3.5: DONE (UI/UX Foundation)
 - Trạng thái Phase 6: PLANNED (kế hoạch, chưa triển khai)
 - Người thực hiện: OpenCode
 
@@ -25,6 +26,8 @@
   test mock 2-T1..2-T9 và E2E Node -> Go -> mock.
 - Phase 3: NTRIP account CRUD + ACL placeholder, import relay, retention,
   reconcile saved/applied, UI Relay/Mountpoint/TK NTRIP; xem mục 8.
+- Phase 3.5: triển khai UI/UX Foundation (shell, dark mode, dialog/drawer,
+  pagination, lucide, toast, a11y); xem mục 8.7.
 
 ### Đang làm
 - Không có (Phase 3 đã đóng).
@@ -315,6 +318,55 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
   thật: recreate OK; E2E API `scripts/e2e-softdelete-recreate.ps1`:
   create id=14 → delete → recreate id=15 OK; probe đã dọn khỏi DB.
 
+### 8.5. Bổ sung kế hoạch UI/UX Phase 3.5 (2026-10-30)
+
+- Đánh giá UI hiện tại: form CRUD inline, không icon, không phân trang, shell
+  cuộn cùng menu, dùng `window.confirm`, thiếu drawer/detail/toast/a11y.
+- Chốt hướng **`framed-sheet`** (seed 973367273): shell cố định, white sheet,
+  IBM Plex Sans/Mono, `lucide-react` monochrome, một accent.
+- Chốt pattern: Dialog/Drawer/AlertDialog, DataTable + server pagination,
+  search debounce + URL state, loading/empty/error/toast, keyboard/a11y.
+- Dark mode: `system` mặc định + toggle `light/dark`; token dark, `color-scheme`,
+  chống FOUC; test contrast cả 2 theme.
+- Phase 3.5 làm trước Phase 4; Phase 4/5/6 dùng lại foundation.
+- Chi tiết: `docs/0/UI_UX_PLAN.md`; đã cập nhật KE_HOACH/TASKS/CAC_BUOC/AGENTS.
+
+### 8.6. Phê duyệt triển khai & đổi port caster (2026-10-30)
+
+- Đã duyệt: Q1–Q7, Q11; Q8 backup path
+  `F:\3.Laptrinh\1. Project\1. GNSS\Backup`; Q9 load test 20; Q10 allowlist
+  endpoint thật (credential chỉ dùng ngoài repo); Q3 đồng ý go-rtcm.
+- Đổi mặc định caster: **1509** cho source + rover, tùy chỉnh theo listener;
+  nhóm mountpoint many-to-many (ví dụ A,B,C→1509; A,C→1508).
+- Không dùng 2101/8081; migration Phase 6 admin phải đổi số vì 003 đã dùng.
+- Đã cập nhật `KE_HOACH`, `TASKS`, `CAC_BUOC`, `docs/api.md`, `README`,
+  `AGENTS`, `.env.example`; chưa chạy code/test.
+- Q10 credential/endpoint không ghi vào repo/docs/log.
+
+### 8.7. Phase 3.5 — Kết quả triển khai (2026-10-30)
+
+- Shell `framed-sheet` cố định; sidebar 228px + topbar 48px; content scroll;
+  mobile drawer.
+- Dark mode `system/light/dark` + token + chống FOUC + toggle lưu localStorage.
+- Component layer: Button/IconButton, Field/Input/Select, Modal/Drawer,
+  AlertDialog, Toast, DataTable, Pagination, SearchInput, StatusBadge.
+- Refactor Stations/Mountpoints/Relay/NTRIP/WebUsers/Roles/Dashboard:
+  bỏ form inline + `window.confirm`; CRUD dialog/drawer; server pagination + URL.
+- Icon lucide monochrome; IBM Plex Sans/Mono self-host.
+
+| Mục | Kết quả | Bằng chứng |
+|---|---|---|
+| Frontend build | PASS | `npm run build` |
+| Playwright | PASS | 2/2: CRUD light/dark + mobile drawer |
+| inspect login | PASS | 0 FAIL; WARN hero-void/tiny-text (login compact) |
+| Auth pages | PASS | screenshot light/dark/mobile trong `frontend/test-results` |
+| Server regression | PASS | tsc + Vitest 21/21 |
+| Go regression | PASS | `go test ./...`, `go vet ./...` |
+| Docker web | PASS | rebuild + health 200 |
+
+- Defer: dirty guard, filter nâng cao, recent activity; không chặn Phase 4.
+- `inspect.mjs` không hỗ trợ auth; trang sau đăng nhập kiểm bằng Playwright.
+
 ## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |
@@ -332,7 +384,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
 | Phase 3 | `gnss/internal/relay/retention*.go`, `cmd/corsd` | Retention |
 | Phase 3 | `frontend/src/pages/{RelayJobs,Mountpoints,NtripAccounts}.tsx` | UI Phase 3 |
 | Phase 3 | `server/src/lib/tombstone.ts`, `routes/relayJobs.ts`, `db/importRelay.ts`, `docs/api.md` | Fix soft-delete chặn recreate + import force row xóa |
+| Phase 3.5 | `docs/0/UI_UX_PLAN.md`, `KE_HOACH`, `TASKS`, `CAC_BUOC`, `AGENTS` | Kế hoạch UI/UX Foundation |
+| Phase 3.5 | `frontend/src/theme`, `components/{ui,Layout,ThemeToggle,ToastProvider}.tsx`, `styles.css` | Shell + dark mode + components |
+| Phase 3.5 | `frontend/src/pages/*`, `lib/useListParams.ts` | Refactor CRUD/pagination |
+| Phase 3.5 | `frontend/tests/ui.spec.ts`, `playwright.config.ts` | Playwright 2/2 |
 
 ## 10. Cập nhật lần cuối
 
-- 2026-10-30 11:59 +07:00
+- 2026-10-30 13:10 +07:00

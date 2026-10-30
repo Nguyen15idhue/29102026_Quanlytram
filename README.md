@@ -4,10 +4,11 @@ Dự án xây dựng hệ thống quản lý trạm CORS/NTRIP/RTCM ở mức MV
 quản lý trạm, mountpoint, tài khoản web, tài khoản NTRIP, relay bridge,
 giám sát realtime và cấu hình hệ thống.
 
-> Trạng thái hiện tại: **Phase 3 — Quản trị trạm & relay ổn định (DONE)**.
+> Trạng thái hiện tại: **Phase 3.5 — UI/UX Foundation (DONE)**.
 > Hệ thống chạy end-to-end với MySQL, Node API, Go relay bridge và React UI.
-> Đã có NTRIP account, import relay, retention, reconcile saved/applied và
-> UI Relay/Mountpoint/TK NTRIP; chưa chạm caster thật.
+> Đã có shell cố định, dark mode `system/light/dark`, CRUD dialog/drawer,
+> phân trang server-side, lucide monochrome, toast/a11y; chưa chạm caster thật.
+> Chi tiết: `docs/0/UI_UX_PLAN.md`.
 >
 > Kế hoạch bổ sung **Phase 6 — RTCM Analytics & chất lượng trạm/relay**:
 > parse RTCM3 bằng `go-gnss/rtcm`, đánh giá chất lượng cho trạm thường và
@@ -19,6 +20,7 @@ giám sát realtime và cấu hình hệ thống.
 - `docs/0/KE_HOACH_CHI_TIET.md` — kế hoạch chi tiết (v2)
 - `docs/0/CAC_BUOC_THUC_HIEN.md` — các bước thực hiện theo phase (v2)
 - `docs/0/RTCM_QUALITY_PLAN.md` — kế hoạch Phase 6: chất lượng trạm/relay
+- `docs/0/UI_UX_PLAN.md` — kế hoạch Phase 3.5: UI/UX Foundation
 - `AGENTS.md` — quy tắc làm việc
 - `TASKS.md` — backlog và tiến độ
 - `SESSION.md` — trạng thái phiên
@@ -69,7 +71,7 @@ curl http://localhost:7080/health
 | Frontend dev / prod | 5173 / 3000 |
 | Node API + Socket.IO | 4000 |
 | Go internal HTTP | 7080 |
-| NTRIP caster | 2101 |
+| NTRIP caster | 1509 (mặc định, tùy chỉnh theo nhóm mountpoint) |
 | MySQL | 3307 -> 3306 |
 | Relay cũ (không đụng) | 8081 |
 

@@ -8,6 +8,7 @@ Nguồn sự thật đầy đủ nằm ở:
 - `docs/0/KE_HOACH_CHI_TIET.md` (v2)
 - `docs/0/CAC_BUOC_THUC_HIEN.md` (v2)
 - `docs/0/RTCM_QUALITY_PLAN.md` (Phase 6)
+- `docs/0/UI_UX_PLAN.md` (Phase 3.5)
 - `docs/0/XÂY DỰNG HỆ THỐNG QUẢN LÝ TRẠM CORS.docx` (yêu cầu gốc)
 
 Nếu tài liệu này mâu thuẫn với docs v2, docs v2 thắng.
@@ -21,6 +22,8 @@ giám sát realtime và cấu hình hệ thống.
 ## 3. Stack đã chốt
 
 - Frontend: React + Vite + TypeScript + Socket.IO client.
+- UI: `lucide-react`, Radix Dialog/AlertDialog, IBM Plex Sans/Mono self-host;
+  không thêm UI kit/Tailwind.
 - Management: Node.js + Express + TypeScript + Socket.IO server.
 - GNSS/relay: Go.
 - RTCM parser: `github.com/go-gnss/rtcm` (Apache-2.0), parse-only.
@@ -85,7 +88,8 @@ giám sát realtime và cấu hình hệ thống.
 ## 9. Relay, NTRIP, RTCM
 
 - Relay bridge: GET upstream -> POST/SOURCE downstream, passthrough nguyên byte.
-- Caster: Phase 4; v1 legacy, v1 auth, v2.
+- Caster: Phase 4; v1 legacy, v1 auth, v2. Cổng listener mặc định **1509**
+  (vào/ra), tùy chỉnh theo nhóm mountpoint; không dùng 2101/8081.
 - RTCM monitor/analyzer chỉ parse để đếm/đo; không sửa byte, không serialize lại.
 - Chất lượng dùng chung cho `station` (ingest) và `relay_job` (upstream/downstream)
   theo `target_type` + `target_id` + `direction`; không FK giữa relay và station.
@@ -158,8 +162,20 @@ graphify update .
 - Caster no-auth chỉ khi cấu hình rõ ràng + cảnh báo.
 - Backup ra ngoài VPS; không để backup trên cùng ổ.
 
-## 15. Graphify và Taste Skill
+## 15. UI/UX, Graphify và Taste Skill
 
+- UI/UX: Phase 3.5 là foundation trước Phase 4; Phase 4/5/6 dùng lại component.
+- CRUD dùng Dialog/Drawer; **không form inline trong page/table**; xóa dùng
+  AlertDialog, không dùng `window.confirm`.
+- Bảng dùng phân trang server-side (mặc định 20; 10/20/50); search debounce;
+  page/filter lưu URL; không `pageSize=100`.
+- Shell cố định: sidebar + topbar; chỉ content cuộn; mobile drawer.
+- Icon `lucide-react` monochrome 16–20px, `currentColor`; không icon màu,
+  không icon trong ô tinted. Màu chỉ cho trạng thái/dữ liệu/primary.
+- Hướng `framed-sheet`; một accent; không gradient/glass/shadow ở rest.
+- Dark mode: `system` mặc định + toggle `light/dark`; token dark, `color-scheme`,
+  chống FOUC; không hardcode màu light trong component.
+- A11y: focus trap, Esc, aria, contrast AA cả light/dark, reduced-motion.
 - Graphify: chạy sau Phase 1; cập nhật sau thay đổi cấu trúc lớn, không chạy
   mỗi chỉnh nhỏ. Không trỏ Graphify vào thư mục backup relay.
 - Taste Skill: định hướng/soát UI theo nhánh app screen. `0 FAIL` ở

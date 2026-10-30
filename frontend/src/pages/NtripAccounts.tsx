@@ -1,32 +1,70 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { KeyRound, Lock, Pencil, Plus, Trash2, Unlock } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
-import type { NtripAccount } from '../types';
+import { useListParams } from '../lib/useListParams';
+import type { Mountpoint, NtripAccount } from '../types';
+import {
+  Button,
+  ConfirmDialog,
+  DataTable,
+  Field,
+  IconButton,
+  Input,
+  Modal,
+  PageHeader,
+  Pagination,
+  SearchInput,
+  StatusBadge
+} from '../components/ui';
+import { useToast } from '../components/ToastProvider';
 
-interface NtripAccountList {
+interface AccountList {
   items: NtripAccount[];
   total: number;
 }
 
-const emptyForm = {
-  username: '',
-  password: '',
-  enabled: true,
-  max_connections: 1
-};
+interface MountpointList {
+  items: Mountpoint[];
+}
+
+const emptyForm = { username: '', password: '', enabled: true, max_connections: 1 };
 
 export function NtripAccounts() {
   const { can, csrfToken } = useAuth();
+  const { push } = useToast();
   const queryClient = useQueryClient();
+  const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<NtripAccount | null>(null);
+  const [detail, setDetail] = useState<NtripAccount | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<NtripAccount | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState('');
+  const [aclIds, setAclIds] = useState<number[]>([]);
 
   const list = useQuery({
-    queryKey: ['ntrip-accounts'],
-    queryFn: () => apiFetch<NtripAccountList>('/api/ntrip-accounts?pageSize=100')
+    queryKey: ['ntrip-accounts', page, pageSize, q],
+    queryFn: () =>
+      apiFetch<AccountList>(
+        `/api/ntrip-accounts?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
+      )
   });
+  const mountpoints = useQuery({
+    queryKey: ['mountpoints', 'options'],
+    queryFn: () => apiFetch<MountpointList>('/api/mountpoints?pageSize=50'),
+    enabled: Boolean(detail) && can('mountpoints', 'view')
+  });
+  const acl = useQuery({
+    queryKey: ['ntrip-acl', detail?.id],
+    queryFn: () => apiFetch<MountpointList>(`/api/ntrip-accounts/${detail?.id}/mountpoints`),
+    enabled: Boolean(detail)
+  });
+
+  useEffect(() => {
+    if (acl.data) setAclIds(acl.data.items.map((item) => item.id));
+  }, [acl.data]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -36,79 +74,225 @@ export function NtripAccounts() {
         max_connections: Number(form.max_connections)
       };
       if (form.password) body.password = form.password;
-      if (editingId) {
-        return apiFetch(`/api/ntrip-accounts/${editingId}`, { method: 'PATCH', body, csrfToken });
+      if (editing) {
+        return apiFetch(`/api/ntrip-accounts/${editing.id}`, { method: 'PATCH', body, csrfToken });
       }
       return apiFetch('/api/ntrip-accounts', { method: 'POST', body, csrfToken });
     },
     onSuccess: async () => {
-      setForm(emptyForm);
-      setEditingId(null);
+      setFormOpen(false);
+      setEditing(null);
       setError('');
+      push(editing ? 'Đã cập nhật tài khoản NTRIP' : 'Đã thêm tài khoản NTRIP', 'success');
       await queryClient.invalidateQueries({ queryKey: ['ntrip-accounts'] });
     },
     onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Lưu thất bại')
   });
 
   const action = useMutation({
-    mutationFn: ({ id, action }: { id: number; action: 'lock' | 'unlock' | 'delete' }) =>
-      apiFetch(`/api/ntrip-accounts/${id}${action === 'delete' ? '' : `/${action}`}`, {
+    mutationFn: ({ account, action }: { account: NtripAccount; action: 'lock' | 'unlock' | 'delete' }) =>
+      apiFetch(`/api/ntrip-accounts/${account.id}${action === 'delete' ? '' : `/${action}`}`, {
         method: action === 'delete' ? 'DELETE' : 'POST',
         csrfToken
       }),
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: ['ntrip-accounts'] }),
-    onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Thao tác thất bại')
+    onSuccess: async () => {
+      setDeleteTarget(null);
+      setDetail(null);
+      push('Đã cập nhật tài khoản NTRIP', 'success');
+      await queryClient.invalidateQueries({ queryKey: ['ntrip-accounts'] });
+    },
+    onError: (err) => push(err instanceof ApiClientError ? err.message : 'Thao tác thất bại', 'error')
   });
+
+  const saveAcl = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/ntrip-accounts/${detail?.id}/mountpoints`, {
+        method: 'PUT',
+        body: { mountpointIds: aclIds },
+        csrfToken
+      }),
+    onSuccess: async () => {
+      push('Đã lưu ACL mountpoint', 'success');
+      await queryClient.invalidateQueries({ queryKey: ['ntrip-acl', detail?.id] });
+    },
+    onError: (err) => push(err instanceof ApiClientError ? err.message : 'Lưu ACL thất bại', 'error')
+  });
+
+  function openCreate() {
+    setEditing(null);
+    setForm(emptyForm);
+    setError('');
+    setFormOpen(true);
+  }
+
+  function openEdit(account: NtripAccount) {
+    setEditing(account);
+    setForm({
+      username: account.username,
+      password: '',
+      enabled: account.enabled,
+      max_connections: account.maxConnections
+    });
+    setError('');
+    setFormOpen(true);
+    setDetail(null);
+  }
 
   function submit(event: FormEvent) {
     event.preventDefault();
     save.mutate();
   }
 
-  function edit(item: NtripAccount) {
-    setEditingId(item.id);
-    setForm({
-      username: item.username,
-      password: '',
-      enabled: item.enabled,
-      max_connections: item.maxConnections
-    });
-  }
-
   return (
     <section className="page">
-      <header className="page-head">
-        <div>
-          <h1>Tài khoản NTRIP</h1>
-          <p className="muted">Tách biệt tài khoản web; dùng cho xác thực caster/rover.</p>
+      <PageHeader
+        title="Tài khoản NTRIP"
+        description="Tài khoản xác thực caster/rover, tách biệt tài khoản web."
+        actions={
+          can('ntrip_accounts', 'add') && (
+            <Button variant="primary" onClick={openCreate}>
+              <Plus size={16} aria-hidden="true" /> Thêm tài khoản
+            </Button>
+          )
+        }
+      />
+
+      <div className="panel">
+        <div className="table-head">
+          <SearchInput value={q} onChange={setQ} placeholder="Tìm username" />
+          <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
+            Tải lại
+          </Button>
         </div>
-      </header>
+        <DataTable
+          items={list.data?.items ?? []}
+          rowKey={(account) => account.id}
+          loading={list.isLoading}
+          error={list.isError ? 'Không tải được tài khoản NTRIP.' : undefined}
+          empty="Chưa có tài khoản NTRIP nào."
+          onRowClick={setDetail}
+          columns={[
+            {
+              key: 'username',
+              header: 'Username',
+              cell: (account) => <span className="mono">{account.username}</span>
+            },
+            {
+              key: 'enabled',
+              header: 'Trạng thái',
+              cell: (account) => (
+                <StatusBadge
+                  label={account.enabled ? 'enabled' : 'locked'}
+                  kind={account.enabled ? 'ok' : 'warn'}
+                />
+              )
+            },
+            {
+              key: 'max',
+              header: 'Max conn',
+              align: 'right',
+              cell: (account) => account.maxConnections
+            },
+            {
+              key: 'owner',
+              header: 'Owner',
+              hideOnMobile: true,
+              cell: (account) => <span className="muted">{account.ownerWebUserId ?? '—'}</span>
+            },
+            {
+              key: 'actions',
+              header: '',
+              align: 'right',
+              cell: (account) => (
+                <div className="row-actions">
+                  {can('ntrip_accounts', 'edit') && (
+                    <>
+                      <IconButton
+                        label={`Sửa ${account.username}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openEdit(account);
+                        }}
+                      >
+                        <Pencil size={16} aria-hidden="true" />
+                      </IconButton>
+                      <IconButton
+                        label={account.enabled ? `Khóa ${account.username}` : `Mở khóa ${account.username}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          action.mutate({
+                            account,
+                            action: account.enabled ? 'lock' : 'unlock'
+                          });
+                        }}
+                      >
+                        {account.enabled ? <Lock size={16} aria-hidden="true" /> : <Unlock size={16} aria-hidden="true" />}
+                      </IconButton>
+                    </>
+                  )}
+                  {can('ntrip_accounts', 'delete') && (
+                    <IconButton
+                      label={`Xóa ${account.username}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeleteTarget(account);
+                      }}
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </IconButton>
+                  )}
+                </div>
+              )
+            }
+          ]}
+        />
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={list.data?.total ?? 0}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+      </div>
 
-      {error && <div className="alert error">{error}</div>}
-
-      {can('ntrip_accounts', 'add') && (
-        <form className="panel form-grid" onSubmit={submit}>
-          <h2>{editingId ? 'Sửa tài khoản NTRIP' : 'Thêm tài khoản NTRIP'}</h2>
-          <label>
-            Username
-            <input
+      <Modal
+        open={formOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open);
+          if (!open) setEditing(null);
+        }}
+        title={editing ? 'Sửa tài khoản NTRIP' : 'Thêm tài khoản NTRIP'}
+        description="Mật khẩu chỉ dùng để xác thực Basic; không hiển thị lại."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setFormOpen(false)}>
+              Hủy
+            </Button>
+            <Button variant="primary" type="submit" form="ntrip-form" loading={save.isPending}>
+              {editing ? 'Cập nhật' : 'Thêm'}
+            </Button>
+          </>
+        }
+      >
+        <form id="ntrip-form" className="form-grid" onSubmit={submit}>
+          <Field label="Username" error={error || undefined}>
+            <Input
               value={form.username}
               onChange={(event) => setForm({ ...form, username: event.target.value })}
               required
             />
-          </label>
-          <label>
-            Mật khẩu {editingId ? '(bỏ trống để giữ)' : ''}
-            <input
+          </Field>
+          <Field label={editing ? 'Mật khẩu mới (bỏ trống để giữ)' : 'Mật khẩu'}>
+            <Input
               type="password"
               value={form.password}
               onChange={(event) => setForm({ ...form, password: event.target.value })}
-              required={!editingId}
+              required={!editing}
+              minLength={8}
             />
-          </label>
-          <label>
-            Max connections
-            <input
+          </Field>
+          <Field label="Max connections">
+            <Input
               type="number"
               min={1}
               max={1000}
@@ -117,108 +301,100 @@ export function NtripAccounts() {
                 setForm({ ...form, max_connections: Number(event.target.value) })
               }
             />
-          </label>
+          </Field>
           <label className="check">
             <input
               type="checkbox"
               checked={form.enabled}
               onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
             />
-            Bật
+            Bật tài khoản
           </label>
-          <div className="form-actions">
-            <button className="btn primary" type="submit" disabled={save.isPending}>
-              {editingId ? 'Cập nhật' : 'Thêm'}
-            </button>
-            {editingId && (
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  setEditingId(null);
-                  setForm(emptyForm);
-                }}
-              >
-                Hủy
-              </button>
-            )}
-          </div>
         </form>
-      )}
+      </Modal>
 
-      <div className="panel">
-        <div className="table-head">
-          <h2>Danh sách</h2>
-          <button className="btn ghost" onClick={() => list.refetch()} disabled={list.isFetching}>
-            Tải lại
-          </button>
-        </div>
-        {list.isLoading ? (
-          <p className="state">Đang tải...</p>
-        ) : list.isError ? (
-          <p className="state error">Không tải được tài khoản NTRIP.</p>
-        ) : list.data?.items.length === 0 ? (
-          <p className="state">Chưa có tài khoản NTRIP nào.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Username</th>
-                <th>Trạng thái</th>
-                <th>Max conn</th>
-                <th>Owner</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {list.data?.items.map((item) => (
-                <tr key={item.id}>
-                  <td className="mono">{item.username}</td>
-                  <td>
-                    <span className={`badge ${item.enabled ? 'ok' : 'warn'}`}>
-                      {item.enabled ? 'enabled' : 'locked'}
-                    </span>
-                  </td>
-                  <td>{item.maxConnections}</td>
-                  <td className="muted">{item.ownerWebUserId ?? '—'}</td>
-                  <td className="row-actions">
-                    {can('ntrip_accounts', 'edit') && (
-                      <>
-                        <button className="btn small" type="button" onClick={() => edit(item)}>
-                          Sửa
-                        </button>
-                        <button
-                          className="btn small"
-                          type="button"
-                          onClick={() =>
-                            action.mutate({ id: item.id, action: item.enabled ? 'lock' : 'unlock' })
-                          }
-                        >
-                          {item.enabled ? 'Khóa' : 'Mở khóa'}
-                        </button>
-                      </>
-                    )}
-                    {can('ntrip_accounts', 'delete') && (
-                      <button
-                        className="btn small danger"
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(`Xóa tài khoản NTRIP ${item.username}?`)) {
-                            action.mutate({ id: item.id, action: 'delete' });
-                          }
-                        }}
-                      >
-                        Xóa
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <Modal
+        open={Boolean(detail)}
+        onOpenChange={(open) => !open && setDetail(null)}
+        title={detail?.username ?? 'Chi tiết tài khoản NTRIP'}
+        description="Thông tin tài khoản và ACL mountpoint."
+        side="right"
+        footer={
+          detail && (
+            <>
+              {can('ntrip_accounts', 'edit') && (
+                <Button onClick={() => openEdit(detail)}>
+                  <Pencil size={16} aria-hidden="true" /> Sửa
+                </Button>
+              )}
+              <Button variant="ghost" onClick={() => setDetail(null)}>
+                Đóng
+              </Button>
+            </>
+          )
+        }
+      >
+        {detail && (
+          <>
+            <dl className="facts">
+              <div>
+                <dt>Trạng thái</dt>
+                <dd>{detail.enabled ? 'enabled' : 'locked'}</dd>
+              </div>
+              <div>
+                <dt>Max connections</dt>
+                <dd>{detail.maxConnections}</dd>
+              </div>
+              <div>
+                <dt>Owner</dt>
+                <dd>{detail.ownerWebUserId ?? '—'}</dd>
+              </div>
+            </dl>
+            <div className="panel">
+              <div className="table-head">
+                <h2>ACL mountpoint</h2>
+                {can('ntrip_accounts', 'edit') && (
+                  <Button size="sm" onClick={() => saveAcl.mutate()} loading={saveAcl.isPending}>
+                    <KeyRound size={14} aria-hidden="true" /> Lưu ACL
+                  </Button>
+                )}
+              </div>
+              {mountpoints.data?.items.length ? (
+                <div className="check-list">
+                  {mountpoints.data.items.map((mountpoint) => (
+                    <label className="check" key={mountpoint.id}>
+                      <input
+                        type="checkbox"
+                        checked={aclIds.includes(mountpoint.id)}
+                        disabled={!can('ntrip_accounts', 'edit')}
+                        onChange={(event) =>
+                          setAclIds((current) =>
+                            event.target.checked
+                              ? [...current, mountpoint.id]
+                              : current.filter((id) => id !== mountpoint.id)
+                          )
+                        }
+                      />
+                      <span className="mono">{mountpoint.name}</span>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted">Chưa có mountpoint hoặc chưa có quyền xem.</p>
+              )}
+            </div>
+          </>
         )}
-        <p className="muted">ACL mountpoint sẽ hoàn thiện ở Phase 4; API placeholder đã có.</p>
-      </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Xóa tài khoản NTRIP?"
+        description={`Tài khoản ${deleteTarget?.username ?? ''} sẽ bị xóa.`}
+        pending={action.isPending}
+        onConfirm={() => deleteTarget && action.mutate({ account: deleteTarget, action: 'delete' })}
+      />
     </section>
   );
 }

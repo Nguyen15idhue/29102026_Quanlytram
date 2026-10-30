@@ -2,6 +2,8 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { ApiClientError } from '../api/client';
+import { Button, Field, Input } from '../components/ui';
+import { ThemeToggle } from '../components/ThemeToggle';
 
 export function Login() {
   const { login } = useAuth();
@@ -27,39 +29,40 @@ export function Login() {
 
   return (
     <div className="login-page">
+      <div className="login-theme">
+        <ThemeToggle />
+      </div>
       <form className="login-card" onSubmit={handleSubmit}>
         <div className="brand login-brand">
           <span className="brand-mark" aria-hidden="true" />
           <div>
-            <strong>Quản lý trạm CORS</strong>
+            <h1 className="login-title">Quản lý trạm CORS</h1>
             <small>Đăng nhập quản trị</small>
           </div>
         </div>
 
         {error && <div className="alert error">{error}</div>}
 
-        <label>
-          Tên đăng nhập
-          <input
+        <Field label="Tên đăng nhập">
+          <Input
             autoComplete="username"
             value={username}
             onChange={(event) => setUsername(event.target.value)}
             required
           />
-        </label>
-        <label>
-          Mật khẩu
-          <input
+        </Field>
+        <Field label="Mật khẩu">
+          <Input
             type="password"
             autoComplete="current-password"
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
           />
-        </label>
-        <button className="btn primary" type="submit" disabled={busy}>
-          {busy ? 'Đang đăng nhập...' : 'Đăng nhập'}
-        </button>
+        </Field>
+        <Button variant="primary" type="submit" loading={busy}>
+          Đăng nhập
+        </Button>
       </form>
     </div>
   );

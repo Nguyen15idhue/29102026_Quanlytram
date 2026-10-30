@@ -1,4 +1,4 @@
-# API Contract (Phase 1–2)
+# API Contract (Phase 1–4)
 
 Base URL: `/api`
 Auth: session cookie `cors_sid` (HttpOnly, SameSite=Lax).
@@ -137,7 +137,7 @@ Body tạo job:
   "enabled": false,
   "upstream": {
     "host": "caster.example",
-    "port": 2101,
+    "port": 1509,
     "mount": "UPSTREAM",
     "proxy": "",
     "ssl": false,
@@ -145,7 +145,7 @@ Body tạo job:
   },
   "downstream": {
     "host": "caster2.example",
-    "port": 2101,
+    "port": 1509,
     "mount": "DOWNSTREAM",
     "proxy": "",
     "ssl": false,
@@ -291,3 +291,22 @@ Response quality (rút gọn):
 Body tạo/sửa: `username`, `password`, `enabled`, `max_connections`,
 `owner_web_user_id`. Response không trả `password_hash`.
 ACL body: `{ "mountpointIds": [1, 2] }`; placeholder cho Phase 4.
+
+## 14. Caster listeners (Phase 4 — planned)
+
+- Port mặc định **1509** cho source và rover; tùy chỉnh theo listener.
+- Một mountpoint có thể gắn nhiều listener: A,B,C→1509; A,C→1508.
+- Không dùng 2101/8081.
+
+| Method | Endpoint | Quyền |
+|---|---|---|
+| GET/POST | `/api/caster/listeners` | `settings.view` / `settings.edit` |
+| GET/PATCH/DELETE | `/api/caster/listeners/:id` | `settings.view` / `settings.edit` |
+| POST | `/api/caster/listeners/:id/enable` | `settings.edit` |
+| POST | `/api/caster/listeners/:id/disable` | `settings.edit` |
+| GET/PUT | `/api/caster/listeners/:id/mountpoints` | `settings.view` / `settings.edit` |
+| GET | `/api/connections` | `connections.view` |
+| DELETE | `/api/connections/:id` | `connections.delete` |
+
+Body listener: `name`, `port`, `enabled`, `role` (`both|source|rover`),
+`description`. Body gắn mountpoint: `{ "mountpointIds": [1, 2] }`.

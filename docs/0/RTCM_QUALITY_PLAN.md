@@ -282,6 +282,7 @@ quality_alert_acks(
 - P6-01/P6-02 có thể bắt đầu sau Phase 3.
 - P6-03 cần Phase 4 cho caster ingest; station probe có thể làm sớm hơn.
 - P6-04/P6-05 cần Socket.IO/realtime của Phase 5.
-- Migration dự kiến: `runtime/003_rtcm_quality.sql`,
-  `admin/003_quality_permissions.sql` (permission + `station_probes`).
+- Migration dự kiến: `runtime/<next>_rtcm_quality.sql`,
+  `admin/<next>_quality_permissions.sql` (permission + `station_probes`).
+  `<next>` chốt sau migration Phase 4/5; không trùng version đã có (admin 003 đã dùng).
 - Cập nhật `docs/api.md`, `TASKS.md`, `SESSION.md` khi triển khai.

@@ -1,8 +1,25 @@
 import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FlaskConical, Pencil, Play, Plus, RotateCw, Square, Trash2 } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { useListParams } from '../lib/useListParams';
 import type { RelayJob } from '../types';
+import {
+  Button,
+  ConfirmDialog,
+  DataTable,
+  Field,
+  IconButton,
+  Input,
+  Modal,
+  PageHeader,
+  Pagination,
+  SearchInput,
+  Select,
+  StatusBadge
+} from '../components/ui';
+import { useToast } from '../components/ToastProvider';
 
 interface RelayJobList {
   items: RelayJob[];
@@ -13,31 +30,39 @@ const emptyForm = {
   name: '',
   enabled: false,
   upstreamHost: '',
-  upstreamPort: 2101,
+  upstreamPort: 1509,
   upstreamMount: '',
   downstreamHost: '',
-  downstreamPort: 2101,
+  downstreamPort: 1509,
   downstreamMount: '',
   downstreamMode: 'auto'
 };
 
-function stateClass(state: string): string {
+function stateKind(state: string): 'ok' | 'warn' | 'error' | 'neutral' {
   if (state === 'streaming') return 'ok';
-  if (state === 'error' || state === 'backoff') return 'warn';
-  return '';
+  if (state === 'error') return 'error';
+  if (state === 'backoff' || state === 'connecting') return 'warn';
+  return 'neutral';
 }
 
 export function RelayJobs() {
   const { can, csrfToken } = useAuth();
+  const { push } = useToast();
   const queryClient = useQueryClient();
+  const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
+  const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<RelayJob | null>(null);
+  const [detail, setDetail] = useState<RelayJob | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<RelayJob | null>(null);
   const [form, setForm] = useState(emptyForm);
-  const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
 
   const list = useQuery({
-    queryKey: ['relay-jobs'],
-    queryFn: () => apiFetch<RelayJobList>('/api/relay-jobs?pageSize=100')
+    queryKey: ['relay-jobs', page, pageSize, q],
+    queryFn: () =>
+      apiFetch<RelayJobList>(
+        `/api/relay-jobs?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
+      )
   });
 
   const save = useMutation({
@@ -57,44 +82,55 @@ export function RelayJobs() {
           mount: form.downstreamMount
         }
       };
-      if (editingId) {
-        return apiFetch(`/api/relay-jobs/${editingId}`, { method: 'PATCH', body, csrfToken });
+      if (editing) {
+        return apiFetch(`/api/relay-jobs/${editing.id}`, { method: 'PATCH', body, csrfToken });
       }
       return apiFetch('/api/relay-jobs', { method: 'POST', body, csrfToken });
     },
     onSuccess: async () => {
-      setForm(emptyForm);
-      setEditingId(null);
+      setFormOpen(false);
+      setEditing(null);
       setError('');
+      push(editing ? 'Đã cập nhật relay job' : 'Đã thêm relay job', 'success');
       await queryClient.invalidateQueries({ queryKey: ['relay-jobs'] });
     },
     onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Lưu thất bại')
   });
 
   const action = useMutation({
-    mutationFn: ({ id, action }: { id: number; action: 'enable' | 'disable' | 'restart' | 'test' | 'delete' }) =>
-      apiFetch(`/api/relay-jobs/${id}${action === 'delete' ? '' : `/${action}`}`, {
+    mutationFn: ({
+      job,
+      action
+    }: {
+      job: RelayJob;
+      action: 'enable' | 'disable' | 'restart' | 'test' | 'delete';
+    }) =>
+      apiFetch(`/api/relay-jobs/${job.id}${action === 'delete' ? '' : `/${action}`}`, {
         method: action === 'delete' ? 'DELETE' : 'POST',
         csrfToken
       }),
     onSuccess: async (result, variables) => {
-      setError('');
       if (variables.action === 'test') {
         const value = result as { result?: { ok?: boolean; error?: string } };
-        setNotice(value.result?.ok ? 'Test kết nối: OK' : `Test thất bại: ${value.result?.error ?? ''}`);
+        push(value.result?.ok ? 'Test kết nối: OK' : `Test thất bại: ${value.result?.error ?? ''}`, value.result?.ok ? 'success' : 'error');
+      } else {
+        push('Đã cập nhật relay job', 'success');
       }
+      setDeleteTarget(null);
       await queryClient.invalidateQueries({ queryKey: ['relay-jobs'] });
     },
-    onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Thao tác thất bại')
+    onError: (err) => push(err instanceof ApiClientError ? err.message : 'Thao tác thất bại', 'error')
   });
 
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    save.mutate();
+  function openCreate() {
+    setEditing(null);
+    setForm(emptyForm);
+    setError('');
+    setFormOpen(true);
   }
 
-  function edit(job: RelayJob) {
-    setEditingId(job.id);
+  function openEdit(job: RelayJob) {
+    setEditing(job);
     setForm({
       name: job.name,
       enabled: job.enabled,
@@ -106,221 +142,332 @@ export function RelayJobs() {
       downstreamMount: job.downstream.mount,
       downstreamMode: job.downstreamMode
     });
+    setError('');
+    setFormOpen(true);
+    setDetail(null);
+  }
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    save.mutate();
   }
 
   return (
     <section className="page">
-      <header className="page-head">
-        <div>
-          <h1>Relay</h1>
-          <p className="muted">Cấu hình đã lưu và trạng thái Go đã áp dụng.</p>
+      <PageHeader
+        title="Relay"
+        description="Cấu hình đã lưu và trạng thái Go đã áp dụng."
+        actions={
+          can('relay', 'add') && (
+            <Button variant="primary" onClick={openCreate}>
+              <Plus size={16} aria-hidden="true" /> Thêm relay job
+            </Button>
+          )
+        }
+      />
+
+      <div className="panel">
+        <div className="table-head">
+          <SearchInput value={q} onChange={setQ} placeholder="Tìm relay job" />
+          <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
+            Tải lại
+          </Button>
         </div>
-      </header>
+        <DataTable
+          items={list.data?.items ?? []}
+          rowKey={(job) => job.id}
+          loading={list.isLoading}
+          error={list.isError ? 'Không tải được relay job.' : undefined}
+          empty="Chưa có relay job nào."
+          onRowClick={setDetail}
+          columns={[
+            {
+              key: 'name',
+              header: 'Tên',
+              cell: (job) => (
+                <div>
+                  <strong>{job.name}</strong>
+                  <div className="muted">{job.enabled ? 'enabled' : 'disabled'}</div>
+                </div>
+              )
+            },
+            {
+              key: 'upstream',
+              header: 'Upstream',
+              hideOnMobile: true,
+              cell: (job) => (
+                <span className="mono">
+                  {job.upstream.host}:{job.upstream.port}/{job.upstream.mount}
+                </span>
+              )
+            },
+            {
+              key: 'downstream',
+              header: 'Downstream',
+              hideOnMobile: true,
+              cell: (job) => (
+                <span className="mono">
+                  {job.downstream.host}:{job.downstream.port}/{job.downstream.mount}
+                </span>
+              )
+            },
+            {
+              key: 'state',
+              header: 'Trạng thái',
+              cell: (job) => {
+                const state = job.state?.runtimeState ?? 'pending';
+                return (
+                  <div>
+                    <StatusBadge label={state} kind={stateKind(state)} />
+                    {job.state?.lastError && (
+                      <div className="muted table-subline">{job.state.lastError}</div>
+                    )}
+                  </div>
+                );
+              }
+            },
+            {
+              key: 'revision',
+              header: 'Applied / desired',
+              align: 'right',
+              hideOnMobile: true,
+              cell: (job) => (
+                <span className="mono">
+                  {job.state?.appliedRevision ?? 0}/{job.desiredRevision}
+                </span>
+              )
+            },
+            {
+              key: 'actions',
+              header: '',
+              align: 'right',
+              cell: (job) => (
+                <div className="row-actions">
+                  {can('relay', 'edit') && (
+                    <>
+                      <IconButton
+                        label={`Sửa ${job.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openEdit(job);
+                        }}
+                      >
+                        <Pencil size={16} aria-hidden="true" />
+                      </IconButton>
+                      <IconButton
+                        label={job.enabled ? `Tắt ${job.name}` : `Bật ${job.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          action.mutate({ job, action: job.enabled ? 'disable' : 'enable' });
+                        }}
+                      >
+                        {job.enabled ? <Square size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+                      </IconButton>
+                      <IconButton
+                        label={`Restart ${job.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          action.mutate({ job, action: 'restart' });
+                        }}
+                      >
+                        <RotateCw size={16} aria-hidden="true" />
+                      </IconButton>
+                      <IconButton
+                        label={`Test ${job.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          action.mutate({ job, action: 'test' });
+                        }}
+                      >
+                        <FlaskConical size={16} aria-hidden="true" />
+                      </IconButton>
+                    </>
+                  )}
+                  {can('relay', 'delete') && (
+                    <IconButton
+                      label={`Xóa ${job.name}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setDeleteTarget(job);
+                      }}
+                    >
+                      <Trash2 size={16} aria-hidden="true" />
+                    </IconButton>
+                  )}
+                </div>
+              )
+            }
+          ]}
+        />
+        <Pagination
+          page={page}
+          pageSize={pageSize}
+          total={list.data?.total ?? 0}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+        />
+      </div>
 
-      {error && <div className="alert error">{error}</div>}
-      {notice && <div className="alert">{notice}</div>}
-
-      {can('relay', 'add') && (
-        <form className="panel form-grid" onSubmit={submit}>
-          <h2>{editingId ? 'Sửa relay job' : 'Thêm relay job'}</h2>
-          <label>
-            Tên
-            <input
+      <Modal
+        open={formOpen}
+        onOpenChange={(open) => {
+          setFormOpen(open);
+          if (!open) setEditing(null);
+        }}
+        title={editing ? 'Sửa relay job' : 'Thêm relay job'}
+        description="Cấu hình bridge upstream → downstream."
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setFormOpen(false)}>
+              Hủy
+            </Button>
+            <Button variant="primary" type="submit" form="relay-form" loading={save.isPending}>
+              {editing ? 'Cập nhật' : 'Thêm'}
+            </Button>
+          </>
+        }
+      >
+        <form id="relay-form" className="form-grid" onSubmit={submit}>
+          <Field label="Tên" error={error || undefined}>
+            <Input
               value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
               required
             />
-          </label>
-          <label>
-            Downstream mode
-            <select
+          </Field>
+          <Field label="Downstream mode">
+            <Select
               value={form.downstreamMode}
               onChange={(event) => setForm({ ...form, downstreamMode: event.target.value })}
             >
               <option value="auto">auto</option>
               <option value="post">post</option>
               <option value="source">source</option>
-            </select>
-          </label>
-          <label>
-            Upstream host
-            <input
+            </Select>
+          </Field>
+          <Field label="Upstream host">
+            <Input
               value={form.upstreamHost}
               onChange={(event) => setForm({ ...form, upstreamHost: event.target.value })}
               required
             />
-          </label>
-          <label>
-            Upstream port
-            <input
+          </Field>
+          <Field label="Upstream port">
+            <Input
               type="number"
               min={1}
               max={65535}
               value={form.upstreamPort}
               onChange={(event) => setForm({ ...form, upstreamPort: Number(event.target.value) })}
             />
-          </label>
-          <label>
-            Upstream mount
-            <input
+          </Field>
+          <Field label="Upstream mount">
+            <Input
               value={form.upstreamMount}
               onChange={(event) => setForm({ ...form, upstreamMount: event.target.value })}
               required
             />
-          </label>
-          <label>
-            Downstream host
-            <input
+          </Field>
+          <Field label="Downstream host">
+            <Input
               value={form.downstreamHost}
               onChange={(event) => setForm({ ...form, downstreamHost: event.target.value })}
               required
             />
-          </label>
-          <label>
-            Downstream port
-            <input
+          </Field>
+          <Field label="Downstream port">
+            <Input
               type="number"
               min={1}
               max={65535}
               value={form.downstreamPort}
               onChange={(event) => setForm({ ...form, downstreamPort: Number(event.target.value) })}
             />
-          </label>
-          <label>
-            Downstream mount
-            <input
+          </Field>
+          <Field label="Downstream mount">
+            <Input
               value={form.downstreamMount}
               onChange={(event) => setForm({ ...form, downstreamMount: event.target.value })}
               required
             />
-          </label>
+          </Field>
           <label className="check">
             <input
               type="checkbox"
               checked={form.enabled}
               onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
             />
-            Bật
+            Bật relay job
           </label>
-          <div className="form-actions">
-            <button className="btn primary" type="submit" disabled={save.isPending}>
-              {editingId ? 'Cập nhật' : 'Thêm'}
-            </button>
-            {editingId && (
-              <button
-                type="button"
-                className="btn ghost"
-                onClick={() => {
-                  setEditingId(null);
-                  setForm(emptyForm);
-                }}
-              >
-                Hủy
-              </button>
-            )}
-          </div>
         </form>
-      )}
+      </Modal>
 
-      <div className="panel">
-        <div className="table-head">
-          <h2>Danh sách</h2>
-          <button className="btn ghost" onClick={() => list.refetch()} disabled={list.isFetching}>
-            Tải lại
-          </button>
-        </div>
-        {list.isLoading ? (
-          <p className="state">Đang tải...</p>
-        ) : list.isError ? (
-          <p className="state error">Không tải được relay job.</p>
-        ) : list.data?.items.length === 0 ? (
-          <p className="state">Chưa có relay job nào.</p>
-        ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Tên</th>
-                <th>Upstream</th>
-                <th>Downstream</th>
-                <th>Trạng thái</th>
-                <th>Revision</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {list.data?.items.map((job) => {
-                const state = job.state?.runtimeState ?? 'pending';
-                return (
-                  <tr key={job.id}>
-                    <td>
-                      {job.name}
-                      <div className="muted mono">{job.enabled ? 'enabled' : 'disabled'}</div>
-                    </td>
-                    <td className="mono">
-                      {job.upstream.host}:{job.upstream.port}/{job.upstream.mount}
-                    </td>
-                    <td className="mono">
-                      {job.downstream.host}:{job.downstream.port}/{job.downstream.mount}
-                    </td>
-                    <td>
-                      <span className={`badge ${stateClass(state)}`}>{state}</span>
-                      {job.state?.lastError && <div className="muted">{job.state.lastError}</div>}
-                    </td>
-                    <td className="mono">
-                      {job.state?.appliedRevision ?? 0}/{job.desiredRevision}
-                    </td>
-                    <td className="row-actions">
-                      {can('relay', 'edit') && (
-                        <>
-                          <button className="btn small" type="button" onClick={() => edit(job)}>
-                            Sửa
-                          </button>
-                          <button
-                            className="btn small"
-                            type="button"
-                            onClick={() =>
-                              action.mutate({ id: job.id, action: job.enabled ? 'disable' : 'enable' })
-                            }
-                          >
-                            {job.enabled ? 'Tắt' : 'Bật'}
-                          </button>
-                          <button
-                            className="btn small"
-                            type="button"
-                            onClick={() => action.mutate({ id: job.id, action: 'restart' })}
-                          >
-                            Restart
-                          </button>
-                          <button
-                            className="btn small"
-                            type="button"
-                            onClick={() => action.mutate({ id: job.id, action: 'test' })}
-                          >
-                            Test
-                          </button>
-                        </>
-                      )}
-                      {can('relay', 'delete') && (
-                        <button
-                          className="btn small danger"
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm(`Xóa relay job ${job.name}?`)) {
-                              action.mutate({ id: job.id, action: 'delete' });
-                            }
-                          }}
-                        >
-                          Xóa
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+      <Modal
+        open={Boolean(detail)}
+        onOpenChange={(open) => !open && setDetail(null)}
+        title={detail?.name ?? 'Chi tiết relay job'}
+        description={detail ? `${detail.upstream.mount} → ${detail.downstream.mount}` : undefined}
+        side="right"
+        footer={
+          detail && (
+            <>
+              {can('relay', 'edit') && (
+                <Button onClick={() => openEdit(detail)}>
+                  <Pencil size={16} aria-hidden="true" /> Sửa
+                </Button>
+              )}
+              <Button variant="ghost" onClick={() => setDetail(null)}>
+                Đóng
+              </Button>
+            </>
+          )
+        }
+      >
+        {detail && (
+          <>
+            <dl className="facts">
+              <div>
+                <dt>Trạng thái</dt>
+                <dd>
+                  <StatusBadge
+                    label={detail.state?.runtimeState ?? 'pending'}
+                    kind={stateKind(detail.state?.runtimeState ?? 'pending')}
+                  />
+                </dd>
+              </div>
+              <div>
+                <dt>Revision</dt>
+                <dd className="mono">
+                  {detail.state?.appliedRevision ?? 0}/{detail.desiredRevision}
+                </dd>
+              </div>
+              <div>
+                <dt>Upstream</dt>
+                <dd className="mono">
+                  {detail.upstream.host}:{detail.upstream.port}/{detail.upstream.mount}
+                </dd>
+              </div>
+              <div>
+                <dt>Downstream</dt>
+                <dd className="mono">
+                  {detail.downstream.host}:{detail.downstream.port}/{detail.downstream.mount}
+                </dd>
+              </div>
+            </dl>
+            {detail.state?.lastError && <div className="alert error">{detail.state.lastError}</div>}
+          </>
         )}
-      </div>
+      </Modal>
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Xóa relay job?"
+        description={`Relay ${deleteTarget?.name ?? ''} sẽ dừng và bị xóa mềm; history được giữ.`}
+        pending={action.isPending}
+        onConfirm={() => deleteTarget && action.mutate({ job: deleteTarget, action: 'delete' })}
+      />
     </section>
   );
 }
