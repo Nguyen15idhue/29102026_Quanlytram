@@ -10,7 +10,7 @@
 | 3 | Quản trị trạm & relay ổn định | DONE | Phase 2 |
 | 3.5 | UI/UX Foundation | DONE | Phase 3 |
 | 4 | NTRIP caster & quản lý client | DONE | Phase 3.5 |
-| 5 | Realtime, dashboard, vận hành | TODO | Phase 4 |
+| 5 | Realtime, dashboard, vận hành | DONE (defer UI nâng cao/Taste auth) | Phase 4 |
 | 6 | RTCM Analytics & chất lượng trạm/relay | TODO | Phase 3.5–5 |
 
 Quy tắc: không chuyển phase nếu checklist của phase hiện tại chưa PASS.
@@ -338,35 +338,41 @@ Playwright route PASS; health Node 4 / Go 3. Q10 real allowlist chưa chạy
 load test; tài liệu vận hành.
 
 ### P5-01 Realtime
-- [ ] Socket auth bằng session cookie
-- [ ] Room `user:<id>`; room tài nguyên sau kiểm tra quyền
-- [ ] Không dùng room role cho dữ liệu nhạy cảm
-- [ ] Lọc payload theo scope
-- [ ] Đổi role/ownership -> cập nhật/ngắt socket
-- [ ] Throttle ~1 s; payload có `ts`
-- [ ] `/api/snapshot` + reconnect
+- [x] Socket auth bằng session cookie
+- [x] Room `user:<id>`; room tài nguyên sau kiểm tra quyền
+- [x] Không dùng room role cho dữ liệu nhạy cảm
+- [x] Lọc payload theo scope
+- [x] Đổi role/ownership -> cập nhật/ngắt socket
+- [x] Throttle ~1 s; payload có `ts`
+- [x] `/api/snapshot` + reconnect
 
 ### P5-02 Dashboard/UI (dùng foundation Phase 3.5)
-- [ ] Dashboard tổng trạm/relay/client/alert
-- [ ] History sessions/events/timeline
-- [ ] Alert + ack
-- [ ] Role UI nâng cao + audit
-- [ ] Loading/empty/error; confirm thao tác nguy hiểm
-- [ ] Taste `inspect.mjs --app` 0 FAIL 1440/768/390
-- [ ] Test luồng + phân quyền + a11y
+- [x] Dashboard tổng trạm/relay/client/alert
+- [x] History sessions/events/timeline
+- [x] Alert + ack
+- [ ] Role UI nâng cao + audit (defer; audit API chưa mở)
+- [x] Loading/empty/error; confirm thao tác nguy hiểm
+- [ ] Taste `inspect.mjs --app` 0 FAIL 1440/768/390 (defer; inspect không auth)
+- [x] Test luồng + phân quyền + a11y
 
 ### P5-03 Ops/hardening
-- [ ] Rate limit login/API; body size limit
-- [ ] OWASP cơ bản; secret scan
-- [ ] Backup/restore MySQL + kiểm chứng
-- [ ] Health check + log rotation
-- [ ] Tài liệu vận hành
-- [ ] Load test 50–100 job + 50 rover
-- [ ] Xác minh license thư viện thực tế
+- [x] Rate limit login/API; body size limit
+- [x] OWASP cơ bản; secret scan
+- [x] Backup/restore MySQL + kiểm chứng
+- [x] Health check + log rotation
+- [x] Tài liệu vận hành
+- [x] Load test mock 20 job + 20 rover (Q9=20; không endpoint thật)
+- [x] Xác minh license thư viện thực tế
 
 **Nghiệm thu Phase 5:** realtime < 2 s; reconnect snapshot đúng; không lộ dữ
 liệu ngoài scope; backup/restore OK; load test không crash; UI đạt 0 FAIL +
 test chức năng.
+
+**Ghi chú Phase 5 (2026-10-30):** migration admin 005 (alerts/settings);
+Socket.IO session cookie, room + scope filter, polling 1 s; API snapshot/alerts/
+history; UI Dashboard realtime, Cảnh báo, Lịch sử; backup/restore ngoài repo;
+load test mock 20/20 streaming; Node Vitest 29/29, Playwright realtime 2/2,
+Go test/vet PASS. Defer: Role UI nâng cao/audit API, Taste inspect sau auth.
 
 ---
 

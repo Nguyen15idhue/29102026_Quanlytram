@@ -4,11 +4,10 @@ Dự án xây dựng hệ thống quản lý trạm CORS/NTRIP/RTCM ở mức MV
 quản lý trạm, mountpoint, tài khoản web, tài khoản NTRIP, relay bridge,
 giám sát realtime và cấu hình hệ thống.
 
-> Trạng thái hiện tại: **Phase 4 — NTRIP caster (DONE, mock)**.
+> Trạng thái hiện tại: **Phase 5 — Realtime & vận hành (DONE)**.
 > Hệ thống chạy end-to-end với MySQL, Node API, Go relay/caster và React UI.
-> Caster listener mặc định 1509/1508, auth/ACL/max conn, fan-out, UI Caster;
-> đã có dark mode, CRUD dialog/drawer, phân trang server-side.
-> Hot reload Vite dùng polling 1s cho Windows.
+> Đã có Socket.IO realtime, dashboard, history, alerts/ack, backup/restore,
+> load test mock, dark mode, CRUD dialog/drawer; hot reload Vite polling 1s.
 >
 > Kế hoạch bổ sung **Phase 6 — RTCM Analytics & chất lượng trạm/relay**:
 > parse RTCM3 bằng `go-gnss/rtcm`, đánh giá chất lượng cho trạm thường và

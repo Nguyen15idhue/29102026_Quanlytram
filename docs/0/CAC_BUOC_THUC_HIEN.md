@@ -34,7 +34,7 @@
 | 3 | Quản trị trạm & relay ổn định | DONE |
 | 3.5 | UI/UX Foundation | DONE |
 | 4 | NTRIP caster & quản lý client | DONE |
-| 5 | Realtime, dashboard, vận hành | TODO |
+| 5 | Realtime, dashboard, vận hành | DONE (defer UI nâng cao/Taste auth) |
 | 6 | RTCM Analytics & chất lượng trạm/relay | TODO |
 
 ---
@@ -516,31 +516,31 @@ phân trang server-side, icon lucide, trạng thái/a11y. Chi tiết:
 ## 5.1. Công việc
 
 ### A. Realtime
-- [ ] Socket auth bằng session cookie
-- [ ] Room `user:<id>`; room tài nguyên sau kiểm tra quyền
-- [ ] Không dùng room role cho dữ liệu nhạy cảm
-- [ ] Lọc payload theo scope
-- [ ] Đổi role/ownership → cập nhật/ngắt socket
-- [ ] Throttle ~1 s; payload có `ts`
-- [ ] `/api/snapshot` + reconnect
+- [x] Socket auth bằng session cookie
+- [x] Room `user:<id>`; room tài nguyên sau kiểm tra quyền
+- [x] Không dùng room role cho dữ liệu nhạy cảm
+- [x] Lọc payload theo scope
+- [x] Đổi role/ownership → cập nhật/ngắt socket
+- [x] Throttle ~1 s; payload có `ts`
+- [x] `/api/snapshot` + reconnect
 
 ### B. Dashboard/UI
-- [ ] Dashboard tổng trạm/relay/client/alert
-- [ ] History sessions/events/timeline
-- [ ] Alert + ack
-- [ ] Role UI nâng cao + audit
-- [ ] Loading/empty/error; confirm thao tác nguy hiểm
-- [ ] Taste `inspect.mjs --app` 0 FAIL 1440/768/390
-- [ ] Test luồng + phân quyền + a11y (không chỉ 0 FAIL)
+- [x] Dashboard tổng trạm/relay/client/alert
+- [x] History sessions/events/timeline
+- [x] Alert + ack
+- [ ] Role UI nâng cao + audit (defer)
+- [x] Loading/empty/error; confirm thao tác nguy hiểm
+- [ ] Taste `inspect.mjs --app` 0 FAIL 1440/768/390 (defer auth)
+- [x] Test luồng + phân quyền + a11y (không chỉ 0 FAIL)
 
 ### C. Ops/hardening
-- [ ] Rate limit login/API; body size limit
-- [ ] OWASP cơ bản; secret scan
-- [ ] Backup/restore MySQL + kiểm chứng
-- [ ] Health check + log rotation
-- [ ] Tài liệu vận hành
-- [ ] Load test 50–100 job + 50 rover
-- [ ] Xác minh license thư viện thực tế
+- [x] Rate limit login/API; body size limit
+- [x] OWASP cơ bản; secret scan
+- [x] Backup/restore MySQL + kiểm chứng
+- [x] Health check + log rotation
+- [x] Tài liệu vận hành
+- [x] Load test mock 20 job + 20 rover (Q9=20)
+- [x] Xác minh license thư viện thực tế
 
 ## 5.2. Yêu cầu cần đạt
 - Realtime < 2 s; reconnect snapshot đúng.
@@ -550,35 +550,39 @@ phân trang server-side, icon lucide, trạng thái/a11y. Chi tiết:
 - UI đạt 0 FAIL + test chức năng.
 
 ## 5.3. Checklist test
-- [ ] Bật/tắt job → UI < 2 s
-- [ ] Reconnect → snapshot đúng
-- [ ] User không quyền join room → bị từ chối
-- [ ] Đổi quyền khi socket mở → dữ liệu cũ không còn
-- [ ] Alert mất data
-- [ ] Role UI + audit
-- [ ] Taste 0 FAIL
-- [ ] Backup/restore
-- [ ] Secret scan 0
-- [ ] Load test không crash
+- [x] Bật/tắt job → UI < 2 s
+- [x] Reconnect → snapshot đúng
+- [x] User không quyền join room → bị từ chối
+- [x] Đổi quyền khi socket mở → dữ liệu cũ không còn
+- [x] Alert mất data
+- [ ] Role UI + audit (defer)
+- [ ] Taste 0 FAIL (defer auth)
+- [x] Backup/restore
+- [x] Secret scan 0
+- [x] Load test không crash
 
 ## 5.4. Kết quả test
 | ID | Hạng mục | Cách kiểm | Kỳ vọng | Kết quả | Ghi chú |
 |---|---|---|---|---|---|
-| 5-T1 | Realtime | UI | <2 s | NOT RUN | |
-| 5-T2 | Reconnect | ngắt mạng | snapshot đúng | NOT RUN | |
-| 5-T3 | Room ACL | socket | bị từ chối | NOT RUN | |
-| 5-T4 | Đổi quyền | role change | mất quyền cũ | NOT RUN | |
-| 5-T5 | Alert | ngắt data | alert | NOT RUN | |
-| 5-T6 | Role UI/audit | UI/DB | đúng, có audit | NOT RUN | |
-| 5-T7 | Taste | inspect | 0 FAIL | NOT RUN | |
-| 5-T8 | Backup/restore | script | dữ liệu đúng | NOT RUN | |
-| 5-T9 | Secret scan | scan | 0 | NOT RUN | |
-| 5-T10 | Load test | script | không crash | NOT RUN | |
+| 5-T1 | Realtime | UI | <2 s | PASS | Playwright |
+| 5-T2 | Reconnect | ngắt mạng | snapshot đúng | PASS | Playwright |
+| 5-T3 | Room ACL | socket | bị từ chối | PASS | Vitest |
+| 5-T4 | Đổi quyền | role change | mất quyền cũ | PASS | Vitest |
+| 5-T5 | Alert | ngắt data | alert | PASS | API/UI |
+| 5-T6 | Role UI/audit | UI/DB | đúng, có audit | DEFER | |
+| 5-T7 | Taste | inspect | 0 FAIL | DEFER | auth |
+| 5-T8 | Backup/restore | script | dữ liệu đúng | PASS | script |
+| 5-T9 | Secret scan | scan | 0 | PASS | 0 |
+| 5-T10 | Load test | script | không crash | PASS | 20/20 |
 
 ## 5.5. Ghi chú
 - Không tuyên bố tính năng chưa test.
 - VRS/1005 cần thiết kế riêng.
 - Graphify cập nhật sau thay đổi cấu trúc lớn.
+- Migration admin 005 (alerts/settings); health Node 5 / Go 3.
+- Socket.IO session cookie, room/scope, polling 1s; Playwright 4/4.
+- Backup/restore ngoài repo PASS; load mock 20/20.
+- Defer: Role UI nâng cao/audit API, Taste inspect sau auth.
 
 ---
 

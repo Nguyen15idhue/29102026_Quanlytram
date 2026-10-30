@@ -28,6 +28,11 @@ export function useListParams() {
     [update]
   );
   const setQ = useCallback((value: string) => update({ q: value, page: 1 }), [update]);
+  const getParam = useCallback((key: string) => params.get(key) ?? '', [params]);
+  const setParam = useCallback(
+    (key: string, value: string | number | null) => update({ [key]: value, page: 1 }),
+    [update]
+  );
 
-  return { page, pageSize, q, setPage, setPageSize, setQ };
+  return { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam };
 }

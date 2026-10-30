@@ -33,6 +33,8 @@ const permissions = [
   ['connections.delete', 'connections', 'delete'],
   ['settings.view', 'settings', 'view'],
   ['settings.edit', 'settings', 'edit'],
+  ['alerts.view', 'alerts', 'view'],
+  ['alerts.ack', 'alerts', 'ack'],
   ['audit.view', 'audit', 'view']
 ] as const;
 
@@ -44,6 +46,7 @@ function roleMatrix(role: string, code: string): Scope {
     if (code === 'settings.edit') return 'none';
     if (code.startsWith('web_users.')) return 'subtree';
     if (code.startsWith('roles.')) return 'none';
+    if (code.startsWith('alerts.')) return 'subtree';
     if (code === 'audit.view') return 'subtree';
     if (code.endsWith('.view') || code.endsWith('.add') || code.endsWith('.edit') || code.endsWith('.delete')) {
       return 'subtree';
@@ -52,6 +55,8 @@ function roleMatrix(role: string, code: string): Scope {
   }
   if (role === 'user') {
     if (code === 'web_users.view' || code === 'web_users.edit') return 'own';
+    if (code === 'alerts.view') return 'own';
+    if (code.startsWith('alerts.')) return 'none';
     if (code.endsWith('.view')) return 'own';
     return 'none';
   }

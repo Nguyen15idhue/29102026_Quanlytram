@@ -1,0 +1,367 @@
+import type { Server as HttpServer } from 'node:http';
+import { Server as SocketServer, type Socket } from 'socket.io';
+import { RowDataPacket } from 'mysql2/promise';
+import { config } from '../config';
+import { query } from '../db/pool';
+import { runtimeQuery } from '../db/runtimePool';
+import { evaluateAlerts } from '../lib/alerts';
+import { sha256 } from '../lib/token';
+import { permissionsForRole } from '../rbac/permissions';
+import { subtreeIds } from '../rbac/scope';
+import { loadBaseData, loadOpenAlerts } from './data';
+import {
+  buildSnapshot,
+  canSubscribeResource,
+  permissionMap,
+  scopeOf,
+  type PermissionMap,
+  type RawData
+} from './filter';
+
+export interface SocketAuth {
+  userId: number;
+  sessionId: number;
+  tokenHash: string;
+  username: string;
+  roleId: number;
+  roleCode: string;
+  roleLevel: number;
+}
+
+interface SocketState {
+  auth: SocketAuth;
+  permissions: PermissionMap;
+  subtreeIds: number[];
+  lastRelaySig: string;
+  lastConnSig: string;
+  knownAlertIds: Set<number>;
+}
+
+export interface RealtimeHandle {
+  io: SocketServer;
+  stop: () => Promise<void>;
+}
+
+export function parseCookieHeader(header: string | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!header) return out;
+  for (const part of header.split(';')) {
+    const index = part.indexOf('=');
+    if (index === -1) continue;
+    const key = part.slice(0, index).trim();
+    if (!key) continue;
+    const raw = part.slice(index + 1).trim();
+    try {
+      out[key] = decodeURIComponent(raw);
+    } catch {
+      out[key] = raw;
+    }
+  }
+  return out;
+}
+
+export async function loadSessionByToken(token: string): Promise<SocketAuth | null> {
+  const tokenHash = sha256(token);
+  const rows = await query<RowDataPacket[]>(
+    `SELECT s.id AS session_id,
+            u.id, u.username, u.role_id,
+            r.code AS role_code, r.level AS role_level
+       FROM web_sessions s
+       JOIN web_users u ON u.id = s.web_user_id
+       JOIN roles r ON r.id = u.role_id
+      WHERE s.token_hash = ?
+        AND s.expires_at > UTC_TIMESTAMP(3)
+        AND u.status = 'active'
+      LIMIT 1`,
+    [tokenHash]
+  );
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  return {
+    userId: Number(row.id),
+    sessionId: Number(row.session_id),
+    tokenHash,
+    username: String(row.username),
+    roleId: Number(row.role_id),
+    roleCode: String(row.role_code),
+    roleLevel: Number(row.role_level)
+  };
+}
+
+async function refreshAuth(auth: SocketAuth): Promise<SocketAuth | null> {
+  const rows = await query<RowDataPacket[]>(
+    `SELECT s.id AS session_id,
+            u.id, u.username, u.role_id,
+            r.code AS role_code, r.level AS role_level
+       FROM web_sessions s
+       JOIN web_users u ON u.id = s.web_user_id
+       JOIN roles r ON r.id = u.role_id
+      WHERE s.token_hash = ?
+        AND s.expires_at > UTC_TIMESTAMP(3)
+        AND u.status = 'active'
+      LIMIT 1`,
+    [auth.tokenHash]
+  );
+  if (rows.length === 0) return null;
+  const row = rows[0];
+  return {
+    ...auth,
+    sessionId: Number(row.session_id),
+    userId: Number(row.id),
+    username: String(row.username),
+    roleId: Number(row.role_id),
+    roleCode: String(row.role_code),
+    roleLevel: Number(row.role_level)
+  };
+}
+
+async function stateForSocket(socket: Socket): Promise<SocketState | null> {
+  const state = socket.data.state as SocketState | undefined;
+  if (!state) return null;
+  const latest = await refreshAuth(state.auth);
+  if (!latest || latest.userId !== state.auth.userId) return null;
+  if (latest.roleId !== state.auth.roleId || latest.sessionId !== state.auth.sessionId) {
+    const permissions = permissionMap(await permissionsForRole(latest.roleId));
+    const ids = await subtreeIds(latest.userId);
+    state.auth = latest;
+    state.permissions = permissions;
+    state.subtreeIds = ids;
+    state.lastRelaySig = '';
+    state.lastConnSig = '';
+    state.knownAlertIds = new Set();
+  }
+  return state;
+}
+
+async function sendSnapshot(
+  socket: Socket,
+  state: SocketState,
+  raw?: RawData,
+  alerts?: Awaited<ReturnType<typeof loadOpenAlerts>>
+): Promise<void> {
+  const data = raw ?? (await loadBaseData());
+  const alertItems = alerts ?? (await loadOpenAlerts());
+  const snapshot = buildSnapshot(
+    data,
+    alertItems,
+    state.permissions,
+    state.auth.userId,
+    state.subtreeIds
+  );
+  socket.emit('snapshot', snapshot);
+  state.lastRelaySig = JSON.stringify(snapshot.relays);
+  state.lastConnSig = JSON.stringify(snapshot.connections);
+  state.knownAlertIds = new Set(snapshot.alerts.map((alert) => alert.id));
+}
+
+export function initRealtime(httpServer: HttpServer): RealtimeHandle {
+  const io = new SocketServer(httpServer, {
+    path: '/socket.io',
+    cors: {
+      origin: config.corsOrigin,
+      credentials: true
+    },
+    serveClient: false
+  });
+
+  io.use(async (socket, next) => {
+    try {
+      const cookie = parseCookieHeader(socket.handshake.headers.cookie);
+      const token = cookie[config.session.cookieName];
+      if (!token) return next(new Error('UNAUTHENTICATED'));
+      const auth = await loadSessionByToken(token);
+      if (!auth) return next(new Error('UNAUTHENTICATED'));
+      const permissions = permissionMap(await permissionsForRole(auth.roleId));
+      const ids = await subtreeIds(auth.userId);
+      const state: SocketState = {
+        auth,
+        permissions,
+        subtreeIds: ids,
+        lastRelaySig: '',
+        lastConnSig: '',
+        knownAlertIds: new Set()
+      };
+      socket.data.state = state;
+      next();
+    } catch {
+      next(new Error('AUTH_FAILED'));
+    }
+  });
+
+  io.on('connection', (socket) => {
+    const state = socket.data.state as SocketState;
+    socket.join(`user:${state.auth.userId}`);
+
+    socket.on('snapshot:request', async () => {
+      try {
+        const current = await stateForSocket(socket);
+        if (!current) {
+          socket.emit('auth.revoked');
+          socket.disconnect(true);
+          return;
+        }
+        await sendSnapshot(socket, current);
+      } catch {
+        socket.emit('server.error', { code: 'SNAPSHOT_FAILED' });
+      }
+    });
+
+    socket.on('subscribe', async (payload: unknown, ack?: (result: unknown) => void) => {
+      try {
+        const current = await stateForSocket(socket);
+        if (!current) {
+          ack?.({ ok: false, error: 'UNAUTHENTICATED' });
+          socket.disconnect(true);
+          return;
+        }
+        const request = payload as { type?: string; id?: number };
+        const resourceId = Number(request?.id ?? 0);
+        if (request?.type === 'relay' && resourceId > 0) {
+          const rows = await query<RowDataPacket[]>(
+            'SELECT owner_web_user_id FROM relay_jobs WHERE id = ? AND deleted_at IS NULL LIMIT 1',
+            [resourceId]
+          );
+          const ownerId = rows[0]?.owner_web_user_id ?? null;
+          if (
+            rows.length === 0 ||
+            !canSubscribeResource(
+              current.permissions,
+              'relay.view',
+              current.auth.userId,
+              current.subtreeIds,
+              ownerId === null ? null : Number(ownerId)
+            )
+          ) {
+            ack?.({ ok: false, error: 'FORBIDDEN' });
+            return;
+          }
+          socket.join(`relay:${resourceId}`);
+          ack?.({ ok: true, room: `relay:${resourceId}` });
+          return;
+        }
+        if (request?.type === 'caster') {
+          if (scopeOf(current.permissions, 'connections.view') === 'none') {
+            ack?.({ ok: false, error: 'FORBIDDEN' });
+            return;
+          }
+          socket.join('caster');
+          ack?.({ ok: true, room: 'caster' });
+          return;
+        }
+        ack?.({ ok: false, error: 'INVALID_RESOURCE' });
+      } catch {
+        ack?.({ ok: false, error: 'SUBSCRIBE_FAILED' });
+      }
+    });
+
+    void sendSnapshot(socket, state).catch(() => {
+      socket.emit('server.error', { code: 'SNAPSHOT_FAILED' });
+    });
+  });
+
+  let running = true;
+  let ticking = false;
+  let lastSessionId = 0;
+
+  async function tick(): Promise<void> {
+    if (!running || ticking) return;
+    ticking = true;
+    try {
+      const data = await loadBaseData();
+      await evaluateAlerts(data);
+      const alerts = await loadOpenAlerts();
+
+      const maxRows = await runtimeQuery<RowDataPacket[]>(
+        'SELECT MAX(id) AS max_id FROM relay_sessions'
+      );
+      const maxSessionId = Number(maxRows[0]?.max_id ?? 0);
+      let newSessions: RowDataPacket[] = [];
+      if (lastSessionId === 0) {
+        lastSessionId = maxSessionId;
+      } else if (maxSessionId > lastSessionId) {
+        newSessions = await runtimeQuery<RowDataPacket[]>(
+          `SELECT id, relay_job_id, start_ts, end_ts, duration_sec, result, close_reason, message
+             FROM relay_sessions
+            WHERE id > ?
+            ORDER BY id ASC
+            LIMIT 200`,
+          [lastSessionId]
+        );
+        lastSessionId = maxSessionId;
+      }
+
+      for (const socket of io.sockets.sockets.values()) {
+        const state = await stateForSocket(socket);
+        if (!state) {
+          socket.emit('auth.revoked');
+          socket.disconnect(true);
+          continue;
+        }
+        const snapshot = buildSnapshot(
+          data,
+          alerts,
+          state.permissions,
+          state.auth.userId,
+          state.subtreeIds
+        );
+        socket.emit('snapshot', snapshot);
+
+        const relaySig = JSON.stringify(snapshot.relays);
+        if (relaySig !== state.lastRelaySig) {
+          socket.emit('relay.updated', { ts: snapshot.ts, items: snapshot.relays });
+          state.lastRelaySig = relaySig;
+        }
+
+        const connSig = JSON.stringify(snapshot.connections);
+        if (connSig !== state.lastConnSig) {
+          socket.emit('connection.updated', { ts: snapshot.ts, items: snapshot.connections });
+          state.lastConnSig = connSig;
+        }
+
+        const newAlerts = snapshot.alerts.filter((alert) => !state.knownAlertIds.has(alert.id));
+        state.knownAlertIds = new Set(snapshot.alerts.map((alert) => alert.id));
+        if (newAlerts.length > 0) {
+          socket.emit('alert.created', { ts: snapshot.ts, items: newAlerts });
+        }
+
+        if (newSessions.length > 0) {
+          const visibleJobIds = new Set(snapshot.relays.map((relay) => relay.jobId));
+          for (const row of newSessions) {
+            if (!visibleJobIds.has(Number(row.relay_job_id))) continue;
+            socket.emit('relay.session', {
+              ts: snapshot.ts,
+              session: {
+                id: Number(row.id),
+                jobId: Number(row.relay_job_id),
+                startTs: row.start_ts,
+                endTs: row.end_ts,
+                durationSec: row.duration_sec === null ? null : Number(row.duration_sec),
+                result: String(row.result ?? ''),
+                closeReason: String(row.close_reason ?? ''),
+                message: String(row.message ?? '')
+              }
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[realtime] tick failed', err instanceof Error ? err.message : err);
+    } finally {
+      ticking = false;
+    }
+  }
+
+  const timer = setInterval(() => void tick(), config.realtime.pollMs);
+  timer.unref?.();
+
+  return {
+    io,
+    stop: async () => {
+      running = false;
+      clearInterval(timer);
+      await new Promise<void>((resolve) => {
+        io.close(() => resolve());
+      });
+    }
+  };
+}

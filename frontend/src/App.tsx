@@ -10,6 +10,8 @@ import { NtripAccounts } from './pages/NtripAccounts';
 import { RelayJobs } from './pages/RelayJobs';
 import { Caster } from './pages/Caster';
 import { WebUsers } from './pages/WebUsers';
+import { Alerts } from './pages/Alerts';
+import { History } from './pages/History';
 
 function Protected() {
   const { user, loading } = useAuth();
@@ -28,6 +30,8 @@ export function App() {
         <Route path="/stations" element={<Stations />} />
         <Route path="/mountpoints" element={<Mountpoints />} />
         <Route path="/relay-jobs" element={<RelayJobs />} />
+        <Route path="/history" element={<History />} />
+        <Route path="/alerts" element={<Alerts />} />
         <Route path="/caster" element={<Caster />} />
         <Route path="/ntrip-accounts" element={<NtripAccounts />} />
         <Route path="/web-users" element={<WebUsers />} />

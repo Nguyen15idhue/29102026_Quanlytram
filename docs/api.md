@@ -310,3 +310,32 @@ ACL body: `{ "mountpointIds": [1, 2] }`; placeholder cho Phase 4.
 
 Body listener: `name`, `port`, `enabled`, `role` (`both|source|rover`),
 `description`. Body gắn mountpoint: `{ "mountpointIds": [1, 2] }`.
+
+## 15. Realtime, history, alerts (Phase 5)
+
+Socket.IO dùng chung origin, path `/socket.io`, xác thực bằng cookie session
+`cors_sid` (không JWT/token URL). Room `user:<id>`; room `relay:<id>` và `caster`
+chỉ join qua sự kiện `subscribe` sau khi kiểm tra quyền + scope. Payload lọc theo
+`relay.view`, `connections.view`, `stations.view`, `alerts.view`.
+Throttle ~1 giây; reconnect nhận `snapshot` mới.
+
+Sự kiện: `snapshot`, `relay.updated`, `relay.session`, `connection.updated`,
+`alert.created`, `auth.revoked`.
+
+| Method | Endpoint | Quyền |
+|---|---|---|
+| GET | `/api/snapshot` | Đăng nhập; mỗi mục lọc theo quyền |
+| GET | `/api/alerts?status=&severity=&targetType=&q=&page=&pageSize=` | `alerts.view` |
+| GET | `/api/alerts/:id` | `alerts.view` |
+| POST | `/api/alerts/:id/ack` | `alerts.ack`; body `{ note? }`; ghi audit |
+| GET | `/api/history/sessions?jobId=&from=&to=&page=&pageSize=` | `relay.view` |
+| GET | `/api/history/events?jobId=&from=&to=&type=&page=&pageSize=` | `relay.view` |
+| GET | `/api/history/hourly?jobId=&from=&to=&page=&pageSize=` | `relay.view` |
+
+- `from`/`to` dùng ISO-8601 UTC; UI quy đổi +07.
+- History đọc `cors_runtime.relay_sessions/relay_events/relay_hourly`; Node không
+  ghi runtime.
+- Alert do polling Node tạo khi relay `backoff`/`error` hoặc Go/caster không
+  phản hồi; cooldown 5 phút; ack không tự tắt job.
+- Migration: `db/migrations/admin/005_alerts_settings.sql` (admin schema 5).
+- Ops: xem `docs/OPS.md` (backup/restore, load test mock, log/health).

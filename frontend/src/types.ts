@@ -136,3 +136,111 @@ export interface CasterConnection {
   bytesIn: number;
   bytesOut: number;
 }
+
+export interface RealtimeRelay {
+  jobId: number;
+  name: string;
+  enabled: boolean;
+  state: string;
+  appliedRevision: number;
+  bytesUp: number;
+  bytesDown: number;
+  frames: number;
+  crcErrors: number;
+  lastDataAt: string | null;
+  lastError: string | null;
+}
+
+export interface RealtimeConnection {
+  id: number;
+  direction: string;
+  listenerId: number;
+  mountpointId: number;
+  accountId: number | null;
+  remoteAddr: string;
+  startTs: string;
+  bytesIn: number;
+  bytesOut: number;
+}
+
+export interface RealtimeAlert {
+  id: number;
+  type: string;
+  severity: 'info' | 'warning' | 'critical';
+  targetType: string;
+  targetId: number | null;
+  title: string;
+  message: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface RealtimeSnapshot {
+  ts: string;
+  summary: {
+    stations: number;
+    relayTotal: number;
+    relayStreaming: number;
+    relayBackoff: number;
+    relayError: number;
+    relayPending: number;
+    connections: number;
+    listeners: number;
+    openAlerts: number;
+  };
+  relays: RealtimeRelay[];
+  connections: RealtimeConnection[];
+  alerts: RealtimeAlert[];
+}
+
+export interface AlertItem {
+  id: number;
+  type: string;
+  severity: 'info' | 'warning' | 'critical';
+  targetType: string;
+  targetId: number | null;
+  title: string;
+  message: string;
+  status: 'open' | 'acked';
+  ownerWebUserId: number | null;
+  createdAt: string;
+  ackedAt: string | null;
+  ackedBy: number | null;
+  ackNote: string;
+}
+
+export interface RelaySession {
+  id: number;
+  jobId: number;
+  jobName: string;
+  startTs: string;
+  endTs: string | null;
+  durationSec: number | null;
+  result: string;
+  closeReason: string;
+  message: string;
+}
+
+export interface RelayEvent {
+  id: number;
+  jobId: number;
+  jobName: string;
+  ts: string;
+  type: string;
+  message: string;
+  durationSec: number | null;
+}
+
+export interface RelayHourly {
+  jobId: number;
+  jobName: string;
+  hourStartUtc: string;
+  onlineSec: number;
+  sessions: number;
+  errors: number;
+  timeouts: number;
+  authErrors: number;
+  proxyErrors: number;
+  nmeaErrors: number;
+  retries: number;
+}

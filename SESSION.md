@@ -2,14 +2,15 @@
 
 ## 1. Thông tin phiên
 
-- Thời điểm: 2026-10-30 15:10 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: Phase 4 — DONE (mock); chuẩn bị Phase 5
+- Thời điểm: 2026-10-30 15:45 (Asia/Ho_Chi_Minh, +07:00)
+- Phase hiện tại: Phase 5 — DONE; chuẩn bị Phase 6
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
 - Trạng thái Phase 3: DONE
 - Trạng thái Phase 3.5: DONE (UI/UX Foundation)
 - Trạng thái Phase 4: DONE (mock; Q10 allowlist defer)
+- Trạng thái Phase 5: DONE (realtime/dashboard/history/alerts/ops)
 - Trạng thái Phase 6: PLANNED (kế hoạch, chưa triển khai)
 - Người thực hiện: OpenCode
 
@@ -31,13 +32,15 @@
   pagination, lucide, toast, a11y); xem mục 8.7.
 - Phase 4: caster listener 1509/1508, auth/ACL/max conn, fan-out, slow client,
   runtime connections, UI Caster; xem mục 8.8.
+- Phase 5: realtime Socket.IO, dashboard, history, alerts/ack, backup/restore,
+  load test mock, ops doc; xem mục 8.9.
 
 ### Đang làm
-- Không có (Phase 4 đã đóng mock).
+- Không có (Phase 5 đã đóng; chờ commit).
 
 ### Tiếp theo
-- Phase 5 — Realtime, dashboard, vận hành.
-- Phase 6 (bổ sung) — RTCM Analytics & chất lượng trạm/relay; xem mục 7.7.
+- Commit Phase 5 (không push).
+- Phase 6 — RTCM Analytics & chất lượng trạm/relay; xem mục 7.7.
 
 ### Blocker
 - Không có. `go test -race` chưa chạy được vì môi trường Windows không bật
@@ -385,6 +388,64 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
 - Q10 integration allowlist chưa chạy (defer); không dùng credential thật.
 - Docker Compose publish 1509/1508 cho caster.
 
+### 8.9. Phase 5 — Kết quả (2026-10-30)
+
+- Migration `db/migrations/admin/005_alerts_settings.sql`: `alerts`, `settings`,
+  permission `alerts.view`/`alerts.ack`; admin schema 5.
+- Realtime: `server/src/realtime/*`, Socket.IO path `/socket.io`, auth session
+  cookie, room `user:<id>`, subscribe `relay:<id>`/`caster` có kiểm tra quyền;
+  poll Go internal 1 s; payload lọc scope; sự kiện `snapshot`, `relay.updated`,
+  `relay.session`, `connection.updated`, `alert.created`, `auth.revoked`.
+- API: `GET /api/snapshot`, `GET /api/alerts`, `POST /api/alerts/:id/ack`,
+  `GET /api/history/{sessions,events,hourly}`; RBAC + pagination/filter.
+- Alert polling: relay `backoff`/`error`, Go/caster unavailable; cooldown 5 phút;
+  không auto-disable.
+- UI: Dashboard realtime (KPI + trạng thái relay), trang Cảnh báo + ack,
+  trang Lịch sử (3 tab), nav Phase 5; Vite/Nginx proxy `/socket.io`.
+- Ops: `scripts/backup-mysql.ps1`, `scripts/restore-mysql.ps1` (path
+  `F:\3.Laptrinh\1. Project\1. GNSS\Backup`), `scripts/load-test-mock.ps1`
+  (20 job + 20 rover mock, cổng 2102); `docs/OPS.md`; log rotation Docker;
+  rate limit login 10/phút, API 300/phút; body limit 256 KB.
+
+| Mục | Kết quả | Bằng chứng |
+|---|---|---|
+| Node tsc | PASS | `server: npx tsc --noEmit` |
+| Node Vitest | PASS | 29/29 (realtime 8 + rbac 9 + relay 12) |
+| Frontend build | PASS | `frontend: npm run build` |
+| Go regression | PASS | `go test ./...`, `go vet ./...` |
+| Migration | PASS | `[migrate] admin 005_alerts_settings.sql applied`; health Node 5 |
+| Socket unauth | PASS | `connect_error UNAUTHENTICATED` |
+| Socket auth/reconnect | PASS | snapshot + reconnect snapshot; room `relay:40` OK |
+| Scope payload | PASS | super stations=3, user1 stations=1; relay/alert ngoài scope ẩn |
+| Role change | PASS | user1 role user→super_admin: socket stations 1→3; đã revert |
+| Logout/revoke | PASS | socket nhận `auth.revoked` sau logout |
+| alert.created | PASS | insert alert → socket event đúng id (đã dọn) |
+| Alert create/ack | PASS | backoff tạo alert; super ack 200; user1 ack 403 |
+| History API | PASS | sessions/events/hourly total 26/6/21; filter jobId OK (đã dọn job/alert test sau kiểm chứng) |
+| Playwright | PASS | realtime.spec.ts 2/2 (reconnect offline + user scope) |
+| Backup/restore | PASS | backup zip SHA256; restore -Force; health Node/Go OK |
+| Load test | PASS | 20/20 relay streaming trên mock 2102 |
+| Secret scan | PASS | không có secret/dump trong diff repo |
+
+- Lệnh kiểm tra chính:
+
+```bash
+cd server && npx tsc --noEmit && npm test
+cd frontend && npm run build
+cd frontend && npx playwright test tests/realtime.spec.ts
+cd gnss && go test ./... && go vet ./...
+docker compose run --rm migrate
+docker compose up -d --force-recreate server web
+powershell -File scripts/backup-mysql.ps1
+powershell -File scripts/restore-mysql.ps1 -BackupFile <zip> -Force
+powershell -File scripts/load-test-mock.ps1 -Jobs 20
+```
+
+- Defer: Role UI nâng cao/audit API; Taste `inspect.mjs` sau đăng nhập;
+  Q10 allowlist thật; Phase 6 chưa triển khai.
+- Không dùng endpoint thật/credential thật; không bind 2101/8081; không commit
+  dump backup.
+
 ## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |
@@ -411,7 +472,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
 | Phase 4 | `server/src/routes/caster.ts`, `lib/caster.ts`, `app.ts` | Caster API |
 | Phase 4 | `frontend/src/pages/Caster.tsx`, `App.tsx`, `Layout.tsx` | Caster UI |
 | Phase 4 | `frontend/vite.config.ts` | Hot reload polling 1s |
+| Phase 5 | `db/migrations/admin/005_alerts_settings.sql` | Alerts/settings + permission |
+| Phase 5 | `server/src/realtime/*`, `routes/{alerts,history,snapshot}.ts`, `lib/alerts.ts` | Socket.IO + API Phase 5 |
+| Phase 5 | `frontend/src/realtime/*`, `pages/{Dashboard,Alerts,History}.tsx`, `Layout/App/types`, proxy | UI realtime/history/alerts |
+| Phase 5 | `scripts/{backup,restore,load-test}-*.ps1`, `docs/OPS.md`, `docs/api.md` | Ops + tài liệu |
+| Phase 5 | `server/tests/realtime.test.ts`, `frontend/tests/realtime.spec.ts` | Test realtime/scope/socket |
 
 ## 10. Cập nhật lần cuối
 
-- 2026-10-30 15:10 +07:00
+- 2026-10-30 15:50 +07:00

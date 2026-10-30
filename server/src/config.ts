@@ -53,5 +53,8 @@ export const config = {
     goInternalUrl: process.env.GO_INTERNAL_URL || 'http://127.0.0.1:7080',
     internalTimeoutMs: envInt('INTERNAL_TIMEOUT_MS', 5000)
   },
-  migrationsDir: process.env.MIGRATIONS_DIR || '../db/migrations'
+  migrationsDir: process.env.MIGRATIONS_DIR || '../db/migrations',
+  realtime: {
+    pollMs: Math.max(500, envInt('REALTIME_POLL_MS', 1000))
+  }
 };

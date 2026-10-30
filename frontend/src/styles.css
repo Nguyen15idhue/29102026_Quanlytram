@@ -1253,3 +1253,45 @@ label.check input {
   font-weight: 600;
   letter-spacing: -0.03em;
 }
+
+/* Phase 5 realtime */
+.kpi-sub {
+  font-size: 12px;
+}
+
+.realtime-list {
+  display: grid;
+  gap: 0;
+}
+
+.realtime-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.realtime-row:first-child {
+  border-top: 0;
+}
+
+.history-filters {
+  align-items: flex-end;
+}
+
+.history-filters .field {
+  min-width: 180px;
+}
+
+@media (max-width: 720px) {
+  .history-filters {
+    align-items: stretch;
+  }
+
+  .history-filters .field {
+    min-width: 0;
+    width: 100%;
+  }
+}
