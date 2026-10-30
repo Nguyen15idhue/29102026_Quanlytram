@@ -108,3 +108,31 @@ export interface RelayJob {
   downstreamMode: 'auto' | 'post' | 'source';
   state: RelayJobState | null;
 }
+
+export interface CasterListener {
+  id: number;
+  name: string;
+  port: number;
+  enabled: boolean;
+  role: 'both' | 'source' | 'rover';
+  description: string;
+  mountpointCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CasterConnection {
+  id: number;
+  direction: 'source' | 'rover';
+  listenerId: number;
+  listenerName: string;
+  mountpointId: number;
+  mountpointName: string;
+  accountId: number | null;
+  accountUsername: string;
+  remoteAddr: string;
+  userAgent: string;
+  startTs: string;
+  bytesIn: number;
+  bytesOut: number;
+}

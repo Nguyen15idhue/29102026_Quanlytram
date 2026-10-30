@@ -76,6 +76,8 @@ services:
       - "7080"
     ports:
       - "127.0.0.1:7080:7080"
+      - "1509:1509"
+      - "1508:1508"
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7080/health >/dev/null || exit 1"]
       interval: 10s

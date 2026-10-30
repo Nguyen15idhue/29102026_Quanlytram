@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
+  Antenna,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -21,6 +22,7 @@ const titles: Record<string, string> = {
   '/stations': 'Trạm',
   '/mountpoints': 'Mountpoint',
   '/relay-jobs': 'Relay',
+  '/caster': 'Caster',
   '/ntrip-accounts': 'Tài khoản NTRIP',
   '/web-users': 'Người dùng web',
   '/roles': 'Vai trò & quyền'
@@ -44,6 +46,7 @@ export function Layout() {
     { to: '/stations', label: 'Trạm', icon: RadioTower, show: can('stations', 'view') },
     { to: '/mountpoints', label: 'Mountpoint', icon: Network, show: can('mountpoints', 'view') },
     { to: '/relay-jobs', label: 'Relay', icon: Radio, show: can('relay', 'view') },
+    { to: '/caster', label: 'Caster', icon: Antenna, show: can('settings', 'view') },
     { to: '/ntrip-accounts', label: 'TK NTRIP', icon: KeyRound, show: can('ntrip_accounts', 'view') },
     { to: '/web-users', label: 'Người dùng web', icon: Users, show: can('web_users', 'view') },
     { to: '/roles', label: 'Vai trò & quyền', icon: ShieldCheck, show: can('roles', 'view') }

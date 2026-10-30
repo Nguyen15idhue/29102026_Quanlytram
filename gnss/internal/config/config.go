@@ -30,6 +30,14 @@ type Config struct {
 	HourlyRetentionDays  int
 	PruneBatch           int
 	PruneInterval        time.Duration
+
+	CasterBindAddr       string
+	CasterPollInterval   time.Duration
+	CasterHeaderTimeout  time.Duration
+	CasterWriteTimeout   time.Duration
+	CasterQueueSize      int
+	CasterReadBuffer     int
+	CasterMaxHeaderBytes int
 }
 
 func getenv(key, fallback string) string {
@@ -88,5 +96,13 @@ func Load() Config {
 		HourlyRetentionDays:  getenvInt("RELAY_HOURLY_RETENTION_DAYS", 90),
 		PruneBatch:           getenvInt("RELAY_PRUNE_BATCH", 1000),
 		PruneInterval:        getenvSeconds("RELAY_PRUNE_INTERVAL_SEC", time.Hour),
+
+		CasterBindAddr:       getenv("CASTER_BIND_ADDR", "0.0.0.0"),
+		CasterPollInterval:   getenvSeconds("CASTER_POLL_INTERVAL_SEC", 10*time.Second),
+		CasterHeaderTimeout:  getenvSeconds("CASTER_HEADER_TIMEOUT_SEC", 10*time.Second),
+		CasterWriteTimeout:   getenvSeconds("CASTER_WRITE_TIMEOUT_SEC", 10*time.Second),
+		CasterQueueSize:      getenvInt("CASTER_QUEUE_SIZE", 64),
+		CasterReadBuffer:     getenvInt("CASTER_READ_BUFFER", 32*1024),
+		CasterMaxHeaderBytes: getenvInt("CASTER_MAX_HEADER_BYTES", 16*1024),
 	}
 }

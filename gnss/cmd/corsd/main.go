@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"cors/gnss/internal/api"
+	"cors/gnss/internal/caster"
 	"cors/gnss/internal/config"
 	"cors/gnss/internal/db"
 	"cors/gnss/internal/relay"
@@ -35,8 +36,8 @@ func main() {
 	if err != nil {
 		log.Fatalf("check schema: %v", err)
 	}
-	if version < 2 {
-		log.Fatalf("runtime schema version %d is not compatible (need >= 2)", version)
+	if version < 3 {
+		log.Fatalf("runtime schema version %d is not compatible (need >= 3)", version)
 	}
 	if cfg.AppEncKey == "" {
 		log.Printf("warning: APP_ENC_KEY is empty; relay credentials cannot be decrypted")
@@ -56,6 +57,20 @@ func main() {
 
 	manager := relay.NewManager(store, writer, options)
 
+	casterOptions := caster.DefaultOptions()
+	casterOptions.BindAddr = cfg.CasterBindAddr
+	casterOptions.PollInterval = cfg.CasterPollInterval
+	casterOptions.HeaderTimeout = cfg.CasterHeaderTimeout
+	casterOptions.WriteTimeout = cfg.CasterWriteTimeout
+	casterOptions.QueueSize = cfg.CasterQueueSize
+	casterOptions.ReadBuffer = cfg.CasterReadBuffer
+	casterOptions.MaxHeader = cfg.CasterMaxHeaderBytes
+	casterManager := caster.NewManager(
+		caster.NewMySQLStore(adminDB),
+		caster.NewMySQLRuntimeStore(runtimeDB),
+		casterOptions,
+	)
+
 	retentionOptions := relay.RetentionOptions{
 		SessionDays: cfg.SessionRetentionDays,
 		EventDays:   cfg.EventRetentionDays,
@@ -67,11 +82,12 @@ func main() {
 	runCtx, runCancel := context.WithCancel(context.Background())
 	go writer.Run(runCtx)
 	go manager.Run(runCtx)
+	go casterManager.Run(runCtx)
 	go relay.RunRetention(runCtx, runtimeDB, retentionOptions)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           api.New(runtimeDB, cfg.AdminDB, manager, cfg.InternalHMACSecret).Handler(),
+		Handler:           api.New(runtimeDB, cfg.AdminDB, manager, casterManager, cfg.InternalHMACSecret).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -93,6 +109,7 @@ func main() {
 		log.Printf("http shutdown: %v", err)
 	}
 	manager.Shutdown(shutdownCtx)
+	casterManager.Shutdown(shutdownCtx)
 	runCancel()
 
 	select {

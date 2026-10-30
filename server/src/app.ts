@@ -16,6 +16,7 @@ import { rolesRouter } from './routes/roles';
 import { permissionsRouter } from './routes/permissions';
 import { relayJobsRouter } from './routes/relayJobs';
 import { ntripAccountsRouter } from './routes/ntripAccounts';
+import { casterConnectionsRouter, casterRouter } from './routes/caster';
 
 const logger = pino({
   level: config.logLevel,
@@ -76,7 +77,7 @@ app.get(
         "SELECT MAX(version) AS version FROM schema_migrations WHERE scope = 'admin'"
       );
       const schemaVersion = Number(rows[0]?.version ?? 0);
-      const healthy = schemaVersion >= 3;
+      const healthy = schemaVersion >= 4;
       res.status(healthy ? 200 : 503).json({
         status: healthy ? 'ok' : 'degraded',
         db: 'ok',
@@ -102,6 +103,8 @@ app.use('/api/roles', rolesRouter);
 app.use('/api/permissions', permissionsRouter);
 app.use('/api/relay-jobs', relayJobsRouter);
 app.use('/api/ntrip-accounts', ntripAccountsRouter);
+app.use('/api/caster', casterRouter);
+app.use('/api/connections', casterConnectionsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

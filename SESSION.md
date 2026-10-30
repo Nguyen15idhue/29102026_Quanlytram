@@ -2,13 +2,14 @@
 
 ## 1. Thông tin phiên
 
-- Thời điểm: 2026-10-30 13:10 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: Phase 3.5 — DONE; chuẩn bị Phase 4
+- Thời điểm: 2026-10-30 15:10 (Asia/Ho_Chi_Minh, +07:00)
+- Phase hiện tại: Phase 4 — DONE (mock); chuẩn bị Phase 5
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
 - Trạng thái Phase 3: DONE
 - Trạng thái Phase 3.5: DONE (UI/UX Foundation)
+- Trạng thái Phase 4: DONE (mock; Q10 allowlist defer)
 - Trạng thái Phase 6: PLANNED (kế hoạch, chưa triển khai)
 - Người thực hiện: OpenCode
 
@@ -28,12 +29,14 @@
   reconcile saved/applied, UI Relay/Mountpoint/TK NTRIP; xem mục 8.
 - Phase 3.5: triển khai UI/UX Foundation (shell, dark mode, dialog/drawer,
   pagination, lucide, toast, a11y); xem mục 8.7.
+- Phase 4: caster listener 1509/1508, auth/ACL/max conn, fan-out, slow client,
+  runtime connections, UI Caster; xem mục 8.8.
 
 ### Đang làm
-- Không có (Phase 3 đã đóng).
+- Không có (Phase 4 đã đóng mock).
 
 ### Tiếp theo
-- Phase 4 — NTRIP caster & quản lý client.
+- Phase 5 — Realtime, dashboard, vận hành.
 - Phase 6 (bổ sung) — RTCM Analytics & chất lượng trạm/relay; xem mục 7.7.
 
 ### Blocker
@@ -367,6 +370,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
 - Defer: dirty guard, filter nâng cao, recent activity; không chặn Phase 4.
 - `inspect.mjs` không hỗ trợ auth; trang sau đăng nhập kiểm bằng Playwright.
 
+### 8.8. Phase 4 — Kết quả (2026-10-30)
+
+- Caster Go: listener 1509/1508, SOURCE/POST/GET, v1/v2, chunked,
+  SOURCETABLE, Basic auth Argon2, ACL, max connections, fan-out,
+  slow-client drop, source conflict, disconnect, runtime connections.
+- Migration `admin/004_caster.sql` + `runtime/003_caster_runtime.sql` applied;
+  seed listener 1509; health Node 4 / Go 3.
+- Node API `/api/caster` + `/api/connections`; UI Caster (listener,
+  mountpoint mapping, connections) dùng foundation Phase 3.5.
+- Hot reload Vite: `usePolling=true`, interval 1000ms cho Windows.
+- Test: Go caster 7 test PASS; E2E source/rover 1509 byte-exact PASS;
+  Node tsc + Vitest 21/21; frontend build; Playwright 2/2.
+- Q10 integration allowlist chưa chạy (defer); không dùng credential thật.
+- Docker Compose publish 1509/1508 cho caster.
+
 ## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |
@@ -388,7 +406,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
 | Phase 3.5 | `frontend/src/theme`, `components/{ui,Layout,ThemeToggle,ToastProvider}.tsx`, `styles.css` | Shell + dark mode + components |
 | Phase 3.5 | `frontend/src/pages/*`, `lib/useListParams.ts` | Refactor CRUD/pagination |
 | Phase 3.5 | `frontend/tests/ui.spec.ts`, `playwright.config.ts` | Playwright 2/2 |
+| Phase 4 | `db/migrations/{admin/004,runtime/003}_caster*.sql` | Caster schema + listener 1509 |
+| Phase 4 | `gnss/internal/caster`, `cmd/corsd`, `internal/api` | Caster Go + internal API |
+| Phase 4 | `server/src/routes/caster.ts`, `lib/caster.ts`, `app.ts` | Caster API |
+| Phase 4 | `frontend/src/pages/Caster.tsx`, `App.tsx`, `Layout.tsx` | Caster UI |
+| Phase 4 | `frontend/vite.config.ts` | Hot reload polling 1s |
 
 ## 10. Cập nhật lần cuối
 
-- 2026-10-30 13:10 +07:00
+- 2026-10-30 15:10 +07:00

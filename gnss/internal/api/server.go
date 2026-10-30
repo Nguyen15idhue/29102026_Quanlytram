@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"cors/gnss/internal/caster"
 	"cors/gnss/internal/db"
 	"cors/gnss/internal/relay"
 )
@@ -25,21 +26,30 @@ type RelayManager interface {
 	Snapshot() []relay.MetricsSnapshot
 }
 
+type CasterManager interface {
+	Reconcile(ctx context.Context) error
+	Connections() []caster.ConnectionSnapshot
+	Disconnect(id int64) bool
+	Listeners() []caster.ListenerSnapshot
+}
+
 type Server struct {
 	db         *sql.DB
 	adminDB    string
 	manager    RelayManager
+	caster     CasterManager
 	hmacSecret string
 
 	nonceMu sync.Mutex
 	nonces  map[string]time.Time
 }
 
-func New(database *sql.DB, adminDB string, manager RelayManager, hmacSecret string) *Server {
+func New(database *sql.DB, adminDB string, manager RelayManager, casterManager CasterManager, hmacSecret string) *Server {
 	return &Server{
 		db:         database,
 		adminDB:    adminDB,
 		manager:    manager,
+		caster:     casterManager,
 		hmacSecret: hmacSecret,
 		nonces:     make(map[string]time.Time),
 	}
@@ -51,6 +61,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/internal/reconcile", s.requireSignature(s.handleReconcile, http.MethodPost))
 	mux.HandleFunc("/internal/test", s.requireSignature(s.handleTest, http.MethodPost))
 	mux.HandleFunc("/internal/snapshot", s.requireSignature(s.handleSnapshot, http.MethodGet))
+	mux.HandleFunc("/internal/caster/connections", s.requireSignature(s.handleCasterConnections, http.MethodGet))
+	mux.HandleFunc("/internal/caster/disconnect", s.requireSignature(s.handleCasterDisconnect, http.MethodPost))
+	mux.HandleFunc("/internal/caster/reconcile", s.requireSignature(s.handleCasterReconcile, http.MethodPost))
+	mux.HandleFunc("/internal/caster/listeners", s.requireSignature(s.handleCasterListeners, http.MethodGet))
 	return mux
 }
 
@@ -73,7 +87,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		httpStatus = http.StatusServiceUnavailable
 	} else {
 		v, err := db.SchemaVersion(ctx, s.db, s.adminDB)
-		if err != nil || v < 2 {
+		if err != nil || v < 3 {
 			status = "degraded"
 			httpStatus = http.StatusServiceUnavailable
 		} else {
@@ -204,6 +218,53 @@ func (s *Server) handleSnapshot(w http.ResponseWriter, _ *http.Request, _ []byte
 		"items": s.manager.Snapshot(),
 		"time":  time.Now().UTC().Format(time.RFC3339),
 	})
+}
+
+func (s *Server) handleCasterConnections(w http.ResponseWriter, _ *http.Request, _ []byte) {
+	if s.caster == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"items": []any{}})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"items": s.caster.Connections(),
+		"time":  time.Now().UTC().Format(time.RFC3339),
+	})
+}
+
+func (s *Server) handleCasterDisconnect(w http.ResponseWriter, _ *http.Request, body []byte) {
+	if s.caster == nil {
+		writeError(w, http.StatusServiceUnavailable, "caster is not running")
+		return
+	}
+	var request struct {
+		ConnectionID int64 `json:"connectionId"`
+	}
+	if err := json.Unmarshal(body, &request); err != nil || request.ConnectionID == 0 {
+		writeError(w, http.StatusBadRequest, "connectionId is required")
+		return
+	}
+	found := s.caster.Disconnect(request.ConnectionID)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "found": found})
+}
+
+func (s *Server) handleCasterReconcile(w http.ResponseWriter, r *http.Request, _ []byte) {
+	if s.caster == nil {
+		writeError(w, http.StatusServiceUnavailable, "caster is not running")
+		return
+	}
+	if err := s.caster.Reconcile(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "caster reconcile failed")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleCasterListeners(w http.ResponseWriter, _ *http.Request, _ []byte) {
+	if s.caster == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"items": []any{}})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"items": s.caster.Listeners()})
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

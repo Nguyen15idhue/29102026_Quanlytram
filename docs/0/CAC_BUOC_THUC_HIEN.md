@@ -33,7 +33,7 @@
 | 2 | Port relay & test mock | DONE |
 | 3 | Quản trị trạm & relay ổn định | DONE |
 | 3.5 | UI/UX Foundation | DONE |
-| 4 | NTRIP caster & quản lý client | TODO |
+| 4 | NTRIP caster & quản lý client | DONE |
 | 5 | Realtime, dashboard, vận hành | TODO |
 | 6 | RTCM Analytics & chất lượng trạm/relay | TODO |
 
@@ -450,20 +450,20 @@ phân trang server-side, icon lucide, trạng thái/a11y. Chi tiết:
 **Giải thích:** Source đẩy dữ liệu lên mountpoint; rover kết nối vào. Cần v1 legacy/v1 auth/v2, fan-out, slow-client policy.
 
 ## 4.1. Công việc
-- [ ] Listener mặc định **1509** (source + rover), tùy chỉnh; không 2101/8081
-- [ ] `caster_listeners` + `caster_listener_mountpoints` many-to-many
-- [ ] Một mountpoint có thể nghe nhiều port (A,B,C→1509; A,C→1508)
-- [ ] Parse `SOURCE` (v1), `POST` (v2), `GET` (rover); phân biệt ngữ cảnh response
-- [ ] `ICY 200` / `HTTP 200` / `SOURCETABLE 200` đúng ngữ cảnh
-- [ ] Auth Basic; no-auth chỉ khi cấu hình rõ ràng
-- [ ] Fan-out + queue giới hạn + drop slow client
-- [ ] ACL + max connections
-- [ ] NTRIP account RBAC (`ntrip_accounts.*`) + owner scope
-- [ ] `connections` runtime; disconnect chủ động
-- [ ] RTCM monitor; counters
-- [ ] API/UI quản lý listener + gắn mountpoint
-- [ ] Mock caster/rover cho caster mới
-- [ ] Integration allowlist Q10: 1 upstream + 1 downstream, credential ngoài repo, cleanup
+- [x] Listener mặc định **1509** (source + rover), tùy chỉnh; không 2101/8081
+- [x] `caster_listeners` + `caster_listener_mountpoints` many-to-many
+- [x] Một mountpoint có thể nghe nhiều port (A,B,C→1509; A,C→1508)
+- [x] Parse `SOURCE` (v1), `POST` (v2), `GET` (rover); phân biệt ngữ cảnh response
+- [x] `ICY 200` / `HTTP 200` / `SOURCETABLE 200` đúng ngữ cảnh
+- [x] Auth Basic; no-auth chỉ khi cấu hình rõ ràng
+- [x] Fan-out + queue giới hạn + drop slow client
+- [x] ACL + max connections
+- [x] NTRIP account RBAC (`ntrip_accounts.*`) + owner scope
+- [x] `connections` runtime; disconnect chủ động
+- [x] RTCM monitor; counters
+- [x] API/UI quản lý listener + gắn mountpoint
+- [x] Mock caster/rover cho caster mới
+- [ ] Integration allowlist Q10: 1 upstream + 1 downstream, credential ngoài repo, cleanup (defer)
 
 ## 4.2. Yêu cầu cần đạt
 - Mock: v1 legacy/v1 auth/v2; multi-client; ACL; max conn; slow client.
@@ -473,33 +473,37 @@ phân trang server-side, icon lucide, trạng thái/a11y. Chi tiết:
 - Chỉ mở cổng thật sau khi mock pass.
 
 ## 4.3. Checklist test
-- [ ] v1 legacy / v1 auth / v2 auth
-- [ ] Source uplink + rover
-- [ ] 3 rover cùng mountpoint
-- [ ] Sai mountpoint 404; sai auth 401; sai ACL 403
-- [ ] Vượt max conn bị từ chối
-- [ ] Slow client bị drop, client khác OK
-- [ ] Admin disconnect
-- [ ] CRC sai không crash
-- [ ] NTRIP account không login web
-- [ ] Listener 1509 + nhóm 1508; một mountpoint trên nhiều listener
+- [x] v1 legacy / v1 auth / v2 auth
+- [x] Source uplink + rover
+- [x] 3 rover cùng mountpoint
+- [x] Sai mountpoint 404; sai auth 401; sai ACL 403
+- [x] Vượt max conn bị từ chối
+- [x] Slow client bị drop, client khác OK
+- [x] Admin disconnect
+- [x] CRC sai không crash
+- [x] NTRIP account không login web
+- [x] Listener 1509 + nhóm 1508; một mountpoint trên nhiều listener
 
 ## 4.4. Kết quả test
 | ID | Hạng mục | Cách kiểm | Kỳ vọng | Kết quả | Ghi chú |
 |---|---|---|---|---|---|
-| 4-T1 | v1 legacy | mock rover | ICY 200 | NOT RUN | |
-| 4-T2 | v1 auth | mock | 200 | NOT RUN | |
-| 4-T3 | v2 auth | mock | 200 | NOT RUN | |
-| 4-T4 | Multi-client | 3 rover | cùng data | NOT RUN | |
-| 4-T5 | ACL/max | mock | 403/từ chối | NOT RUN | |
-| 4-T6 | Slow client | mock | không nghẽn | NOT RUN | |
-| 4-T7 | Disconnect | API | rớt | NOT RUN | |
-| 4-T8 | Web/NTRIP chéo | API | 401 | NOT RUN | |
-| 4-T9 | Listener groups | mock | 1509 + 1508 đúng | NOT RUN | |
+| 4-T1 | v1 legacy | mock rover | ICY 200 | PASS | Go test + E2E |
+| 4-T2 | v1 auth | mock | 200 | PASS | Go test |
+| 4-T3 | v2 auth | mock | 200 | PASS | Go test |
+| 4-T4 | Multi-client | 3 rover | cùng data | PASS | Go test |
+| 4-T5 | ACL/max | mock | 403/từ chối | PASS | Go test |
+| 4-T6 | Slow client | mock | không nghẽn | PASS | Go test |
+| 4-T7 | Disconnect | API | rớt | PASS | Go test |
+| 4-T8 | Web/NTRIP chéo | API | 401 | PASS | existing tests |
+| 4-T9 | Listener groups | mock | 1509 + 1508 đúng | PASS | Go test |
 
 ## 4.5. Ghi chú
 - Không sửa 1005/VRS trong MVP.
 - Không mở cổng public khi chưa có firewall/rate limit.
+- Migration admin 004 + runtime 003 đã apply; health Node 4 / Go 3.
+- Go caster tests 7 PASS; E2E source/rover 1509 byte-exact PASS.
+- Q10 integration allowlist chưa chạy (defer); không dùng credential thật.
+- Hot reload Vite polling 1s đã bật cho Windows.
 
 ---
 

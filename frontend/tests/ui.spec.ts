@@ -48,7 +48,7 @@ test.describe('Phase 3.5 UI', () => {
     await page.getByRole('alertdialog').getByRole('button', { name: 'Xóa' }).click();
     await expect(page.getByText(`UI${suffix}`)).toHaveCount(0);
 
-    for (const route of ['/mountpoints', '/relay-jobs', '/ntrip-accounts', '/web-users', '/roles']) {
+    for (const route of ['/mountpoints', '/relay-jobs', '/caster', '/ntrip-accounts', '/web-users', '/roles']) {
       await page.goto(route);
       await expect(page.locator('h1')).toBeVisible();
       await page.screenshot({

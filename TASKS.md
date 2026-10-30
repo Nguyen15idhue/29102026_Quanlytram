@@ -9,7 +9,7 @@
 | 2 | Port relay & test mock | DONE | Phase 1 |
 | 3 | Quản trị trạm & relay ổn định | DONE | Phase 2 |
 | 3.5 | UI/UX Foundation | DONE | Phase 3 |
-| 4 | NTRIP caster & quản lý client | TODO | Phase 3.5 |
+| 4 | NTRIP caster & quản lý client | DONE | Phase 3.5 |
 | 5 | Realtime, dashboard, vận hành | TODO | Phase 4 |
 | 6 | RTCM Analytics & chất lượng trạm/relay | TODO | Phase 3.5–5 |
 
@@ -307,23 +307,28 @@ Defer: dirty guard, filter nâng cao, recent activity; không chặn Phase 4.
 mock trước khi mở cổng thật.
 
 ### P4-01 Caster
-- [ ] Listener mặc định **1509** (source + rover), tùy chỉnh; không 2101/8081
-- [ ] `caster_listeners` + `caster_listener_mountpoints` many-to-many
-- [ ] Một mountpoint có thể nghe nhiều port (A,B,C→1509; A,C→1508)
-- [ ] Parse `SOURCE` (v1), `POST` (v2), `GET` (rover); đúng ngữ cảnh
-- [ ] `ICY 200` / `HTTP 200` / `SOURCETABLE 200`
-- [ ] Auth Basic; no-auth chỉ khi cấu hình rõ ràng
-- [ ] Fan-out + queue giới hạn + drop slow client
-- [ ] ACL + max connections
-- [ ] NTRIP account RBAC + owner scope
-- [ ] `connections` runtime; disconnect chủ động
-- [ ] RTCM monitor; counters
-- [ ] API/UI quản lý listener + gắn mountpoint
-- [ ] Mock caster/rover cho caster mới
-- [ ] Integration allowlist Q10: 1 upstream + 1 downstream, credential ngoài repo, cleanup
+- [x] Listener mặc định **1509** (source + rover), tùy chỉnh; không 2101/8081
+- [x] `caster_listeners` + `caster_listener_mountpoints` many-to-many
+- [x] Một mountpoint có thể nghe nhiều port (A,B,C→1509; A,C→1508)
+- [x] Parse `SOURCE` (v1), `POST` (v2), `GET` (rover); đúng ngữ cảnh
+- [x] `ICY 200` / `HTTP 200` / `SOURCETABLE 200`
+- [x] Auth Basic; no-auth chỉ khi cấu hình rõ ràng
+- [x] Fan-out + queue giới hạn + drop slow client
+- [x] ACL + max connections
+- [x] NTRIP account RBAC + owner scope
+- [x] `connections` runtime; disconnect chủ động
+- [x] RTCM monitor; counters
+- [x] API/UI quản lý listener + gắn mountpoint
+- [x] Mock caster/rover cho caster mới
+- [ ] Integration allowlist Q10: 1 upstream + 1 downstream, credential ngoài repo, cleanup (defer)
 
 **Nghiệm thu Phase 4:** mock PASS v1/v1-auth/v2, multi-client, ACL, max conn,
 slow client; listener 1509 và nhóm 1508 đúng; chỉ mở cổng thật sau khi mock đạt.
+
+**Ghi chú Phase 4 (2026-10-30):** migration admin 004 + runtime 003 đã apply;
+Go caster tests 7 PASS; E2E source/rover 1509 byte-exact PASS; Caster UI +
+Playwright route PASS; health Node 4 / Go 3. Q10 real allowlist chưa chạy
+(defer, credential ngoài repo). Hot reload Vite polling 1s đã bật.
 
 ---
 
