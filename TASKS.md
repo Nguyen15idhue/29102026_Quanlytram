@@ -15,7 +15,7 @@
 | 7 | Nền tảng UI & Trạm danh sách | DONE (core; test connection defer Phase 8) | Phase 5–6 |
 | 8 | Bản đồ & chi tiết trạm | DONE (core; sky plot/advanced metrics defer) | Phase 7 |
 | 9 | CORS: NTRIP, mountpoint, caster | DONE (core; import/export defer) | Phase 7–8 |
-| 10 | Relay & Hệ thống | TODO | Phase 7–9 |
+| 10 | Relay & Hệ thống | DONE (core; relay/role import-export defer) | Phase 7–9 |
 | 11 | Cá nhân, cấu hình & báo cáo | TODO | Phase 7–10 |
 | 12 | Hardening, load test & release | TODO | Phase 7–11 |
 
@@ -556,15 +556,15 @@ import/export `.xlsx`; trạm đủ trường; test PASS.
 - [x] P9-05 Test G9: CRUD/ACL/listener/live/force disconnect/RBAC.
 
 ### Phase 10 — Relay & Hệ thống
-- [ ] P10-01 Relay: CRUD, quality/parity, detail tab, test/restart, import/export.
-- [ ] P10-02 Phân quyền: role CRUD, permission matrix module×action×scope,
+- [x] P10-01 Relay: CRUD, quality/parity, detail tab, test/restart, import/export.
+- [x] P10-02 Phân quyền: role CRUD, permission matrix module×action×scope,
       import/export; role hệ thống khóa.
-- [ ] P10-03 Người dùng: CRUD, role/parent/status/locked; import Excel **không
+- [x] P10-03 Người dùng: CRUD, role/parent/status/locked; import Excel **không
       cột password**, mật khẩu mặc định **123456**, audit; export không password.
-- [ ] P10-04 Lịch sử: Phiên/Sự kiện/Theo giờ, filter, pagination 10, export.
-- [ ] P10-05 Cảnh báo: level/event type/target/status/unread; filter/ack/read;
+- [x] P10-04 Lịch sử: Phiên/Sự kiện/Theo giờ, filter, pagination 10, export.
+- [x] P10-05 Cảnh báo: level/event type/target/status/unread; filter/ack/read;
       notification center cơ bản.
-- [ ] P10-06 Test G10: relay/system/import user/alert/RBAC/audit.
+- [x] P10-06 Test G10: relay/system/import user/alert/RBAC/audit.
 
 ### Phase 11 — Cá nhân, cấu hình & báo cáo
 - [ ] P11-01 Trang cá nhân ẩn menu: profile/avatar/email/phone/password/sessions.

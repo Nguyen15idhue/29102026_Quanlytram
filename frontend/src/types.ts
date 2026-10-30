@@ -235,6 +235,10 @@ export interface RealtimeSnapshot {
 export interface AlertItem {
   id: number;
   type: string;
+  eventType?: string;
+  level?: 'critical' | 'major' | 'minor' | 'info';
+  unread?: boolean;
+  readAt?: string | null;
   severity: 'info' | 'warning' | 'critical';
   targetType: string;
   targetId: number | null;

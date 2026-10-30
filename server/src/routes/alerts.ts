@@ -20,6 +20,10 @@ function publicAlert(row: any) {
   return {
     id: Number(row.id),
     type: String(row.type),
+    eventType: String(row.event_type ?? 'system'),
+    level: String(row.level ?? 'minor'),
+    unread: Boolean(row.unread ?? 1),
+    readAt: row.read_at ?? null,
     severity: String(row.severity),
     targetType: String(row.target_type),
     targetId: row.target_id === null ? null : Number(row.target_id),
@@ -49,6 +53,9 @@ alertsRouter.get(
     const scope = listScope(req, ids, 'owner_web_user_id');
     const status = String(req.query.status || '').trim();
     const severity = String(req.query.severity || '').trim();
+    const level = String(req.query.level || '').trim();
+    const eventType = String(req.query.eventType || '').trim();
+    const unread = String(req.query.unread || '').trim();
     const targetType = String(req.query.targetType || '').trim();
     const q = String(req.query.q || '').trim();
 
@@ -61,6 +68,17 @@ alertsRouter.get(
     if (severity) {
       where += ' AND severity = ?';
       params.push(severity);
+    }
+    if (level) {
+      where += ' AND level = ?';
+      params.push(level);
+    }
+    if (eventType) {
+      where += ' AND event_type = ?';
+      params.push(eventType);
+    }
+    if (unread === '1' || unread === 'true') {
+      where += ' AND unread = 1';
     }
     if (targetType) {
       where += ' AND target_type = ?';
@@ -85,6 +103,34 @@ alertsRouter.get(
       pageSize,
       offset
     });
+  })
+);
+
+alertsRouter.post(
+  '/read-all',
+  requirePermission('alerts', 'view'),
+  asyncHandler(async (req, res) => {
+    const ids = await scopeIdsFor(req);
+    const scope = listScope(req, ids, 'owner_web_user_id');
+    await adminPool.query(
+      `UPDATE alerts SET unread = 0, read_at = UTC_TIMESTAMP(3)
+        WHERE ${scope.sql} AND unread = 1`,
+      scope.params
+    );
+    res.json({ ok: true });
+  })
+);
+
+alertsRouter.post(
+  '/:id/read',
+  requirePermission('alerts', 'view'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const row = await getAlert(id);
+    if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy cảnh báo');
+    await assertRecordScope(req, row.owner_web_user_id);
+    await adminPool.query('UPDATE alerts SET unread = 0, read_at = UTC_TIMESTAMP(3) WHERE id = ?', [id]);
+    res.json({ item: publicAlert(await getAlert(id)) });
   })
 );
 

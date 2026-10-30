@@ -557,6 +557,15 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - Test: Go/Node PASS; Playwright 6/6; API NTRIP/mountpoint trả fields mới.
 - Defer: import/export `.xlsx` cho NTRIP/mountpoint (Phase 10/11).
 
+### 8.16. Phase 10 — Kết quả core (2026-10-30)
+
+- Migration `admin/011_alerts_event.sql`: event_type/level/unread/read_at.
+- Alerts API lọc level/eventType/unread; thêm read-all/read.
+- User import/export `.xlsx`: không cột password, mật khẩu mặc định `123456`.
+- History đã có Audit; roles đã có sửa role từ Phase 5.
+- Test: import dry-run 4 user PASS; alerts trả level/eventType; Playwright 6/6.
+- Defer: import/export relay/role; notification center nâng cao/event config.
+
 ## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |

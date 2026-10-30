@@ -16,6 +16,7 @@ import {
 } from '../rbac/access';
 import { canManageRole } from '../rbac/scope';
 import { emailField } from '../lib/validation';
+import { buildWorkbook, readSheetRows, readWorkbook, sendWorkbook } from '../lib/excel';
 
 export const webUsersRouter = Router();
 webUsersRouter.use(requireAuth);
@@ -154,6 +155,110 @@ webUsersRouter.get(
       params
     );
     res.json({ items: rows.map(publicUser), total: Number(countRows[0].total), pageSize, offset });
+  })
+);
+
+webUsersRouter.get(
+  '/export',
+  requirePermission('web_users', 'view'),
+  asyncHandler(async (req, res) => {
+    const ids = await scopeIdsFor(req);
+    const scope = listScope(req, ids, 'u.id');
+    const [rows] = await adminPool.query<any[]>(
+      `SELECT u.username, u.display_name, u.email, u.status, r.code AS role_code,
+              p.username AS parent_username
+         FROM web_users u
+         JOIN roles r ON r.id = u.role_id
+         LEFT JOIN web_users p ON p.id = u.parent_user_id
+        WHERE ${scope.sql} ORDER BY u.username`,
+      scope.params
+    );
+    const buffer = await buildWorkbook(
+      ['username', 'display_name', 'email', 'role_code', 'parent_username', 'status'],
+      rows.map((row) => [
+        row.username, row.display_name, row.email, row.role_code,
+        row.parent_username ?? '', row.status
+      ]),
+      'Users'
+    );
+    sendWorkbook(res, buffer, `web-users-${Date.now()}.xlsx`);
+  })
+);
+
+webUsersRouter.post(
+  '/import',
+  requirePermission('web_users', 'add'),
+  asyncHandler(async (req, res) => {
+    const body = z.object({ dataBase64: z.string().min(1), dryRun: z.boolean().optional() }).parse(req.body);
+    const workbook = await readWorkbook(body.dataBase64);
+    const rows = readSheetRows(workbook);
+    const errors: string[] = [];
+    const normalized: any[] = [];
+    for (const [index, row] of rows.entries()) {
+      const line = index + 2;
+      const username = String(row.username ?? '').trim();
+      const displayName = String(row.display_name ?? '').trim();
+      const roleCode = String(row.role_code ?? '').trim();
+      const parentUsername = String(row.parent_username ?? '').trim();
+      if (!/^[A-Za-z0-9_.-]{3,64}$/.test(username)) {
+        errors.push(`Line ${line} column username invalid`);
+        continue;
+      }
+      if (!displayName) {
+        errors.push(`Line ${line} column display_name required`);
+        continue;
+      }
+      const roleRows = await query<RowDataPacket[]>('SELECT id FROM roles WHERE code = ?', [roleCode]);
+      if (roleRows.length === 0) {
+        errors.push(`Line ${line} column role_code not found`);
+        continue;
+      }
+      let parentId: number | null = null;
+      if (parentUsername) {
+        const parentRows = await query<RowDataPacket[]>('SELECT id FROM web_users WHERE username = ?', [parentUsername]);
+        if (parentRows.length === 0) {
+          errors.push(`Line ${line} column parent_username not found`);
+          continue;
+        }
+        parentId = Number(parentRows[0].id);
+      }
+      normalized.push({
+        username,
+        displayName,
+        email: String(row.email ?? ''),
+        status: String(row.status ?? 'active') === 'locked' ? 'locked' : 'active',
+        roleId: Number(roleRows[0].id),
+        parentId
+      });
+    }
+    if (body.dryRun) {
+      res.json({ items: normalized, errors, total: normalized.length });
+      return;
+    }
+    if (errors.length) throw new ApiError(400, 'VALIDATION_ERROR', errors.join('; '));
+    let created = 0;
+    let updated = 0;
+    const passwordHash = await hashPassword('123456');
+    for (const item of normalized) {
+      const [existing] = await adminPool.query<any[]>('SELECT id FROM web_users WHERE username = ?', [item.username]);
+      if (existing[0]) {
+        await adminPool.query(
+          'UPDATE web_users SET display_name=?, email=?, role_id=?, parent_user_id=?, status=? WHERE id=?',
+          [item.displayName, item.email, item.roleId, item.parentId, item.status, existing[0].id]
+        );
+        updated += 1;
+      } else {
+        await adminPool.query(
+          `INSERT INTO web_users
+             (username, password_hash, display_name, email, role_id, parent_user_id, status, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [item.username, passwordHash, item.displayName, item.email, item.roleId, item.parentId, item.status, req.auth!.id]
+        );
+        created += 1;
+      }
+    }
+    await writeAudit(adminPool, req.auth!.id, 'import', 'web_user', '', null, { created, updated }, ipFrom(req));
+    res.json({ created, updated, total: normalized.length });
   })
 );
 

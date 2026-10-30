@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react';
+﻿import { useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Lock, Pencil, Plus, Trash2, Unlock } from 'lucide-react';
+import { Download, Lock, Pencil, Plus, Trash2, Unlock, Upload } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
@@ -52,6 +52,8 @@ export function WebUsers() {
   const [deleteTarget, setDeleteTarget] = useState<WebUser | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const importRef = useRef<HTMLInputElement>(null);
+  const [importData, setImportData] = useState('');
 
   const users = useQuery({
     queryKey: ['web-users', page, pageSize, q],
@@ -93,10 +95,10 @@ export function WebUsers() {
       setDirty(false);
       setEditing(null);
       setError('');
-      push(editing ? 'Đã cập nhật tài khoản' : 'Đã thêm tài khoản', 'success');
+      push(editing ? 'ÄĂ£ cáº­p nháº­t tĂ i khoáº£n' : 'ÄĂ£ thĂªm tĂ i khoáº£n', 'success');
       await queryClient.invalidateQueries({ queryKey: ['web-users'] });
     },
-    onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Lưu thất bại')
+    onError: (err) => setError(err instanceof ApiClientError ? err.message : 'LÆ°u tháº¥t báº¡i')
   });
 
   const action = useMutation({
@@ -108,11 +110,54 @@ export function WebUsers() {
     onSuccess: async () => {
       setDeleteTarget(null);
       setDetail(null);
-      push('Đã cập nhật tài khoản', 'success');
+      push('ÄĂ£ cáº­p nháº­t tĂ i khoáº£n', 'success');
       await queryClient.invalidateQueries({ queryKey: ['web-users'] });
     },
-    onError: (err) => push(err instanceof ApiClientError ? err.message : 'Thao tác thất bại', 'error')
+    onError: (err) => push(err instanceof ApiClientError ? err.message : 'Thao tĂ¡c tháº¥t báº¡i', 'error')
   });
+
+  const importUsers = useMutation({
+    mutationFn: () =>
+      apiFetch<{ created: number; updated: number }>('/api/web-users/import', {
+        method: 'POST',
+        body: { dataBase64: importData, dryRun: false },
+        csrfToken
+      }),
+    onSuccess: async (result) => {
+      push(`Import xong: ${result.created} thêm, ${result.updated} cập nhật`, 'success');
+      setImportData('');
+      if (importRef.current) importRef.current.value = '';
+      await queryClient.invalidateQueries({ queryKey: ['web-users'] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Import thất bại', 'error')
+  });
+
+  function handleImportFile(file: File | null) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result ?? '');
+      setImportData(result.includes(',') ? result.slice(result.indexOf(',') + 1) : result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function exportUsers() {
+    const response = await fetch('/api/web-users/export', { credentials: 'include' });
+    if (!response.ok) {
+      push('Export thất bại', 'error');
+      return;
+    }
+    const blob = await response.blob();
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `web-users-${Date.now()}.xlsx`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+  }
 
   function openCreate() {
     setEditing(null);
@@ -145,30 +190,58 @@ export function WebUsers() {
   return (
     <section className="page">
       <PageHeader
-        title="Người dùng web"
-        description="Tài khoản đăng nhập UI, tách biệt với tài khoản NTRIP."
+        title="NgÆ°á»i dĂ¹ng web"
+        description="TĂ i khoáº£n Ä‘Äƒng nháº­p UI, tĂ¡ch biá»‡t vá»›i tĂ i khoáº£n NTRIP."
         actions={
-          can('web_users', 'add') && (
-            <Button variant="primary" onClick={openCreate}>
-              <Plus size={16} aria-hidden="true" /> Thêm tài khoản
-            </Button>
-          )
+          <div className="toolbar">
+            {can('web_users', 'view') && (
+              <Button variant="ghost" onClick={() => void exportUsers()}>
+                <Download size={16} aria-hidden="true" /> Excel
+              </Button>
+            )}
+            {can('web_users', 'add') && (
+              <>
+                <input
+                  ref={importRef}
+                  type="file"
+                  accept=".xlsx"
+                  hidden
+                  onChange={(event) => handleImportFile(event.target.files?.[0] ?? null)}
+                />
+                <Button variant="ghost" onClick={() => importRef.current?.click()}>
+                  <Upload size={16} aria-hidden="true" /> Import
+                </Button>
+                {importData && (
+                  <Button
+                    variant="ghost"
+                    loading={importUsers.isPending}
+                    onClick={() => importUsers.mutate()}
+                  >
+                    Ghi import
+                  </Button>
+                )}
+                <Button variant="primary" onClick={openCreate}>
+                  <Plus size={16} aria-hidden="true" /> Thêm tài khoản
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
 
       <div className="panel">
         <div className="table-head">
-          <SearchInput value={q} onChange={setQ} placeholder="Tìm username, tên, email" />
+          <SearchInput value={q} onChange={setQ} placeholder="TĂ¬m username, tĂªn, email" />
           <Button variant="ghost" onClick={() => users.refetch()} loading={users.isFetching}>
-            Tải lại
+            Táº£i láº¡i
           </Button>
         </div>
         <DataTable
           items={users.data?.items ?? []}
           rowKey={(user) => user.id}
           loading={users.isLoading}
-          error={users.isError ? 'Không tải được danh sách.' : undefined}
-          empty="Chưa có tài khoản."
+          error={users.isError ? 'KhĂ´ng táº£i Ä‘Æ°á»£c danh sĂ¡ch.' : undefined}
+          empty="ChÆ°a cĂ³ tĂ i khoáº£n."
           onRowClick={setDetail}
           columns={[
             {
@@ -176,10 +249,10 @@ export function WebUsers() {
               header: 'Username',
               cell: (user) => <span className="mono">{user.username}</span>
             },
-            { key: 'name', header: 'Tên', cell: (user) => user.displayName },
+            { key: 'name', header: 'TĂªn', cell: (user) => user.displayName },
             {
               key: 'role',
-              header: 'Vai trò',
+              header: 'Vai trĂ²',
               hideOnMobile: true,
               cell: (user) => (
                 <>
@@ -189,7 +262,7 @@ export function WebUsers() {
             },
             {
               key: 'status',
-              header: 'Trạng thái',
+              header: 'Tráº¡ng thĂ¡i',
               cell: (user) => (
                 <StatusBadge
                   label={user.status ?? 'active'}
@@ -206,7 +279,7 @@ export function WebUsers() {
                   {can('web_users', 'edit') && (
                     <>
                       <IconButton
-                        label={`Sửa ${user.username}`}
+                        label={`Sá»­a ${user.username}`}
                         onClick={(event) => {
                           event.stopPropagation();
                           openEdit(user);
@@ -215,7 +288,7 @@ export function WebUsers() {
                         <Pencil size={16} aria-hidden="true" />
                       </IconButton>
                       <IconButton
-                        label={user.status === 'active' ? `Khóa ${user.username}` : `Mở khóa ${user.username}`}
+                        label={user.status === 'active' ? `KhĂ³a ${user.username}` : `Má»Ÿ khĂ³a ${user.username}`}
                         onClick={(event) => {
                           event.stopPropagation();
                           action.mutate({
@@ -230,7 +303,7 @@ export function WebUsers() {
                   )}
                   {can('web_users', 'delete') && (
                     <IconButton
-                      label={`Xóa ${user.username}`}
+                      label={`XĂ³a ${user.username}`}
                       onClick={(event) => {
                         event.stopPropagation();
                         setDeleteTarget(user);
@@ -262,15 +335,15 @@ export function WebUsers() {
             setEditing(null);
           }
         }}
-        title={editing ? 'Sửa tài khoản web' : 'Thêm tài khoản web'}
-        description="Tài khoản dùng session cookie để đăng nhập UI."
+        title={editing ? 'Sá»­a tĂ i khoáº£n web' : 'ThĂªm tĂ i khoáº£n web'}
+        description="TĂ i khoáº£n dĂ¹ng session cookie Ä‘á»ƒ Ä‘Äƒng nháº­p UI."
         footer={
           <>
             <Button variant="ghost" onClick={() => setFormOpen(false)}>
-              Hủy
+              Há»§y
             </Button>
             <Button variant="primary" type="submit" form="web-user-form" loading={save.isPending}>
-              {editing ? 'Cập nhật' : 'Tạo'}
+              {editing ? 'Cáº­p nháº­t' : 'Táº¡o'}
             </Button>
           </>
         }
@@ -289,7 +362,7 @@ export function WebUsers() {
               required
             />
           </Field>
-          <Field label={editing ? 'Mật khẩu mới (bỏ trống để giữ)' : 'Mật khẩu'}>
+          <Field label={editing ? 'Máº­t kháº©u má»›i (bá» trá»‘ng Ä‘á»ƒ giá»¯)' : 'Máº­t kháº©u'}>
             <Input
               type="password"
               value={form.password}
@@ -298,7 +371,7 @@ export function WebUsers() {
               required={!editing}
             />
           </Field>
-          <Field label="Tên hiển thị">
+          <Field label="TĂªn hiá»ƒn thá»‹">
             <Input
               value={form.display_name}
               onChange={(event) => setForm({ ...form, display_name: event.target.value })}
@@ -312,13 +385,13 @@ export function WebUsers() {
               onChange={(event) => setForm({ ...form, email: event.target.value })}
             />
           </Field>
-          <Field label="Vai trò">
+          <Field label="Vai trĂ²">
             <Select
               value={form.role_id}
               onChange={(event) => setForm({ ...form, role_id: event.target.value })}
               required
             >
-              <option value="">Chọn role</option>
+              <option value="">Chá»n role</option>
               {roles.data?.items.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name} ({role.code})
@@ -332,7 +405,7 @@ export function WebUsers() {
       <Modal
         open={Boolean(detail)}
         onOpenChange={(open) => !open && setDetail(null)}
-        title={detail?.displayName ?? 'Chi tiết tài khoản'}
+        title={detail?.displayName ?? 'Chi tiáº¿t tĂ i khoáº£n'}
         description={detail?.username}
         side="right"
         footer={
@@ -340,11 +413,11 @@ export function WebUsers() {
             <>
               {can('web_users', 'edit') && (
                 <Button onClick={() => openEdit(detail)}>
-                  <Pencil size={16} aria-hidden="true" /> Sửa
+                  <Pencil size={16} aria-hidden="true" /> Sá»­a
                 </Button>
               )}
               <Button variant="ghost" onClick={() => setDetail(null)}>
-                Đóng
+                ÄĂ³ng
               </Button>
             </>
           )
@@ -358,16 +431,16 @@ export function WebUsers() {
             </div>
             <div>
               <dt>Email</dt>
-              <dd>{detail.email || '—'}</dd>
+              <dd>{detail.email || 'â€”'}</dd>
             </div>
             <div>
-              <dt>Vai trò</dt>
+              <dt>Vai trĂ²</dt>
               <dd>
                 {detail.role.name} ({detail.role.code})
               </dd>
             </div>
             <div>
-              <dt>Trạng thái</dt>
+              <dt>Tráº¡ng thĂ¡i</dt>
               <dd>{detail.status ?? 'active'}</dd>
             </div>
           </dl>
@@ -377,8 +450,8 @@ export function WebUsers() {
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title="Xóa tài khoản?"
-        description={`Tài khoản ${deleteTarget?.username ?? ''} sẽ bị xóa.`}
+        title="XĂ³a tĂ i khoáº£n?"
+        description={`TĂ i khoáº£n ${deleteTarget?.username ?? ''} sáº½ bá»‹ xĂ³a.`}
         pending={action.isPending}
         onConfirm={() => deleteTarget && action.mutate({ user: deleteTarget, action: 'delete' })}
       />
