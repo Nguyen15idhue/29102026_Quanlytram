@@ -75,6 +75,13 @@ export interface Mountpoint {
   owner_web_user_id: number | null;
   station_code?: string | null;
   station_name?: string | null;
+  service_type?: string;
+  position_mode?: string;
+  satellite_systems?: string;
+  caster_interval?: number;
+  code_protocol?: string;
+  code_type?: string;
+  description?: string;
 }
 
 export interface WebUser {
@@ -97,6 +104,15 @@ export interface NtripAccount {
   username: string;
   enabled: boolean;
   maxConnections: number;
+  company?: string;
+  contactName?: string;
+  email?: string;
+  phone?: string;
+  validFrom?: string | null;
+  validTo?: string | null;
+  availableArea?: string;
+  authMethod?: string;
+  notes?: string;
   ownerWebUserId: number | null;
   createdAt?: string;
   updatedAt?: string;

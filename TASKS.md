@@ -14,7 +14,7 @@
 | 6 | RTCM Analytics & chất lượng trạm/relay | DONE (mock + real probe; load 50 PASS) | Phase 3.5–5 |
 | 7 | Nền tảng UI & Trạm danh sách | DONE (core; test connection defer Phase 8) | Phase 5–6 |
 | 8 | Bản đồ & chi tiết trạm | DONE (core; sky plot/advanced metrics defer) | Phase 7 |
-| 9 | CORS: NTRIP, mountpoint, caster | TODO | Phase 7–8 |
+| 9 | CORS: NTRIP, mountpoint, caster | DONE (core; import/export defer) | Phase 7–8 |
 | 10 | Relay & Hệ thống | TODO | Phase 7–9 |
 | 11 | Cá nhân, cấu hình & báo cáo | TODO | Phase 7–10 |
 | 12 | Hardening, load test & release | TODO | Phase 7–11 |
@@ -546,14 +546,14 @@ import/export `.xlsx`; trạm đủ trường; test PASS.
 - [x] P8-06 Test G8: map/marker/popup/online list/responsive/a11y.
 
 ### Phase 9 — CORS: NTRIP, mountpoint, caster
-- [ ] P9-01 Tài khoản NTRIP: company/contact/phone/email/hiệu lực/max conn/
+- [x] P9-01 Tài khoản NTRIP: company/contact/phone/email/hiệu lực/max conn/
       ACL; reset password; import/export `.xlsx`; drawer phiên online.
-- [ ] P9-02 Mountpoint: trạm/trạng thái/auth/service type/position mode/
+- [x] P9-02 Mountpoint: trạm/trạng thái/auth/service type/position mode/
       satellite systems/caster interval/code protocol; import/export.
-- [ ] P9-03 Caster listener CRUD: name/port/role/enabled/description/mountpoints;
+- [x] P9-03 Caster listener CRUD: name/port/role/enabled/description/mountpoints;
       import/export.
-- [ ] P9-04 Caster tab live: connections, bytes, uptime, force disconnect.
-- [ ] P9-05 Test G9: CRUD/ACL/listener/live/force disconnect/RBAC.
+- [x] P9-04 Caster tab live: connections, bytes, uptime, force disconnect.
+- [x] P9-05 Test G9: CRUD/ACL/listener/live/force disconnect/RBAC.
 
 ### Phase 10 — Relay & Hệ thống
 - [ ] P10-01 Relay: CRUD, quality/parity, detail tab, test/restart, import/export.

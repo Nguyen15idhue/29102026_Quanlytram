@@ -547,6 +547,16 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - Test: Playwright map + quality PASS; Go/Node PASS.
 - Defer: Sky Plot thật/cycle slip/RMS/latency/neighboring stations (Phase 8–9).
 
+### 8.15. Phase 9 — Kết quả core (2026-10-30)
+
+- Migration `admin/010_ntrip_mount_profile.sql`: company/contact/email/phone/
+  hiệu lực/khu vực/auth method/notes cho NTRIP; service type/position mode/
+  satellite systems/caster interval/code protocol/type/description cho mountpoint.
+- API NTRIP/mountpoint trả và nhận trường mới; UI form đã bổ sung nhóm trường.
+- Caster đã có listener CRUD + tab connections/force disconnect từ Phase 4.
+- Test: Go/Node PASS; Playwright 6/6; API NTRIP/mountpoint trả fields mới.
+- Defer: import/export `.xlsx` cho NTRIP/mountpoint (Phase 10/11).
+
 ## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |

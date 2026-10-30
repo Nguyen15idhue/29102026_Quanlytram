@@ -17,6 +17,13 @@ const createSchema = z.object({
   station_id: z.number().int().positive().nullable().optional(),
   enabled: z.boolean().optional().default(true),
   requires_auth: z.boolean().optional().default(true),
+  service_type: z.string().max(64).optional(),
+  position_mode: z.string().max(64).optional(),
+  satellite_systems: z.string().max(64).optional(),
+  caster_interval: z.number().int().min(0).max(3600).optional(),
+  code_protocol: z.string().max(64).optional(),
+  code_type: z.string().max(64).optional(),
+  description: z.string().max(500).optional(),
   owner_web_user_id: z.number().int().positive().nullable().optional()
 });
 const updateSchema = createSchema.partial();
@@ -99,9 +106,18 @@ mountpointsRouter.post(
     await assertStationScope(req, body.station_id);
     const ownerId = await resolveOwner(req, body.owner_web_user_id);
     const [result] = await adminPool.query<any>(
-      `INSERT INTO mountpoints (name, station_id, enabled, requires_auth, owner_web_user_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [body.name, body.station_id ?? null, body.enabled, body.requires_auth, ownerId, req.auth!.id]
+      `INSERT INTO mountpoints
+         (name, station_id, enabled, requires_auth, service_type, position_mode,
+          satellite_systems, caster_interval, code_protocol, code_type, description,
+          owner_web_user_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        body.name, body.station_id ?? null, body.enabled, body.requires_auth,
+        body.service_type ?? 'rtcm', body.position_mode ?? 'normal',
+        body.satellite_systems ?? '', body.caster_interval ?? 0,
+        body.code_protocol ?? '', body.code_type ?? '', body.description ?? '',
+        ownerId, req.auth!.id
+      ]
     );
     const item = await getMountpoint(Number(result.insertId));
     await writeAudit(adminPool, req.auth!.id, 'create', 'mountpoint', result.insertId, null, item, ipFrom(req));
@@ -124,12 +140,21 @@ mountpointsRouter.patch(
         ? Number(before.owner_web_user_id)
         : await resolveOwner(req, body.owner_web_user_id);
     await adminPool.query(
-      `UPDATE mountpoints SET name=?, station_id=?, enabled=?, requires_auth=?, owner_web_user_id=? WHERE id=?`,
+      `UPDATE mountpoints SET name=?, station_id=?, enabled=?, requires_auth=?,
+         service_type=?, position_mode=?, satellite_systems=?, caster_interval=?,
+         code_protocol=?, code_type=?, description=?, owner_web_user_id=? WHERE id=?`,
       [
         body.name ?? before.name,
         body.station_id === undefined ? before.station_id : body.station_id,
         body.enabled === undefined ? before.enabled : body.enabled,
         body.requires_auth === undefined ? before.requires_auth : body.requires_auth,
+        body.service_type ?? before.service_type,
+        body.position_mode ?? before.position_mode,
+        body.satellite_systems ?? before.satellite_systems,
+        body.caster_interval ?? before.caster_interval,
+        body.code_protocol ?? before.code_protocol,
+        body.code_type ?? before.code_type,
+        body.description ?? before.description,
         ownerId,
         id
       ]

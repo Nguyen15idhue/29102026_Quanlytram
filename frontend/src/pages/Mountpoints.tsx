@@ -35,7 +35,14 @@ const emptyForm = {
   name: '',
   station_id: '' as string | number,
   enabled: true,
-  requires_auth: true
+  requires_auth: true,
+  service_type: 'rtcm',
+  position_mode: 'normal',
+  satellite_systems: '',
+  caster_interval: 0,
+  code_protocol: '',
+  code_type: '',
+  description: ''
 };
 
 export function Mountpoints() {
@@ -71,7 +78,14 @@ export function Mountpoints() {
         name: form.name,
         station_id: form.station_id === '' ? null : Number(form.station_id),
         enabled: form.enabled,
-        requires_auth: form.requires_auth
+        requires_auth: form.requires_auth,
+        service_type: form.service_type,
+        position_mode: form.position_mode,
+        satellite_systems: form.satellite_systems,
+        caster_interval: Number(form.caster_interval),
+        code_protocol: form.code_protocol,
+        code_type: form.code_type,
+        description: form.description
       };
       if (editing) {
         return apiFetch(`/api/mountpoints/${editing.id}`, { method: 'PATCH', body, csrfToken });
@@ -115,7 +129,14 @@ export function Mountpoints() {
       name: item.name,
       station_id: item.station_id ?? '',
       enabled: Boolean(item.enabled),
-      requires_auth: Boolean(item.requires_auth)
+      requires_auth: Boolean(item.requires_auth),
+      service_type: item.service_type ?? 'rtcm',
+      position_mode: item.position_mode ?? 'normal',
+      satellite_systems: item.satellite_systems ?? '',
+      caster_interval: item.caster_interval ?? 0,
+      code_protocol: item.code_protocol ?? '',
+      code_type: item.code_type ?? '',
+      description: item.description ?? ''
     });
     setError('');
     setDirty(false);
@@ -296,6 +317,27 @@ export function Mountpoints() {
             />
             Yêu cầu xác thực
           </label>
+          <Field label="Service type">
+            <Input value={form.service_type} onChange={(event) => setForm({ ...form, service_type: event.target.value })} />
+          </Field>
+          <Field label="Position mode">
+            <Input value={form.position_mode} onChange={(event) => setForm({ ...form, position_mode: event.target.value })} />
+          </Field>
+          <Field label="Hệ vệ tinh">
+            <Input value={form.satellite_systems} onChange={(event) => setForm({ ...form, satellite_systems: event.target.value })} />
+          </Field>
+          <Field label="Caster interval (s)">
+            <Input type="number" min={0} value={form.caster_interval} onChange={(event) => setForm({ ...form, caster_interval: Number(event.target.value) })} />
+          </Field>
+          <Field label="Code protocol">
+            <Input value={form.code_protocol} onChange={(event) => setForm({ ...form, code_protocol: event.target.value })} />
+          </Field>
+          <Field label="Code type">
+            <Input value={form.code_type} onChange={(event) => setForm({ ...form, code_type: event.target.value })} />
+          </Field>
+          <Field label="Mô tả">
+            <Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+          </Field>
         </form>
       </Modal>
 

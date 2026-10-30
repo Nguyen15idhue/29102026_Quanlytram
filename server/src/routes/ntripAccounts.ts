@@ -18,16 +18,19 @@ const createSchema = z.object({
   password: z.string().min(8).max(200),
   enabled: z.boolean().optional().default(true),
   max_connections: z.number().int().min(1).max(1000).optional().default(1),
+  company: z.string().max(160).optional(),
+  contact_name: z.string().max(120).optional(),
+  email: z.string().max(190).optional(),
+  phone: z.string().max(40).optional(),
+  valid_from: z.string().datetime().nullable().optional(),
+  valid_to: z.string().datetime().nullable().optional(),
+  available_area: z.string().max(255).optional(),
+  auth_method: z.string().max(32).optional(),
+  notes: z.string().max(500).optional(),
   owner_web_user_id: z.number().int().positive().nullable().optional()
 });
 
-const updateSchema = z.object({
-  username: z.string().min(3).max(64).regex(/^[A-Za-z0-9_.-]+$/).optional(),
-  password: z.string().min(8).max(200).optional(),
-  enabled: z.boolean().optional(),
-  max_connections: z.number().int().min(1).max(1000).optional(),
-  owner_web_user_id: z.number().int().positive().nullable().optional()
-});
+const updateSchema = createSchema.partial();
 
 const aclSchema = z.object({
   mountpointIds: z.array(z.number().int().positive()).max(1000)
@@ -39,6 +42,15 @@ function publicAccount(row: RowDataPacket) {
     username: String(row.username),
     enabled: Boolean(row.enabled),
     maxConnections: Number(row.max_connections),
+    company: String(row.company ?? ''),
+    contactName: String(row.contact_name ?? ''),
+    email: String(row.email ?? ''),
+    phone: String(row.phone ?? ''),
+    validFrom: row.valid_from ?? null,
+    validTo: row.valid_to ?? null,
+    availableArea: String(row.available_area ?? ''),
+    authMethod: String(row.auth_method ?? 'basic'),
+    notes: String(row.notes ?? ''),
     ownerWebUserId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -191,9 +203,16 @@ ntripAccountsRouter.post(
     try {
       const [result]: any = await adminPool.query(
         `INSERT INTO ntrip_accounts
-           (username, password_hash, enabled, max_connections, owner_web_user_id, created_by)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [body.username, passwordHash, body.enabled, body.max_connections, ownerId, req.auth!.id]
+           (username, password_hash, enabled, max_connections,
+            company, contact_name, email, phone, valid_from, valid_to,
+            available_area, auth_method, notes, owner_web_user_id, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          body.username, passwordHash, body.enabled, body.max_connections,
+          body.company ?? '', body.contact_name ?? '', body.email ?? '', body.phone ?? '',
+          body.valid_from ?? null, body.valid_to ?? null, body.available_area ?? '',
+          body.auth_method ?? 'basic', body.notes ?? '', ownerId, req.auth!.id
+        ]
       );
       accountId = Number(result.insertId);
     } catch (err) {
@@ -229,13 +248,25 @@ ntripAccountsRouter.patch(
     try {
       await adminPool.query(
         `UPDATE ntrip_accounts
-            SET username = ?, password_hash = ?, enabled = ?, max_connections = ?, owner_web_user_id = ?
+            SET username = ?, password_hash = ?, enabled = ?, max_connections = ?,
+                company = ?, contact_name = ?, email = ?, phone = ?,
+                valid_from = ?, valid_to = ?, available_area = ?, auth_method = ?, notes = ?,
+                owner_web_user_id = ?
           WHERE id = ?`,
         [
           body.username ?? before.username,
           passwordHash,
           body.enabled === undefined ? before.enabled : body.enabled,
           body.max_connections ?? before.max_connections,
+          body.company ?? before.company,
+          body.contact_name ?? before.contact_name,
+          body.email ?? before.email,
+          body.phone ?? before.phone,
+          body.valid_from === undefined ? before.valid_from : body.valid_from,
+          body.valid_to === undefined ? before.valid_to : body.valid_to,
+          body.available_area ?? before.available_area,
+          body.auth_method ?? before.auth_method,
+          body.notes ?? before.notes,
           ownerId,
           id
         ]

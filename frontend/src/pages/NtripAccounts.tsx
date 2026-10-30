@@ -30,7 +30,11 @@ interface MountpointList {
   items: Mountpoint[];
 }
 
-const emptyForm = { username: '', password: '', enabled: true, max_connections: 1 };
+const emptyForm = {
+  username: '', password: '', enabled: true, max_connections: 1,
+  company: '', contact_name: '', email: '', phone: '',
+  valid_from: '', valid_to: '', available_area: '', auth_method: 'basic', notes: ''
+};
 
 export function NtripAccounts() {
   const { can, csrfToken } = useAuth();
@@ -74,7 +78,16 @@ export function NtripAccounts() {
       const body: Record<string, unknown> = {
         username: form.username,
         enabled: form.enabled,
-        max_connections: Number(form.max_connections)
+        max_connections: Number(form.max_connections),
+        company: form.company,
+        contact_name: form.contact_name,
+        email: form.email,
+        phone: form.phone,
+        valid_from: form.valid_from ? new Date(form.valid_from).toISOString() : null,
+        valid_to: form.valid_to ? new Date(form.valid_to).toISOString() : null,
+        available_area: form.available_area,
+        auth_method: form.auth_method,
+        notes: form.notes
       };
       if (form.password) body.password = form.password;
       if (editing) {
@@ -136,7 +149,16 @@ export function NtripAccounts() {
       username: account.username,
       password: '',
       enabled: account.enabled,
-      max_connections: account.maxConnections
+      max_connections: account.maxConnections,
+      company: account.company ?? '',
+      contact_name: account.contactName ?? '',
+      email: account.email ?? '',
+      phone: account.phone ?? '',
+      valid_from: account.validFrom ? account.validFrom.slice(0, 16) : '',
+      valid_to: account.validTo ? account.validTo.slice(0, 16) : '',
+      available_area: account.availableArea ?? '',
+      auth_method: account.authMethod ?? 'basic',
+      notes: account.notes ?? ''
     });
     setError('');
     setDirty(false);
@@ -315,6 +337,33 @@ export function NtripAccounts() {
                 setForm({ ...form, max_connections: Number(event.target.value) })
               }
             />
+          </Field>
+          <Field label="Công ty">
+            <Input value={form.company} onChange={(event) => setForm({ ...form, company: event.target.value })} />
+          </Field>
+          <Field label="Người liên hệ">
+            <Input value={form.contact_name} onChange={(event) => setForm({ ...form, contact_name: event.target.value })} />
+          </Field>
+          <Field label="Email">
+            <Input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+          </Field>
+          <Field label="Điện thoại">
+            <Input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} />
+          </Field>
+          <Field label="Hiệu lực từ">
+            <Input type="datetime-local" value={form.valid_from} onChange={(event) => setForm({ ...form, valid_from: event.target.value })} />
+          </Field>
+          <Field label="Hiệu lực đến">
+            <Input type="datetime-local" value={form.valid_to} onChange={(event) => setForm({ ...form, valid_to: event.target.value })} />
+          </Field>
+          <Field label="Khu vực">
+            <Input value={form.available_area} onChange={(event) => setForm({ ...form, available_area: event.target.value })} />
+          </Field>
+          <Field label="Auth method">
+            <Input value={form.auth_method} onChange={(event) => setForm({ ...form, auth_method: event.target.value })} />
+          </Field>
+          <Field label="Ghi chú">
+            <Input value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
           </Field>
           <label className="check">
             <input
