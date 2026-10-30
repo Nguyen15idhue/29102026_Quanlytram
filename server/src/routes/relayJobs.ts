@@ -12,6 +12,7 @@ import { findCycle, RelayEdge } from '../lib/loopGuard';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import { assertRecordScope, ipFrom, listScope, pageFrom, scopeIdsFor } from '../rbac/access';
+import { TOMBSTONE_KEY_SQL } from '../lib/tombstone';
 
 export const relayJobsRouter = Router();
 relayJobsRouter.use(requireAuth);
@@ -567,6 +568,7 @@ relayJobsRouter.delete(
     await adminPool.query(
       `UPDATE relay_jobs
           SET deleted_at = UTC_TIMESTAMP(3), enabled = 0,
+              ${TOMBSTONE_KEY_SQL},
               desired_revision = desired_revision + 1
         WHERE id = ?`,
       [id]

@@ -170,7 +170,9 @@ Body tạo job:
   gửi `null` để gỡ credential.
 - Response chỉ trả `credential: { id, username, hasSecret }`; không bao giờ trả
   `password_enc`/`password`.
-- `DELETE` là soft-delete (`deleted_at`), job biến mất khỏi list/detail.
+- `DELETE` là soft-delete (`deleted_at`), job biến mất khỏi list/detail;
+  `external_key` và cặp key endpoint của row cũ được đổi thành `#deleted:<id>`
+  để giải phóng key, tạo lại job cùng cấu hình được phép ngay.
 - Unique: `externalKey` và cặp `(upstream_key, downstream_key)`;
   `endpointKey = scheme://host:port/mount` đã chuẩn hóa.
 - Mọi thao tác ghi tăng `desiredRevision`; Go reconcile và ghi `appliedRevision`.
@@ -271,3 +273,21 @@ Response quality (rút gọn):
   `quality.alert.ack`; room `station:<id>`/`relay:<id>` sau kiểm tra quyền;
   throttle ~1 s.
 - Internal (HMAC): `GET /internal/rtcm/snapshot`, `GET /internal/rtcm/health`.
+
+## 13. NTRIP accounts (Phase 3)
+
+| Method | Endpoint | Quyền |
+|---|---|---|
+| GET | `/api/ntrip-accounts?q=&page=&pageSize=` | `ntrip_accounts.view` |
+| GET | `/api/ntrip-accounts/:id` | `ntrip_accounts.view` |
+| POST | `/api/ntrip-accounts` | `ntrip_accounts.add` |
+| PATCH | `/api/ntrip-accounts/:id` | `ntrip_accounts.edit` |
+| DELETE | `/api/ntrip-accounts/:id` | `ntrip_accounts.delete` |
+| POST | `/api/ntrip-accounts/:id/lock` | `ntrip_accounts.edit` |
+| POST | `/api/ntrip-accounts/:id/unlock` | `ntrip_accounts.edit` |
+| GET | `/api/ntrip-accounts/:id/mountpoints` | `ntrip_accounts.view` |
+| PUT | `/api/ntrip-accounts/:id/mountpoints` | `ntrip_accounts.edit` |
+
+Body tạo/sửa: `username`, `password`, `enabled`, `max_connections`,
+`owner_web_user_id`. Response không trả `password_hash`.
+ACL body: `{ "mountpointIds": [1, 2] }`; placeholder cho Phase 4.

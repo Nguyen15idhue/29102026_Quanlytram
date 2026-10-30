@@ -24,6 +24,12 @@ type Config struct {
 	BatchSize       int
 	DialTimeout     time.Duration
 	ShutdownTimeout time.Duration
+
+	SessionRetentionDays int
+	EventRetentionDays   int
+	HourlyRetentionDays  int
+	PruneBatch           int
+	PruneInterval        time.Duration
 }
 
 func getenv(key, fallback string) string {
@@ -76,5 +82,11 @@ func Load() Config {
 		BatchSize:       getenvInt("RELAY_BATCH_SIZE", 100),
 		DialTimeout:     getenvSeconds("RELAY_DIAL_TIMEOUT_SEC", 15*time.Second),
 		ShutdownTimeout: getenvSeconds("RELAY_SHUTDOWN_TIMEOUT_SEC", 10*time.Second),
+
+		SessionRetentionDays: getenvInt("RELAY_SESSION_RETENTION_DAYS", 90),
+		EventRetentionDays:   getenvInt("RELAY_EVENT_RETENTION_DAYS", 30),
+		HourlyRetentionDays:  getenvInt("RELAY_HOURLY_RETENTION_DAYS", 90),
+		PruneBatch:           getenvInt("RELAY_PRUNE_BATCH", 1000),
+		PruneInterval:        getenvSeconds("RELAY_PRUNE_INTERVAL_SEC", time.Hour),
 	}
 }

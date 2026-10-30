@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decryptSecret, encryptSecret } from '../src/lib/crypto';
 import { endpointKey } from '../src/lib/endpointKey';
 import { findCycle } from '../src/lib/loopGuard';
+import { SOFT_DELETE_KEY_SUFFIX, TOMBSTONE_KEY_SQL, tombstoneExternalKey } from '../src/lib/tombstone';
 
 const KEY = Buffer.alloc(32, 7).toString('base64');
 
@@ -77,5 +78,20 @@ describe('findCycle', () => {
         { upstreamKey: 'a', downstreamKey: 'd' }
       ])
     ).toBeNull();
+  });
+});
+
+describe('tombstone keys', () => {
+  it('appends the row id to all three unique keys', () => {
+    expect(TOMBSTONE_KEY_SQL).toContain("external_key = CONCAT(COALESCE(external_key, ''), '#deleted:', id)");
+    expect(TOMBSTONE_KEY_SQL).toContain("upstream_key = CONCAT(COALESCE(upstream_key, ''), '#deleted:', id)");
+    expect(TOMBSTONE_KEY_SQL).toContain(
+      "downstream_key = CONCAT(COALESCE(downstream_key, ''), '#deleted:', id)"
+    );
+  });
+
+  it('keeps the tombstoned key unique per row', () => {
+    expect(tombstoneExternalKey('http://a:2101/m', 5)).toBe('http://a:2101/m#deleted:5');
+    expect(SOFT_DELETE_KEY_SUFFIX).toBe('#deleted:');
   });
 });

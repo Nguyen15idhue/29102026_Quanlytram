@@ -1,0 +1,40 @@
+[
+  {
+    "id": "import-demo-01",
+    "enable": true,
+    "src_host": "upstream-a.example",
+    "src_port": 2101,
+    "src_mount": "UP_A",
+    "src_user": "demo-up",
+    "src_pass": "demo-pass",
+    "src_proxy": "",
+    "src_use_ssl": false,
+    "src_ntrip_version": "v2",
+    "dst_host": "downstream-a.example",
+    "dst_port": 2101,
+    "dst_mount": "DOWN_A",
+    "dst_user": "demo-down",
+    "dst_pass": "demo-pass",
+    "dst_proxy": "",
+    "dst_use_ssl": false,
+    "dst_ntrip_version": "v2",
+    "lat": 21.0285,
+    "lon": 105.8542,
+    "nmea_interval_sec": 10
+  },
+  {
+    "id": "import-demo-02",
+    "enable": false,
+    "src_host": "upstream-b.example",
+    "src_port": 2101,
+    "src_mount": "UP_B",
+    "dst_host": "downstream-b.example",
+    "dst_port": 2101,
+    "dst_mount": "DOWN_B",
+    "dst_proxy": "socks5://127.0.0.1:1080",
+    "dst_use_ssl": true,
+    "lat": 16.0471,
+    "lon": 108.2062,
+    "nmea_interval_sec": 0
+  }
+]

@@ -25,13 +25,16 @@ export function Layout() {
             Dashboard
           </NavLink>
           {can('stations', 'view') && <NavLink to="/stations">Trạm</NavLink>}
+          {can('mountpoints', 'view') && <NavLink to="/mountpoints">Mountpoint</NavLink>}
+          {can('relay', 'view') && <NavLink to="/relay-jobs">Relay</NavLink>}
+          {can('ntrip_accounts', 'view') && <NavLink to="/ntrip-accounts">TK NTRIP</NavLink>}
           {can('web_users', 'view') && <NavLink to="/web-users">Người dùng web</NavLink>}
           {can('roles', 'view') && <NavLink to="/roles">Vai trò & quyền</NavLink>}
         </nav>
         <div className="sidebar-foot">
-          <span>Phase 1</span>
+          <span>Phase 3</span>
           <span className="dot" aria-hidden="true" />
-          <span>Skeleton</span>
+          <span>Quản trị</span>
         </div>
       </aside>
 

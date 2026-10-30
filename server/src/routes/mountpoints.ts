@@ -57,7 +57,7 @@ mountpointsRouter.get(
   requirePermission('mountpoints', 'view'),
   asyncHandler(async (req, res) => {
     const ids = await scopeIdsFor(req);
-    const scope = listScope(req, ids);
+    const scope = listScope(req, ids, 'm.owner_web_user_id');
     const { pageSize, offset } = pageFrom(req);
     const q = String(req.query.q || '').trim();
     const params: unknown[] = [...scope.params];

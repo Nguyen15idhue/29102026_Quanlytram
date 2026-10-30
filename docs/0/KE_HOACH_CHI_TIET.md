@@ -510,6 +510,7 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 | GET/PATCH/DELETE | `/api/ntrip-accounts/:id` | Chi tiết/sửa/xóa |
 | POST | `/api/ntrip-accounts/:id/lock` | Khóa |
 | POST | `/api/ntrip-accounts/:id/unlock` | Mở khóa |
+| GET/PUT | `/api/ntrip-accounts/:id/mountpoints` | ACL placeholder mountpoint |
 | GET/POST | `/api/roles` | Role |
 | GET/PATCH/DELETE | `/api/roles/:id` | Chi tiết/sửa/xóa |
 | GET/PUT | `/api/roles/:id/permissions` | Ma trận quyền |

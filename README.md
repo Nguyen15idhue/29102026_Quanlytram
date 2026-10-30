@@ -4,9 +4,10 @@ Dự án xây dựng hệ thống quản lý trạm CORS/NTRIP/RTCM ở mức MV
 quản lý trạm, mountpoint, tài khoản web, tài khoản NTRIP, relay bridge,
 giám sát realtime và cấu hình hệ thống.
 
-> Trạng thái hiện tại: **Phase 2 — Port relay & test mock (DONE)**.
+> Trạng thái hiện tại: **Phase 3 — Quản trị trạm & relay ổn định (DONE)**.
 > Hệ thống chạy end-to-end với MySQL, Node API, Go relay bridge và React UI.
-> Relay đã được kiểm thử byte-exact bằng mock; chưa chạm caster thật.
+> Đã có NTRIP account, import relay, retention, reconcile saved/applied và
+> UI Relay/Mountpoint/TK NTRIP; chưa chạm caster thật.
 >
 > Kế hoạch bổ sung **Phase 6 — RTCM Analytics & chất lượng trạm/relay**:
 > parse RTCM3 bằng `go-gnss/rtcm`, đánh giá chất lượng cho trạm thường và

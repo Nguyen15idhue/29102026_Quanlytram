@@ -193,6 +193,58 @@ func TestDisabledStateNotOverwrittenByStopped(t *testing.T) {
 	}
 }
 
+func TestDeleteClosesSessionWithDeletedReason(t *testing.T) {
+	upstream := newMockServer(t, upstreamHandler(upstreamOptions{
+		payload:  deterministicPayload(64),
+		keepOpen: true,
+		signal:   true,
+	}))
+	downstream := newMockServer(t, downstreamHandler(downstreamOptions{}))
+	cfg := testConfig(upstream, downstream, "source")
+	writer := &MemoryWriter{}
+	store := &fakeStore{jobs: []*JobConfig{cfg}}
+	manager := NewManager(store, writer, Options{
+		DialTimeout:  time.Second,
+		PollInterval: time.Hour,
+		RetryMin:     10 * time.Millisecond,
+		RetryMax:     20 * time.Millisecond,
+		NMEAInterval: time.Hour,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go manager.Run(ctx)
+
+	select {
+	case <-upstream.connected:
+	case <-time.After(3 * time.Second):
+		t.Fatal("job did not connect")
+	}
+	waitFor(t, 2*time.Second, func() bool {
+		for _, state := range writer.StateWrites() {
+			if state.state == "streaming" {
+				return true
+			}
+		}
+		return false
+	})
+
+	store.setJobs(nil)
+	if err := manager.Reconcile(ctx, []int64{cfg.ID}); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	waitFor(t, 3*time.Second, func() bool {
+		for _, session := range writer.SessionWrites() {
+			if session.closeReason == "deleted" {
+				return true
+			}
+		}
+		return false
+	})
+	if len(writer.SessionWrites()) == 0 {
+		t.Fatal("history session was not kept")
+	}
+}
+
 func Test2T8ManagerRefusesInternalCycle(t *testing.T) {
 	a := &JobConfig{
 		ID: 1, Name: "a", Enabled: true, DesiredRevision: 1,

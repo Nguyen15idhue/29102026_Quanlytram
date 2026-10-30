@@ -31,7 +31,7 @@
 | 0 | Chuẩn bị & xác minh | DONE |
 | 1 | Skeleton & hợp đồng dữ liệu | DONE |
 | 2 | Port relay & test mock | DONE |
-| 3 | Quản trị trạm & relay ổn định | TODO |
+| 3 | Quản trị trạm & relay ổn định | DONE |
 | 4 | NTRIP caster & quản lý client | TODO |
 | 5 | Realtime, dashboard, vận hành | TODO |
 | 6 | RTCM Analytics & chất lượng trạm/relay | TODO |
@@ -283,31 +283,31 @@
 ## 3.1. Công việc
 
 ### A. CRUD & RBAC
-- [ ] Stations/mountpoints CRUD; bỏ `stations.mountpoint`
-- [ ] Relay job CRUD + soft delete
-- [ ] `owner_web_user_id` + `created_by`; scope all/subtree/own
-- [ ] NTRIP account CRUD (tách web) + owner + ACL placeholder
-- [ ] Web user/role CRUD; field allowlist; chống nâng quyền
-- [ ] Audit redaction; append-only
+- [x] Stations/mountpoints CRUD; bỏ `stations.mountpoint`
+- [x] Relay job CRUD + soft delete
+- [x] `owner_web_user_id` + `created_by`; scope all/subtree/own
+- [x] NTRIP account CRUD (tách web) + owner + ACL placeholder
+- [x] Web user/role CRUD; field allowlist; chống nâng quyền
+- [x] Audit redaction; append-only
 
 ### B. Import
-- [ ] Script import chạy trên Windows host (hoặc mount read-only)
-- [ ] `--dry-run`, `--ids`, `--force`; transaction; idempotent
-- [ ] Mặc định disabled; `source_sha256`; không log secret
-- [ ] Chỉ import 2–3 job test
+- [x] Script import chạy trên Windows host (hoặc mount read-only)
+- [x] `--dry-run`, `--ids`, `--force`; transaction; idempotent
+- [x] Mặc định disabled; `source_sha256`; không log secret
+- [x] Chỉ import 2–3 job test
 
 ### C. Reconcile
-- [ ] Node lưu config + tăng `desired_revision` trong transaction
-- [ ] Gọi `POST /internal/reconcile`
-- [ ] Go đọc revision, áp dụng, ghi `applied_revision/runtime_state/last_error`
-- [ ] Node phân biệt “đã lưu” vs “đã áp dụng”
-- [ ] Retry khi Go down; idempotent
-- [ ] UI hiển thị trạng thái pending/streaming/error
+- [x] Node lưu config + tăng `desired_revision` trong transaction
+- [x] Gọi `POST /internal/reconcile`
+- [x] Go đọc revision, áp dụng, ghi `applied_revision/runtime_state/last_error`
+- [x] Node phân biệt “đã lưu” vs “đã áp dụng”
+- [x] Retry khi Go down; idempotent
+- [x] UI hiển thị trạng thái pending/streaming/error
 
 ### D. History & cleanup
-- [ ] Sessions/events/hourly; retention
-- [ ] Xóa job: dừng, đóng socket, `close_reason='deleted'`, giữ history
-- [ ] Prune theo batch; không xóa session mở
+- [x] Sessions/events/hourly; retention
+- [x] Xóa job: dừng, đóng socket, `close_reason='deleted'`, giữ history
+- [x] Prune theo batch; không xóa session mở
 
 ## 3.2. Yêu cầu cần đạt
 - CRUD + RBAC scope đúng; dữ liệu trả về không ngoài scope.
@@ -328,18 +328,20 @@
 ## 3.4. Kết quả test
 | ID | Hạng mục | Cách kiểm | Kỳ vọng | Kết quả | Ghi chú |
 |---|---|---|---|---|---|
-| 3-T1 | RBAC scope | API/UI | đúng | NOT RUN | |
-| 3-T2 | Field allowlist | API | 403 | NOT RUN | |
-| 3-T3 | Import dry-run | script | khớp | NOT RUN | |
-| 3-T4 | Import disabled | DB | enabled=false | NOT RUN | |
-| 3-T5 | Reconcile | API/DB | applied cập nhật | NOT RUN | |
-| 3-T6 | Go down/up | stop/start | pending→applied | NOT RUN | |
-| 3-T7 | Soft delete | API/DB | history còn | NOT RUN | |
-| 3-T8 | Audit redaction | DB | 0 secret | NOT RUN | |
+| 3-T1 | RBAC scope | API/UI | đúng | PASS | admin mountpoints=3, user1=1; rbac tests 9/9 |
+| 3-T2 | Field allowlist | API | 403 | PASS | Vitest rbac 9/9 |
+| 3-T3 | Import dry-run | script | khớp | PASS | selected=2, created=2, dryRun=true |
+| 3-T4 | Import disabled | DB | enabled=false | PASS | import-demo-01: enabled=0, has_sha=1, creds v1 |
+| 3-T5 | Reconcile | API/DB | applied cập nhật | PASS | desired=2, applied=2 |
+| 3-T6 | Go down/up | stop/start | pending→applied | PASS | stop gnss → enable → start → applied=2 |
+| 3-T7 | Soft delete | API/DB | history còn | PASS | unit test close_reason=deleted |
+| 3-T8 | Audit redaction | DB | 0 secret | PASS | audit ntrip_account leak=0 |
 
 ## 3.5. Ghi chú
 - Không bật job thật trong phase này.
 - Không xóa audit; không cascade history khi soft delete.
+- UI Relay/Mountpoint/TK NTRIP đã build PASS; browser smoke chưa tự động.
+- Retention integration PASS: row cũ bị xóa, row mới + session mở giữ lại.
 
 ---
 

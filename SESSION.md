@@ -3,10 +3,11 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-10-30 11:00 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: Phase 2 — DONE; chuẩn bị Phase 3
+- Phase hiện tại: Phase 3 — DONE; chuẩn bị Phase 4
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
+- Trạng thái Phase 3: DONE
 - Trạng thái Phase 6: PLANNED (kế hoạch, chưa triển khai)
 - Người thực hiện: OpenCode
 
@@ -22,12 +23,14 @@
   Go relay bridge/NTRIP/RTCM/NMEA/SOCKS5/TLS, loop guard, reconcile theo
   revision, runtime writer buffer, mock caster/rover/source + fixtures,
   test mock 2-T1..2-T9 và E2E Node -> Go -> mock.
+- Phase 3: NTRIP account CRUD + ACL placeholder, import relay, retention,
+  reconcile saved/applied, UI Relay/Mountpoint/TK NTRIP; xem mục 8.
 
 ### Đang làm
-- Không có (Phase 2 đã đóng).
+- Không có (Phase 3 đã đóng).
 
 ### Tiếp theo
-- Phase 3 — Quản trị trạm & relay ổn định.
+- Phase 4 — NTRIP caster & quản lý client.
 - Phase 6 (bổ sung) — RTCM Analytics & chất lượng trạm/relay; xem mục 7.7.
 
 ### Blocker
@@ -264,7 +267,55 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
   `docs/api.md`, `AGENTS.md`, `README.md`.
 - Chưa triển khai code Phase 6; chỉ chốt kế hoạch/task.
 
-## 8. Nhật ký thay đổi
+## 8. Phase 3 — Kết quả
+
+### 8.1. Đã làm
+- NTRIP account CRUD + lock/unlock + owner scope + ACL placeholder
+  (`account_mountpoint_acl`); API/UI tách khỏi web account.
+- Sửa scope list mountpoint bị ambiguous khi JOIN stations.
+- Import relay: `server/src/db/importRelay.ts`; `--dry-run/--ids/--force`,
+  transaction, idempotent, disabled, `source_sha256`, không log secret.
+- Retention Go: prune sessions/events/hourly theo batch, không xóa session mở.
+- Reconcile saved/applied: UI Relay hiển thị state + applied/desired; Go down/up.
+- UI thêm Relay, Mountpoint, TK NTRIP; menu Phase 3.
+- Migration `admin/003_ntrip_acl.sql`; health Node schema 3.
+
+### 8.2. Bằng chứng test
+
+| Mục | Kết quả | Bằng chứng |
+|---|---|---|
+| Node tsc | PASS | `npx tsc --noEmit` |
+| Node Vitest | PASS | 21/21 |
+| Frontend build | PASS | `npm run build` |
+| NTRIP API + ACL | PASS | create/list/ACL/lock/unlock/delete; adminMp=3, userMp=1 |
+| Audit redaction | PASS | audit ntrip_account leak=0 |
+| Import dry-run | PASS | selected=2, created=2 |
+| Import create/skip/force | PASS | created=1 → skipped=1 → updated=1; enabled=0; sha; creds `v1:` |
+| Reconcile Go down/up | PASS | desired=2, applied=2, state=backoff |
+| Retention integration | PASS | `TestPruneOnceMySQL`: old deleted, new/open kept |
+| Delete close reason | PASS | `TestDeleteClosesSessionWithDeletedReason` |
+| Go test/vet | PASS | `go test ./...`, `go vet ./...` |
+| Migration | PASS | `[migrate] admin 003_ntrip_acl.sql applied` |
+
+### 8.3. Ghi chú
+- Không test caster thật, không dùng cổng 8081/2101.
+- Browser smoke UI chưa tự động; chỉ build PASS.
+- Import dùng fixture `scripts/fixtures/relay-config.sample.json`.
+- Test data import/reconcile/NTRIP đã dọn; audit giữ lại.
+
+### 8.4. Fix review 2026-10-30 (soft-delete re-tạo job)
+- Lỗi 1: unique index `external_key` + `(upstream_key, downstream_key)` chặn
+  tạo lại job trùng cấu hình sau soft-delete (tái hiện `ERROR 1062
+  uq_relay_jobs_endpoints`). Fix: khi soft-delete, Node đổi 3 key thành
+  `…#deleted:<id>` (lib `tombstone.ts`, dùng chung DELETE route + import).
+- Lỗi 2: import `--force` UPDATE nhầm row đã soft-delete. Fix:
+  `importRelay.ts` lọc `deleted_at IS NULL` và tombstone row cũ trước INSERT.
+- docs/api.md mục 10 ghi rõ hành vi giải phóng key sau DELETE.
+- Bằng chứng: Vitest 21/21 (+2 test tombstone); SQL probe trên `relay_jobs`
+  thật: recreate OK; E2E API `scripts/e2e-softdelete-recreate.ps1`:
+  create id=14 → delete → recreate id=15 OK; probe đã dọn khỏi DB.
+
+## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |
 |---|---|---|
@@ -276,7 +327,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1
 | Phase 2 | `gnss/internal/{relay,ntrip,rtcm,nmea,secret,proxy,api}`, `cmd/corsd` | Bridge + HMAC |
 | Phase 2 | `scripts/mock-ntrip`, `scripts/fixtures`, `scripts/e2e-relay-mock.ps1` | Mock + E2E |
 | Phase 6 | `docs/0/RTCM_QUALITY_PLAN.md`, `KE_HOACH`, `TASKS`, `CAC_BUOC`, `api.md` | Kế hoạch chất lượng trạm/relay |
+| Phase 3 | `server/src/routes/ntripAccounts.ts`, `db/migrations/admin/003_*` | NTRIP + ACL |
+| Phase 3 | `server/src/db/importRelay.ts`, `scripts/fixtures/relay-config.sample.json` | Import relay |
+| Phase 3 | `gnss/internal/relay/retention*.go`, `cmd/corsd` | Retention |
+| Phase 3 | `frontend/src/pages/{RelayJobs,Mountpoints,NtripAccounts}.tsx` | UI Phase 3 |
+| Phase 3 | `server/src/lib/tombstone.ts`, `routes/relayJobs.ts`, `db/importRelay.ts`, `docs/api.md` | Fix soft-delete chặn recreate + import force row xóa |
 
-## 9. Cập nhật lần cuối
+## 10. Cập nhật lần cuối
 
-- 2026-10-30 11:00 +07:00
+- 2026-10-30 11:59 +07:00

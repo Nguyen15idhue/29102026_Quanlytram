@@ -68,3 +68,43 @@ export interface WebUser {
     level: number;
   };
 }
+
+export interface NtripAccount {
+  id: number;
+  username: string;
+  enabled: boolean;
+  maxConnections: number;
+  ownerWebUserId: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface RelayEndpoint {
+  host: string;
+  port: number;
+  mount: string;
+  proxy?: string;
+  ssl?: boolean;
+  ntripVersion?: string;
+  key?: string;
+  credential?: { id: number; username: string; hasSecret: boolean } | null;
+}
+
+export interface RelayJobState {
+  runtimeState: string;
+  appliedRevision: number;
+  lastError: string | null;
+  lastAppliedAt?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface RelayJob {
+  id: number;
+  name: string;
+  enabled: boolean;
+  desiredRevision: number;
+  upstream: RelayEndpoint;
+  downstream: RelayEndpoint;
+  downstreamMode: 'auto' | 'post' | 'source';
+  state: RelayJobState | null;
+}

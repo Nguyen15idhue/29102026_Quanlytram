@@ -7,7 +7,7 @@
 | 0 | Chuẩn bị & xác minh | DONE | - |
 | 1 | Skeleton & hợp đồng dữ liệu | DONE | Phase 0 |
 | 2 | Port relay & test mock | DONE | Phase 1 |
-| 3 | Quản trị trạm & relay ổn định | TODO | Phase 2 |
+| 3 | Quản trị trạm & relay ổn định | DONE | Phase 2 |
 | 4 | NTRIP caster & quản lý client | TODO | Phase 3 |
 | 5 | Realtime, dashboard, vận hành | TODO | Phase 4 |
 | 6 | RTCM Analytics & chất lượng trạm/relay | TODO | Phase 3–5 |
@@ -191,34 +191,51 @@ hưởng tốc độ; reconcile rõ ràng; loop guard hoạt động.
 soft-delete, history. Chưa cần caster.
 
 ### P3-01 CRUD & RBAC
-- [ ] Stations/mountpoints CRUD; bỏ `stations.mountpoint`
-- [ ] Relay job CRUD + soft delete
-- [ ] `owner_web_user_id` + `created_by`; scope all/subtree/own
-- [ ] NTRIP account CRUD (tách web) + owner + ACL placeholder
-- [ ] Web user/role CRUD; field allowlist; chống nâng quyền
-- [ ] Audit redaction; append-only
+- [x] Stations/mountpoints CRUD; bỏ `stations.mountpoint`
+- [x] Relay job CRUD + soft delete
+- [x] `owner_web_user_id` + `created_by`; scope all/subtree/own
+- [x] NTRIP account CRUD (tách web) + owner + ACL placeholder
+- [x] Web user/role CRUD; field allowlist; chống nâng quyền
+- [x] Audit redaction; append-only
 
 ### P3-02 Import
-- [ ] Import chạy trên Windows host hoặc mount read-only
-- [ ] `--dry-run`, `--ids`, `--force`; transaction; idempotent
-- [ ] Mặc định disabled; `source_sha256`; không log secret
-- [ ] Chỉ import 2–3 job test
+- [x] Import chạy trên Windows host hoặc mount read-only
+- [x] `--dry-run`, `--ids`, `--force`; transaction; idempotent
+- [x] Mặc định disabled; `source_sha256`; không log secret
+- [x] Chỉ import 2–3 job test
 
 ### P3-03 Reconcile
-- [ ] Node lưu config + tăng `desired_revision` trong transaction
-- [ ] Gọi `POST /internal/reconcile`
-- [ ] Go đọc revision, áp dụng, ghi `applied_revision/runtime_state/last_error`
-- [ ] Node phân biệt “đã lưu” vs “đã áp dụng”
-- [ ] Retry khi Go down; idempotent
-- [ ] UI hiển thị pending/streaming/error
+- [x] Node lưu config + tăng `desired_revision` trong transaction
+- [x] Gọi `POST /internal/reconcile`
+- [x] Go đọc revision, áp dụng, ghi `applied_revision/runtime_state/last_error`
+- [x] Node phân biệt “đã lưu” vs “đã áp dụng”
+- [x] Retry khi Go down; idempotent
+- [x] UI hiển thị pending/streaming/error
 
 ### P3-04 History & cleanup
-- [ ] Sessions/events/hourly; retention
-- [ ] Xóa job: dừng, đóng socket, `close_reason='deleted'`, giữ history
-- [ ] Prune theo batch; không xóa session mở
+- [x] Sessions/events/hourly; retention
+- [x] Xóa job: dừng, đóng socket, `close_reason='deleted'`, giữ history
+- [x] Prune theo batch; không xóa session mở
 
 **Nghiệm thu Phase 3:** CRUD + RBAC scope đúng; import đúng 2–3 job disabled;
 reconcile saved/applied rõ; soft delete giữ history.
+
+**Ghi chú Phase 3 (2026-10-30):**
+
+- Migration `admin/003_ntrip_acl.sql` đã apply; health Node schema 3.
+- NTRIP account CRUD + ACL placeholder PASS; response/audit không lộ hash/password.
+- Mountpoint list scope admin/user PASS (sửa cột owner ambiguous khi JOIN).
+- Import: dry-run 2 job; create → skip → force update; job disabled,
+  `source_sha256` có, credential `v1:`; `--ids/--force` hoạt động.
+- Reconcile Go down/up PASS: desired=2, applied=2, state `backoff`.
+- Retention integration PASS: xóa row cũ, giữ row mới + session mở.
+- Delete job unit test PASS: session `close_reason=deleted`, history còn.
+- UI thêm Relay/Mountpoint/TK NTRIP; `frontend build` PASS.
+  Browser smoke chưa chạy tự động.
+- Review fix 2026-10-30: soft-delete tombstone 3 key (`#deleted:<id>`) nên
+  tạo lại job trùng cấu hình được phép; import lọc row `deleted_at`
+  (`server/src/lib/tombstone.ts`); Vitest 21/21; E2E recreate PASS.
+- Không dùng caster thật/cổng 8081/2101; test data đã dọn.
 
 ---
 

@@ -5,6 +5,9 @@ import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Roles } from './pages/Roles';
 import { Stations } from './pages/Stations';
+import { Mountpoints } from './pages/Mountpoints';
+import { NtripAccounts } from './pages/NtripAccounts';
+import { RelayJobs } from './pages/RelayJobs';
 import { WebUsers } from './pages/WebUsers';
 
 function Protected() {
@@ -22,6 +25,9 @@ export function App() {
       <Route element={<Protected />}>
         <Route index element={<Dashboard />} />
         <Route path="/stations" element={<Stations />} />
+        <Route path="/mountpoints" element={<Mountpoints />} />
+        <Route path="/relay-jobs" element={<RelayJobs />} />
+        <Route path="/ntrip-accounts" element={<NtripAccounts />} />
         <Route path="/web-users" element={<WebUsers />} />
         <Route path="/roles" element={<Roles />} />
       </Route>

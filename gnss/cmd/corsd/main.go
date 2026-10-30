@@ -56,9 +56,18 @@ func main() {
 
 	manager := relay.NewManager(store, writer, options)
 
+	retentionOptions := relay.RetentionOptions{
+		SessionDays: cfg.SessionRetentionDays,
+		EventDays:   cfg.EventRetentionDays,
+		HourlyDays:  cfg.HourlyRetentionDays,
+		Batch:       cfg.PruneBatch,
+		Interval:    cfg.PruneInterval,
+	}
+
 	runCtx, runCancel := context.WithCancel(context.Background())
 	go writer.Run(runCtx)
 	go manager.Run(runCtx)
+	go relay.RunRetention(runCtx, runtimeDB, retentionOptions)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
