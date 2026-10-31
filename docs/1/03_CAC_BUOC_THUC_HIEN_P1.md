@@ -883,4 +883,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Frontend build PASS.
   - Playwright `p1-dashboard.spec.ts` **2/2 PASS**: số liệu khớp API,
     incidents/audit ≤5, 2 cột 1440/768, stack 390, user tenant + health null.
-- Commit code: sẽ ghi hash sau khi commit phase này.
+- Commit code: `75e943b` — `feat(p1-4): dashboard so lieu tenant va layout hai cot`.
