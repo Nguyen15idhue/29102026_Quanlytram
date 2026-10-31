@@ -1081,4 +1081,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - `p1-station-fix.spec.ts` PASS: source caster listener/port, client GGA,
     đổi WGS84/VN2000/ITRF, geo rỗng không báo thành công.
 - Còn defer: runner Go đọc `station_sources`; reset/reimport phá hủy mountpoint.
-- Commit code/docs: sẽ ghi hash sau khi commit.
+- Commit code: `07dd12a` — `fix(p1-10-1): sua ket noi tram toa do geo va uptime`.
