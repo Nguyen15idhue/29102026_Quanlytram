@@ -884,3 +884,39 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Playwright `p1-dashboard.spec.ts` **2/2 PASS**: số liệu khớp API,
     incidents/audit ≤5, 2 cột 1440/768, stack 390, user tenant + health null.
 - Commit code: `75e943b` — `feat(p1-4): dashboard so lieu tenant va layout hai cot`.
+
+### P1.5 — Trạm: form, nguồn, vị trí, uptime (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Form:
+  - Create chỉ hiện Thông tin cơ bản + Thông tin kết nối; ẩn Vị trí/Hệ thống.
+  - Bỏ input mã trạm; backend tự sinh mã nội bộ.
+  - Bỏ bật/tắt khỏi form; trạng thái dùng bulk action.
+  - Edit hiện Vị trí + Hệ thống read-only; receiver/antenna/serial/network
+    nằm trong nhóm thông tin cơ bản/thiết bị.
+  - coordinate_type WGS84/VN2000/ITRF; province/ward/address_detail.
+- Nguồn:
+  - `GET/PUT /api/stations/:id/sources`.
+  - Hỗ trợ NtripClient (host/port/mount/user/password/TLS/GGA/interval) và
+    NtripCaster (v1/v2, username/password optional theo cấu hình).
+  - Password mã hóa AES-GCM, API chỉ trả `*_has_password`.
+- Vị trí/Geo:
+  - `GET /api/geo/reverse?lat&lon` dùng Geoapify key server-side, cache 1h,
+    timeout 3.5s, fallback rỗng; không trả key.
+  - UI có nút “Lấy địa chỉ từ tọa độ”.
+- Uptime:
+  - `GET /api/stations/:id/uptime?range=1d|7d|30d`.
+  - Nguồn caster_connections + relay_sessions; trả bucket, onlineSec,
+    uptimePct, timeout/auth/proxy/network errors.
+  - Drawer tab Kết nối hiển thị uptime 3 range.
+- Bảng trạm:
+  - Bỏ cột tên trùng; trạng thái lấy `stations.status`; vẫn có nguồn, thiết bị,
+    vị trí, MP, quality, dữ liệu cuối.
+  - Bulk bật/tắt/khóa/mở/xóa.
+- Test:
+  - Server build PASS; Vitest **53/53 PASS**.
+  - Frontend build PASS.
+  - Playwright `p1-station.spec.ts` **1/1 PASS**: tạo không mã trạm, ẩn
+    vị trí/hệ thống, sửa hiện đầy đủ, source API, geo không lộ key, uptime
+    3 range, xóa sạch.
+- Commit code: sẽ ghi hash sau khi commit phase này.

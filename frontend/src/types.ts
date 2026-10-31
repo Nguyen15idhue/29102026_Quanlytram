@@ -63,6 +63,11 @@ export interface Station {
   owner_web_user_id: number | null;
   owner_name?: string;
   station_type?: string;
+  status?: 'active' | 'disabled' | 'locked';
+  coordinate_type?: 'wgs84' | 'vn2000' | 'itrf';
+  province?: string;
+  ward?: string;
+  address_detail?: string;
   enabled?: boolean | number;
   receiver_type?: string;
   receiver_sn?: string;
@@ -80,10 +85,32 @@ export interface Station {
   protocol?: string;
   custom_fields?: unknown;
   last_seen_at?: string | null;
+  created_at?: string;
+  updated_at?: string;
+  created_by?: number | null;
   mountpoint_count?: number;
   quality_score?: number | null;
   quality_state?: string;
   last_data_at?: string | null;
+}
+
+export interface StationSource {
+  station_id: number;
+  source_role: 'ntrip_client' | 'ntrip_caster';
+  client_host: string;
+  client_port: number;
+  client_mount: string;
+  client_username: string;
+  client_has_password: boolean;
+  client_tls: boolean;
+  client_send_gga: boolean;
+  client_nmea_interval_sec: number;
+  caster_version: 'v1' | 'v2';
+  caster_username: string;
+  caster_has_password: boolean;
+  caster_requires_auth: boolean;
+  relay_job_id: number | null;
+  updated_at?: string;
 }
 
 export type StationTransportStatus = 'online' | 'stale' | 'offline' | 'error' | 'unknown';

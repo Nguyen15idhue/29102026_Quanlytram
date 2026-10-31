@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
-import type { Station } from '../types';
+import type { Station, StationSource } from '../types';
 import {
   BulkActionBar,
   Button,
@@ -45,16 +45,26 @@ const emptyForm = {
   code: '', name: '', host: '', port: 1509, connection_type: 'ntrip',
   source_type: 'manual', ntrip_version: 'v1', ntrip_mode: 'v1_noauth',
   lat: '', lon: '', notes: '', station_type: 'reference', enabled: true,
+  coordinate_type: 'wgs84', province: '', ward: '', address_detail: '',
   receiver_type: '', receiver_sn: '', receiver_firmware: '',
   antenna_type: '', antenna_sn: '', antenna_height: '', elevation_mask: '',
   contractor: '', region: '', address: '', device_id: '',
-  network_type: '', network_mode: '', protocol: 'ntrip'
+  network_type: '', network_mode: '', protocol: 'ntrip',
+  source_role: 'ntrip_caster' as 'ntrip_client' | 'ntrip_caster',
+  client_host: '', client_port: 1509, client_mount: '', client_username: '',
+  client_password: '', client_tls: false, client_send_gga: false,
+  client_nmea_interval_sec: 0, caster_version: 'v2' as 'v1' | 'v2',
+  caster_username: '', caster_password: '', caster_requires_auth: true
 };
 
 function formFromStation(station: Station) {
   return {
     ...emptyForm,
     code: station.code,
+    coordinate_type: station.coordinate_type ?? 'wgs84',
+    province: station.province ?? '',
+    ward: station.ward ?? '',
+    address_detail: station.address_detail ?? '',
     name: station.name,
     host: station.host,
     port: station.port,
@@ -175,6 +185,34 @@ export function Stations() {
     enabled: can('web_users', 'view')
   });
 
+  const sources = useQuery({
+    queryKey: ['station-sources', editing?.id],
+    queryFn: () =>
+      apiFetch<{ items: StationSource[] }>(`/api/stations/${editing?.id}/sources`),
+    enabled: Boolean(editing?.id)
+  });
+
+  useEffect(() => {
+    const source = sources.data?.items[0];
+    if (!source) return;
+    setForm((current) => ({
+      ...current,
+      source_role: source.source_role,
+      client_host: source.client_host,
+      client_port: source.client_port,
+      client_mount: source.client_mount,
+      client_username: source.client_username,
+      client_password: '',
+      client_tls: source.client_tls,
+      client_send_gga: source.client_send_gga,
+      client_nmea_interval_sec: source.client_nmea_interval_sec,
+      caster_version: source.caster_version,
+      caster_username: source.caster_username,
+      caster_password: '',
+      caster_requires_auth: source.caster_requires_auth
+    }));
+  }, [sources.data]);
+
   const dictionaries = useQuery({
     queryKey: ['dictionaries'],
     queryFn: () => apiFetch<{ items: DictionaryItem[] }>('/api/dictionaries')
@@ -191,7 +229,7 @@ export function Stations() {
   const save = useMutation({
     mutationFn: async () => {
       const body = {
-        code: form.code,
+        ...(editing ? { code: form.code } : {}),
         name: form.name,
         host: form.host,
         port: Number(form.port),
@@ -217,12 +255,43 @@ export function Stations() {
         device_id: form.device_id,
         network_type: form.network_type,
         network_mode: form.network_mode,
-        protocol: form.protocol
+        protocol: form.protocol,
+        coordinate_type: form.coordinate_type,
+        province: form.province,
+        ward: form.ward,
+        address_detail: form.address_detail
       };
-      if (editing) {
-        return apiFetch(`/api/stations/${editing.id}`, { method: 'PATCH', body, csrfToken });
-      }
-      return apiFetch('/api/stations', { method: 'POST', body, csrfToken });
+      const saved = editing
+        ? await apiFetch<{ item: Station }>(`/api/stations/${editing.id}`, {
+            method: 'PATCH',
+            body,
+            csrfToken
+          })
+        : await apiFetch<{ item: Station }>('/api/stations', {
+            method: 'POST',
+            body,
+            csrfToken
+          });
+      await apiFetch(`/api/stations/${saved.item.id}/sources`, {
+        method: 'PUT',
+        csrfToken,
+        body: {
+          source_role: form.source_role,
+          client_host: form.client_host,
+          client_port: Number(form.client_port),
+          client_mount: form.client_mount,
+          client_username: form.client_username,
+          ...(form.client_password ? { client_password: form.client_password } : {}),
+          client_tls: form.client_tls,
+          client_send_gga: form.client_send_gga,
+          client_nmea_interval_sec: Number(form.client_nmea_interval_sec),
+          caster_version: form.caster_version,
+          caster_username: form.caster_username,
+          ...(form.caster_password ? { caster_password: form.caster_password } : {}),
+          caster_requires_auth: form.caster_requires_auth
+        }
+      });
+      return saved;
     },
     onSuccess: async () => {
       setFormOpen(false);
@@ -325,6 +394,30 @@ export function Stations() {
       },
       { replace: true }
     );
+  }
+
+  async function fillAddress() {
+    const lat = editing?.reported_lat ?? (form.lat === '' ? NaN : Number(form.lat));
+    const lon = editing?.reported_lon ?? (form.lon === '' ? NaN : Number(form.lon));
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      push('Chưa có tọa độ 1005/1006 để tra địa chỉ', 'error');
+      return;
+    }
+    try {
+      const data = await apiFetch<{
+        item: { province: string; ward: string; addressDetail: string };
+      }>(`/api/geo/reverse?lat=${lat}&lon=${lon}`);
+      setForm((current) => ({
+        ...current,
+        province: data.item.province || current.province,
+        ward: data.item.ward || current.ward,
+        address_detail: data.item.addressDetail || current.address_detail
+      }));
+      setDirty(true);
+      push('Đã tra địa chỉ từ tọa độ', 'success');
+    } catch (err) {
+      push(err instanceof ApiClientError ? err.message : 'Tra địa chỉ thất bại', 'error');
+    }
   }
 
   function openCreate() {
@@ -516,21 +609,18 @@ export function Stations() {
                 </div>
               )
             },
-            { key: 'name', header: 'Tên', cell: (station) => station.name },
             {
               key: 'status',
               header: 'Trạng thái',
-              cell: (station) => (
-                <div>
+              cell: (station) => {
+                const status = station.status ?? (station.enabled ? 'active' : 'disabled');
+                return (
                   <StatusBadge
-                    label={station.quality_state || 'unknown'}
-                    kind={stateKind(station.quality_state)}
+                    label={status}
+                    kind={status === 'active' ? 'ok' : status === 'locked' ? 'warn' : 'neutral'}
                   />
-                  <div className="muted table-subline">
-                    {station.enabled === false ? 'disabled' : 'enabled'}
-                  </div>
-                </div>
-              )
+                );
+              }
             },
             {
               key: 'source',
@@ -636,7 +726,7 @@ export function Stations() {
                 <div className="row-actions">
                   {can('stations', 'edit') && (
                     <IconButton
-                      label={`Sửa ${station.code}`}
+                      label={`Sửa ${station.name}`}
                       onClick={(event) => {
                         event.stopPropagation();
                         openEdit(station);
@@ -647,7 +737,7 @@ export function Stations() {
                   )}
                   {can('stations', 'delete') && (
                     <IconButton
-                      label={`Xóa ${station.code}`}
+                      label={`Xóa ${station.name}`}
                       onClick={(event) => {
                         event.stopPropagation();
                         setDeleteTarget(station);
@@ -700,15 +790,8 @@ export function Stations() {
           onChange={() => setDirty(true)}
         >
           <fieldset className="form-section">
-            <legend>Định danh</legend>
-            <Field label="Mã trạm" error={error || undefined}>
-              <Input
-                value={form.code}
-                onChange={(event) => setForm({ ...form, code: event.target.value })}
-                required
-              />
-            </Field>
-            <Field label="Tên trạm">
+            <legend>Thông tin cơ bản</legend>
+            <Field label="Tên trạm" error={error || undefined}>
               <Input
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
@@ -723,15 +806,6 @@ export function Stations() {
                 <option value="reference">Reference</option>
                 <option value="monitor">Monitor</option>
                 <option value="relay">Relay source</option>
-              </Select>
-            </Field>
-            <Field label="Bật trạm">
-              <Select
-                value={form.enabled ? '1' : '0'}
-                onChange={(event) => setForm({ ...form, enabled: event.target.value === '1' })}
-              >
-                <option value="1">Bật</option>
-                <option value="0">Tắt</option>
               </Select>
             </Field>
             <Field label="Vùng">
@@ -754,39 +828,74 @@ export function Stations() {
             </Field>
           </fieldset>
 
-          <fieldset className="form-section">
-            <legend>Vị trí</legend>
-            <Field label="Vĩ độ WGS84 (1005)">
-              <Input
-                readOnly
-                value={
-                  editing?.reported_lat != null
-                    ? editing.reported_lat.toFixed(6)
-                    : form.lat
-                }
-                placeholder="Chờ message 1005/1006"
-              />
-            </Field>
-            <Field label="Kinh độ WGS84 (1005)">
-              <Input
-                readOnly
-                value={
-                  editing?.reported_lon != null
-                    ? editing.reported_lon.toFixed(6)
-                    : form.lon
-                }
-                placeholder="Chờ message 1005/1006"
-              />
-            </Field>
-            <Field label="Elevation mask (°)">
-              <Input
-                type="number"
-                step="0.01"
-                value={form.elevation_mask}
-                onChange={(event) => setForm({ ...form, elevation_mask: event.target.value })}
-              />
-            </Field>
-          </fieldset>
+          {editing && (
+            <fieldset className="form-section">
+              <legend>Vị trí</legend>
+              <Field label="Hệ tọa độ">
+                <Select
+                  value={form.coordinate_type}
+                  onChange={(event) => setForm({ ...form, coordinate_type: event.target.value })}
+                >
+                  <option value="wgs84">WGS84</option>
+                  <option value="vn2000">VN2000</option>
+                  <option value="itrf">ITRF</option>
+                </Select>
+              </Field>
+              <Field label="Vĩ độ WGS84 (1005)">
+                <Input
+                  readOnly
+                  value={
+                    editing?.reported_lat != null
+                      ? editing.reported_lat.toFixed(6)
+                      : form.lat
+                  }
+                  placeholder="Chờ message 1005/1006"
+                />
+              </Field>
+              <Field label="Kinh độ WGS84 (1005)">
+                <Input
+                  readOnly
+                  value={
+                    editing?.reported_lon != null
+                      ? editing.reported_lon.toFixed(6)
+                      : form.lon
+                  }
+                  placeholder="Chờ message 1005/1006"
+                />
+              </Field>
+              <Field label="Tỉnh/thành">
+                <Input
+                  value={form.province}
+                  onChange={(event) => setForm({ ...form, province: event.target.value })}
+                />
+              </Field>
+              <Field label="Phường/xã">
+                <Input
+                  value={form.ward}
+                  onChange={(event) => setForm({ ...form, ward: event.target.value })}
+                />
+              </Field>
+              <Field label="Địa chỉ chi tiết">
+                <Input
+                  value={form.address_detail}
+                  onChange={(event) => setForm({ ...form, address_detail: event.target.value })}
+                />
+              </Field>
+              <Field label="Tra địa chỉ">
+                <Button type="button" size="sm" onClick={fillAddress}>
+                  Lấy địa chỉ từ tọa độ
+                </Button>
+              </Field>
+              <Field label="Elevation mask (°)">
+                <Input
+                  type="number"
+                  step="0.01"
+                  value={form.elevation_mask}
+                  onChange={(event) => setForm({ ...form, elevation_mask: event.target.value })}
+                />
+              </Field>
+            </fieldset>
+          )}
 
           <fieldset className="form-section">
             <legend>Thiết bị</legend>
@@ -851,7 +960,145 @@ export function Stations() {
           </fieldset>
 
           <fieldset className="form-section">
-            <legend>Kết nối</legend>
+            <legend>Thông tin kết nối</legend>
+            <Field label="Vai trò nguồn">
+              <Select
+                value={form.source_role}
+                onChange={(event) =>
+                  setForm({ ...form, source_role: event.target.value as 'ntrip_client' | 'ntrip_caster' })
+                }
+              >
+                <option value="ntrip_caster">NTRIP caster</option>
+                <option value="ntrip_client">NTRIP client</option>
+              </Select>
+            </Field>
+            {form.source_role === 'ntrip_client' ? (
+              <>
+                <Field label="Client host">
+                  <Input
+                    value={form.client_host}
+                    onChange={(event) => setForm({ ...form, client_host: event.target.value })}
+                  />
+                </Field>
+                <Field label="Client port">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={65535}
+                    value={form.client_port}
+                    onChange={(event) =>
+                      setForm({ ...form, client_port: Number(event.target.value) })
+                    }
+                  />
+                </Field>
+                <Field label="Client mountpoint">
+                  <Input
+                    value={form.client_mount}
+                    onChange={(event) => setForm({ ...form, client_mount: event.target.value })}
+                  />
+                </Field>
+                <Field label="Client username">
+                  <Input
+                    value={form.client_username}
+                    onChange={(event) =>
+                      setForm({ ...form, client_username: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field label="Client password">
+                  <Input
+                    type="password"
+                    value={form.client_password}
+                    placeholder={sources.data?.items[0]?.client_has_password ? 'Đã đặt mật khẩu' : ''}
+                    onChange={(event) =>
+                      setForm({ ...form, client_password: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field label="TLS">
+                  <Select
+                    value={form.client_tls ? '1' : '0'}
+                    onChange={(event) =>
+                      setForm({ ...form, client_tls: event.target.value === '1' })
+                    }
+                  >
+                    <option value="0">Không</option>
+                    <option value="1">Có</option>
+                  </Select>
+                </Field>
+                <Field label="Gửi GGA">
+                  <Select
+                    value={form.client_send_gga ? '1' : '0'}
+                    onChange={(event) =>
+                      setForm({ ...form, client_send_gga: event.target.value === '1' })
+                    }
+                  >
+                    <option value="0">Không</option>
+                    <option value="1">Có</option>
+                  </Select>
+                </Field>
+                <Field label="Chu kỳ GGA (giây)">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={3600}
+                    value={form.client_nmea_interval_sec}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        client_nmea_interval_sec: Number(event.target.value)
+                      })
+                    }
+                  />
+                </Field>
+              </>
+            ) : (
+              <>
+                <Field label="Caster version">
+                  <Select
+                    value={form.caster_version}
+                    onChange={(event) =>
+                      setForm({ ...form, caster_version: event.target.value as 'v1' | 'v2' })
+                    }
+                  >
+                    <option value="v1">v1</option>
+                    <option value="v2">v2</option>
+                  </Select>
+                </Field>
+                <Field label="Caster username">
+                  <Input
+                    value={form.caster_username}
+                    onChange={(event) =>
+                      setForm({ ...form, caster_username: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field label="Caster password">
+                  <Input
+                    type="password"
+                    value={form.caster_password}
+                    placeholder={sources.data?.items[0]?.caster_has_password ? 'Đã đặt mật khẩu' : ''}
+                    onChange={(event) =>
+                      setForm({ ...form, caster_password: event.target.value })
+                    }
+                  />
+                </Field>
+                <Field label="Yêu cầu xác thực">
+                  <Select
+                    value={form.caster_requires_auth ? '1' : '0'}
+                    onChange={(event) =>
+                      setForm({
+                        ...form,
+                        caster_requires_auth: event.target.value === '1'
+                      })
+                    }
+                  >
+                    <option value="1">Có</option>
+                    <option value="0">Không</option>
+                  </Select>
+                </Field>
+              </>
+            )}
             <Field label="Nguồn dữ liệu">
               <Select
                 value={form.source_type}
@@ -939,6 +1186,33 @@ export function Stations() {
               />
             </Field>
           </fieldset>
+
+          {editing && (
+            <fieldset className="form-section">
+              <legend>Hệ thống (chỉ đọc)</legend>
+              <Field label="ID">
+                <Input readOnly value={editing.id} />
+              </Field>
+              <Field label="Mã nội bộ">
+                <Input readOnly value={editing.code} />
+              </Field>
+              <Field label="Trạng thái">
+                <Input readOnly value={editing.status ?? (editing.enabled ? 'active' : 'disabled')} />
+              </Field>
+              <Field label="Người tạo">
+                <Input readOnly value={editing.created_by ?? '—'} />
+              </Field>
+              <Field label="Tạo lúc">
+                <Input readOnly value={editing.created_at ?? '—'} />
+              </Field>
+              <Field label="Cập nhật lúc">
+                <Input readOnly value={editing.updated_at ?? '—'} />
+              </Field>
+              <Field label="Dữ liệu cuối">
+                <Input readOnly value={editing.last_data_at ?? '—'} />
+              </Field>
+            </fieldset>
+          )}
         </form>
       </Modal>
 

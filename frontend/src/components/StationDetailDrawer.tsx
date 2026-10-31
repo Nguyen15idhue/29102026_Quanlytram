@@ -413,6 +413,26 @@ function ConnectionTab({ stationId }: { stationId: number }) {
     refetchInterval: 15_000
   });
   const data = connections.data;
+  const uptime = useQuery({
+    queryKey: ['station-uptime', stationId],
+    queryFn: async () => {
+      const ranges = ['1d', '7d', '30d'] as const;
+      return Promise.all(
+        ranges.map((range) =>
+          apiFetch<{
+            range: string;
+            uptimePct: number;
+            buckets: Array<{
+              timeouts: number;
+              authErrors: number;
+              proxyErrors: number;
+              networkErrors: number;
+            }>;
+          }>(`/api/stations/${stationId}/uptime?range=${range}`)
+        )
+      );
+    }
+  });
 
   if (connections.isLoading) {
     return <div className="chart-empty">Đang tải thông tin kết nối...</div>;
@@ -447,6 +467,27 @@ function ConnectionTab({ stationId }: { stationId: number }) {
           <span className="muted">Online</span>
           <strong className="mono">{data.summary.onlineConnections}</strong>
         </div>
+      </div>
+
+      <div className="quality-kpis">
+        {(uptime.data ?? []).map((item) => {
+          const errors = item.buckets.reduce(
+            (sum, bucket) =>
+              sum +
+              bucket.timeouts +
+              bucket.authErrors +
+              bucket.proxyErrors +
+              bucket.networkErrors,
+            0
+          );
+          return (
+            <div key={item.range}>
+              <span className="muted">Uptime {item.range}</span>
+              <strong className="mono">{item.uptimePct.toFixed(1)}%</strong>
+              <small className="muted">{errors} lỗi</small>
+            </div>
+          );
+        })}
       </div>
 
       {!data.casterAvailable && (

@@ -32,7 +32,6 @@ test.describe('Phase 3.5 UI', () => {
     await page.getByRole('button', { name: 'Thêm trạm' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
-    await dialog.getByLabel('Mã trạm').fill(`UI${suffix}`);
     await dialog.getByLabel('Tên trạm').fill(`UI test ${suffix}`);
     await dialog.getByLabel('Host').fill('127.0.0.1');
     await expect(dialog.getByLabel('Port')).toHaveValue('1509');
@@ -40,11 +39,11 @@ test.describe('Phase 3.5 UI', () => {
     await dialog.getByRole('button', { name: 'Thêm', exact: true }).click();
     await expect(page.getByText(`UI test ${suffix}`).first()).toBeVisible();
 
-    await page.getByRole('button', { name: `Sửa UI${suffix}` }).click();
+    await page.getByRole('button', { name: `Sửa UI test ${suffix}` }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.getByRole('dialog').getByRole('button', { name: 'Hủy' }).click();
 
-    await page.getByRole('button', { name: `Xóa UI${suffix}` }).click();
+    await page.getByRole('button', { name: `Xóa UI test ${suffix}` }).click();
     await expect(page.getByRole('alertdialog')).toBeVisible();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Xóa' }).click();
     await expect(page.getByText(`UI test ${suffix}`)).toHaveCount(0);

@@ -9,6 +9,7 @@ import { type GoConnection, publicConnection } from '../lib/caster';
 import { buildWorkbook, readSheetRows, readWorkbook, sendWorkbook } from '../lib/excel';
 import { asyncHandler, ApiError } from '../lib/http';
 import { ecefToGeodetic, geodeticToVn2000 } from '../lib/geo';
+import { encryptSecret } from '../lib/crypto';
 import { callGoInternal } from '../lib/internalApi';
 import {
   fetchLiveQuality,
@@ -44,7 +45,7 @@ const nullableNumber = (min: number, max: number) =>
   z.number().min(min).max(max).nullable().optional();
 
 const createSchema = z.object({
-  code: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/),
+  code: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
   name: z.string().min(1).max(160),
   host: text(190),
   port: z.number().int().min(1).max(65535).optional().default(1509),
@@ -67,6 +68,10 @@ const createSchema = z.object({
   contractor: text(160),
   region: text(120),
   address: text(255),
+  coordinate_type: z.enum(['wgs84', 'vn2000', 'itrf']).optional().default('wgs84'),
+  province: text(120),
+  ward: text(120),
+  address_detail: text(255),
   device_id: text(120),
   network_type: text(64),
   network_mode: text(64),
@@ -1129,19 +1134,23 @@ stationsRouter.post(
   asyncHandler(async (req, res) => {
     const body = createSchema.parse(req.body);
     const ownerId = await resolveOwner(req, body.owner_web_user_id);
+    const code =
+      body.code ?? `ST${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`;
     const [result] = await adminPool.query<any>(
       `INSERT INTO stations
          (code, name, host, port, connection_type, source_type, ntrip_version, ntrip_mode,
-          lat, lon, notes, station_type, enabled,
+          lat, lon, notes, station_type, enabled, coordinate_type, province, ward,
+          address_detail,
           receiver_type, receiver_sn, receiver_firmware, antenna_type, antenna_sn,
           antenna_height, elevation_mask, contractor, region, address, device_id,
           network_type, network_mode, protocol, custom_fields, owner_web_user_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        body.code, body.name, body.host ?? '', body.port, body.connection_type,
+        code, body.name, body.host ?? '', body.port, body.connection_type,
         body.source_type, body.ntrip_version, body.ntrip_mode,
         body.lat ?? null, body.lon ?? null, body.notes ?? '', body.station_type,
-        body.enabled, body.receiver_type ?? '', body.receiver_sn ?? '',
+        body.enabled, body.coordinate_type, body.province ?? '', body.ward ?? '',
+        body.address_detail ?? '', body.receiver_type ?? '', body.receiver_sn ?? '',
         body.receiver_firmware ?? '', body.antenna_type ?? '', body.antenna_sn ?? '',
         body.antenna_height ?? null, body.elevation_mask ?? null, body.contractor ?? '',
         body.region ?? '', body.address ?? '', body.device_id ?? '', body.network_type ?? '',
@@ -1174,7 +1183,8 @@ stationsRouter.patch(
     await adminPool.query(
       `UPDATE stations SET code=?, name=?, host=?, port=?, connection_type=?,
          source_type=?, ntrip_version=?, ntrip_mode=?, lat=?, lon=?, notes=?,
-         station_type=?, enabled=?, receiver_type=?, receiver_sn=?, receiver_firmware=?,
+         station_type=?, enabled=?, coordinate_type=?, province=?, ward=?, address_detail=?,
+         receiver_type=?, receiver_sn=?, receiver_firmware=?,
          antenna_type=?, antenna_sn=?, antenna_height=?, elevation_mask=?, contractor=?,
          region=?, address=?, device_id=?, network_type=?, network_mode=?, protocol=?,
          custom_fields=?, owner_web_user_id=? WHERE id=?`,
@@ -1182,6 +1192,7 @@ stationsRouter.patch(
         value('code'), value('name'), value('host'), value('port'), value('connection_type'),
         value('source_type'), value('ntrip_version'), value('ntrip_mode'),
         value('lat'), value('lon'), value('notes'), value('station_type'), value('enabled'),
+        value('coordinate_type'), value('province'), value('ward'), value('address_detail'),
         value('receiver_type'), value('receiver_sn'), value('receiver_firmware'),
         value('antenna_type'), value('antenna_sn'), value('antenna_height'), value('elevation_mask'),
         value('contractor'), value('region'), value('address'), value('device_id'),
@@ -1192,6 +1203,232 @@ stationsRouter.patch(
     );
     const after = await getStation(id);
     await writeAudit(adminPool, req.auth!.id, 'update', 'station', id, before, after, ipFrom(req));
+    res.json({ item: after });
+  })
+);
+
+stationsRouter.get(
+  '/:id/uptime',
+  requirePermission('stations', 'view'),
+  asyncHandler(async (req, res) => {
+    const station = await getStation(Number(req.params.id));
+    if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+    await assertRecordScope(req, station.owner_web_user_id);
+    const range = String(req.query.range ?? '1d');
+    const hours = range === '30d' ? 720 : range === '7d' ? 168 : 24;
+    const end = new Date();
+    const start = new Date(end.getTime() - hours * 3600_000);
+    const mountpointRows = await query<RowDataPacket[]>(
+      'SELECT id, name FROM mountpoints WHERE station_id = ?',
+      [station.id]
+    );
+    const mountpointIds = mountpointRows.map((row) => Number(row.id));
+    const mountpointNames = mountpointRows.map((row) => String(row.name));
+    const connections = mountpointIds.length
+      ? await runtimeQuery<RowDataPacket[]>(
+          `SELECT mountpoint_id, start_ts, end_ts, disconnect_reason
+             FROM caster_connections
+            WHERE mountpoint_id IN (${mountpointIds.map(() => '?').join(',')})
+              AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
+            ORDER BY start_ts`,
+          [...mountpointIds, start, end]
+        )
+      : [];
+    const relayIds = mountpointNames.length
+      ? (
+          await query<RowDataPacket[]>(
+            `SELECT id FROM relay_jobs
+              WHERE deleted_at IS NULL
+                AND (upstream_mount IN (${mountpointNames.map(() => '?').join(',')})
+                  OR downstream_mount IN (${mountpointNames.map(() => '?').join(',')}))`,
+            [...mountpointNames, ...mountpointNames]
+          )
+        ).map((row) => Number(row.id))
+      : [];
+    const relaySessions = relayIds.length
+      ? await runtimeQuery<RowDataPacket[]>(
+          `SELECT relay_job_id, start_ts, end_ts, close_reason
+             FROM relay_sessions
+            WHERE relay_job_id IN (${relayIds.map(() => '?').join(',')})
+              AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
+            ORDER BY start_ts`,
+          [...relayIds, start, end]
+        )
+      : [];
+
+    const buckets: Record<string, any> = {};
+    const bucketKey = (date: Date) =>
+      new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), date.getUTCHours()))
+        .toISOString();
+    const ensure = (date: Date) => {
+      const key = bucketKey(date);
+      buckets[key] ??= {
+        bucket: key,
+        onlineSec: 0,
+        sessions: 0,
+        timeouts: 0,
+        authErrors: 0,
+        proxyErrors: 0,
+        networkErrors: 0
+      };
+      return buckets[key];
+    };
+    const addRange = (from: Date, to: Date, reason: string) => {
+      const started = new Date(Math.max(from.getTime(), start.getTime()));
+      const ended = new Date(Math.min(to.getTime(), end.getTime()));
+      if (ended <= started) return;
+      let cursor = started;
+      while (cursor < ended) {
+        const nextHour = new Date(
+          Date.UTC(
+            cursor.getUTCFullYear(),
+            cursor.getUTCMonth(),
+            cursor.getUTCDate(),
+            cursor.getUTCHours() + 1
+          )
+        );
+        const sliceEnd = nextHour < ended ? nextHour : ended;
+        const bucket = ensure(cursor);
+        bucket.onlineSec += Math.max(0, Math.round((sliceEnd.getTime() - cursor.getTime()) / 1000));
+        if (reason === 'timeout') bucket.timeouts += 1;
+        else if (reason === 'auth_failed') bucket.authErrors += 1;
+        else if (reason === 'proxy') bucket.proxyErrors += 1;
+        else if (reason === 'network') bucket.networkErrors += 1;
+        cursor = sliceEnd;
+      }
+    };
+    for (const row of [...connections, ...relaySessions]) {
+      addRange(new Date(row.start_ts), row.end_ts ? new Date(row.end_ts) : end, String(row.disconnect_reason ?? row.close_reason ?? ''));
+      ensure(new Date(row.start_ts)).sessions += 1;
+    }
+    const totalSec = Math.round((end.getTime() - start.getTime()) / 1000);
+    const onlineSec = Object.values(buckets).reduce((sum: number, item: any) => sum + item.onlineSec, 0);
+    res.json({
+      range,
+      from: start.toISOString(),
+      to: end.toISOString(),
+      totalSec,
+      onlineSec,
+      uptimePct: totalSec > 0 ? Math.min(100, (onlineSec / totalSec) * 100) : 0,
+      buckets: Object.values(buckets).sort((a: any, b: any) => a.bucket.localeCompare(b.bucket))
+    });
+  })
+);
+
+const sourceSchema = z.object({
+  source_role: z.enum(['ntrip_client', 'ntrip_caster']).default('ntrip_caster'),
+  client_host: z.string().max(190).optional().default(''),
+  client_port: z.number().int().min(1).max(65535).optional().default(1509),
+  client_mount: z.string().max(128).optional().default(''),
+  client_username: z.string().max(128).optional().default(''),
+  client_password: z.string().max(512).optional(),
+  client_tls: z.boolean().optional().default(false),
+  client_send_gga: z.boolean().optional().default(false),
+  client_nmea_interval_sec: z.number().int().min(0).max(3600).optional().default(0),
+  caster_version: z.enum(['v1', 'v2']).optional().default('v2'),
+  caster_username: z.string().max(128).optional().default(''),
+  caster_password: z.string().max(512).optional(),
+  caster_requires_auth: z.boolean().optional().default(true)
+});
+
+function publicSource(row: any) {
+  return {
+    station_id: Number(row.station_id),
+    source_role: String(row.source_role),
+    client_host: String(row.client_host ?? ''),
+    client_port: Number(row.client_port ?? 1509),
+    client_mount: String(row.client_mount ?? ''),
+    client_username: String(row.client_username ?? ''),
+    client_has_password: Boolean(row.client_password_enc),
+    client_tls: Boolean(row.client_tls),
+    client_send_gga: Boolean(row.client_send_gga),
+    client_nmea_interval_sec: Number(row.client_nmea_interval_sec ?? 0),
+    caster_version: String(row.caster_version ?? 'v2'),
+    caster_username: String(row.caster_username ?? ''),
+    caster_has_password: Boolean(row.caster_password_enc),
+    caster_requires_auth: Boolean(row.caster_requires_auth),
+    relay_job_id: row.relay_job_id === null ? null : Number(row.relay_job_id),
+    updated_at: row.updated_at
+  };
+}
+
+stationsRouter.get(
+  '/:id/sources',
+  requirePermission('stations', 'view'),
+  asyncHandler(async (req, res) => {
+    const station = await getStation(Number(req.params.id));
+    if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+    await assertRecordScope(req, station.owner_web_user_id);
+    const rows = await query<RowDataPacket[]>(
+      'SELECT * FROM station_sources WHERE station_id = ?',
+      [station.id]
+    );
+    res.json({ items: rows.map(publicSource) });
+  })
+);
+
+stationsRouter.put(
+  '/:id/sources',
+  requirePermission('stations', 'edit'),
+  asyncHandler(async (req, res) => {
+    const station = await getStation(Number(req.params.id));
+    if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+    await assertRecordScope(req, station.owner_web_user_id);
+    const body = sourceSchema.parse(req.body);
+    const beforeRows = await query<RowDataPacket[]>(
+      'SELECT * FROM station_sources WHERE station_id = ?',
+      [station.id]
+    );
+    const before = beforeRows[0] ? publicSource(beforeRows[0]) : null;
+    await adminPool.query(
+      `INSERT INTO station_sources
+         (station_id, source_role, client_host, client_port, client_mount,
+          client_username, client_password_enc, client_tls, client_send_gga,
+          client_nmea_interval_sec, caster_version, caster_username,
+          caster_password_enc, caster_requires_auth)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE
+         source_role = VALUES(source_role), client_host = VALUES(client_host),
+         client_port = VALUES(client_port), client_mount = VALUES(client_mount),
+         client_username = VALUES(client_username),
+         client_password_enc = COALESCE(VALUES(client_password_enc), client_password_enc),
+         client_tls = VALUES(client_tls), client_send_gga = VALUES(client_send_gga),
+         client_nmea_interval_sec = VALUES(client_nmea_interval_sec),
+         caster_version = VALUES(caster_version), caster_username = VALUES(caster_username),
+         caster_password_enc = COALESCE(VALUES(caster_password_enc), caster_password_enc),
+         caster_requires_auth = VALUES(caster_requires_auth)`,
+      [
+        station.id,
+        body.source_role,
+        body.client_host,
+        body.client_port,
+        body.client_mount,
+        body.client_username,
+        body.client_password ? encryptSecret(body.client_password) : null,
+        body.client_tls ? 1 : 0,
+        body.client_send_gga ? 1 : 0,
+        body.client_nmea_interval_sec,
+        body.caster_version,
+        body.caster_username,
+        body.caster_password ? encryptSecret(body.caster_password) : null,
+        body.caster_requires_auth ? 1 : 0
+      ]
+    );
+    const rows = await query<RowDataPacket[]>(
+      'SELECT * FROM station_sources WHERE station_id = ?',
+      [station.id]
+    );
+    const after = rows[0] ? publicSource(rows[0]) : null;
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      'update_source',
+      'station',
+      station.id,
+      before,
+      after,
+      ipFrom(req)
+    );
     res.json({ item: after });
   })
 );
