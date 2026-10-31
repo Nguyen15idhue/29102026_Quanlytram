@@ -1081,4 +1081,4 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
   - API filter smoke: stations 30, password_only 36, relay enabled 2,
     NTRIP enabled 2, web user active 4.
   - Vite log xác nhận HMR update khi sửa page/component/CSS.
-- Commit: sẽ ghi hash sau khi commit đợt này.
+- Commit: `eced896` — `feat(ui): tang do ro, loc thu gon va hot reload docker`.
