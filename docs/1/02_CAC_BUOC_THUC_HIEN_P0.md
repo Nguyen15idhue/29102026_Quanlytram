@@ -1055,4 +1055,4 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
     rover 200, SOURCE v1 200, POST v2 200 — **0 failure**.
   - Quality snapshot hệ thống > 0 (16.000+ sample, cập nhật trong 10 phút).
 - Audit import có bản ghi `legacy_caster`; không lộ credential.
-- Commit: sẽ ghi hash sau khi commit phase này.
+- Commit: `1be9a30` — `feat(p0): provision 36 mountpoint he cu va legacy password`.
