@@ -996,4 +996,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Frontend build PASS.
   - Playwright `p1-relay-import.spec.ts` **1/1 PASS**: dry-run không ghi,
     commit tạo mới, import lại theo id cập nhật, self-loop bị chặn.
-- Commit code: sẽ ghi hash sau khi commit phase này.
+- Commit code: `8ba658c` — `feat(p1-8): relay form day du va import json`.
