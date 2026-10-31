@@ -3,7 +3,8 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-10-30 21:00 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: Phase 7 rework — DONE (nguồn trạm/1005, Playwright 8/8)
+- Phase hiện tại: P0 Phase 1 — Chi tiết trạm DONE; tiếp theo P0 Phase 2
+- Trạng thái P0 Phase 1: DONE (drawer 5 tab, API connections/history/metadata, Playwright PASS)
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
@@ -39,13 +40,16 @@
   load test mock, ops doc; xem mục 8.9.
 - Phase 6: parser/analyzer/store quality, migrations admin006/runtime004,
   REST/RBAC/socket, panel nhúng popup trạm/relay; xem mục 8.11.
+- P0 Phase 1: `/stations/:id`, drawer 5 tab, transport/quality/metadata status
+  độc lập, reliability, API connections/history/metadata; Playwright PASS.
+  Chi tiết: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
 
 ### Đang làm
-- Không có (Phase 6 đã đóng phần mock; chờ commit).
+- Không có.
 
 ### Tiếp theo
-- Phase 7 — Nền tảng UI & Trạm danh sách; xem `docs/0/PHASES_7_12_PLAN.md`.
-- Commit Phase 6 + hotfix 1509 sau khi rà soát diff (không push).
+- P0 Phase 2 — Mountpoint Explorer; xem `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md`.
+- Không chuyển phase khi checklist Phase 2 chưa PASS.
 
 ### Blocker
 - Không có. `go test -race` chưa chạy được vì môi trường Windows không bật

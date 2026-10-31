@@ -831,9 +831,13 @@ label.check input {
 }
 
 .modal-body {
+  flex: 1;
+  min-height: 0;
   padding: 18px;
   overflow-y: auto;
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
   gap: 14px;
 }
 
@@ -1743,5 +1747,270 @@ label.check input {
 
   .quality-detail-head {
     align-items: flex-start;
+  }
+}
+
+/* Station detail drawer */
+.detail-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.detail-status-grid > div {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  background: var(--surface-2, var(--surface));
+}
+
+.detail-status-grid .badge {
+  justify-self: start;
+}
+
+.detail-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.reliability-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.reliability-grid div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.reliability-grid dt {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.reliability-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.reliability-block p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.detail-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.detail-subhead h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.connection-sections {
+  display: grid;
+  gap: 12px;
+}
+
+.connection-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: grid;
+  gap: 10px;
+  background: var(--surface);
+}
+
+.connection-card-head,
+.connection-item-head,
+.connection-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.connection-card-head h3 {
+  margin: 0;
+  font-size: 14px;
+}
+
+.connection-card-head p {
+  margin: 3px 0 0;
+  font-size: 12px;
+}
+
+.connection-badges {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.connection-list {
+  display: grid;
+  gap: 6px;
+}
+
+.connection-item {
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  background: var(--surface-2, var(--raised));
+}
+
+.connection-item.block {
+  display: grid;
+  align-items: stretch;
+}
+
+.connection-item strong,
+.connection-item small {
+  display: block;
+}
+
+.connection-item small {
+  margin-top: 2px;
+  font-size: 11px;
+}
+
+.inline-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.probe-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.history-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.history-range {
+  display: flex;
+  gap: 4px;
+}
+
+.history-range .btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.source-summary {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.timeline {
+  display: grid;
+  gap: 0;
+  border-left: 1px solid var(--border);
+  margin-left: 6px;
+  padding-left: 16px;
+}
+
+.timeline-item {
+  position: relative;
+  padding: 8px 0 12px;
+}
+
+.timeline-dot {
+  position: absolute;
+  left: -21px;
+  top: 14px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+  border: 2px solid var(--surface);
+}
+
+.timeline-dot.quality {
+  background: var(--ok);
+}
+
+.timeline-dot.caster {
+  background: var(--info);
+}
+
+.timeline-dot.relay {
+  background: var(--warn);
+}
+
+.timeline-dot.audit {
+  background: var(--muted);
+}
+
+.timeline-content {
+  display: grid;
+  gap: 4px;
+}
+
+.timeline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.timeline-content p {
+  margin: 0;
+  font-size: 12px;
+}
+
+.timeline-content .mono {
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .reliability-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .detail-status-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .connection-card-head,
+  .connection-item:not(.block) {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

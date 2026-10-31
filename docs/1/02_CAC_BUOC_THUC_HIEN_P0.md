@@ -31,7 +31,8 @@ Quy ước:
 | Import relay cũ | Đã có | `server/src/db/importRelay.ts`; 67 job trong `db/data/config.json` |
 | Quét caster 1509/1508 | Đã có dữ liệu | 36 trạm; file trong `db/data/` |
 | Probe `hauloc`, `MocChautest` | PASS | 60 giây/mount; không CRC lỗi, không mất epoch |
-| P0.1–P0.6 (UX vận hành) | **Chưa làm** | `App.tsx` chưa có `/stations/:id`, `/map`, `/mountpoints/explorer`, `/system/health` |
+| P0.1 (chi tiết trạm) | **DONE** | `/stations/:id`, drawer 5 tab, 3 status độc lập, reliability, connections/history/metadata |
+| P0.2–P0.6 (UX vận hành) | **Chưa làm** | `App.tsx` chưa có `/map`, `/mountpoints/explorer`, `/system/health` |
 | P0.7 (import hệ cũ) | **Chưa làm** | Chưa có `importLegacyCaster` |
 | P0.8 (HTTPS/domain) | **Chưa làm** | Web đang HTTP `:3000` |
 | P0.9 (load test) | **Chưa đủ** | Mới có load test 50 job; cần 67–100 |
@@ -160,12 +161,12 @@ trạm có đang chạy, dữ liệu tốt không, liên quan relay/tài khoản
 
 ### Checklist test
 
-- [ ] Server test cho status/reliability.
-- [ ] Test API connection/history/metadata.
-- [ ] Playwright mở `/stations/80`, đổi 5 tab.
-- [ ] Refresh giữ drawer và filter.
-- [ ] User scope `own` chỉ thấy trạm của mình.
-- [ ] Không lộ credential/secret trong response.
+- [x] Server test cho status/reliability.
+- [x] Test API connection/history/metadata.
+- [x] Playwright mở `/stations/80`, đổi 5 tab.
+- [x] Refresh giữ drawer và filter.
+- [x] User scope `own` chỉ thấy trạm của mình.
+- [x] Không lộ credential/secret trong response.
 
 ### Ghi chú
 
@@ -828,3 +829,35 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
 - Không commit secret; `db/data/config.json` là dữ liệu nhạy cảm.
 - Nếu tài liệu này mâu thuẫn với `docs/0` hoặc `01_KE_HOACH_P0_VAN_HANH.md`,
   tài liệu gốc thắng.
+
+## 6. Nhật ký thực hiện
+
+### Phase 1 — P0.1: Chi tiết trạm (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Backend:
+  - Thêm `server/src/lib/stationDetail.ts` (transport/quality/metadata status,
+    reliability, kiểm tra 1005/ARP).
+  - Mở rộng `GET /api/stations/:id` với 3 status độc lập và `reliability`.
+  - Thêm `GET /api/stations/:id/connections`,
+    `GET /api/stations/:id/history`, `GET /api/stations/:id/metadata`.
+  - Lịch sử gộp quality/caster/relay/audit; tách truy vấn admin/runtime để
+    không join chéo schema.
+- Frontend:
+  - Thêm `StationDetailDrawer.tsx` 5 tab; Reliability block; deep link
+    `/stations/:id?tab=...`; giữ `page/pageSize/q` khi đóng.
+  - Thêm type station detail/connections/history/metadata và CSS responsive.
+  - Tab lịch sử có lọc 24h/7d/30d, phân trang, hiển thị nguồn thật.
+- Kiểm thử:
+  - `server npm run build`: PASS.
+  - `server npm test`: 41/41 PASS (trong đó 6 test stationDetail).
+  - `frontend npm run build`: PASS.
+  - Playwright `station-detail.spec.ts`: PASS — deep link, 5 tab, refresh,
+    giữ filter, mobile 390 không tràn.
+  - Playwright `quality.spec.ts`: PASS.
+  - API smoke trạm 79/80: transport online, quality good, metadata ok,
+    connection/history/metadata 200.
+  - RBAC `user1`: chỉ thấy `TEST_HNI_02`; trạm 80 trả 404.
+- Ghi chú: lịch sử probe chưa có bảng nên API trả `available=false` và UI ghi
+  rõ "chưa lưu lịch sử probe"; không bịa dữ liệu.
+- Commit: sẽ ghi hash sau khi commit phase này.

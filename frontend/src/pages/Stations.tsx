@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
@@ -18,10 +19,12 @@ import {
   Pagination,
   SearchInput,
   Select,
-  StatusBadge,
-  Tabs
+  StatusBadge
 } from '../components/ui';
-import { QualityPanel } from '../components/QualityPanel';
+import {
+  StationDetailDrawer,
+  type StationDetailTab
+} from '../components/StationDetailDrawer';
 import { useToast } from '../components/ToastProvider';
 
 interface StationList {
@@ -85,17 +88,35 @@ function stateKind(state?: string): 'ok' | 'warn' | 'error' | 'neutral' {
   return 'neutral';
 }
 
+const DETAIL_TABS: StationDetailTab[] = [
+  'overview',
+  'connection',
+  'quality',
+  'metadata',
+  'history'
+];
+
+function parseDetailTab(value: string | null): StationDetailTab {
+  return DETAIL_TABS.includes(value as StationDetailTab)
+    ? (value as StationDetailTab)
+    : 'overview';
+}
+
 export function Stations() {
   const { can, csrfToken } = useAuth();
   const { push } = useToast();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const { stationId: routeStationId } = useParams();
+  const [searchParams] = useSearchParams();
   const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<Station | null>(null);
   useDirtyGuard(dirty && formOpen);
-  const [detail, setDetail] = useState<Station | null>(null);
-  const [detailTab, setDetailTab] = useState<'overview' | 'connection' | 'quality'>('quality');
+  const stationId = Number(routeStationId);
+  const detailId = Number.isInteger(stationId) && stationId > 0 ? stationId : null;
+  const detailTab = parseDetailTab(searchParams.get('tab'));
   const [deleteTarget, setDeleteTarget] = useState<Station | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
@@ -180,7 +201,7 @@ export function Stations() {
       apiFetch(`/api/stations/${station.id}`, { method: 'DELETE', csrfToken }),
     onSuccess: async () => {
       setDeleteTarget(null);
-      setDetail(null);
+      closeDetail();
       push('Đã xóa trạm', 'success');
       await queryClient.invalidateQueries({ queryKey: ['stations'] });
     },
@@ -214,6 +235,40 @@ export function Stations() {
     onError: (err) => push(err instanceof ApiClientError ? err.message : 'Import thất bại', 'error')
   });
 
+  function openDetail(station: Station, tab: StationDetailTab = 'overview') {
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'overview') next.delete('tab');
+    else next.set('tab', tab);
+    navigate({
+      pathname: `/stations/${station.id}`,
+      search: next.toString()
+    });
+  }
+
+  function closeDetail() {
+    if (!detailId) return;
+    const next = new URLSearchParams(searchParams);
+    next.delete('tab');
+    navigate({
+      pathname: '/stations',
+      search: next.toString()
+    });
+  }
+
+  function changeDetailTab(tab: StationDetailTab) {
+    if (!detailId) return;
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'overview') next.delete('tab');
+    else next.set('tab', tab);
+    navigate(
+      {
+        pathname: `/stations/${detailId}`,
+        search: next.toString()
+      },
+      { replace: true }
+    );
+  }
+
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
@@ -228,7 +283,7 @@ export function Stations() {
     setError('');
     setDirty(false);
     setFormOpen(true);
-    setDetail(null);
+    closeDetail();
   }
 
   function submit(event: FormEvent) {
@@ -312,10 +367,7 @@ export function Stations() {
           loading={list.isLoading}
           error={list.isError ? 'Không tải được danh sách trạm.' : undefined}
           empty="Chưa có trạm nào."
-          onRowClick={(station) => {
-            setDetail(station);
-            setDetailTab('quality');
-          }}
+          onRowClick={(station) => openDetail(station)}
           columns={[
             {
               key: 'code',
@@ -723,172 +775,15 @@ export function Stations() {
         </form>
       </Modal>
 
-      <Modal
-        open={Boolean(detail)}
-        onOpenChange={(open) => !open && setDetail(null)}
-        title={detail?.name ?? 'Chi tiết trạm'}
-        description={detail?.code}
-        side="right"
-        size="lg"
-        footer={
-          detail && (
-            <>
-              {can('stations', 'edit') && (
-                <Button onClick={() => openEdit(detail)}>
-                  <Pencil size={16} aria-hidden="true" /> Sửa
-                </Button>
-              )}
-              <Button variant="ghost" onClick={() => setDetail(null)}>
-                Đóng
-              </Button>
-            </>
-          )
-        }
-      >
-        {detail && (
-          <Tabs
-            value={detailTab}
-            options={[
-              { value: 'overview', label: 'Tổng quan' },
-              { value: 'connection', label: 'Kết nối' },
-              ...(can('quality', 'view')
-                ? [{ value: 'quality' as const, label: 'Chất lượng' }]
-                : [])
-            ]}
-            onChange={(value) => setDetailTab(value as 'overview' | 'connection' | 'quality')}
-          />
-        )}
-        {detail && detailTab !== 'quality' && (
-          <dl className="facts">
-            <div>
-              <dt>Nguồn dữ liệu</dt>
-              <dd>
-                {detail.source_type === 'relay_caster'
-                  ? 'NTRIP caster (relay)'
-                  : detail.source_type === 'probe_client'
-                    ? 'NTRIP client (probe)'
-                    : detail.source_type === 'caster_ingest'
-                      ? 'NTRIP caster (ingest)'
-                      : detail.ntrip_mode === 'ntrip_client'
-                        ? 'NTRIP client'
-                        : 'Thủ công'}
-              </dd>
-            </div>
-            <div>
-              <dt>NTRIP</dt>
-              <dd>
-                {detail.ntrip_version?.toUpperCase() ?? 'V1'} · {detail.ntrip_mode ?? 'v1_noauth'}
-              </dd>
-            </div>
-            {detail.relay_job_id && (
-              <div>
-                <dt>Relay job</dt>
-                <dd>
-                  {detail.relay_job_name ?? `#${detail.relay_job_id}`}
-                  <span className="muted">
-                    {' '}· {detail.relay_upstream_host}:{detail.relay_upstream_port}
-                    {detail.relay_upstream_mount ? `/${detail.relay_upstream_mount}` : ''}
-                  </span>
-                </dd>
-              </div>
-            )}
-            <div>
-              <dt>Relay upstream host</dt>
-              <dd className="mono">
-                {detail.relay_upstream_host
-                  ? `${detail.relay_upstream_host}:${detail.relay_upstream_port ?? ''}`
-                  : '—'}
-              </dd>
-            </div>
-            {!detail.relay_job_id && (
-              <div>
-                <dt>Host</dt>
-                <dd className="mono">
-                  {detail.host}:{detail.port}
-                </dd>
-              </div>
-            )}
-            <div>
-              <dt>Trạng thái</dt>
-              <dd>
-                <StatusBadge
-                  label={detail.quality_state || 'unknown'}
-                  kind={stateKind(detail.quality_state)}
-                />
-              </dd>
-            </div>
-            <div>
-              <dt>WGS84 lat/lon (1005)</dt>
-              <dd className="mono">
-                {detail.reported_lat == null || detail.reported_lon == null
-                  ? 'Chưa có message 1005/1006'
-                  : `${detail.reported_lat.toFixed(6)}, ${detail.reported_lon.toFixed(6)}`}
-              </dd>
-            </div>
-            <div>
-              <dt>WGS84 height</dt>
-              <dd className="mono">
-                {detail.reported_height == null ? '—' : `${detail.reported_height.toFixed(3)} m`}
-              </dd>
-            </div>
-            <div>
-              <dt>VN2000 (TM 105°)</dt>
-              <dd className="mono">
-                {detail.vn2000_easting == null || detail.vn2000_northing == null
-                  ? '—'
-                  : `E ${detail.vn2000_easting.toFixed(3)} · N ${detail.vn2000_northing.toFixed(3)}`}
-              </dd>
-            </div>
-            <div>
-              <dt>ITRF spatial (ECEF)</dt>
-              <dd className="mono">
-                {detail.itrf_x == null || detail.itrf_y == null || detail.itrf_z == null
-                  ? '—'
-                  : `X ${detail.itrf_x.toFixed(3)} · Y ${detail.itrf_y.toFixed(3)} · Z ${detail.itrf_z.toFixed(3)}`}
-              </dd>
-            </div>
-            <div>
-              <dt>Station ID 1005</dt>
-              <dd className="mono">{detail.reported_station_id ?? '—'}</dd>
-            </div>
-            <div>
-              <dt>Owner</dt>
-              <dd>{detail.owner_name || detail.owner_web_user_id || '—'}</dd>
-            </div>
-            <div>
-              <dt>Receiver</dt>
-              <dd>
-                {detail.receiver_type || '—'} · {detail.receiver_sn || '—'}
-              </dd>
-            </div>
-            <div>
-              <dt>Antenna</dt>
-              <dd>
-                {detail.antenna_type || '—'} · {detail.antenna_height ?? '—'} m
-              </dd>
-            </div>
-            <div>
-              <dt>Vùng</dt>
-              <dd>{detail.region || '—'}</dd>
-            </div>
-            <div>
-              <dt>Dữ liệu cuối</dt>
-              <dd className="mono">
-                {detail.last_data_at
-                  ? new Date(detail.last_data_at).toLocaleString('vi-VN')
-                  : '—'}
-              </dd>
-            </div>
-            <div>
-              <dt>Ghi chú</dt>
-              <dd>{detail.notes || '—'}</dd>
-            </div>
-          </dl>
-        )}
-        {detail && detailTab === 'quality' && can('quality', 'view') && (
-          <QualityPanel key={detail.id} targetType="station" targetId={detail.id} />
-        )}
-      </Modal>
+      {detailId && (
+        <StationDetailDrawer
+          stationId={detailId}
+          tab={detailTab}
+          onTabChange={changeDetailTab}
+          onClose={closeDetail}
+          onEdit={openEdit}
+        />
+      )}
 
       <Modal
         open={Boolean(importPreview)}

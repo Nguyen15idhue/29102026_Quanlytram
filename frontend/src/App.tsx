@@ -42,6 +42,7 @@ export function App() {
         <Route element={<Protected />}>
           <Route index element={<Dashboard />} />
           <Route path="/stations" element={<Stations />} />
+          <Route path="/stations/:stationId" element={<Stations />} />
           <Route path="/stations/map" element={<StationMap />} />
           <Route path="/online/map" element={<OnlineMap />} />
           <Route path="/online" element={<OnlineList />} />

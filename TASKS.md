@@ -21,6 +21,25 @@
 
 Quy tắc: không chuyển phase nếu checklist của phase hiện tại chưa PASS.
 
+## 1b. P0 vận hành (docs/1)
+
+| Phase | Tên | Trạng thái |
+|---|---|---|
+| P0.1 | Chi tiết trạm `/stations/:id` 5 tab | DONE |
+| P0.2 | Mountpoint Explorer | TODO |
+| P0.3 | Bản đồ vận hành hợp nhất `/map` | TODO |
+| P0.4 | System Health `/system/health` | TODO |
+| P0.5 | Dashboard vận hành & alert impact | TODO |
+| P0.6 | Menu, route, deep link | TODO |
+| P0.7 + P0.12 | Provision hệ cũ | TODO |
+| P0.8 | HTTPS/domain/reverse proxy | TODO |
+| P0.9 | Load test 67–100 relay job | TODO |
+| P0.10 | Backup/restore/rollback | TODO |
+| P0.11 | Auth password-only | TODO |
+| P0.13 | Cutover & theo dõi | TODO |
+
+Chi tiết bằng chứng: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
+
 ---
 
 ## 2. Phase 0 — Chuẩn bị & xác minh

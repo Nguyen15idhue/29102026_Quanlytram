@@ -4,9 +4,25 @@ import { RowDataPacket } from 'mysql2/promise';
 import { adminPool, query, withTransaction } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
 import { writeAudit } from '../lib/audit';
+import { type GoConnection, publicConnection } from '../lib/caster';
 import { buildWorkbook, readSheetRows, readWorkbook, sendWorkbook } from '../lib/excel';
 import { asyncHandler, ApiError } from '../lib/http';
 import { ecefToGeodetic, geodeticToVn2000 } from '../lib/geo';
+import { callGoInternal } from '../lib/internalApi';
+import {
+  fetchLiveQuality,
+  mapSample,
+  parseWindowMinutes,
+  type QualityLive
+} from '../lib/quality';
+import {
+  buildReliability,
+  metadataStatusFor,
+  qualityStatusFor,
+  sampleHasArp,
+  sampleMetadataOk,
+  transportStatusFor
+} from '../lib/stationDetail';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import { assertRecordScope, ipFrom, listScope, pageFrom, scopeIdsFor } from '../rbac/access';
@@ -89,7 +105,8 @@ async function qualityMap(ids: number[]): Promise<Map<number, any>> {
   if (ids.length === 0) return map;
   const placeholders = ids.map(() => '?').join(',');
   const rows = await runtimeQuery<RowDataPacket[]>(
-    `SELECT target_id, score, state, ts, arp_x, arp_y, arp_z, reported_station_id, satellites, cells, age_ms FROM (
+    `SELECT target_id, score, state, ts, arp_x, arp_y, arp_z, reported_station_id,
+            satellites, cells, msm_epochs, antenna, age_ms FROM (
        SELECT qs.*, ROW_NUMBER() OVER (PARTITION BY target_id ORDER BY ts DESC) AS rn
          FROM quality_samples qs
         WHERE target_type = 'station' AND target_id IN (${placeholders})
@@ -185,8 +202,24 @@ function withQuality(
     vn2000Easting = vn2000.easting;
     vn2000Northing = vn2000.northing;
   }
+  const sampleAgeMs = item?.ts ? Math.max(0, Date.now() - new Date(item.ts).getTime()) : null;
+  const hasMsm = Number(item?.cells ?? 0) > 0 || Number(item?.msm_epochs ?? 0) > 0;
   return {
     ...row,
+    transportStatus: transportStatusFor(item?.state, sampleAgeMs),
+    qualityStatus: qualityStatusFor({
+      score: item ? Number(item.score) : null,
+      state: item?.state,
+      metadataOk: sampleMetadataOk(item),
+      hasMsm
+    }),
+    metadataStatus: metadataStatusFor({
+      present: Boolean(item),
+      streaming: String(item?.state ?? '') === 'streaming',
+      reportedStationId: item?.reported_station_id,
+      hasArp: sampleHasArp(item),
+      antenna: item?.antenna
+    }),
     owner_name: row.owner_name ?? '',
     mountpoint_count: Number(row.mountpoint_count ?? 0),
     source_type: sourceType,
@@ -213,6 +246,102 @@ function withQuality(
     quality_state: item ? String(item.state) : 'unknown',
     last_data_at: item ? item.ts : null
   };
+}
+
+async function stationSampleRows(id: number, windowSec = 900): Promise<any[]> {
+  return runtimeQuery<RowDataPacket[]>(
+    `SELECT ts, score, state, frames, bytes, crc_errors, parse_errors, msm_epochs,
+            satellites, signals, cells, avg_cnr, reported_station_id, arp_x, arp_y, arp_z,
+            arp_delta_m, antenna, age_ms, gaps, cnr_available, details
+       FROM quality_samples
+      WHERE target_type = 'station' AND target_id = ? AND ts >= ?
+      ORDER BY ts DESC
+      LIMIT 2000`,
+    [id, new Date(Date.now() - windowSec * 1000)]
+  );
+}
+
+async function scopedStation(req: any, id: number): Promise<any> {
+  const station = await getStation(id);
+  if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+  await assertRecordScope(req, station.owner_web_user_id);
+  return station;
+}
+
+function statusesForLive(live: QualityLive) {
+  const hasArp =
+    live.arpX !== null &&
+    live.arpX !== undefined &&
+    live.arpY !== null &&
+    live.arpY !== undefined &&
+    live.arpZ !== null &&
+    live.arpZ !== undefined;
+  return {
+    transportStatus: transportStatusFor(live.state, live.ageMs),
+    qualityStatus: qualityStatusFor({
+      score: live.score,
+      state: live.state,
+      metadataOk: live.metadataOk,
+      hasMsm: Number(live.cells ?? 0) > 0 || Number(live.msmEpochs ?? 0) > 0
+    }),
+    metadataStatus: metadataStatusFor({
+      present: true,
+      streaming: live.state === 'streaming',
+      reportedStationId: live.reportedStationId,
+      hasArp,
+      antenna: live.antenna
+    })
+  };
+}
+
+async function latestLiveStation(id: number): Promise<QualityLive | null> {
+  try {
+    const live = await fetchLiveQuality(1200);
+    return (
+      live.items.find(
+        (item) =>
+          item.targetType === 'station' && item.targetId === id && item.direction === 'ingest'
+      ) ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+
+async function casterConnectionsFor(mountpointIds: number[]): Promise<{
+  available: boolean;
+  items: GoConnection[];
+}> {
+  if (mountpointIds.length === 0) return { available: true, items: [] };
+  try {
+    const response = await callGoInternal<{ items: GoConnection[] }>(
+      '/internal/caster/connections',
+      undefined,
+      { method: 'GET', timeoutMs: 2000 }
+    );
+    const ids = new Set(mountpointIds.map(Number));
+    return {
+      available: true,
+      items: (response?.items ?? []).filter((item) => ids.has(Number(item.mountpointId)))
+    };
+  } catch {
+    return { available: false, items: [] };
+  }
+}
+
+function parseHistoryBoundary(raw: unknown, label: string): Date | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  const date = new Date(String(raw));
+  if (Number.isNaN(date.getTime())) {
+    throw new ApiError(400, 'VALIDATION_ERROR', `${label} không hợp lệ`);
+  }
+  return date;
+}
+
+function iso(value: unknown): string | null {
+  if (value === null || value === undefined) return null;
+  const date = new Date(value as string | number | Date);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 function whereFrom(req: any, scope: any, params: unknown[]) {
@@ -436,16 +565,543 @@ stationsRouter.get(
   '/:id',
   requirePermission('stations', 'view'),
   asyncHandler(async (req, res) => {
-    const station = await getStation(Number(req.params.id));
-    if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, station.owner_web_user_id);
-    const idsForMeta = [Number(station.id)];
-    const [quality, relays, probes] = await Promise.all([
-      qualityMap(idsForMeta),
-      relayMap(idsForMeta),
-      probeMap(idsForMeta)
+    const station = await scopedStation(req, Number(req.params.id));
+    const id = Number(station.id);
+    const [quality, relays, probes, samples, live] = await Promise.all([
+      qualityMap([id]),
+      relayMap([id]),
+      probeMap([id]),
+      stationSampleRows(id),
+      latestLiveStation(id)
     ]);
-    res.json({ item: withQuality(station, quality, relays, probes) });
+    const reliability = buildReliability(samples, { windowSec: 900 });
+    const item = withQuality(station, quality, relays, probes);
+    res.json({
+      item: {
+        ...item,
+        ...(live ? statusesForLive(live) : {}),
+        reliability
+      }
+    });
+  })
+);
+
+stationsRouter.get(
+  '/:id/connections',
+  requirePermission('stations', 'view'),
+  asyncHandler(async (req, res) => {
+    const station = await scopedStation(req, Number(req.params.id));
+    const stationId = Number(station.id);
+    const mountpointRows = await query<RowDataPacket[]>(
+      `SELECT id, name, enabled, requires_auth, service_type, position_mode,
+              satellite_systems, caster_interval, code_protocol, code_type, description
+         FROM mountpoints WHERE station_id = ? ORDER BY name`,
+      [stationId]
+    );
+    const mountpointIds = mountpointRows.map((row) => Number(row.id));
+
+    const [listenerRows, relayRows, probeRows] = await Promise.all([
+      mountpointIds.length
+        ? query<RowDataPacket[]>(
+            `SELECT lm.mountpoint_id, l.id, l.name, l.port, l.enabled, l.role
+               FROM caster_listener_mountpoints lm
+               JOIN caster_listeners l ON l.id = lm.listener_id
+              WHERE lm.mountpoint_id IN (${mountpointIds.map(() => '?').join(',')})
+              ORDER BY l.port, l.name`,
+            mountpointIds
+          )
+        : Promise.resolve([]),
+      query<RowDataPacket[]>(
+        `SELECT r.id, r.name, r.enabled, r.desired_revision,
+                r.upstream_host, r.upstream_port, r.upstream_mount, r.upstream_ssl,
+                r.upstream_ntrip_version, r.upstream_credential_id,
+                r.downstream_host, r.downstream_port, r.downstream_mount, r.downstream_ssl,
+                r.downstream_ntrip_version, r.downstream_credential_id, r.downstream_mode,
+                r.origin, r.updated_at
+           FROM relay_jobs r
+           JOIN mountpoints m ON m.name = r.upstream_mount
+          WHERE m.station_id = ? AND r.deleted_at IS NULL
+          ORDER BY r.id`,
+        [stationId]
+      ),
+      query<RowDataPacket[]>(
+        `SELECT id, mountpoint_id, enabled, probe_interval_sec, credential_id
+           FROM station_probes WHERE station_id = ? ORDER BY id`,
+        [stationId]
+      )
+    ]);
+
+    const relayIds = relayRows.map((row) => Number(row.id));
+    const [stateRows, sessionRows, caster] = await Promise.all([
+      relayIds.length
+        ? runtimeQuery<RowDataPacket[]>(
+            `SELECT * FROM relay_job_state
+              WHERE relay_job_id IN (${relayIds.map(() => '?').join(',')})`,
+            relayIds
+          )
+        : Promise.resolve([]),
+      relayIds.length
+        ? runtimeQuery<RowDataPacket[]>(
+            `SELECT * FROM (
+               SELECT rs.*, ROW_NUMBER() OVER (
+                 PARTITION BY relay_job_id ORDER BY start_ts DESC, id DESC
+               ) AS rn
+                 FROM relay_sessions rs
+                WHERE relay_job_id IN (${relayIds.map(() => '?').join(',')})
+             ) ranked WHERE rn = 1`,
+            relayIds
+          )
+        : Promise.resolve([]),
+      casterConnectionsFor(mountpointIds)
+    ]);
+
+    const stateMap = new Map<number, any>();
+    for (const row of stateRows) stateMap.set(Number(row.relay_job_id), row);
+    const sessionMap = new Map<number, any>();
+    for (const row of sessionRows) sessionMap.set(Number(row.relay_job_id), row);
+    const listenerMap = new Map<number, any[]>();
+    for (const row of listenerRows) {
+      const list = listenerMap.get(Number(row.mountpoint_id)) ?? [];
+      list.push({
+        id: Number(row.id),
+        name: String(row.name),
+        port: Number(row.port),
+        enabled: Boolean(row.enabled),
+        role: String(row.role)
+      });
+      listenerMap.set(Number(row.mountpoint_id), list);
+    }
+
+    const accountIds = [
+      ...new Set(
+        caster.items
+          .map((item) => item.accountId)
+          .filter((id): id is number => id !== null && id !== undefined)
+          .map(Number)
+      )
+    ];
+    const accountNames = new Map<number, string>();
+    if (accountIds.length > 0) {
+      const rows = await query<RowDataPacket[]>(
+        `SELECT id, username FROM ntrip_accounts
+          WHERE id IN (${accountIds.map(() => '?').join(',')})`,
+        accountIds
+      );
+      for (const row of rows) accountNames.set(Number(row.id), String(row.username));
+    }
+    const listenerNames = new Map<number, string>();
+    for (const row of listenerRows) {
+      listenerNames.set(Number(row.id), String(row.name));
+    }
+    const mountpointNames = new Map<number, string>();
+    for (const row of mountpointRows) {
+      mountpointNames.set(Number(row.id), String(row.name));
+    }
+    const online = caster.items.map((item) =>
+      publicConnection(
+        item,
+        listenerNames.get(Number(item.listenerId)),
+        mountpointNames.get(Number(item.mountpointId)),
+        item.accountId === null ? undefined : accountNames.get(Number(item.accountId))
+      )
+    );
+    const onlineByMountpoint = new Map<number, any[]>();
+    for (const connection of online) {
+      const list = onlineByMountpoint.get(connection.mountpointId) ?? [];
+      list.push(connection);
+      onlineByMountpoint.set(connection.mountpointId, list);
+    }
+
+    const mountpoints = mountpointRows.map((row) => {
+      const id = Number(row.id);
+      const name = String(row.name);
+      return {
+        id,
+        name,
+        enabled: Boolean(row.enabled),
+        requiresAuth: Boolean(row.requires_auth),
+        serviceType: String(row.service_type ?? ''),
+        positionMode: String(row.position_mode ?? ''),
+        satelliteSystems: String(row.satellite_systems ?? ''),
+        casterInterval: Number(row.caster_interval ?? 0),
+        codeProtocol: String(row.code_protocol ?? ''),
+        codeType: String(row.code_type ?? ''),
+        description: String(row.description ?? ''),
+        listeners: listenerMap.get(id) ?? [],
+        relays: relayRows
+          .filter((relay) => String(relay.upstream_mount).toLowerCase() === name.toLowerCase())
+          .map((relay) => {
+            const relayId = Number(relay.id);
+            const state = stateMap.get(relayId);
+            const session = sessionMap.get(relayId);
+            return {
+              id: relayId,
+              name: String(relay.name),
+              enabled: Boolean(relay.enabled),
+              desiredRevision: Number(relay.desired_revision ?? 0),
+              appliedRevision: state ? Number(state.applied_revision ?? 0) : null,
+              runtimeState: state ? String(state.runtime_state) : 'unknown',
+              lastAppliedAt: state?.last_applied_at ?? null,
+              lastError: state?.last_error ?? null,
+              upstream: {
+                host: String(relay.upstream_host),
+                port: Number(relay.upstream_port),
+                mount: String(relay.upstream_mount),
+                ssl: Boolean(relay.upstream_ssl),
+                ntripVersion: String(relay.upstream_ntrip_version),
+                hasCredential: relay.upstream_credential_id !== null
+              },
+              downstream: {
+                host: String(relay.downstream_host),
+                port: Number(relay.downstream_port),
+                mount: String(relay.downstream_mount),
+                ssl: Boolean(relay.downstream_ssl),
+                ntripVersion: String(relay.downstream_ntrip_version),
+                hasCredential: relay.downstream_credential_id !== null,
+                mode: String(relay.downstream_mode)
+              },
+              origin: String(relay.origin ?? ''),
+              updatedAt: relay.updated_at,
+              lastSession: session
+                ? {
+                    id: Number(session.id),
+                    startTs: session.start_ts,
+                    endTs: session.end_ts,
+                    durationSec:
+                      session.duration_sec === null ? null : Number(session.duration_sec),
+                    result: String(session.result ?? ''),
+                    closeReason: String(session.close_reason ?? ''),
+                    message: String(session.message ?? '')
+                  }
+                : null
+            };
+          }),
+        onlineConnections: onlineByMountpoint.get(id) ?? []
+      };
+    });
+
+    const probes = probeRows.map((row) => ({
+      id: Number(row.id),
+      mountpointId: row.mountpoint_id === null ? null : Number(row.mountpoint_id),
+      enabled: Boolean(row.enabled),
+      probeIntervalSec: Number(row.probe_interval_sec),
+      hasCredential: row.credential_id !== null
+    }));
+
+    res.json({
+      stationId,
+      generatedAt: new Date().toISOString(),
+      casterAvailable: caster.available,
+      summary: {
+        mountpoints: mountpoints.length,
+        relays: relayRows.length,
+        listeners: new Set(listenerRows.map((row) => Number(row.id))).size,
+        probes: probes.length,
+        onlineConnections: online.length
+      },
+      mountpoints,
+      probes,
+      onlineConnections: online,
+      probeHistory: {
+        available: false,
+        message: 'Chưa lưu lịch sử probe; chỉ có cấu hình probe hiện tại.'
+      }
+    });
+  })
+);
+
+stationsRouter.get(
+  '/:id/history',
+  requirePermission('stations', 'view'),
+  asyncHandler(async (req, res) => {
+    const station = await scopedStation(req, Number(req.params.id));
+    const stationId = Number(station.id);
+    const { pageSize, offset } = pageFrom(req);
+    const to = parseHistoryBoundary(req.query.to, 'Đến ngày') ?? new Date();
+    const from =
+      parseHistoryBoundary(req.query.from, 'Từ ngày') ??
+      new Date(to.getTime() - 24 * 3600_000);
+    if (from.getTime() > to.getTime()) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Từ ngày phải trước đến ngày');
+    }
+
+    const events: Array<{
+      id: string;
+      source: 'quality' | 'caster' | 'relay' | 'audit';
+      type: string;
+      at: string;
+      title: string;
+      detail: string;
+      level: string;
+    }> = [];
+
+    const qualityRows = (
+      await runtimeQuery<RowDataPacket[]>(
+        `SELECT ts, score, state, frames, bytes, crc_errors, age_ms, gaps
+           FROM quality_samples
+          WHERE target_type = 'station' AND target_id = ? AND direction = 'ingest'
+            AND ts >= ? AND ts <= ?
+          ORDER BY ts DESC
+          LIMIT 5000`,
+        [stationId, from, to]
+      )
+    ).reverse();
+    let previous: any = null;
+    qualityRows.forEach((row, index) => {
+      const at = iso(row.ts);
+      if (!at) return;
+      const state = String(row.state ?? 'unknown');
+      const score = Number(row.score ?? 0);
+      if (!previous) {
+        events.push({
+          id: `quality:${index}:${at}`,
+          source: 'quality',
+          type: 'quality_start',
+          at,
+          title: 'Bắt đầu có dữ liệu chất lượng',
+          detail: `Score ${score} · ${state}`,
+          level: state === 'error' ? 'critical' : state === 'stale' ? 'warning' : 'info'
+        });
+      } else if (state !== previous.state) {
+        events.push({
+          id: `quality:${index}:${at}`,
+          source: 'quality',
+          type: 'quality_state',
+          at,
+          title: `Chất lượng đổi trạng thái: ${previous.state} → ${state}`,
+          detail: `Score ${score} · frame ${Number(row.frames ?? 0)} · CRC ${Number(row.crc_errors ?? 0)}`,
+          level: state === 'error' ? 'critical' : state === 'stale' ? 'warning' : 'info'
+        });
+      } else if (Math.abs(score - Number(previous.score ?? 0)) >= 5) {
+        events.push({
+          id: `quality:${index}:${at}`,
+          source: 'quality',
+          type: 'quality_score',
+          at,
+          title: `Điểm chất lượng đổi ${Number(previous.score ?? 0)} → ${score}`,
+          detail: `Frame ${Number(row.frames ?? 0)} · age ${Number(row.age_ms ?? 0)} ms · gap ${Number(row.gaps ?? 0)}`,
+          level: score < 60 ? 'critical' : score < 85 ? 'warning' : 'info'
+        });
+      }
+      previous = row;
+    });
+
+    const stationMountpoints = await query<RowDataPacket[]>(
+      'SELECT id, name FROM mountpoints WHERE station_id = ?',
+      [stationId]
+    );
+    const mountpointIds = stationMountpoints.map((row) => Number(row.id));
+    const mountpointNames = new Map<number, string>();
+    for (const row of stationMountpoints) {
+      mountpointNames.set(Number(row.id), String(row.name));
+    }
+
+    const casterRows = mountpointIds.length
+      ? await runtimeQuery<RowDataPacket[]>(
+          `SELECT id, mountpoint_id, remote_addr, user_agent, start_ts, end_ts,
+                  bytes_in, bytes_out, disconnect_reason
+             FROM caster_connections
+            WHERE mountpoint_id IN (${mountpointIds.map(() => '?').join(',')})
+              AND start_ts <= ? AND (end_ts IS NULL OR end_ts >= ?)
+            ORDER BY start_ts DESC
+            LIMIT 500`,
+          [...mountpointIds, to, from]
+        )
+      : [];
+    for (const row of casterRows) {
+      const mountpointName = mountpointNames.get(Number(row.mountpoint_id)) ?? '—';
+      const startAt = iso(row.start_ts);
+      if (startAt && new Date(startAt) >= from) {
+        events.push({
+          id: `caster:${Number(row.id)}:open`,
+          source: 'caster',
+          type: 'caster_open',
+          at: startAt,
+          title: `Mở kết nối caster · ${mountpointName}`,
+          detail: `${String(row.remote_addr || '—')}${row.user_agent ? ` · ${String(row.user_agent)}` : ''}`,
+          level: 'info'
+        });
+      }
+      const endAt = iso(row.end_ts);
+      if (endAt && new Date(endAt) >= from && new Date(endAt) <= to) {
+        events.push({
+          id: `caster:${Number(row.id)}:close`,
+          source: 'caster',
+          type: 'caster_close',
+          at: endAt,
+          title: `Đóng kết nối caster · ${mountpointName}`,
+          detail: `${String(row.disconnect_reason || 'unknown')} · in ${Number(row.bytes_in ?? 0)} B · out ${Number(row.bytes_out ?? 0)} B`,
+          level: row.disconnect_reason ? 'warning' : 'info'
+        });
+      }
+    }
+
+    const mountNameSet = new Set(
+      stationMountpoints.map((row) => String(row.name).toLowerCase())
+    );
+    const stationRelayJobs = (
+      await query<RowDataPacket[]>(
+        `SELECT id, name, upstream_mount FROM relay_jobs WHERE deleted_at IS NULL`
+      )
+    ).filter((row) => mountNameSet.has(String(row.upstream_mount).toLowerCase()));
+    const relayJobNames = new Map<number, string>();
+    for (const row of stationRelayJobs) {
+      relayJobNames.set(Number(row.id), String(row.name));
+    }
+    const relayIds = stationRelayJobs.map((row) => Number(row.id));
+    const relayRows = relayIds.length
+      ? await runtimeQuery<RowDataPacket[]>(
+          `SELECT id, relay_job_id, start_ts, end_ts, duration_sec, result,
+                  close_reason, message
+             FROM relay_sessions
+            WHERE relay_job_id IN (${relayIds.map(() => '?').join(',')})
+              AND start_ts <= ? AND (end_ts IS NULL OR end_ts >= ?)
+            ORDER BY start_ts DESC
+            LIMIT 500`,
+          [...relayIds, to, from]
+        )
+      : [];
+    for (const row of relayRows) {
+      const jobName = relayJobNames.get(Number(row.relay_job_id)) ?? `#${row.relay_job_id}`;
+      const startAt = iso(row.start_ts);
+      if (startAt && new Date(startAt) >= from) {
+        events.push({
+          id: `relay:${Number(row.id)}:start`,
+          source: 'relay',
+          type: 'relay_start',
+          at: startAt,
+          title: `Relay bắt đầu · ${jobName}`,
+          detail: `Job #${Number(row.relay_job_id)}`,
+          level: 'info'
+        });
+      }
+      const endAt = iso(row.end_ts);
+      if (endAt && new Date(endAt) >= from && new Date(endAt) <= to) {
+        events.push({
+          id: `relay:${Number(row.id)}:end`,
+          source: 'relay',
+          type: 'relay_end',
+          at: endAt,
+          title: `Relay kết thúc · ${jobName}`,
+          detail: `${String(row.result || row.close_reason || 'unknown')} · ${Number(row.duration_sec ?? 0)} giây${row.message ? ` · ${String(row.message)}` : ''}`,
+          level: row.close_reason === 'network' || row.close_reason === 'timeout' ? 'warning' : 'info'
+        });
+      }
+    }
+
+    const auditRows = await query<RowDataPacket[]>(
+      `SELECT a.id, a.action, a.created_at, u.username AS actor_name
+         FROM audit_logs a
+         LEFT JOIN web_users u ON u.id = a.actor_web_user_id
+        WHERE a.entity_type = 'station' AND a.entity_id = ?
+          AND a.created_at >= ? AND a.created_at <= ?
+        ORDER BY a.created_at DESC
+        LIMIT 500`,
+      [String(stationId), from, to]
+    );
+    for (const row of auditRows) {
+      const at = iso(row.created_at);
+      if (!at) continue;
+      events.push({
+        id: `audit:${Number(row.id)}`,
+        source: 'audit',
+        type: 'audit',
+        at,
+        title: `Cấu hình trạm · ${String(row.action)}`,
+        detail: `Bởi ${String(row.actor_name || 'hệ thống')}`,
+        level: 'info'
+      });
+    }
+
+    events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+    const sourceCounts = {
+      quality: events.filter((event) => event.source === 'quality').length,
+      caster: events.filter((event) => event.source === 'caster').length,
+      relay: events.filter((event) => event.source === 'relay').length,
+      audit: events.filter((event) => event.source === 'audit').length
+    };
+    res.json({
+      items: events.slice(offset, offset + pageSize),
+      total: events.length,
+      pageSize,
+      offset,
+      from: from.toISOString(),
+      to: to.toISOString(),
+      sources: sourceCounts,
+      probeHistory: {
+        available: false,
+        message: 'Chưa lưu lịch sử probe; chỉ có cấu hình probe hiện tại.'
+      }
+    });
+  })
+);
+
+stationsRouter.get(
+  '/:id/metadata',
+  requirePermission('stations', 'view'),
+  asyncHandler(async (req, res) => {
+    const station = await scopedStation(req, Number(req.params.id));
+    const stationId = Number(station.id);
+    const windowMinutes = parseWindowMinutes(req.query.window, 120);
+    const from = new Date(Date.now() - windowMinutes * 60_000);
+    const [samples, messageRows] = await Promise.all([
+      stationSampleRows(stationId, 900),
+      runtimeQuery<RowDataPacket[]>(
+        `SELECT message_type, SUM(count) AS total_count, SUM(bytes) AS total_bytes,
+                MIN(hour_start_utc) AS first_hour, MAX(last_seen_at) AS last_seen_at
+           FROM rtcm_message_stats
+          WHERE target_type = 'station' AND target_id = ? AND direction = 'ingest'
+            AND hour_start_utc >= ?
+          GROUP BY message_type
+          ORDER BY message_type`,
+        [stationId, from]
+      )
+    ]);
+    const latest = samples[0] ?? null;
+    const totalCount = messageRows.reduce((sum, row) => sum + Number(row.total_count ?? 0), 0);
+    const totalBytes = messageRows.reduce((sum, row) => sum + Number(row.total_bytes ?? 0), 0);
+    const latestSample = latest ? mapSample(latest) : null;
+    const hasArp = sampleHasArp(latest);
+    const has1005 =
+      latest?.reported_station_id !== null && latest?.reported_station_id !== undefined;
+    res.json({
+      stationId,
+      code: String(station.code),
+      name: String(station.name),
+      windowMinutes,
+      metadataStatus: metadataStatusFor({
+        present: Boolean(latest),
+        streaming: String(latest?.state ?? '') === 'streaming',
+        reportedStationId: latest?.reported_station_id,
+        hasArp,
+        antenna: latest?.antenna
+      }),
+      latest: latestSample,
+      metadata: {
+        has1005,
+        has1006: hasArp,
+        reportedStationId: latest?.reported_station_id ?? null,
+        arpX: hasArp ? Number(latest.arp_x) / 10000 : null,
+        arpY: hasArp ? Number(latest.arp_y) / 10000 : null,
+        arpZ: hasArp ? Number(latest.arp_z) / 10000 : null,
+        arpDeltaM:
+          latest?.arp_delta_m === null || latest?.arp_delta_m === undefined
+            ? null
+            : Number(latest.arp_delta_m),
+        antenna: latest?.antenna ?? null,
+        lastSeenAt: latestSample?.ts ?? null
+      },
+      messages: messageRows.map((row) => ({
+        messageType: Number(row.message_type),
+        count: Number(row.total_count ?? 0),
+        bytes: Number(row.total_bytes ?? 0),
+        ratePerMinute: Number(row.total_count ?? 0) / windowMinutes,
+        lastSeenAt: row.last_seen_at
+      })),
+      bitrateBps: totalBytes > 0 ? (totalBytes * 8) / (windowMinutes * 60) : 0,
+      messageRatePerMinute: totalCount / windowMinutes,
+      reliability: buildReliability(samples, { windowSec: 900 })
+    });
   })
 );
 

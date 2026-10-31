@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+﻿import { expect, test } from '@playwright/test';
 
 const password = process.env.E2E_PASSWORD ?? '';
 
@@ -24,6 +24,11 @@ test.describe('Phase 6 quality', () => {
     await expect(page.getByRole('heading', { name: 'Danh sách trạm' })).toBeVisible();
 
     await page.getByRole('row', { name: /TEST_HNI_01/ }).first().click();
+    await expect(page.getByRole('tab', { name: 'Tổng quan' })).toHaveAttribute(
+      'aria-selected',
+      'true'
+    );
+    await page.getByRole('tab', { name: 'Chất lượng' }).click();
     await expect(page.getByRole('heading', { name: 'Chất lượng RTCM' })).toBeVisible();
     await expect(
       page
@@ -48,6 +53,7 @@ test.describe('Phase 6 quality', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/stations');
     await page.getByRole('row', { name: /TEST_HNI_01/ }).first().click();
+    await page.getByRole('tab', { name: 'Chất lượng' }).click();
     await expect(page.getByRole('heading', { name: 'Chất lượng RTCM' })).toBeVisible();
     await page.screenshot({
       path: 'test-results/quality-station-detail-mobile-dark.png',
@@ -57,6 +63,7 @@ test.describe('Phase 6 quality', () => {
     await page.setViewportSize({ width: 768, height: 1024 });
     await page.goto('/stations');
     await page.getByRole('row', { name: /TEST_HNI_01/ }).first().click();
+    await page.getByRole('tab', { name: 'Chất lượng' }).click();
     await expect(page.getByRole('heading', { name: 'Chất lượng RTCM' })).toBeVisible();
     await page.screenshot({
       path: 'test-results/quality-station-detail-tablet-dark.png',

@@ -86,6 +86,165 @@ export interface Station {
   last_data_at?: string | null;
 }
 
+export type StationTransportStatus = 'online' | 'stale' | 'offline' | 'error' | 'unknown';
+export type StationQualityStatus = 'good' | 'warning' | 'critical' | 'unknown';
+export type StationMetadataStatus = 'ok' | 'warning' | 'critical' | 'unknown';
+
+export interface StationReliability {
+  windowSec: number;
+  sampleCount: number;
+  validSampleCount: number;
+  dataCompleteness: number;
+  observationStartedAt: string | null;
+  scoreUpdatedAt: string | null;
+  lastDataAt: string | null;
+}
+
+export interface StationDetail extends Station {
+  transportStatus: StationTransportStatus;
+  qualityStatus: StationQualityStatus;
+  metadataStatus: StationMetadataStatus;
+  reliability: StationReliability;
+}
+
+export interface StationConnectionListener {
+  id: number;
+  name: string;
+  port: number;
+  enabled: boolean;
+  role: string;
+}
+
+export interface StationConnectionRelay {
+  id: number;
+  name: string;
+  enabled: boolean;
+  desiredRevision: number;
+  appliedRevision: number | null;
+  runtimeState: string;
+  lastAppliedAt: string | null;
+  lastError: string | null;
+  upstream: {
+    host: string;
+    port: number;
+    mount: string;
+    ssl: boolean;
+    ntripVersion: string;
+    hasCredential: boolean;
+  };
+  downstream: {
+    host: string;
+    port: number;
+    mount: string;
+    ssl: boolean;
+    ntripVersion: string;
+    hasCredential: boolean;
+    mode: string;
+  };
+  origin: string;
+  updatedAt: string;
+  lastSession: {
+    id: number;
+    startTs: string;
+    endTs: string | null;
+    durationSec: number | null;
+    result: string;
+    closeReason: string;
+    message: string;
+  } | null;
+}
+
+export interface StationConnectionMountpoint {
+  id: number;
+  name: string;
+  enabled: boolean;
+  requiresAuth: boolean;
+  serviceType: string;
+  positionMode: string;
+  satelliteSystems: string;
+  casterInterval: number;
+  codeProtocol: string;
+  codeType: string;
+  description: string;
+  listeners: StationConnectionListener[];
+  relays: StationConnectionRelay[];
+  onlineConnections: CasterConnection[];
+}
+
+export interface StationConnectionsResponse {
+  stationId: number;
+  generatedAt: string;
+  casterAvailable: boolean;
+  summary: {
+    mountpoints: number;
+    relays: number;
+    listeners: number;
+    probes: number;
+    onlineConnections: number;
+  };
+  mountpoints: StationConnectionMountpoint[];
+  probes: Array<{
+    id: number;
+    mountpointId: number | null;
+    enabled: boolean;
+    probeIntervalSec: number;
+    hasCredential: boolean;
+  }>;
+  onlineConnections: CasterConnection[];
+  probeHistory: { available: boolean; message: string };
+}
+
+export interface StationHistoryItem {
+  id: string;
+  source: 'quality' | 'caster' | 'relay' | 'audit';
+  type: string;
+  at: string;
+  title: string;
+  detail: string;
+  level: string;
+}
+
+export interface StationHistoryResponse {
+  items: StationHistoryItem[];
+  total: number;
+  pageSize: number;
+  offset: number;
+  from: string;
+  to: string;
+  sources: { quality: number; caster: number; relay: number; audit: number };
+  probeHistory: { available: boolean; message: string };
+}
+
+export interface StationMetadataResponse {
+  stationId: number;
+  code: string;
+  name: string;
+  windowMinutes: number;
+  metadataStatus: StationMetadataStatus;
+  latest: QualitySample | null;
+  metadata: {
+    has1005: boolean;
+    has1006: boolean;
+    reportedStationId: number | null;
+    arpX: number | null;
+    arpY: number | null;
+    arpZ: number | null;
+    arpDeltaM: number | null;
+    antenna: string | null;
+    lastSeenAt: string | null;
+  };
+  messages: Array<{
+    messageType: number;
+    count: number;
+    bytes: number;
+    ratePerMinute: number;
+    lastSeenAt: string;
+  }>;
+  bitrateBps: number;
+  messageRatePerMinute: number;
+  reliability: StationReliability;
+}
+
 export interface Mountpoint {
   id: number;
   name: string;
