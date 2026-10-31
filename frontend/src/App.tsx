@@ -16,6 +16,7 @@ import { WebUsers } from './pages/WebUsers';
 import { Alerts } from './pages/Alerts';
 import { History } from './pages/History';
 import { Profile } from './pages/Profile';
+import { SystemHealth } from './pages/SystemHealth';
 
 const UnifiedMap = lazy(() =>
   import('./pages/UnifiedMap').then((module) => ({ default: module.UnifiedMap }))
@@ -55,6 +56,7 @@ export function App() {
           <Route path="/web-users" element={<WebUsers />} />
           <Route path="/roles" element={<Roles />} />
           <Route path="/profile" element={<Profile />} />
+          <Route path="/system/health" element={<SystemHealth />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

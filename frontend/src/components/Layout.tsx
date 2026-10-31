@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
+  Activity,
   Antenna,
   Bell,
   History,
@@ -36,6 +37,7 @@ const titles: Record<string, string> = {
   '/ntrip-accounts': 'Tài khoản NTRIP',
   '/web-users': 'Người dùng web',
   '/roles': 'Vai trò & quyền',
+  '/system/health': 'System Health',
   '/profile': 'Trang cá nhân'
 };
 
@@ -89,7 +91,13 @@ export function Layout() {
         { to: '/history', label: 'Lịch sử', icon: History, show: can('relay', 'view') || can('audit', 'view') },
         { to: '/alerts', label: 'Cảnh báo', icon: Bell, show: can('alerts', 'view') },
         { to: '/web-users', label: 'Người dùng', icon: Users, show: can('web_users', 'view') },
-        { to: '/roles', label: 'Phân quyền', icon: ShieldCheck, show: can('roles', 'view') }
+        { to: '/roles', label: 'Phân quyền', icon: ShieldCheck, show: can('roles', 'view') },
+        {
+          to: '/system/health',
+          label: 'System Health',
+          icon: Activity,
+          show: can('settings', 'view')
+        }
       ]
     }
   ];

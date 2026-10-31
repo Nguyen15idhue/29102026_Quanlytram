@@ -34,7 +34,8 @@ Quy ước:
 | P0.1 (chi tiết trạm) | **DONE** | `/stations/:id`, drawer 5 tab, 3 status độc lập, reliability, connections/history/metadata |
 | P0.2 (Mountpoint Explorer) | **DONE** | `/mountpoints/explorer`, API list/detail, filter trạm/trạng thái/owner/alert |
 | P0.3 (bản đồ hợp nhất) | **DONE** | `/map`, API overview, layer/filter, redirect bản đồ cũ |
-| P0.4–P0.6 (UX vận hành) | **Chưa làm** | `App.tsx` chưa có `/system/health` |
+| P0.4 (System Health) | **DONE** | `/system/health`, 4 card Node/Host/MySQL/Go, cache 12s, fallback lỗi |
+| P0.5–P0.6 (UX vận hành) | **Chưa làm** | Dashboard/alert impact và menu/deep link còn lại |
 | P0.7 (import hệ cũ) | **Chưa làm** | Chưa có `importLegacyCaster` |
 | P0.8 (HTTPS/domain) | **Chưa làm** | Web đang HTTP `:3000` |
 | P0.9 (load test) | **Chưa đủ** | Mới có load test 50 job; cần 67–100 |
@@ -334,11 +335,11 @@ cần Prometheus; chỉ cần số liệu đủ để quyết định.
 
 ### Checklist test
 
-- [ ] Test metric null fallback.
-- [ ] Test Go/MySQL down (mock).
-- [ ] Test không lộ secret.
-- [ ] Playwright mở trang, thấy 4 card.
-- [ ] Refresh không treo.
+- [x] Test metric null fallback.
+- [x] Test Go/MySQL down (mock).
+- [x] Test không lộ secret.
+- [x] Playwright mở trang, thấy 4 card.
+- [x] Refresh không treo.
 
 ### Ghi chú
 
@@ -912,3 +913,27 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
     missing_1005 = 2; `user1` chỉ thấy `TEST_HNI_02`.
 - Ghi chú: marker chỉ dùng toạ độ 1005/1006; không dùng lat/lon nhập tay.
 - Commit: `1d6b62b` — `feat(p0): ban do van hanh hop nhat`.
+
+### Phase 4 — P0.4: System Health (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Backend:
+  - Thêm `GET /api/system/health` quyền `settings.view`, cache 12 giây,
+    timeout 2–2,5 giây; không trả DSN/secret.
+  - Thu thập Node (uptime, CPU, RSS/heap, event-loop lag, socket clients),
+    host (CPU/load/RAM/disk/network fallback), MySQL (ping, schema, pool),
+    Go internal (quality health, relay, caster listener/connection).
+  - Thêm `healthStatus` threshold và test đơn vị.
+- Frontend:
+  - Thêm `/system/health` với 4 card, ngưỡng cảnh báo, trạng thái tổng,
+    thời điểm cập nhật, tự refresh 12 giây; menu Hệ thống.
+- Kiểm thử:
+  - `server npm run build` PASS; `server npm test` 48/48 PASS.
+  - `frontend npm run build` PASS.
+  - Playwright `system-health.spec.ts` PASS — 4 card, fallback network, refresh,
+    dark mode, mobile 390 không tràn.
+  - API thật: Node/Host/MySQL/Go trả metric; network ghi “không hỗ trợ”;
+    relay 2, caster 0, quality targets 6; không lộ secret.
+  - Mock Go down (`GO_INTERNAL_URL` sai): overall/error, Go error, MySQL ok.
+  - Mock MySQL down (`MYSQL_PORT` sai): overall/error, MySQL error, Go ok.
+- Commit: sẽ ghi hash sau khi commit phase này.

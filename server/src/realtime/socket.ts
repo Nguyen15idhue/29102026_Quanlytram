@@ -46,6 +46,12 @@ export interface RealtimeHandle {
   stop: () => Promise<void>;
 }
 
+let activeIo: SocketServer | null = null;
+
+export function socketClientCount(): number {
+  return activeIo?.engine?.clientsCount ?? 0;
+}
+
 export function parseCookieHeader(header: string | undefined): Record<string, string> {
   const out: Record<string, string> = {};
   if (!header) return out;
@@ -171,6 +177,7 @@ function qualityOwner(data: RawData, targetType: string, targetId: number): numb
 
 export function initRealtime(httpServer: HttpServer): RealtimeHandle {
   const io = new SocketServer(httpServer, {
+
     path: '/socket.io',
     cors: {
       origin: config.corsOrigin,
@@ -178,6 +185,7 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
     },
     serveClient: false
   });
+  activeIo = io;
 
   const onQualityAck = (event: unknown) => {
     io.emit('quality.alert.ack', event);
@@ -469,6 +477,7 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
       await new Promise<void>((resolve) => {
         io.close(() => resolve());
       });
+      activeIo = null;
     }
   };
 }
