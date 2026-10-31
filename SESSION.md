@@ -3,7 +3,8 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-10-30 21:00 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: P0 Phase 9 — Provision hệ cũ DONE; tiếp theo P0 Phase 10
+- Phase hiện tại: P1.0 — Baseline/backup/Unicode audit DONE; tiếp theo P1.1
+- Trạng thái P1.0: DONE (backup/restore PASS, graphify 2364 nodes, Playwright 15/15)
 - Trạng thái P0 Phase 1: DONE (drawer 5 tab, API connections/history/metadata)
 - Trạng thái P0 Phase 2: DONE (API list/detail, filter, drawer chuỗi)
 - Trạng thái P0 Phase 3: DONE (`/map`, API overview, layer/filter, redirect cũ)
@@ -77,9 +78,9 @@
 - Không có.
 
 ### Tiếp theo
-- P0 Phase 10 — HTTPS, domain và reverse proxy; xem
-  `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md`.
-- Không chuyển phase khi checklist Phase 10 chưa PASS.
+- P1.1 — Schema và dữ liệu nền; xem
+  `docs/1/03_CAC_BUOC_THUC_HIEN_P1.md`.
+- Không chuyển phase khi checklist P1.1 chưa PASS.
 
 ### Blocker
 - Không có. `go test -race` chưa chạy được vì môi trường Windows không bật

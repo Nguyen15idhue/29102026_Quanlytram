@@ -42,6 +42,25 @@ Quy tắc: không chuyển phase nếu checklist của phase hiện tại chưa 
 
 Chi tiết bằng chứng: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
 
+## 1c. P1 vận hành (docs/1)
+
+| Phase | Tên | Trạng thái |
+|---|---|---|
+| P1.0 | Baseline, backup, Graphify, Unicode audit | DONE |
+| P1.1 | Schema và dữ liệu nền | TODO |
+| P1.2 | RBAC tenant và menu | TODO |
+| P1.3 | DataTable selection, BulkActionBar, MultiSelect | TODO |
+| P1.4 | Dashboard counts và layout | TODO |
+| P1.5 | Trạm: form/view/source/Geoapify/uptime | TODO |
+| P1.6 | Mountpoint gộp Explorer + Listener | TODO |
+| P1.7 | NTRIP listener ACL + caster sourcetable | TODO |
+| P1.8 | Relay form + JSON import | TODO |
+| P1.9 | Unicode, history, hiển thị | TODO |
+| P1.10 | Regression và bàn giao P1 | TODO |
+| P1.11 | Bản đồ vận hành | DEFER |
+
+Chi tiết bằng chứng: `docs/1/03_CAC_BUOC_THUC_HIEN_P1.md` mục 11.
+
 ---
 
 ## 2. Phase 0 — Chuẩn bị & xác minh

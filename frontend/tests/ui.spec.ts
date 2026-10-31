@@ -38,7 +38,7 @@ test.describe('Phase 3.5 UI', () => {
     await expect(dialog.getByLabel('Port')).toHaveValue('1509');
     await dialog.getByLabel('Port').fill('1509');
     await dialog.getByRole('button', { name: 'Thêm', exact: true }).click();
-    await expect(page.getByText(`UI${suffix}`)).toBeVisible();
+    await expect(page.getByText(`UI test ${suffix}`).first()).toBeVisible();
 
     await page.getByRole('button', { name: `Sửa UI${suffix}` }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
@@ -47,7 +47,7 @@ test.describe('Phase 3.5 UI', () => {
     await page.getByRole('button', { name: `Xóa UI${suffix}` }).click();
     await expect(page.getByRole('alertdialog')).toBeVisible();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Xóa' }).click();
-    await expect(page.getByText(`UI${suffix}`)).toHaveCount(0);
+    await expect(page.getByText(`UI test ${suffix}`)).toHaveCount(0);
 
     for (const route of ['/mountpoints', '/relay-jobs', '/caster', '/ntrip-accounts', '/web-users', '/roles']) {
       await page.goto(route);
