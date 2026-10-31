@@ -1030,4 +1030,4 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
   - Migration admin 13 áp dụng; Node/Go health OK (admin 13, Go schema 4).
 - Ghi chú: migration forward-only; fail-fast qua schema check, không viết
   down migration trong P0.
-- Commit: sẽ ghi hash sau khi commit phase này.
+- Commit: `d9f7a13` — `feat(p0): auth password-only cho mountpoint`.
