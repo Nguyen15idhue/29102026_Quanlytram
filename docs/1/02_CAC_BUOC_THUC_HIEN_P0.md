@@ -1003,4 +1003,4 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
   - `AUTH_LOGIN_RATE_LIMIT` cấu hình được; mặc định vẫn 10/phút, local E2E
     dùng 50/phút để chạy 14 test, không hạ bảo vệ production.
 - Không còn FAIL chưa xử lý; không secret trong diff/log.
-- Commit: sẽ ghi hash sau khi commit phase này.
+- Commit: `8e42989` — `test(p0): full regression va tuong thich giao dien`.
