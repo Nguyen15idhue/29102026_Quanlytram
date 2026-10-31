@@ -1015,3 +1015,26 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
     “SLA Mộc Châu”/“THA Hậu Lộc”, notes đã repair, `/stations`, `/alerts`,
     `/history` không chứa `�`, `â€`, `Ã`.
 - Commit code: `fb4ac7f` — `fix(p1-9): utf8mb4 va repair unicode tieng viet`.
+
+### P1.10 — Regression và bàn giao (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Regression:
+  - Server build PASS; Vitest **53/53 PASS**.
+  - Frontend build PASS.
+  - Go `go test ./...` PASS; `go vet ./...` PASS.
+  - Playwright toàn bộ **29/29 PASS** (bao gồm P1.2–P1.9 và test cũ đã
+    cập nhật theo UI mới).
+  - Cập nhật test cũ: mountpoint tối giản, dashboard KPI mới, drawer thay
+    Explorer, quality dùng tên trạm, realtime user tenant, NTRIP ACL listener.
+- Dữ liệu/backup:
+  - Backup cuối: `C:\Users\ADMIN\AppData\Local\Temp\opencode\p1-final-backup`
+    (`admin.sql` 905.571 bytes, `runtime.sql` 12.194.255 bytes).
+  - Restore thử DB tạm: stations 39/39, mountpoints 39/39 → PASS; đã drop DB tạm.
+  - Dọn 2 station test `E2E_BULK_*` còn sót; DB về 39 trạm/39 mountpoint.
+  - `docker compose run --rm migrate`: admin=0, runtime=0 (idempotent).
+- Graphify:
+  - `graphify update .` PASS: **2.432 nodes, 6.023 edges, 172 communities**.
+- Không secret trong diff; `.env.local` không tracked.
+- P1.11 map: **DEFER** theo kế hoạch; dữ liệu/contract đã giữ ổn định.
+- Commit code: sẽ ghi hash sau khi commit phase này.

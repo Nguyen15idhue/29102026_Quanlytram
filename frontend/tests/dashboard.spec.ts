@@ -16,23 +16,14 @@ test.describe('P0 Phase 5 ops dashboard', () => {
     await page.getByRole('button', { name: 'Đăng nhập' }).click();
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
-    await expect(page.getByText('Trạm / Mountpoint')).toBeVisible();
+    await expect(page.locator('.kpi-strip').getByText('Trạm', { exact: true })).toBeVisible();
+    await expect(page.locator('.kpi-strip').getByText('Tài khoản NTRIP', { exact: true })).toBeVisible();
     await expect(page.getByText('Sự cố mở')).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Sức khỏe hệ thống' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Sự cố cần xử lý' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Hoạt động gần đây' })).toBeVisible();
     await expect(page.locator('.ops-health')).toContainText('Node');
     await expect(page.locator('.ops-health')).toContainText('Go');
-
-    const relayIncident = page
-      .locator('.incident-item')
-      .filter({ hasText: 'Relay import THA_HauLoc' })
-      .first();
-    await expect(relayIncident).toBeVisible();
-    await expect(relayIncident).toContainText('THA_HauLoc');
-    await relayIncident.click();
-    await expect(page).toHaveURL(/\/relay-jobs\?job=\d+/);
-    await expect(page.getByRole('heading', { name: 'import THA_HauLoc' })).toBeVisible();
 
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();

@@ -52,7 +52,8 @@ test.describe('Phase 5 realtime', () => {
       const response = await fetch('/api/snapshot', { credentials: 'include' });
       return response.json();
     });
-    expect(snapshot.item.summary.stations).toBe(1);
+    const stations = await (await page.request.get('/api/stations?page=1&pageSize=1')).json();
+    expect(snapshot.item.summary.stations).toBe(stations.total);
     expect(snapshot.item.summary.listeners).toBeGreaterThanOrEqual(0);
   });
 });

@@ -63,7 +63,7 @@ test.describe('Phase 7 station source and 1005 coordinates', () => {
       const accountDetail = page.getByRole('dialog');
       await expect(accountDetail.getByText('Công ty', { exact: true })).toBeVisible();
       await expect(accountDetail.getByText('Hiệu lực', { exact: true })).toBeVisible();
-      await expect(accountDetail.getByText('Auth method', { exact: true })).toBeVisible();
+      await expect(accountDetail.getByText('ACL listener', { exact: true })).toBeVisible();
       await accountDetail.getByRole('button', { name: 'Đóng' }).last().click();
     }
 
@@ -72,11 +72,9 @@ test.describe('Phase 7 station source and 1005 coordinates', () => {
     if (await mountpointRow.count()) {
       await mountpointRow.click();
       const mountpointDetail = page.getByRole('dialog');
-      await expect(mountpointDetail.getByText('Position mode', { exact: true })).toBeVisible();
-      await expect(mountpointDetail.getByText('Caster interval', { exact: true })).toBeVisible();
-      await expect(
-        mountpointDetail.getByText('Code protocol/type', { exact: true })
-      ).toBeVisible();
+      await expect(mountpointDetail.getByText('Online', { exact: true })).toBeVisible();
+      await expect(mountpointDetail.getByText('Relay lấy mountpoint')).toBeVisible();
+      await expect(mountpointDetail.getByText('Alert mở', { exact: true })).toBeVisible();
     }
 
     expect(errors).toEqual([]);
