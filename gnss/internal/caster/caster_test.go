@@ -243,6 +243,49 @@ func TestAuthACLAndMaxConnections(t *testing.T) {
 	}
 }
 
+func TestListenerACLAndSourcetable(t *testing.T) {
+	hash := passwordHash("secret123")
+	m1 := &MountpointConfig{ID: 1, Name: "M1", Enabled: true, RequiresAuth: true}
+	m2 := &MountpointConfig{ID: 2, Name: "M2", Enabled: true, RequiresAuth: true}
+	cfg := &Config{
+		Mountpoints: map[int64]*MountpointConfig{1: m1, 2: m2},
+		Accounts: []*AccountConfig{{
+			ID:             1,
+			Username:       "ok",
+			PasswordHash:   hash,
+			Enabled:        true,
+			MaxConnections: 2,
+			ACL:            map[int64]bool{1: true, 2: true},
+			ListenerACL:    map[int64]bool{1: true},
+		}},
+		Listeners: []*ListenerConfig{
+			{ID: 1, Name: "l1", Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: m1}},
+			{ID: 2, Name: "l2", Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{2: m2}},
+		},
+	}
+	manager, _ := newTestManager(t, cfg)
+	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("ok:secret123"))
+
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, m2, 2); code != 403 {
+		t.Fatalf("listener acl code = %d, want 403", code)
+	}
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, m1, 1); code != 0 {
+		t.Fatalf("allowed listener code = %d, want 0", code)
+	}
+	allowed := manager.sourcetableMountpoints(&request{Authorization: auth}, cfg.Listeners[0])
+	if len(allowed) != 1 || allowed[0].Name != "M1" {
+		t.Fatalf("sourcetable listener1 = %+v", allowed)
+	}
+	blocked := manager.sourcetableMountpoints(&request{Authorization: auth}, cfg.Listeners[1])
+	if len(blocked) != 0 {
+		t.Fatalf("sourcetable listener2 = %+v", blocked)
+	}
+	anonymous := manager.sourcetableMountpoints(&request{}, cfg.Listeners[0])
+	if len(anonymous) != 0 {
+		t.Fatalf("anonymous sourcetable = %+v", anonymous)
+	}
+}
+
 func TestPasswordOnlyMountpoint(t *testing.T) {
 	hash := passwordHash("secret123")
 	mountpoint := &MountpointConfig{

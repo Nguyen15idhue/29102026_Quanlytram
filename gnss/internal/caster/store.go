@@ -136,6 +136,7 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 			account.MaxConnections = 1
 		}
 		account.ACL = make(map[int64]bool)
+		account.ListenerACL = make(map[int64]bool)
 		accountsByID[account.ID] = &account
 		cfg.Accounts = append(cfg.Accounts, &account)
 	}
@@ -165,6 +166,27 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 		return nil, err
 	}
 	aclRows.Close()
+
+	listenerAclRows, err := s.db.QueryContext(ctx,
+		`SELECT account_id, listener_id FROM account_listener_acl`)
+	if err != nil {
+		return nil, fmt.Errorf("load account listener acl: %w", err)
+	}
+	for listenerAclRows.Next() {
+		var accountID, listenerID int64
+		if err := listenerAclRows.Scan(&accountID, &listenerID); err != nil {
+			listenerAclRows.Close()
+			return nil, err
+		}
+		if account := accountsByID[accountID]; account != nil {
+			account.ListenerACL[listenerID] = true
+		}
+	}
+	if err := listenerAclRows.Err(); err != nil {
+		listenerAclRows.Close()
+		return nil, err
+	}
+	listenerAclRows.Close()
 
 	return cfg, nil
 }

@@ -35,7 +35,9 @@ const createSchema = z.object({
   available_area: z.string().max(255).optional(),
   auth_method: z.string().max(32).optional(),
   notes: z.string().max(500).optional(),
-  owner_web_user_id: z.number().int().positive().nullable().optional()
+  owner_web_user_id: z.number().int().positive().nullable().optional(),
+  listenerIds: z.array(z.number().int().positive()).max(200).optional(),
+  mountpointIds: z.array(z.number().int().positive()).max(1000).optional()
 });
 
 const updateSchema = createSchema.partial();
@@ -43,6 +45,58 @@ const updateSchema = createSchema.partial();
 const aclSchema = z.object({
   mountpointIds: z.array(z.number().int().positive()).max(1000)
 });
+
+const listenerAclSchema = z.object({
+  listenerIds: z.array(z.number().int().positive()).max(200)
+});
+
+async function assertScopedIds(
+  req: any,
+  table: 'caster_listeners' | 'mountpoints',
+  ids: number[]
+): Promise<void> {
+  if (ids.length === 0) return;
+  const rows = await query<RowDataPacket[]>(
+    `SELECT id, owner_web_user_id FROM ${table}
+      WHERE id IN (${ids.map(() => '?').join(',')})`,
+    ids
+  );
+  if (rows.length !== ids.length) throw new ApiError(400, 'INVALID_ACL', 'ACL không tồn tại');
+  for (const row of rows) await assertRecordScope(req, row.owner_web_user_id);
+}
+
+async function listenerIdsFor(accountId: number): Promise<number[]> {
+  const rows = await query<RowDataPacket[]>(
+    'SELECT listener_id FROM account_listener_acl WHERE account_id = ? ORDER BY listener_id',
+    [accountId]
+  );
+  return rows.map((row) => Number(row.listener_id));
+}
+
+async function effectiveMountpoints(accountId: number): Promise<RowDataPacket[]> {
+  const listeners = await listenerIdsFor(accountId);
+  if (listeners.length === 0) {
+    return query<RowDataPacket[]>(
+      `SELECT m.id, m.name, m.station_id, s.code AS station_code, s.name AS station_name
+         FROM account_mountpoint_acl acl
+         JOIN mountpoints m ON m.id = acl.mountpoint_id
+         LEFT JOIN stations s ON s.id = m.station_id
+        WHERE acl.account_id = ? ORDER BY m.name`,
+      [accountId]
+    );
+  }
+  return query<RowDataPacket[]>(
+    `SELECT DISTINCT m.id, m.name, m.station_id, s.code AS station_code, s.name AS station_name
+       FROM account_mountpoint_acl acl
+       JOIN mountpoints m ON m.id = acl.mountpoint_id
+       JOIN caster_listener_mountpoints lm ON lm.mountpoint_id = m.id
+       LEFT JOIN stations s ON s.id = m.station_id
+      WHERE acl.account_id = ?
+        AND lm.listener_id IN (${listeners.map(() => '?').join(',')})
+      ORDER BY m.name`,
+    [accountId, ...listeners]
+  );
+}
 
 function publicAccount(row: RowDataPacket) {
   return {
@@ -57,7 +111,6 @@ function publicAccount(row: RowDataPacket) {
     validFrom: row.valid_from ?? null,
     validTo: row.valid_to ?? null,
     availableArea: String(row.available_area ?? ''),
-    authMethod: String(row.auth_method ?? 'basic'),
     notes: String(row.notes ?? ''),
     ownerWebUserId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
     createdAt: row.created_at,
@@ -147,7 +200,13 @@ ntripAccountsRouter.get(
   requirePermission('ntrip_accounts', 'view'),
   asyncHandler(async (req, res) => {
     const account = await assertAccountScope(req, Number(req.params.id));
-    res.json({ item: publicAccount(account) });
+    res.json({
+      item: {
+        ...publicAccount(account),
+        listenerIds: await listenerIdsFor(account.id),
+        effectiveMountpoints: await effectiveMountpoints(account.id)
+      }
+    });
   })
 );
 
@@ -156,15 +215,75 @@ ntripAccountsRouter.get(
   requirePermission('ntrip_accounts', 'view'),
   asyncHandler(async (req, res) => {
     const account = await assertAccountScope(req, Number(req.params.id));
-    const rows = await query<RowDataPacket[]>(
-      `SELECT m.id, m.name, m.station_id, s.code AS station_code, s.name AS station_name
-         FROM account_mountpoint_acl acl
-         JOIN mountpoints m ON m.id = acl.mountpoint_id
-         LEFT JOIN stations s ON s.id = m.station_id
-        WHERE acl.account_id = ? ORDER BY m.name`,
-      [account.id]
+    const rows = await effectiveMountpoints(account.id);
+    res.json({ items: rows, effectiveMountpoints: rows });
+  })
+);
+
+ntripAccountsRouter.get(
+  '/:id/listeners',
+  requirePermission('ntrip_accounts', 'view'),
+  asyncHandler(async (req, res) => {
+    const account = await assertAccountScope(req, Number(req.params.id));
+    const listenerIds = await listenerIdsFor(account.id);
+    const listeners = listenerIds.length
+      ? await query<RowDataPacket[]>(
+          `SELECT id, name, port, enabled FROM caster_listeners
+            WHERE id IN (${listenerIds.map(() => '?').join(',')}) ORDER BY name`,
+          listenerIds
+        )
+      : [];
+    res.json({
+      listenerIds,
+      listeners,
+      effectiveMountpoints: await effectiveMountpoints(account.id)
+    });
+  })
+);
+
+ntripAccountsRouter.put(
+  '/:id/listeners',
+  requirePermission('ntrip_accounts', 'edit'),
+  asyncHandler(async (req, res) => {
+    const account = await assertAccountScope(req, Number(req.params.id));
+    const body = listenerAclSchema.parse(req.body);
+    const ids = [...new Set(body.listenerIds)];
+    if (ids.length > 0) {
+      const rows = await query<RowDataPacket[]>(
+        `SELECT id, owner_web_user_id FROM caster_listeners
+          WHERE id IN (${ids.map(() => '?').join(',')})`,
+        ids
+      );
+      if (rows.length !== ids.length) {
+        throw new ApiError(400, 'INVALID_LISTENER', 'Listener không tồn tại');
+      }
+      for (const row of rows) {
+        await assertRecordScope(req, row.owner_web_user_id);
+      }
+    }
+    await withTransaction(async (conn) => {
+      await conn.query('DELETE FROM account_listener_acl WHERE account_id = ?', [account.id]);
+      for (const listenerId of ids) {
+        await conn.query(
+          'INSERT INTO account_listener_acl (account_id, listener_id) VALUES (?, ?)',
+          [account.id, listenerId]
+        );
+      }
+    });
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      'update_listener_acl',
+      'ntrip_account',
+      account.id,
+      null,
+      { listenerIds: ids },
+      ipFrom(req)
     );
-    res.json({ items: rows });
+    res.json({
+      listenerIds: ids,
+      effectiveMountpoints: await effectiveMountpoints(account.id)
+    });
   })
 );
 
@@ -215,6 +334,8 @@ ntripAccountsRouter.post(
   requirePermission('ntrip_accounts', 'add'),
   asyncHandler(async (req, res) => {
     const body = createSchema.parse(req.body);
+    await assertScopedIds(req, 'caster_listeners', [...new Set(body.listenerIds ?? [])]);
+    await assertScopedIds(req, 'mountpoints', [...new Set(body.mountpointIds ?? [])]);
     const ownerId = await resolveOwner(req, body.owner_web_user_id);
     const passwordHash = await hashPassword(body.password);
     let accountId: number;
@@ -236,6 +357,20 @@ ntripAccountsRouter.post(
     } catch (err) {
       duplicateGuard(err);
     }
+    await withTransaction(async (conn) => {
+      for (const listenerId of [...new Set(body.listenerIds ?? [])]) {
+        await conn.query(
+          'INSERT INTO account_listener_acl (account_id, listener_id) VALUES (?, ?)',
+          [accountId, listenerId]
+        );
+      }
+      for (const mountpointId of [...new Set(body.mountpointIds ?? [])]) {
+        await conn.query(
+          'INSERT INTO account_mountpoint_acl (account_id, mountpoint_id) VALUES (?, ?)',
+          [accountId, mountpointId]
+        );
+      }
+    });
     const account = await getAccount(accountId);
     await writeAudit(
       adminPool,
@@ -258,6 +393,12 @@ ntripAccountsRouter.patch(
     const id = Number(req.params.id);
     const before = await assertAccountScope(req, id);
     const body = updateSchema.parse(req.body);
+    if (body.listenerIds !== undefined) {
+      await assertScopedIds(req, 'caster_listeners', [...new Set(body.listenerIds)]);
+    }
+    if (body.mountpointIds !== undefined) {
+      await assertScopedIds(req, 'mountpoints', [...new Set(body.mountpointIds)]);
+    }
     const ownerId =
       body.owner_web_user_id === undefined
         ? Number(before.owner_web_user_id)
@@ -291,6 +432,28 @@ ntripAccountsRouter.patch(
       );
     } catch (err) {
       duplicateGuard(err);
+    }
+    if (body.listenerIds !== undefined || body.mountpointIds !== undefined) {
+      await withTransaction(async (conn) => {
+        if (body.listenerIds !== undefined) {
+          await conn.query('DELETE FROM account_listener_acl WHERE account_id = ?', [id]);
+          for (const listenerId of [...new Set(body.listenerIds)]) {
+            await conn.query(
+              'INSERT INTO account_listener_acl (account_id, listener_id) VALUES (?, ?)',
+              [id, listenerId]
+            );
+          }
+        }
+        if (body.mountpointIds !== undefined) {
+          await conn.query('DELETE FROM account_mountpoint_acl WHERE account_id = ?', [id]);
+          for (const mountpointId of [...new Set(body.mountpointIds)]) {
+            await conn.query(
+              'INSERT INTO account_mountpoint_acl (account_id, mountpoint_id) VALUES (?, ?)',
+              [id, mountpointId]
+            );
+          }
+        }
+      });
     }
     const after = await getAccount(id);
     await writeAudit(

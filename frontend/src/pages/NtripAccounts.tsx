@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
-import type { Mountpoint, NtripAccount } from '../types';
+import type { CasterListener, Mountpoint, NtripAccount } from '../types';
 import {
   BulkActionBar,
   Button,
@@ -38,7 +38,8 @@ interface MountpointList {
 const emptyForm = {
   username: '', password: '', enabled: true, max_connections: 1,
   company: '', contact_name: '', email: '', phone: '',
-  valid_from: '', valid_to: '', available_area: '', auth_method: 'basic', notes: ''
+  valid_from: '', valid_to: '', available_area: '',
+  notes: ''
 };
 
 export function NtripAccounts() {
@@ -69,6 +70,7 @@ export function NtripAccounts() {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [aclIds, setAclIds] = useState<number[]>([]);
+  const [listenerIds, setListenerIds] = useState<number[]>([]);
 
   const list = useQuery({
     queryKey: ['ntrip-accounts', listQuery],
@@ -84,10 +86,29 @@ export function NtripAccounts() {
     queryFn: () => apiFetch<MountpointList>(`/api/ntrip-accounts/${detail?.id}/mountpoints`),
     enabled: Boolean(detail)
   });
+  const listeners = useQuery({
+    queryKey: ['caster-listeners', 'acl-options'],
+    queryFn: () =>
+      apiFetch<{ items: CasterListener[] }>('/api/caster/listeners?page=1&pageSize=50'),
+    enabled: Boolean(detail) && can('caster', 'view')
+  });
+  const listenerAcl = useQuery({
+    queryKey: ['ntrip-listener-acl', detail?.id],
+    queryFn: () =>
+      apiFetch<{
+        listenerIds: number[];
+        listeners: CasterListener[];
+        effectiveMountpoints: Mountpoint[];
+      }>(`/api/ntrip-accounts/${detail?.id}/listeners`),
+    enabled: Boolean(detail)
+  });
 
   useEffect(() => {
     if (acl.data) setAclIds(acl.data.items.map((item) => item.id));
   }, [acl.data]);
+  useEffect(() => {
+    if (listenerAcl.data) setListenerIds(listenerAcl.data.listenerIds);
+  }, [listenerAcl.data]);
 
   const save = useMutation({
     mutationFn: async () => {
@@ -102,7 +123,6 @@ export function NtripAccounts() {
         valid_from: form.valid_from ? new Date(form.valid_from).toISOString() : null,
         valid_to: form.valid_to ? new Date(form.valid_to).toISOString() : null,
         available_area: form.available_area,
-        auth_method: form.auth_method,
         notes: form.notes
       };
       if (form.password) body.password = form.password;
@@ -170,6 +190,22 @@ export function NtripAccounts() {
     onError: (err) => push(err instanceof ApiClientError ? err.message : 'Lưu ACL thất bại', 'error')
   });
 
+  const saveListener = useMutation({
+    mutationFn: () =>
+      apiFetch(`/api/ntrip-accounts/${detail?.id}/listeners`, {
+        method: 'PUT',
+        body: { listenerIds },
+        csrfToken
+      }),
+    onSuccess: async () => {
+      push('Đã lưu ACL listener', 'success');
+      await queryClient.invalidateQueries({ queryKey: ['ntrip-listener-acl', detail?.id] });
+      await queryClient.invalidateQueries({ queryKey: ['ntrip-acl', detail?.id] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Lưu ACL listener thất bại', 'error')
+  });
+
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
@@ -192,7 +228,6 @@ export function NtripAccounts() {
       valid_from: account.validFrom ? account.validFrom.slice(0, 16) : '',
       valid_to: account.validTo ? account.validTo.slice(0, 16) : '',
       available_area: account.availableArea ?? '',
-      auth_method: account.authMethod ?? 'basic',
       notes: account.notes ?? ''
     });
     setError('');
@@ -302,17 +337,10 @@ export function NtripAccounts() {
               cell: (account) => account.maxConnections
             },
             {
-              key: 'auth',
-              header: 'Auth',
+              key: 'area',
+              header: 'Khu vực',
               hideOnMobile: true,
-              cell: (account) => (
-                <div>
-                  <div>{account.authMethod || 'basic'}</div>
-                  <div className="muted table-subline">
-                    {account.availableArea || 'Không giới hạn khu vực'}
-                  </div>
-                </div>
-              )
+              cell: (account) => account.availableArea || 'Không giới hạn'
             },
             {
               key: 'company',
@@ -476,9 +504,6 @@ export function NtripAccounts() {
           <Field label="Khu vực">
             <Input value={form.available_area} onChange={(event) => setForm({ ...form, available_area: event.target.value })} />
           </Field>
-          <Field label="Auth method">
-            <Input value={form.auth_method} onChange={(event) => setForm({ ...form, auth_method: event.target.value })} />
-          </Field>
           <Field label="Ghi chú">
             <Input value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
           </Field>
@@ -552,14 +577,43 @@ export function NtripAccounts() {
                 <dd>{detail.availableArea || '—'}</dd>
               </div>
               <div>
-                <dt>Auth method</dt>
-                <dd>{detail.authMethod || '—'}</dd>
-              </div>
-              <div>
                 <dt>Ghi chú</dt>
                 <dd>{detail.notes || '—'}</dd>
               </div>
             </dl>
+            <div className="panel">
+              <div className="table-head">
+                <h2>ACL listener</h2>
+                {can('ntrip_accounts', 'edit') && (
+                  <Button
+                    size="sm"
+                    onClick={() => saveListener.mutate()}
+                    loading={saveListener.isPending}
+                  >
+                    <KeyRound size={14} aria-hidden="true" /> Lưu listener
+                  </Button>
+                )}
+              </div>
+              {listeners.data?.items.length ? (
+                <SearchableMultiSelect
+                  items={listeners.data.items}
+                  selectedIds={listenerIds}
+                  onChange={setListenerIds}
+                  getId={(item) => item.id}
+                  getLabel={(item) => `${item.name} :${item.port}`}
+                  disabled={!can('ntrip_accounts', 'edit')}
+                  label="Listener được phép"
+                  placeholder="Tìm listener..."
+                />
+              ) : (
+                <p className="muted">Chưa có listener hoặc chưa có quyền xem.</p>
+              )}
+              <p className="muted">
+                Quyền hiệu lực:{' '}
+                {listenerAcl.data?.effectiveMountpoints.map((item) => item.name).join(', ') ||
+                  'chưa có mountpoint'}
+              </p>
+            </div>
             <div className="panel">
               <div className="table-head">
                 <h2>ACL mountpoint</h2>

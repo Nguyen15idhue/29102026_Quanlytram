@@ -64,7 +64,7 @@ func (lr *listenerRuntime) handle(conn net.Conn) {
 		if host == "" {
 			host = cfg.Name
 		}
-		_ = writeSourcetable(conn, req, mountpointList(cfg), host)
+		_ = writeSourcetable(conn, req, lr.mgr.sourcetableMountpoints(req, cfg), host)
 		return
 	}
 
@@ -88,7 +88,7 @@ func (lr *listenerRuntime) handleRover(conn net.Conn, br *bufio.Reader, req *req
 		_ = writeRequestError(conn, req, 404, "Not Found")
 		return
 	}
-	account, code, reason := lr.mgr.authorize(req, mountpoint)
+	account, code, reason := lr.mgr.authorize(req, mountpoint, cfg.ID)
 	if code != 0 {
 		if code == 401 {
 			_ = writeAuthRequired(conn, req)
@@ -147,7 +147,7 @@ func (lr *listenerRuntime) handleSource(conn net.Conn, br *bufio.Reader, req *re
 		_ = writeRequestError(conn, req, 404, "Not Found")
 		return
 	}
-	account, code, reason := lr.mgr.authorize(req, mountpoint)
+	account, code, reason := lr.mgr.authorize(req, mountpoint, cfg.ID)
 	if code != 0 {
 		if code == 401 {
 			_ = writeAuthRequired(conn, req)
@@ -252,7 +252,37 @@ func mountpointList(cfg *ListenerConfig) []*MountpointConfig {
 	return mountpoints
 }
 
-func (m *manager) authorize(req *request, mountpoint *MountpointConfig) (*AccountConfig, int, string) {
+func (m *manager) sourcetableMountpoints(req *request, cfg *ListenerConfig) []*MountpointConfig {
+	all := mountpointList(cfg)
+	username, password, hasBasic := ParseBasic(req.Authorization)
+	var account *AccountConfig
+	if hasBasic {
+		account = m.accountByUsername(username)
+		if account != nil && (!account.Enabled || !VerifyPassword(account.PasswordHash, password)) {
+			account = nil
+		}
+	}
+	out := make([]*MountpointConfig, 0, len(all))
+	for _, mountpoint := range all {
+		if mountpoint == nil || !mountpoint.Enabled {
+			continue
+		}
+		if !mountpoint.RequiresAuth {
+			out = append(out, mountpoint)
+			continue
+		}
+		if account == nil || !account.ACL[mountpoint.ID] {
+			continue
+		}
+		if len(account.ListenerACL) > 0 && !account.ListenerACL[cfg.ID] {
+			continue
+		}
+		out = append(out, mountpoint)
+	}
+	return out
+}
+
+func (m *manager) authorize(req *request, mountpoint *MountpointConfig, listenerID int64) (*AccountConfig, int, string) {
 	if !mountpoint.RequiresAuth {
 		return nil, 0, ""
 	}
@@ -274,6 +304,9 @@ func (m *manager) authorize(req *request, mountpoint *MountpointConfig) (*Accoun
 		return nil, 401, "Unauthorized"
 	}
 	if !account.ACL[mountpoint.ID] {
+		return nil, 403, "Forbidden"
+	}
+	if len(account.ListenerACL) > 0 && !account.ListenerACL[listenerID] {
 		return nil, 403, "Forbidden"
 	}
 	return account, 0, ""

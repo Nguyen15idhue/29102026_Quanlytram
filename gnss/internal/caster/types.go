@@ -41,6 +41,7 @@ type AccountConfig struct {
 	Enabled        bool
 	MaxConnections int
 	ACL            map[int64]bool
+	ListenerACL    map[int64]bool
 }
 
 type Config struct {

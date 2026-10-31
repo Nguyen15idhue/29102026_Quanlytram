@@ -949,3 +949,30 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
     tạo kèm mapping, patch giữ mapping, impact cảnh báo, UI 4 cột, không
     Explorer, mở drawer.
 - Commit code: `f644f6e` — `feat(p1-6): mountpoint toi gian drawer impact va listener mapping`.
+
+### P1.7 — NTRIP account ACL và caster (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Account:
+  - Bỏ `auth_method` khỏi form/table/public API.
+  - `GET/PUT /api/ntrip-accounts/:id/listeners`.
+  - Create/update nhận `listenerIds`, `mountpointIds`.
+  - `effectiveMountpoints = listenerMounts ∩ mountpoint ACL`; không có
+    listener ACL thì giữ hành vi legacy.
+  - UI có SearchableMultiSelect listener + mountpoint, preview quyền hiệu lực.
+- Go caster:
+  - `AccountConfig.ListenerACL`.
+  - Load `account_listener_acl`.
+  - `authorize(req, mountpoint, listenerID)` kiểm listener + mountpoint ACL
+    cho rover và source.
+  - Sourcetable Basic auth chỉ trả effective mountpoint; anonymous chỉ trả
+    mountpoint không yêu cầu auth.
+  - Max connection giữ nguyên.
+- Test:
+  - Go `go test ./internal/caster` PASS; `go vet` PASS.
+  - Server build PASS; Vitest **53/53 PASS**.
+  - Frontend build PASS.
+  - Playwright `p1-ntrip-acl.spec.ts` **1/1 PASS**: account có 2 mountpoint
+    nhưng listener chỉ 1 → effective còn 1; API không trả `authMethod`.
+- Ghi chú: cần rebuild container `gnss` ở P1.10 để chạy binary mới.
+- Commit code: sẽ ghi hash sau khi commit phase này.
