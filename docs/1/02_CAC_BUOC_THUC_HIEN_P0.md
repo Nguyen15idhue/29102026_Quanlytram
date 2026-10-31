@@ -911,4 +911,4 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
   - API: THA_HauLoc online/score 84/source relay_caster; layer online = 2;
     missing_1005 = 2; `user1` chỉ thấy `TEST_HNI_02`.
 - Ghi chú: marker chỉ dùng toạ độ 1005/1006; không dùng lat/lon nhập tay.
-- Commit: sẽ ghi hash sau khi commit phase này.
+- Commit: `1d6b62b` — `feat(p0): ban do van hanh hop nhat`.
