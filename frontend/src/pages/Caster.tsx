@@ -3,9 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Antenna, Pencil, Plus, Power, PowerOff, Trash2, Unplug } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useListParams } from '../lib/useListParams';
 import type { CasterConnection, CasterListener, Mountpoint } from '../types';
 import {
+  BulkActionBar,
   Button,
   ConfirmDialog,
   DataTable,
@@ -15,6 +17,7 @@ import {
   Modal,
   PageHeader,
   Pagination,
+  SearchableMultiSelect,
   SearchInput,
   Select,
   StatusBadge,
@@ -53,6 +56,8 @@ function ListenerPanel() {
   const [editing, setEditing] = useState<CasterListener | null>(null);
   const [detail, setDetail] = useState<CasterListener | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CasterListener | null>(null);
+  const [selected, setSelected] = useState<Set<string | number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [mountpointIds, setMountpointIds] = useState<number[]>([]);
@@ -118,6 +123,25 @@ function ListenerPanel() {
     onError: (err) => push(err instanceof ApiClientError ? err.message : 'Thao tác thất bại', 'error')
   });
 
+  const bulk = useMutation({
+    mutationFn: (bulkAction: string) =>
+      sendBulk('/api/caster/listeners/bulk', bulkAction, [...selected], csrfToken),
+    onSuccess: async (result, bulkAction) => {
+      setSelected(new Set());
+      setBulkDeleteOpen(false);
+      setDetail(null);
+      push(bulkMessage(result), result.forbidden || result.notFound ? 'error' : 'success');
+      if (bulkAction === 'delete') push('Đã xóa các listener đã chọn', 'success');
+      await queryClient.invalidateQueries({ queryKey: ['caster-listeners'] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Thao tác hàng loạt thất bại', 'error')
+  });
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [page, pageSize, q]);
+
   const saveMapping = useMutation({
     mutationFn: () =>
       apiFetch(`/api/caster/listeners/${detail?.id}/mountpoints`, {
@@ -175,9 +199,34 @@ function ListenerPanel() {
             )}
           </div>
         </div>
+        <BulkActionBar
+          count={selected.size}
+          onClear={() => setSelected(new Set())}
+          actions={[
+            ...(can('caster', 'edit')
+              ? [
+                  { label: 'Bật', onClick: () => bulk.mutate('enable') },
+                  { label: 'Tắt', onClick: () => bulk.mutate('disable') }
+                ]
+              : []),
+            ...(can('caster', 'delete')
+              ? [
+                  {
+                    label: 'Xóa',
+                    variant: 'danger' as const,
+                    onClick: () => setBulkDeleteOpen(true)
+                  }
+                ]
+              : [])
+          ]}
+        />
         <DataTable
           items={list.data?.items ?? []}
           rowKey={(listener) => listener.id}
+          selectable
+          selectedKeys={selected}
+          onSelectionChange={setSelected}
+          selectionLabel={(listener) => `listener ${listener.name}`}
           loading={list.isLoading}
           error={list.isError ? 'Không tải được listener.' : undefined}
           empty="Chưa có listener nào."
@@ -383,25 +432,16 @@ function ListenerPanel() {
                 )}
               </div>
               {mountpoints.data?.items.length ? (
-                <div className="check-list">
-                  {mountpoints.data.items.map((mountpoint) => (
-                    <label className="check" key={mountpoint.id}>
-                      <input
-                        type="checkbox"
-                        checked={mountpointIds.includes(mountpoint.id)}
-                        disabled={!can('caster', 'edit')}
-                        onChange={(event) =>
-                          setMountpointIds((current) =>
-                            event.target.checked
-                              ? [...current, mountpoint.id]
-                              : current.filter((id) => id !== mountpoint.id)
-                          )
-                        }
-                      />
-                      <span className="mono">{mountpoint.name}</span>
-                    </label>
-                  ))}
-                </div>
+                <SearchableMultiSelect
+                  items={mountpoints.data.items}
+                  selectedIds={mountpointIds}
+                  onChange={setMountpointIds}
+                  getId={(item) => item.id}
+                  getLabel={(item) => item.name}
+                  disabled={!can('caster', 'edit')}
+                  label="Mountpoint trên listener"
+                  placeholder="Tìm mountpoint..."
+                />
               ) : (
                 <p className="muted">Chưa có mountpoint hoặc chưa có quyền xem.</p>
               )}
@@ -417,6 +457,14 @@ function ListenerPanel() {
         description={`Listener ${deleteTarget?.name ?? ''} sẽ dừng và bị xóa.`}
         pending={action.isPending}
         onConfirm={() => deleteTarget && action.mutate({ listener: deleteTarget, action: 'delete' })}
+      />
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title="Xóa các listener đã chọn?"
+        description={`${selected.size} listener sẽ dừng và bị xóa.`}
+        pending={bulk.isPending}
+        onConfirm={() => bulk.mutate('delete')}
       />
     </>
   );

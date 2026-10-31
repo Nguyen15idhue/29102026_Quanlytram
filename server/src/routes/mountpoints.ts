@@ -1,14 +1,22 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { RowDataPacket } from 'mysql2/promise';
-import { adminPool, query } from '../db/pool';
+import { adminPool, query, withTransaction } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
 import { writeAudit } from '../lib/audit';
+import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
 import { hashPassword } from '../lib/password';
 import { asyncHandler, ApiError } from '../lib/http';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
-import { assertRecordScope, ipFrom, listScope, pageFrom, scopeIdsFor } from '../rbac/access';
+import {
+  assertRecordScope,
+  ipFrom,
+  listScope,
+  pageFrom,
+  requireBulkPermission,
+  scopeIdsFor
+} from '../rbac/access';
 import { callGoInternal } from '../lib/internalApi';
 import { publicConnection, type GoConnection } from '../lib/caster';
 import { mountpointSourceState } from '../lib/mountpointExplorer';
@@ -549,6 +557,64 @@ mountpointsRouter.patch(
     const after = await getMountpoint(id);
     await writeAudit(adminPool, req.auth!.id, 'update', 'mountpoint', id, before, after, ipFrom(req));
     res.json({ item: publicMountpoint(after) });
+  })
+);
+
+mountpointsRouter.post(
+  '/bulk',
+  requireBulkPermission('mountpoints', {
+    enable: 'edit',
+    disable: 'edit',
+    delete: 'delete'
+  }),
+  asyncHandler(async (req, res) => {
+    const body = bulkBodySchema.parse(req.body);
+    const ids = uniqueIds(body.ids);
+    const rows = await query<RowDataPacket[]>(
+      `SELECT id, name, enabled, owner_web_user_id FROM mountpoints
+        WHERE id IN (${ids.map(() => '?').join(',')})`,
+      ids
+    );
+    const byId = new Map(rows.map((row) => [Number(row.id), row]));
+    const result = emptyBulkResult();
+    const allowed: any[] = [];
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (!row) {
+        result.notFound += 1;
+        continue;
+      }
+      try {
+        await assertRecordScope(req, row.owner_web_user_id);
+        allowed.push(row);
+      } catch {
+        result.forbidden += 1;
+      }
+    }
+    await withTransaction(async (conn) => {
+      for (const row of allowed) {
+        if (body.action === 'delete') {
+          await conn.query('DELETE FROM mountpoints WHERE id = ?', [row.id]);
+        } else {
+          await conn.query('UPDATE mountpoints SET enabled = ? WHERE id = ?', [
+            body.action === 'enable' ? 1 : 0,
+            row.id
+          ]);
+        }
+      }
+    });
+    result.updated = allowed.length;
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      `bulk_${body.action}`,
+      'mountpoint',
+      `bulk:${ids.length}`,
+      null,
+      { ids, result },
+      ipFrom(req)
+    );
+    res.json({ result });
   })
 );
 

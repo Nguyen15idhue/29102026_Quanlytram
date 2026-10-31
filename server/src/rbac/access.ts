@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from 'express';
 import { ApiError } from '../lib/http';
 import { clientIp, pagination } from '../lib/http';
 import { query } from '../db/pool';
+import { permissionsForRole } from '../rbac/permissions';
 import { inScope, scopeClause, subtreeIds, tenantIds } from '../rbac/scope';
 
 export async function scopeIdsFor(req: Request): Promise<number[]> {
@@ -35,6 +36,28 @@ export function listScope(req: Request, ids: number[], column = 'owner_web_user_
     throw new ApiError(403, 'FORBIDDEN', 'Không có quyền');
   }
   return scopeClause(req.permissionScope, req.auth.id, ids, column);
+}
+
+export function requireBulkPermission(
+  module: string,
+  actionForBulkAction: Record<string, string>
+) {
+  return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const bulkAction = String((req.body as any)?.action ?? '');
+      const action = actionForBulkAction[bulkAction];
+      if (!action) throw new ApiError(400, 'INVALID_ACTION', 'Hành động không hợp lệ');
+      const permissions = await permissionsForRole(req.auth!.roleId);
+      const permission = permissions.find((item) => item.code === `${module}.${action}`);
+      if (!permission || permission.scope === 'none') {
+        throw new ApiError(403, 'FORBIDDEN', 'Không có quyền');
+      }
+      req.permissionScope = permission.scope;
+      next();
+    } catch (err) {
+      next(err);
+    }
+  };
 }
 
 export function pageFrom(req: Request) {

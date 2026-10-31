@@ -1,12 +1,14 @@
-﻿import { useMemo, useRef, useState, type FormEvent } from 'react';
+﻿import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Lock, Pencil, Plus, Trash2, Unlock, Upload } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
 import type { Role, WebUser } from '../types';
 import {
+  BulkActionBar,
   Button,
   ConfirmDialog,
   DataTable,
@@ -65,6 +67,8 @@ export function WebUsers() {
   useDirtyGuard(dirty && formOpen);
   const [detail, setDetail] = useState<WebUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<WebUser | null>(null);
+  const [selected, setSelected] = useState<Set<string | number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
@@ -127,6 +131,25 @@ export function WebUsers() {
     },
     onError: (err) => push(err instanceof ApiClientError ? err.message : 'Thao tác thất bại', 'error')
   });
+
+  const bulk = useMutation({
+    mutationFn: (bulkAction: string) =>
+      sendBulk('/api/web-users/bulk', bulkAction, [...selected], csrfToken),
+    onSuccess: async (result, bulkAction) => {
+      setSelected(new Set());
+      setBulkDeleteOpen(false);
+      setDetail(null);
+      push(bulkMessage(result), result.forbidden || result.notFound ? 'error' : 'success');
+      if (bulkAction === 'delete') push('Đã xóa các tài khoản đã chọn', 'success');
+      await queryClient.invalidateQueries({ queryKey: ['web-users'] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Thao tác hàng loạt thất bại', 'error')
+  });
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [page, pageSize, q, roleId, status]);
 
   const importUsers = useMutation({
     mutationFn: () =>
@@ -281,9 +304,34 @@ export function WebUsers() {
             </Select>
           </Field>
         </TableToolbar>
+        <BulkActionBar
+          count={selected.size}
+          onClear={() => setSelected(new Set())}
+          actions={[
+            ...(can('web_users', 'edit')
+              ? [
+                  { label: 'Khóa', onClick: () => bulk.mutate('lock') },
+                  { label: 'Mở khóa', onClick: () => bulk.mutate('unlock') }
+                ]
+              : []),
+            ...(can('web_users', 'delete')
+              ? [
+                  {
+                    label: 'Xóa',
+                    variant: 'danger' as const,
+                    onClick: () => setBulkDeleteOpen(true)
+                  }
+                ]
+              : [])
+          ]}
+        />
         <DataTable
           items={users.data?.items ?? []}
           rowKey={(user) => user.id}
+          selectable
+          selectedKeys={selected}
+          onSelectionChange={setSelected}
+          selectionLabel={(user) => `tài khoản ${user.username}`}
           loading={users.isLoading}
           error={users.isError ? 'Không tải được danh sách.' : undefined}
           empty="Chưa có tài khoản."
@@ -520,6 +568,14 @@ export function WebUsers() {
         description={`Tài khoản ${deleteTarget?.username ?? ''} sẽ bị xóa.`}
         pending={action.isPending}
         onConfirm={() => deleteTarget && action.mutate({ user: deleteTarget, action: 'delete' })}
+      />
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title="Xóa các tài khoản đã chọn?"
+        description={`${selected.size} tài khoản sẽ bị xóa. Hành động này không thể hoàn tác.`}
+        pending={bulk.isPending}
+        onConfirm={() => bulk.mutate('delete')}
       />
     </section>
   );

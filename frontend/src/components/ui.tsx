@@ -310,6 +310,161 @@ export interface Column<T> {
   hideOnMobile?: boolean;
 }
 
+export interface BulkAction {
+  label: string;
+  onClick: () => void;
+  variant?: 'primary' | 'ghost' | 'danger';
+  disabled?: boolean;
+}
+
+export function BulkActionBar({
+  count,
+  onClear,
+  actions
+}: {
+  count: number;
+  onClear: () => void;
+  actions: BulkAction[];
+}) {
+  if (count === 0) return null;
+  return (
+    <div className="bulk-bar" role="region" aria-label="Hành động hàng loạt">
+      <strong>Đã chọn {count}</strong>
+      <Button size="sm" variant="ghost" onClick={onClear}>
+        Bỏ chọn
+      </Button>
+      <div className="bulk-actions">
+        {actions.map((action) => (
+          <Button
+            key={action.label}
+            size="sm"
+            variant={action.variant === 'danger' ? 'danger' : action.variant === 'primary' ? 'primary' : 'ghost'}
+            disabled={action.disabled}
+            onClick={action.onClick}
+          >
+            {action.label}
+          </Button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function SearchableMultiSelect<T>({
+  items,
+  selectedIds,
+  onChange,
+  getId,
+  getLabel,
+  getMeta,
+  label,
+  placeholder = 'Tìm và chọn...',
+  disabled = false
+}: {
+  items: T[];
+  selectedIds: number[];
+  onChange: (ids: number[]) => void;
+  getId: (item: T) => number;
+  getLabel: (item: T) => string;
+  getMeta?: (item: T) => string;
+  label?: string;
+  placeholder?: string;
+  disabled?: boolean;
+}) {
+  const [query, setQuery] = useState('');
+  const normalized = query.trim().toLowerCase();
+  const filtered = normalized
+    ? items.filter((item) => {
+        const haystack = `${getLabel(item)} ${getMeta?.(item) ?? ''}`.toLowerCase();
+        return haystack.includes(normalized);
+      })
+    : items;
+  const selected = new Set(selectedIds);
+  const selectedItems = items.filter((item) => selected.has(getId(item)));
+  const toggle = (id: number) => {
+    onChange(selected.has(id) ? selectedIds.filter((item) => item !== id) : [...selectedIds, id]);
+  };
+  return (
+    <div className="multi-select">
+      {label && <span className="field-label">{label}</span>}
+      <div className="multi-select-input">
+        <Search size={14} aria-hidden="true" />
+        <input
+          className="input"
+          value={query}
+          placeholder={placeholder}
+          disabled={disabled}
+          onChange={(event) => setQuery(event.target.value)}
+          aria-label={label ? `${label} tìm kiếm` : placeholder}
+        />
+      </div>
+      <div className="multi-select-tools">
+        <button
+          type="button"
+          className="link-btn"
+          disabled={disabled}
+          onClick={() => onChange([...new Set([...selectedIds, ...filtered.map(getId)])])}
+        >
+          Chọn tất cả{normalized ? ' kết quả' : ''}
+        </button>
+        <button
+          type="button"
+          className="link-btn"
+          disabled={disabled}
+          onClick={() => onChange([])}
+        >
+          Bỏ chọn
+        </button>
+        <span className="muted">{selectedIds.length} đã chọn</span>
+      </div>
+      <div className="multi-select-list" role="group" aria-label={label ?? 'Danh sách lựa chọn'}>
+        {filtered.length === 0 ? (
+          <div className="table-state">Không tìm thấy lựa chọn.</div>
+        ) : (
+          filtered.map((item) => {
+            const id = getId(item);
+            return (
+              <label key={id} className="multi-select-option">
+                <input
+                  type="checkbox"
+                  checked={selected.has(id)}
+                  disabled={disabled}
+                  onChange={() => toggle(id)}
+                  aria-label={getLabel(item)}
+                />
+                <span>
+                  <strong>{getLabel(item)}</strong>
+                  {getMeta && <small className="muted">{getMeta(item)}</small>}
+                </span>
+              </label>
+            );
+          })
+        )}
+      </div>
+      {selectedItems.length > 0 && (
+        <div className="chip-row">
+          {selectedItems.slice(0, 8).map((item) => (
+            <span className="chip" key={getId(item)}>
+              {getLabel(item)}
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={`Bỏ chọn ${getLabel(item)}`}
+                onClick={() => toggle(getId(item))}
+              >
+                <X size={12} aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+          {selectedItems.length > 8 && (
+            <span className="chip">+{selectedItems.length - 8}</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DataTable<T>({
   columns,
   items,
@@ -318,7 +473,11 @@ export function DataTable<T>({
   error,
   empty,
   onRowClick,
-  showIndex = true
+  showIndex = true,
+  selectable = false,
+  selectedKeys,
+  onSelectionChange,
+  selectionLabel
 }: {
   columns: Column<T>[];
   items: T[];
@@ -328,12 +487,58 @@ export function DataTable<T>({
   empty?: ReactNode;
   onRowClick?: (row: T) => void;
   showIndex?: boolean;
+  selectable?: boolean;
+  selectedKeys?: Set<string | number>;
+  onSelectionChange?: (selected: Set<string | number>) => void;
+  selectionLabel?: (row: T) => string;
 }) {
+  const selected = selectedKeys ?? new Set<string | number>();
+  const pageKeys = items.map(rowKey);
+  const allSelected = pageKeys.length > 0 && pageKeys.every((key) => selected.has(key));
+  const someSelected = pageKeys.some((key) => selected.has(key));
+  const headerRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (headerRef.current) headerRef.current.indeterminate = someSelected && !allSelected;
+  }, [someSelected, allSelected]);
+
+  const togglePage = () => {
+    if (!onSelectionChange) return;
+    const next = new Set(selected);
+    if (allSelected) {
+      for (const key of pageKeys) next.delete(key);
+    } else {
+      for (const key of pageKeys) next.add(key);
+    }
+    onSelectionChange(next);
+  };
+
+  const toggleRow = (key: string | number) => {
+    if (!onSelectionChange) return;
+    const next = new Set(selected);
+    if (next.has(key)) next.delete(key);
+    else next.add(key);
+    onSelectionChange(next);
+  };
+
+  const span = columns.length + (showIndex ? 1 : 0) + (selectable ? 1 : 0);
+
   return (
     <div className="table-wrap">
       <table className="data-table">
         <thead>
           <tr>
+            {selectable && (
+              <th className="select-col">
+                <input
+                  ref={headerRef}
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={togglePage}
+                  aria-label="Chọn tất cả dòng trên trang hiện tại"
+                />
+              </th>
+            )}
             {showIndex && <th className="index-col">STT</th>}
             {columns.map((column) => (
               <th
@@ -351,6 +556,11 @@ export function DataTable<T>({
           {loading &&
             Array.from({ length: 5 }).map((_, index) => (
               <tr key={`skeleton-${index}`} className="skeleton-row">
+                {selectable && (
+                  <td className="select-col">
+                    <span className="skeleton" />
+                  </td>
+                )}
                 {showIndex && (
                   <td className="index-col">
                     <span className="skeleton" />
@@ -365,51 +575,65 @@ export function DataTable<T>({
             ))}
           {!loading && error && (
             <tr>
-              <td colSpan={columns.length + (showIndex ? 1 : 0)}>
+              <td colSpan={span}>
                 <div className="table-state error">{error}</div>
               </td>
             </tr>
           )}
           {!loading && !error && items.length === 0 && (
             <tr>
-              <td colSpan={columns.length + (showIndex ? 1 : 0)}>
+              <td colSpan={span}>
                 <div className="table-state">{empty ?? 'Chưa có dữ liệu.'}</div>
               </td>
             </tr>
           )}
           {!loading &&
             !error &&
-            items.map((row, rowIndex) => (
-              <tr
-                key={rowKey(row)}
-                className={onRowClick ? 'clickable' : ''}
-                onClick={(event) => {
-                  if (!onRowClick) return;
-                  const target = event.target as HTMLElement;
-                  if (target.closest('button, a, select, input')) return;
-                  onRowClick(row);
-                }}
-                onKeyDown={(event) => {
-                  if (!onRowClick || event.key !== 'Enter') return;
-                  const target = event.target as HTMLElement;
-                  if (target.closest('button, a, select, input')) return;
-                  onRowClick(row);
-                }}
-                tabIndex={onRowClick ? 0 : undefined}
-              >
-                {showIndex && <td className="index-col">{rowIndex + 1}</td>}
-                {columns.map((column) => (
-                  <td
-                    key={column.key}
-                    className={`${column.align === 'right' ? 'align-right' : ''} ${
-                      column.hideOnMobile ? 'hide-mobile' : ''
-                    } ${column.className ?? ''}`.trim()}
-                  >
-                    {column.cell(row)}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            items.map((row, rowIndex) => {
+              const key = rowKey(row);
+              const label = selectionLabel?.(row) ?? String(key);
+              return (
+                <tr
+                  key={key}
+                  className={`${onRowClick ? 'clickable' : ''} ${selected.has(key) ? 'row-selected' : ''}`}
+                  onClick={(event) => {
+                    if (!onRowClick) return;
+                    const target = event.target as HTMLElement;
+                    if (target.closest('button, a, select, input')) return;
+                    onRowClick(row);
+                  }}
+                  onKeyDown={(event) => {
+                    if (!onRowClick || event.key !== 'Enter') return;
+                    const target = event.target as HTMLElement;
+                    if (target.closest('button, a, select, input')) return;
+                    onRowClick(row);
+                  }}
+                  tabIndex={onRowClick ? 0 : undefined}
+                >
+                  {selectable && (
+                    <td className="select-col">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(key)}
+                        onChange={() => toggleRow(key)}
+                        aria-label={`Chọn ${label}`}
+                      />
+                    </td>
+                  )}
+                  {showIndex && <td className="index-col">{rowIndex + 1}</td>}
+                  {columns.map((column) => (
+                    <td
+                      key={column.key}
+                      className={`${column.align === 'right' ? 'align-right' : ''} ${
+                        column.hideOnMobile ? 'hide-mobile' : ''
+                      } ${column.className ?? ''}`.trim()}
+                    >
+                      {column.cell(row)}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
         </tbody>
       </table>
     </div>

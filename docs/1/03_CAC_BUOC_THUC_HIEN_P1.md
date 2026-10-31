@@ -831,3 +831,35 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
 - Ghi chú: listener owner cũ đã gán admin; P1.6 sẽ gán owner theo công ty khi
   tạo/reimport.
 - Commit code: `147beb4` — `feat(p1-2): rbac tenant menu quyen va listener owner`.
+
+### P1.3 — Shared UI và bulk action (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Shared UI:
+  - `DataTable` hỗ trợ `selectable`, `selectedKeys`, `onSelectionChange`,
+    checkbox header chọn trang, checkbox dòng có accessible name.
+  - `BulkActionBar` hiển thị `Đã chọn N`, `Bỏ chọn`, action theo module.
+  - `SearchableMultiSelect` có search, chọn tất cả kết quả, chip, keyboard,
+    trạng thái disabled.
+- Bulk API:
+  - `POST /api/stations/bulk` (enable/disable/lock/unlock/delete).
+  - `POST /api/mountpoints/bulk` (enable/disable/delete).
+  - `POST /api/caster/listeners/bulk` (enable/disable/delete).
+  - `POST /api/ntrip-accounts/bulk` (lock/unlock/delete).
+  - `POST /api/relay-jobs/bulk` (enable/disable/delete).
+  - `POST /api/web-users/bulk` (lock/unlock/delete, chặn self/last super).
+  - `POST /api/alerts/bulk-ack`.
+  - Mọi bulk API trả `{updated, skipped, forbidden, notFound}`, kiểm scope
+    từng ID, transaction và audit batch.
+- UI:
+  - Các bảng Stations/Mountpoints/Listener/NTRIP/Relay/WebUsers/Alerts có
+    chọn nhiều dòng; xóa hàng loạt dùng AlertDialog.
+  - ACL của NTRIP account và Listener dùng `SearchableMultiSelect`.
+  - Selection reset khi đổi trang/bộ lọc.
+- Test:
+  - Server build PASS; Vitest **53/53 PASS**.
+  - Frontend build PASS.
+  - Playwright `p1-bulk.spec.ts` **3/3 PASS**: chọn trang/bỏ chọn/reset,
+    mobile 390 không tràn, multiselect search/focus, bulk station + audit batch,
+    cross-tenant forbidden, 6 bulk route validate action.
+- Commit code: sẽ ghi hash sau khi commit phase này.

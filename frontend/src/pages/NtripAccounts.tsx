@@ -3,10 +3,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Lock, Pencil, Plus, Trash2, Unlock } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
 import type { Mountpoint, NtripAccount } from '../types';
 import {
+  BulkActionBar,
   Button,
   ConfirmDialog,
   DataTable,
@@ -16,6 +18,7 @@ import {
   Modal,
   PageHeader,
   Pagination,
+  SearchableMultiSelect,
   SearchInput,
   Select,
   StatusBadge,
@@ -61,6 +64,8 @@ export function NtripAccounts() {
   useDirtyGuard(dirty && formOpen);
   const [detail, setDetail] = useState<NtripAccount | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<NtripAccount | null>(null);
+  const [selected, setSelected] = useState<Set<string | number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [aclIds, setAclIds] = useState<number[]>([]);
@@ -131,6 +136,25 @@ export function NtripAccounts() {
     },
     onError: (err) => push(err instanceof ApiClientError ? err.message : 'Thao tác thất bại', 'error')
   });
+
+  const bulk = useMutation({
+    mutationFn: (bulkAction: string) =>
+      sendBulk('/api/ntrip-accounts/bulk', bulkAction, [...selected], csrfToken),
+    onSuccess: async (result, bulkAction) => {
+      setSelected(new Set());
+      setBulkDeleteOpen(false);
+      setDetail(null);
+      push(bulkMessage(result), result.forbidden || result.notFound ? 'error' : 'success');
+      if (bulkAction === 'delete') push('Đã xóa các tài khoản đã chọn', 'success');
+      await queryClient.invalidateQueries({ queryKey: ['ntrip-accounts'] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Thao tác hàng loạt thất bại', 'error')
+  });
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [page, pageSize, q, enabled]);
 
   const saveAcl = useMutation({
     mutationFn: () =>
@@ -223,9 +247,34 @@ export function NtripAccounts() {
             </Select>
           </Field>
         </TableToolbar>
+        <BulkActionBar
+          count={selected.size}
+          onClear={() => setSelected(new Set())}
+          actions={[
+            ...(can('ntrip_accounts', 'edit')
+              ? [
+                  { label: 'Khóa', onClick: () => bulk.mutate('lock') },
+                  { label: 'Mở khóa', onClick: () => bulk.mutate('unlock') }
+                ]
+              : []),
+            ...(can('ntrip_accounts', 'delete')
+              ? [
+                  {
+                    label: 'Xóa',
+                    variant: 'danger' as const,
+                    onClick: () => setBulkDeleteOpen(true)
+                  }
+                ]
+              : [])
+          ]}
+        />
         <DataTable
           items={list.data?.items ?? []}
           rowKey={(account) => account.id}
+          selectable
+          selectedKeys={selected}
+          onSelectionChange={setSelected}
+          selectionLabel={(account) => `tài khoản ${account.username}`}
           loading={list.isLoading}
           error={list.isError ? 'Không tải được tài khoản NTRIP.' : undefined}
           empty="Chưa có tài khoản NTRIP nào."
@@ -521,25 +570,16 @@ export function NtripAccounts() {
                 )}
               </div>
               {mountpoints.data?.items.length ? (
-                <div className="check-list">
-                  {mountpoints.data.items.map((mountpoint) => (
-                    <label className="check" key={mountpoint.id}>
-                      <input
-                        type="checkbox"
-                        checked={aclIds.includes(mountpoint.id)}
-                        disabled={!can('ntrip_accounts', 'edit')}
-                        onChange={(event) =>
-                          setAclIds((current) =>
-                            event.target.checked
-                              ? [...current, mountpoint.id]
-                              : current.filter((id) => id !== mountpoint.id)
-                          )
-                        }
-                      />
-                      <span className="mono">{mountpoint.name}</span>
-                    </label>
-                  ))}
-                </div>
+                <SearchableMultiSelect
+                  items={mountpoints.data.items}
+                  selectedIds={aclIds}
+                  onChange={setAclIds}
+                  getId={(item) => item.id}
+                  getLabel={(item) => item.name}
+                  disabled={!can('ntrip_accounts', 'edit')}
+                  label="Mountpoint được phép"
+                  placeholder="Tìm mountpoint..."
+                />
               ) : (
                 <p className="muted">Chưa có mountpoint hoặc chưa có quyền xem.</p>
               )}
@@ -555,6 +595,14 @@ export function NtripAccounts() {
         description={`Tài khoản ${deleteTarget?.username ?? ''} sẽ bị xóa.`}
         pending={action.isPending}
         onConfirm={() => deleteTarget && action.mutate({ account: deleteTarget, action: 'delete' })}
+      />
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title="Xóa các tài khoản đã chọn?"
+        description={`${selected.size} tài khoản NTRIP sẽ bị xóa.`}
+        pending={bulk.isPending}
+        onConfirm={() => bulk.mutate('delete')}
       />
     </section>
   );

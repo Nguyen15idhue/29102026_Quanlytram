@@ -2,6 +2,7 @@ import { Router, type Request } from 'express';
 import { RowDataPacket } from 'mysql2/promise';
 import { adminPool, query, withTransaction } from '../db/pool';
 import { writeAudit } from '../lib/audit';
+import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
 import {
   GoConnection,
   listenerCreateSchema,
@@ -14,7 +15,14 @@ import { asyncHandler, ApiError } from '../lib/http';
 import { callGoInternal } from '../lib/internalApi';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
-import { assertRecordScope, ipFrom, listScope, pageFrom, scopeIdsFor } from '../rbac/access';
+import {
+  assertRecordScope,
+  ipFrom,
+  listScope,
+  pageFrom,
+  requireBulkPermission,
+  scopeIdsFor
+} from '../rbac/access';
 import { inScope } from '../rbac/scope';
 
 export const casterRouter = Router();
@@ -236,6 +244,65 @@ casterRouter.patch(
     );
     await requestCasterReconcile();
     res.json({ item: after ? publicListener(after) : null });
+  })
+);
+
+casterRouter.post(
+  '/listeners/bulk',
+  requireBulkPermission('caster', {
+    enable: 'edit',
+    disable: 'edit',
+    delete: 'delete'
+  }),
+  asyncHandler(async (req, res) => {
+    const body = bulkBodySchema.parse(req.body);
+    const ids = uniqueIds(body.ids);
+    const rows = await query<RowDataPacket[]>(
+      `SELECT id, name, enabled, owner_web_user_id FROM caster_listeners
+        WHERE id IN (${ids.map(() => '?').join(',')})`,
+      ids
+    );
+    const byId = new Map(rows.map((row) => [Number(row.id), row]));
+    const result = emptyBulkResult();
+    const allowed: any[] = [];
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (!row) {
+        result.notFound += 1;
+        continue;
+      }
+      try {
+        await assertRecordScope(req, row.owner_web_user_id);
+        allowed.push(row);
+      } catch {
+        result.forbidden += 1;
+      }
+    }
+    await withTransaction(async (conn) => {
+      for (const row of allowed) {
+        if (body.action === 'delete') {
+          await conn.query('DELETE FROM caster_listeners WHERE id = ?', [row.id]);
+        } else {
+          await conn.query('UPDATE caster_listeners SET enabled = ? WHERE id = ?', [
+            body.action === 'enable' ? 1 : 0,
+            row.id
+          ]);
+        }
+      }
+    });
+    result.updated = allowed.length;
+    if (result.updated > 0) await requestCasterReconcile();
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      `bulk_${body.action}`,
+      'caster_listener',
+      `bulk:${ids.length}`,
+      null,
+      { ids, result },
+      ipFrom(req)
+    );
+    res.json({ result });
   })
 );
 

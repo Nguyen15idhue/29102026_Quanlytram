@@ -4,6 +4,7 @@ import { RowDataPacket } from 'mysql2/promise';
 import { adminPool, query, withTransaction } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
 import { writeAudit } from '../lib/audit';
+import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
 import { type GoConnection, publicConnection } from '../lib/caster';
 import { buildWorkbook, readSheetRows, readWorkbook, sendWorkbook } from '../lib/excel';
 import { asyncHandler, ApiError } from '../lib/http';
@@ -25,7 +26,14 @@ import {
 } from '../lib/stationDetail';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
-import { assertRecordScope, ipFrom, listScope, pageFrom, scopeIdsFor } from '../rbac/access';
+import {
+  assertRecordScope,
+  ipFrom,
+  listScope,
+  pageFrom,
+  requireBulkPermission,
+  scopeIdsFor
+} from '../rbac/access';
 
 export const stationsRouter = Router();
 stationsRouter.use(requireAuth);
@@ -1185,6 +1193,69 @@ stationsRouter.patch(
     const after = await getStation(id);
     await writeAudit(adminPool, req.auth!.id, 'update', 'station', id, before, after, ipFrom(req));
     res.json({ item: after });
+  })
+);
+
+stationsRouter.post(
+  '/bulk',
+  requireBulkPermission('stations', {
+    enable: 'edit',
+    disable: 'edit',
+    lock: 'edit',
+    unlock: 'edit',
+    delete: 'delete'
+  }),
+  asyncHandler(async (req, res) => {
+    const body = bulkBodySchema.parse(req.body);
+    const ids = uniqueIds(body.ids);
+    const rows = await query<RowDataPacket[]>(
+      `SELECT id, code, name, enabled, status, owner_web_user_id
+         FROM stations WHERE id IN (${ids.map(() => '?').join(',')})`,
+      ids
+    );
+    const byId = new Map(rows.map((row) => [Number(row.id), row]));
+    const result = emptyBulkResult();
+    const allowed: any[] = [];
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (!row) {
+        result.notFound += 1;
+        continue;
+      }
+      try {
+        await assertRecordScope(req, row.owner_web_user_id);
+        allowed.push(row);
+      } catch {
+        result.forbidden += 1;
+      }
+    }
+    await withTransaction(async (conn) => {
+      for (const row of allowed) {
+        if (body.action === 'delete') {
+          await conn.query('DELETE FROM stations WHERE id = ?', [row.id]);
+        } else if (body.action === 'enable') {
+          await conn.query("UPDATE stations SET enabled = 1, status = 'active' WHERE id = ?", [row.id]);
+        } else if (body.action === 'disable') {
+          await conn.query("UPDATE stations SET enabled = 0, status = 'disabled' WHERE id = ?", [row.id]);
+        } else if (body.action === 'lock') {
+          await conn.query("UPDATE stations SET status = 'locked' WHERE id = ?", [row.id]);
+        } else if (body.action === 'unlock') {
+          await conn.query("UPDATE stations SET status = 'active' WHERE id = ?", [row.id]);
+        }
+      }
+    });
+    result.updated = allowed.length;
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      `bulk_${body.action}`,
+      'station',
+      `bulk:${ids.length}`,
+      null,
+      { ids, result },
+      ipFrom(req)
+    );
+    res.json({ result });
   })
 );
 

@@ -4,6 +4,7 @@ import { RowDataPacket } from 'mysql2/promise';
 import { adminPool, query, withTransaction } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
 import { writeAudit } from '../lib/audit';
+import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
 import { encryptSecret } from '../lib/crypto';
 import { endpointKey } from '../lib/endpointKey';
 import { asyncHandler, ApiError } from '../lib/http';
@@ -11,7 +12,14 @@ import { callGoInternal } from '../lib/internalApi';
 import { findCycle, RelayEdge } from '../lib/loopGuard';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
-import { assertRecordScope, ipFrom, listScope, pageFrom, scopeIdsFor } from '../rbac/access';
+import {
+  assertRecordScope,
+  ipFrom,
+  listScope,
+  pageFrom,
+  requireBulkPermission,
+  scopeIdsFor
+} from '../rbac/access';
 import { TOMBSTONE_KEY_SQL } from '../lib/tombstone';
 
 export const relayJobsRouter = Router();
@@ -557,6 +565,76 @@ relayJobsRouter.patch(
     );
     await requestReconcile(id);
     res.json({ item: publicJob(after, await getState(id)) });
+  })
+);
+
+relayJobsRouter.post(
+  '/bulk',
+  requireBulkPermission('relay', {
+    enable: 'edit',
+    disable: 'edit',
+    delete: 'delete'
+  }),
+  asyncHandler(async (req, res) => {
+    const body = bulkBodySchema.parse(req.body);
+    const ids = uniqueIds(body.ids);
+    const result = emptyBulkResult();
+    const allowed: any[] = [];
+    for (const id of ids) {
+      const row = await getJobRow(id);
+      if (!row || row.deleted_at !== null) {
+        result.notFound += 1;
+        continue;
+      }
+      try {
+        await assertRecordScope(req, row.owner_web_user_id);
+        if (body.action === 'enable') {
+          await assertNoCycles({
+            id,
+            upstreamKey: String(row.upstream_key),
+            downstreamKey: String(row.downstream_key),
+            enabled: true
+          });
+        }
+        allowed.push(row);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 404) result.forbidden += 1;
+        else if (err instanceof ApiError && err.status === 409) result.skipped += 1;
+        else throw err;
+      }
+    }
+    await withTransaction(async (conn) => {
+      for (const row of allowed) {
+        if (body.action === 'delete') {
+          await conn.query(
+            `UPDATE relay_jobs
+                SET deleted_at = UTC_TIMESTAMP(3), enabled = 0, ${TOMBSTONE_KEY_SQL},
+                    desired_revision = desired_revision + 1
+              WHERE id = ?`,
+            [row.id]
+          );
+        } else {
+          await conn.query(
+            `UPDATE relay_jobs
+                SET enabled = ?, desired_revision = desired_revision + 1
+              WHERE id = ?`,
+            [body.action === 'enable' ? 1 : 0, row.id]
+          );
+        }
+      }
+    });
+    result.updated = allowed.length;
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      `bulk_${body.action}`,
+      'relay_job',
+      `bulk:${ids.length}`,
+      null,
+      { ids, result },
+      ipFrom(req)
+    );
+    res.json({ result });
   })
 );
 

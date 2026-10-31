@@ -1,8 +1,9 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { RowDataPacket } from 'mysql2/promise';
-import { adminPool, query } from '../db/pool';
+import { adminPool, query, withTransaction } from '../db/pool';
 import { writeAudit } from '../lib/audit';
+import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
 import { asyncHandler, ApiError } from '../lib/http';
 import { hashPassword } from '../lib/password';
 import { requireAuth, requirePermission, isSuperAdmin } from '../middleware/auth';
@@ -12,6 +13,7 @@ import {
   ipFrom,
   listScope,
   pageFrom,
+  requireBulkPermission,
   scopeIdsFor
 } from '../rbac/access';
 import { canManageRole } from '../rbac/scope';
@@ -380,6 +382,74 @@ webUsersRouter.patch(
     const after = await getUser(id);
     await writeAudit(adminPool, req.auth!.id, 'update', 'web_user', id, before, after, ipFrom(req));
     res.json({ item: after ? publicUser(after) : null });
+  })
+);
+
+webUsersRouter.post(
+  '/bulk',
+  requireBulkPermission('web_users', {
+    lock: 'edit',
+    unlock: 'edit',
+    delete: 'delete'
+  }),
+  asyncHandler(async (req, res) => {
+    const body = bulkBodySchema.parse(req.body);
+    const ids = uniqueIds(body.ids);
+    const result = emptyBulkResult();
+    const allowed: RowDataPacket[] = [];
+    let remainingSupers = await countSuperAdmins();
+    for (const id of ids) {
+      const row = await getUser(id);
+      if (!row) {
+        result.notFound += 1;
+        continue;
+      }
+      try {
+        if (id === req.auth!.id) {
+          result.skipped += 1;
+          continue;
+        }
+        await assertCanTarget(req, row);
+        const isSuper = row.role_code === 'super_admin';
+        const removesSuper = isSuper && (body.action === 'lock' || body.action === 'delete');
+        if (removesSuper && remainingSupers <= 1) {
+          result.skipped += 1;
+          continue;
+        }
+        if (removesSuper) remainingSupers -= 1;
+        allowed.push(row);
+      } catch (err) {
+        if (err instanceof ApiError && err.status === 403) result.forbidden += 1;
+        else throw err;
+      }
+    }
+    await withTransaction(async (conn) => {
+      for (const row of allowed) {
+        if (body.action === 'delete') {
+          await conn.query('DELETE FROM web_users WHERE id = ?', [row.id]);
+        } else {
+          await conn.query('UPDATE web_users SET status = ? WHERE id = ?', [
+            body.action === 'lock' ? 'locked' : 'active',
+            row.id
+          ]);
+          if (body.action === 'lock') {
+            await conn.query('DELETE FROM web_sessions WHERE web_user_id = ?', [row.id]);
+          }
+        }
+      }
+    });
+    result.updated = allowed.length;
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      `bulk_${body.action}`,
+      'web_user',
+      `bulk:${ids.length}`,
+      null,
+      { ids, result },
+      ipFrom(req)
+    );
+    res.json({ result });
   })
 );
 

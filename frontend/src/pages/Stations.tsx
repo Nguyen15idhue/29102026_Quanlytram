@@ -1,13 +1,15 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
 import type { Station } from '../types';
 import {
+  BulkActionBar,
   Button,
   ConfirmDialog,
   DataTable,
@@ -136,6 +138,8 @@ export function Stations() {
   const detailId = Number.isInteger(stationId) && stationId > 0 ? stationId : null;
   const detailTab = parseDetailTab(searchParams.get('tab'));
   const [deleteTarget, setDeleteTarget] = useState<Station | null>(null);
+  const [selected, setSelected] = useState<Set<string | number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -242,6 +246,25 @@ export function Stations() {
     },
     onError: (err) => push(err instanceof ApiClientError ? err.message : 'Xóa thất bại', 'error')
   });
+
+  const bulk = useMutation({
+    mutationFn: (action: string) =>
+      sendBulk('/api/stations/bulk', action, [...selected], csrfToken),
+    onSuccess: async (result, action) => {
+      setSelected(new Set());
+      setBulkDeleteOpen(false);
+      closeDetail();
+      push(bulkMessage(result), result.forbidden || result.notFound ? 'error' : 'success');
+      if (action === 'delete') push('Đã xóa các trạm đã chọn', 'success');
+      await queryClient.invalidateQueries({ queryKey: ['stations'] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Thao tác hàng loạt thất bại', 'error')
+  });
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [page, pageSize, q, region, sourceType, enabled, owner]);
 
   const importMutation = useMutation({
     mutationFn: (dryRun: boolean) =>
@@ -446,9 +469,36 @@ export function Stations() {
             </Field>
           )}
         </TableToolbar>
+        <BulkActionBar
+          count={selected.size}
+          onClear={() => setSelected(new Set())}
+          actions={[
+            ...(can('stations', 'edit')
+              ? [
+                  { label: 'Bật', onClick: () => bulk.mutate('enable') },
+                  { label: 'Tắt', onClick: () => bulk.mutate('disable') },
+                  { label: 'Khóa', onClick: () => bulk.mutate('lock') },
+                  { label: 'Mở khóa', onClick: () => bulk.mutate('unlock') }
+                ]
+              : []),
+            ...(can('stations', 'delete')
+              ? [
+                  {
+                    label: 'Xóa',
+                    variant: 'danger' as const,
+                    onClick: () => setBulkDeleteOpen(true)
+                  }
+                ]
+              : [])
+          ]}
+        />
         <DataTable
           items={list.data?.items ?? []}
           rowKey={(station) => station.id}
+          selectable
+          selectedKeys={selected}
+          onSelectionChange={setSelected}
+          selectionLabel={(station) => `trạm ${station.name}`}
           loading={list.isLoading}
           error={list.isError ? 'Không tải được danh sách trạm.' : undefined}
           empty="Chưa có trạm nào."
@@ -968,6 +1018,14 @@ export function Stations() {
         description={`Trạm ${deleteTarget?.code ?? ''} sẽ bị xóa. Hành động này không thể hoàn tác.`}
         pending={remove.isPending}
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget)}
+      />
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title="Xóa các trạm đã chọn?"
+        description={`${selected.size} trạm sẽ bị xóa. Hành động này không thể hoàn tác.`}
+        pending={bulk.isPending}
+        onConfirm={() => bulk.mutate('delete')}
       />
     </section>
   );

@@ -1,12 +1,14 @@
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
 import type { Mountpoint, Station } from '../types';
 import {
+  BulkActionBar,
   Button,
   ConfirmDialog,
   DataTable,
@@ -64,6 +66,8 @@ export function Mountpoints() {
   useDirtyGuard(dirty && formOpen);
   const [detail, setDetail] = useState<Mountpoint | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Mountpoint | null>(null);
+  const [selected, setSelected] = useState<Set<string | number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
 
@@ -132,6 +136,25 @@ export function Mountpoints() {
     },
     onError: (err) => push(err instanceof ApiClientError ? err.message : 'Xóa thất bại', 'error')
   });
+
+  const bulk = useMutation({
+    mutationFn: (action: string) =>
+      sendBulk('/api/mountpoints/bulk', action, [...selected], csrfToken),
+    onSuccess: async (result, action) => {
+      setSelected(new Set());
+      setBulkDeleteOpen(false);
+      setDetail(null);
+      push(bulkMessage(result), result.forbidden || result.notFound ? 'error' : 'success');
+      if (action === 'delete') push('Đã xóa các mountpoint đã chọn', 'success');
+      await queryClient.invalidateQueries({ queryKey: ['mountpoints'] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Thao tác hàng loạt thất bại', 'error')
+  });
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [page, pageSize, q, stationId, enabled, authMode]);
 
   function openCreate() {
     setEditing(null);
@@ -233,9 +256,34 @@ export function Mountpoints() {
             </Select>
           </Field>
         </TableToolbar>
+        <BulkActionBar
+          count={selected.size}
+          onClear={() => setSelected(new Set())}
+          actions={[
+            ...(can('mountpoints', 'edit')
+              ? [
+                  { label: 'Bật', onClick: () => bulk.mutate('enable') },
+                  { label: 'Tắt', onClick: () => bulk.mutate('disable') }
+                ]
+              : []),
+            ...(can('mountpoints', 'delete')
+              ? [
+                  {
+                    label: 'Xóa',
+                    variant: 'danger' as const,
+                    onClick: () => setBulkDeleteOpen(true)
+                  }
+                ]
+              : [])
+          ]}
+        />
         <DataTable
           items={list.data?.items ?? []}
           rowKey={(item) => item.id}
+          selectable
+          selectedKeys={selected}
+          onSelectionChange={setSelected}
+          selectionLabel={(item) => `mountpoint ${item.name}`}
           loading={list.isLoading}
           error={list.isError ? 'Không tải được mountpoint.' : undefined}
           empty="Chưa có mountpoint nào."
@@ -576,6 +624,14 @@ export function Mountpoints() {
         description={`Mountpoint ${deleteTarget?.name ?? ''} sẽ bị xóa.`}
         pending={remove.isPending}
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget)}
+      />
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title="Xóa các mountpoint đã chọn?"
+        description={`${selected.size} mountpoint sẽ bị xóa. Hành động này không thể hoàn tác.`}
+        pending={bulk.isPending}
+        onConfirm={() => bulk.mutate('delete')}
       />
     </section>
   );

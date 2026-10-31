@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { RowDataPacket } from 'mysql2/promise';
-import { adminPool, query } from '../db/pool';
+import { adminPool, query, withTransaction } from '../db/pool';
 import { buildAlertImpacts } from '../lib/alertImpact';
 import { writeAudit } from '../lib/audit';
+import { emptyBulkResult, uniqueIds } from '../lib/bulk';
 import { asyncHandler, ApiError } from '../lib/http';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
@@ -156,6 +157,64 @@ alertsRouter.get(
     if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy cảnh báo');
     await assertRecordScope(req, row.owner_web_user_id);
     res.json({ item: publicAlert(row) });
+  })
+);
+
+alertsRouter.post(
+  '/bulk-ack',
+  requirePermission('alerts', 'ack'),
+  asyncHandler(async (req, res) => {
+    const body = z
+      .object({
+        ids: z.array(z.number().int().positive()).min(1).max(200),
+        note: z.string().max(500).optional().default('')
+      })
+      .parse(req.body);
+    const ids = uniqueIds(body.ids);
+    const rows = await query<RowDataPacket[]>(
+      `SELECT id, status, owner_web_user_id FROM alerts
+        WHERE id IN (${ids.map(() => '?').join(',')})`,
+      ids
+    );
+    const byId = new Map(rows.map((row) => [Number(row.id), row]));
+    const result = emptyBulkResult();
+    const allowed: any[] = [];
+    for (const id of ids) {
+      const row = byId.get(id);
+      if (!row) {
+        result.notFound += 1;
+        continue;
+      }
+      try {
+        await assertRecordScope(req, row.owner_web_user_id);
+        if (row.status === 'acked') result.skipped += 1;
+        else allowed.push(row);
+      } catch {
+        result.forbidden += 1;
+      }
+    }
+    await withTransaction(async (conn) => {
+      for (const row of allowed) {
+        await conn.query(
+          `UPDATE alerts
+              SET status = 'acked', acked_at = UTC_TIMESTAMP(3), acked_by = ?, ack_note = ?
+            WHERE id = ?`,
+          [req.auth!.id, body.note, row.id]
+        );
+      }
+    });
+    result.updated = allowed.length;
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      'bulk_ack',
+      'alert',
+      `bulk:${ids.length}`,
+      null,
+      { ids, note: body.note, result },
+      ipFrom(req)
+    );
+    res.json({ result });
   })
 );
 

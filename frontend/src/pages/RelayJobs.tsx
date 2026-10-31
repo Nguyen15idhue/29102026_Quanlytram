@@ -4,10 +4,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FlaskConical, Pencil, Play, Plus, RotateCw, Square, Trash2 } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
 import type { RelayJob } from '../types';
 import {
+  BulkActionBar,
   Button,
   ConfirmDialog,
   DataTable,
@@ -64,6 +66,8 @@ export function RelayJobs() {
   useDirtyGuard(dirty && formOpen);
   const [detail, setDetail] = useState<RelayJob | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RelayJob | null>(null);
+  const [selected, setSelected] = useState<Set<string | number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
 
@@ -129,6 +133,25 @@ export function RelayJobs() {
     },
     onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Lưu thất bại')
   });
+
+  const bulk = useMutation({
+    mutationFn: (bulkAction: string) =>
+      sendBulk('/api/relay-jobs/bulk', bulkAction, [...selected], csrfToken),
+    onSuccess: async (result, bulkAction) => {
+      setSelected(new Set());
+      setBulkDeleteOpen(false);
+      closeDetail();
+      push(bulkMessage(result), result.forbidden || result.notFound ? 'error' : 'success');
+      if (bulkAction === 'delete') push('Đã xóa các relay job đã chọn', 'success');
+      await queryClient.invalidateQueries({ queryKey: ['relay-jobs'] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Thao tác hàng loạt thất bại', 'error')
+  });
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [page, pageSize, q, enabled]);
 
   const action = useMutation({
     mutationFn: ({
@@ -228,9 +251,34 @@ export function RelayJobs() {
             </Select>
           </Field>
         </TableToolbar>
+        <BulkActionBar
+          count={selected.size}
+          onClear={() => setSelected(new Set())}
+          actions={[
+            ...(can('relay', 'edit')
+              ? [
+                  { label: 'Bật', onClick: () => bulk.mutate('enable') },
+                  { label: 'Tắt', onClick: () => bulk.mutate('disable') }
+                ]
+              : []),
+            ...(can('relay', 'delete')
+              ? [
+                  {
+                    label: 'Xóa',
+                    variant: 'danger' as const,
+                    onClick: () => setBulkDeleteOpen(true)
+                  }
+                ]
+              : [])
+          ]}
+        />
         <DataTable
           items={list.data?.items ?? []}
           rowKey={(job) => job.id}
+          selectable
+          selectedKeys={selected}
+          onSelectionChange={setSelected}
+          selectionLabel={(job) => `relay ${job.name}`}
           loading={list.isLoading}
           error={list.isError ? 'Không tải được relay job.' : undefined}
           empty="Chưa có relay job nào."
@@ -559,6 +607,14 @@ export function RelayJobs() {
         description={`Relay ${deleteTarget?.name ?? ''} sẽ dừng và bị xóa mềm; history được giữ.`}
         pending={action.isPending}
         onConfirm={() => deleteTarget && action.mutate({ job: deleteTarget, action: 'delete' })}
+      />
+      <ConfirmDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title="Xóa các relay job đã chọn?"
+        description={`${selected.size} relay job sẽ dừng và bị xóa mềm; history được giữ.`}
+        pending={bulk.isPending}
+        onConfirm={() => bulk.mutate('delete')}
       />
     </section>
   );

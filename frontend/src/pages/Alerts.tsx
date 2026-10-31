@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, Bell } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
@@ -7,6 +7,7 @@ import { useRealtime } from '../realtime/RealtimeProvider';
 import { useListParams } from '../lib/useListParams';
 import type { AlertItem } from '../types';
 import {
+  BulkActionBar,
   Button,
   DataTable,
   Field,
@@ -61,6 +62,7 @@ export function Alerts() {
     unread,
     status !== 'open' ? status : ''
   ].filter(Boolean).length;
+  const [selected, setSelected] = useState<Set<string | number>>(new Set());
 
   const list = useQuery({
     queryKey: ['alerts', page, pageSize, q, status, severity, level, unread],
@@ -88,6 +90,36 @@ export function Alerts() {
     onError: (err) =>
       push(err instanceof ApiClientError ? err.message : 'Đánh dấu thất bại', 'error')
   });
+
+  const bulkAck = useMutation({
+    mutationFn: () =>
+      apiFetch<{ result: { updated: number; skipped: number; forbidden: number; notFound: number } }>(
+        '/api/alerts/bulk-ack',
+        {
+          method: 'POST',
+          body: { ids: [...selected].map(Number) },
+          csrfToken
+        }
+      ),
+    onSuccess: async (data) => {
+      setSelected(new Set());
+      push(
+        `Đã xác nhận ${data.result.updated} cảnh báo${
+          data.result.forbidden || data.result.notFound
+            ? ` · ${data.result.forbidden} không có quyền · ${data.result.notFound} không tìm thấy`
+            : ''
+        }`,
+        data.result.forbidden || data.result.notFound ? 'error' : 'success'
+      );
+      await queryClient.invalidateQueries({ queryKey: ['alerts'] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Xác nhận hàng loạt thất bại', 'error')
+  });
+
+  useEffect(() => {
+    setSelected(new Set());
+  }, [page, pageSize, q, status, severity, level, unread]);
 
   const ack = useMutation({
     mutationFn: (alert: AlertItem) =>
@@ -176,9 +208,22 @@ export function Alerts() {
             </Select>
           </Field>
         </TableToolbar>
+        <BulkActionBar
+          count={selected.size}
+          onClear={() => setSelected(new Set())}
+          actions={
+            can('alerts', 'ack')
+              ? [{ label: 'Xác nhận', variant: 'primary', onClick: () => bulkAck.mutate() }]
+              : []
+          }
+        />
         <DataTable
           items={list.data?.items ?? []}
           rowKey={(alert) => alert.id}
+          selectable
+          selectedKeys={selected}
+          onSelectionChange={setSelected}
+          selectionLabel={(alert) => `cảnh báo ${alert.title}`}
           loading={list.isLoading}
           error={list.isError ? 'Không tải được cảnh báo.' : undefined}
           empty="Không có cảnh báo phù hợp."
