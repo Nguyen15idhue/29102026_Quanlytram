@@ -775,3 +775,27 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Backend `server/src/routes/stations.ts`: 9 dòng chứa mojibake
     (`KhĂ´ng`, `ChÆ°a`, `â€”`, `Â·`); sẽ sửa ở P1.9.
 - Commit: `f21c5ed` — `chore(p1-0): chot baseline backup graphify va unicode audit`.
+
+### P1.1 — Schema và dữ liệu nền (2026-10-31)
+
+- Trạng thái: **DONE** (phần schema; reset/reimport mountpoint chuyển sang P1.6 để
+  không phá caster trước khi listener ACL hoàn tất).
+- Migration đã áp dụng:
+  - `014_station_p1.sql`: `stations.status`, `coordinate_type`, `province`,
+    `ward`, `address_detail`.
+  - `015_station_sources.sql`: bảng `station_sources` cho NtripClient/NtripCaster;
+    backfill 39 trạm.
+  - `016_account_listener_acl.sql`: `account_listener_acl`,
+    `caster_listeners.owner_web_user_id`.
+  - `017_tenant_scope.sql`: `role_permissions.scope` thêm `tenant`.
+- Kết quả DB:
+  - station status: 39 active.
+  - station_sources: 39.
+  - listener owner: 2 listener đang null, sẽ gán ở P1.2/P1.6.
+- Test:
+  - `server npm run build` PASS; Vitest 48/48 PASS.
+  - `frontend npm run build` PASS.
+  - Migration dry-run/apply PASS, admin version 17.
+- Ghi chú: chưa drop `mountpoints.auth_mode/password_hash`; sẽ xử lý cùng reset
+  mountpoint ở P1.6 để tránh gãy caster hiện tại.
+- Commit: sẽ ghi hash sau khi commit phase này.
