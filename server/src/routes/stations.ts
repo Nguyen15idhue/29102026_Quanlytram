@@ -89,7 +89,7 @@ async function resolveOwner(req: any, requested?: number | null): Promise<number
   const actor = req.auth!;
   if (!requested || Number(requested) === actor.id) return actor.id;
   if (req.permissionScope === 'own') {
-    throw new ApiError(403, 'FORBIDDEN', 'KhĂ´ng Ä‘Æ°á»£c gĂ¡n chá»§ sá»Ÿ há»¯u khĂ¡c');
+    throw new ApiError(403, 'FORBIDDEN', 'Không được gán chủ sở hữu khác');
   }
   if (req.permissionScope === 'subtree') {
     const ids = await scopeIdsFor(req);
@@ -276,7 +276,7 @@ async function stationSampleRows(id: number, windowSec = 900): Promise<any[]> {
 
 async function scopedStation(req: any, id: number): Promise<any> {
   const station = await getStation(id);
-  if (!station) throw new ApiError(404, 'NOT_FOUND', 'KhĂ´ng tĂ¬m tháº¥y tráº¡m');
+  if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
   await assertRecordScope(req, station.owner_web_user_id);
   return station;
 }
@@ -827,7 +827,7 @@ stationsRouter.get(
       onlineConnections: online,
       probeHistory: {
         available: false,
-        message: 'ChÆ°a lÆ°u lá»‹ch sá»­ probe; chá»‰ cĂ³ cáº¥u hĂ¬nh probe hiá»‡n táº¡i.'
+        message: 'Chưa lưu lịch sử probe; chỉ có cấu hình probe hiện tại.'
       }
     });
   })
@@ -845,7 +845,7 @@ stationsRouter.get(
       parseHistoryBoundary(req.query.from, 'Tá»« ngĂ y') ??
       new Date(to.getTime() - 24 * 3600_000);
     if (from.getTime() > to.getTime()) {
-      throw new ApiError(400, 'VALIDATION_ERROR', 'Tá»« ngĂ y pháº£i trÆ°á»›c Ä‘áº¿n ngĂ y');
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Từ ngày phải trước đến ngày');
     }
 
     const events: Array<{
@@ -881,8 +881,8 @@ stationsRouter.get(
           source: 'quality',
           type: 'quality_start',
           at,
-          title: 'Báº¯t Ä‘áº§u cĂ³ dá»¯ liá»‡u cháº¥t lÆ°á»£ng',
-          detail: `Score ${score} Â· ${state}`,
+          title: 'Bắt đầu có dữ liệu chất lượng',
+          detail: `Score ${score} · ${state}`,
           level: state === 'error' ? 'critical' : state === 'stale' ? 'warning' : 'info'
         });
       } else if (state !== previous.state) {
@@ -891,8 +891,8 @@ stationsRouter.get(
           source: 'quality',
           type: 'quality_state',
           at,
-          title: `Cháº¥t lÆ°á»£ng Ä‘á»•i tráº¡ng thĂ¡i: ${previous.state} â†’ ${state}`,
-          detail: `Score ${score} Â· frame ${Number(row.frames ?? 0)} Â· CRC ${Number(row.crc_errors ?? 0)}`,
+          title: `Chất lượng đổi trạng thái: ${previous.state} → ${state}`,
+          detail: `Score ${score} · frame ${Number(row.frames ?? 0)} · CRC ${Number(row.crc_errors ?? 0)}`,
           level: state === 'error' ? 'critical' : state === 'stale' ? 'warning' : 'info'
         });
       } else if (Math.abs(score - Number(previous.score ?? 0)) >= 5) {
@@ -901,8 +901,8 @@ stationsRouter.get(
           source: 'quality',
           type: 'quality_score',
           at,
-          title: `Äiá»ƒm cháº¥t lÆ°á»£ng Ä‘á»•i ${Number(previous.score ?? 0)} â†’ ${score}`,
-          detail: `Frame ${Number(row.frames ?? 0)} Â· age ${Number(row.age_ms ?? 0)} ms Â· gap ${Number(row.gaps ?? 0)}`,
+          title: `Điểm chất lượng đổi ${Number(previous.score ?? 0)} → ${score}`,
+          detail: `Frame ${Number(row.frames ?? 0)} · age ${Number(row.age_ms ?? 0)} ms · gap ${Number(row.gaps ?? 0)}`,
           level: score < 60 ? 'critical' : score < 85 ? 'warning' : 'info'
         });
       }
@@ -932,7 +932,7 @@ stationsRouter.get(
         )
       : [];
     for (const row of casterRows) {
-      const mountpointName = mountpointNames.get(Number(row.mountpoint_id)) ?? 'â€”';
+      const mountpointName = mountpointNames.get(Number(row.mountpoint_id)) ?? '—';
       const startAt = iso(row.start_ts);
       if (startAt && new Date(startAt) >= from) {
         events.push({
@@ -940,8 +940,8 @@ stationsRouter.get(
           source: 'caster',
           type: 'caster_open',
           at: startAt,
-          title: `Má»Ÿ káº¿t ná»‘i caster Â· ${mountpointName}`,
-          detail: `${String(row.remote_addr || 'â€”')}${row.user_agent ? ` Â· ${String(row.user_agent)}` : ''}`,
+          title: `Mở kết nối caster · ${mountpointName}`,
+          detail: `${String(row.remote_addr || '—')}${row.user_agent ? ` · ${String(row.user_agent)}` : ''}`,
           level: 'info'
         });
       }
@@ -952,8 +952,8 @@ stationsRouter.get(
           source: 'caster',
           type: 'caster_close',
           at: endAt,
-          title: `ÄĂ³ng káº¿t ná»‘i caster Â· ${mountpointName}`,
-          detail: `${String(row.disconnect_reason || 'unknown')} Â· in ${Number(row.bytes_in ?? 0)} B Â· out ${Number(row.bytes_out ?? 0)} B`,
+          title: `Đóng kết nối caster · ${mountpointName}`,
+          detail: `${String(row.disconnect_reason || 'unknown')} · in ${Number(row.bytes_in ?? 0)} B · out ${Number(row.bytes_out ?? 0)} B`,
           level: row.disconnect_reason ? 'warning' : 'info'
         });
       }
@@ -993,7 +993,7 @@ stationsRouter.get(
           source: 'relay',
           type: 'relay_start',
           at: startAt,
-          title: `Relay báº¯t Ä‘áº§u Â· ${jobName}`,
+          title: `Relay bắt đầu · ${jobName}`,
           detail: `Job #${Number(row.relay_job_id)}`,
           level: 'info'
         });
@@ -1005,8 +1005,8 @@ stationsRouter.get(
           source: 'relay',
           type: 'relay_end',
           at: endAt,
-          title: `Relay káº¿t thĂºc Â· ${jobName}`,
-          detail: `${String(row.result || row.close_reason || 'unknown')} Â· ${Number(row.duration_sec ?? 0)} giĂ¢y${row.message ? ` Â· ${String(row.message)}` : ''}`,
+          title: `Relay kết thúc · ${jobName}`,
+          detail: `${String(row.result || row.close_reason || 'unknown')} · ${Number(row.duration_sec ?? 0)} giây${row.message ? ` · ${String(row.message)}` : ''}`,
           level: row.close_reason === 'network' || row.close_reason === 'timeout' ? 'warning' : 'info'
         });
       }
@@ -1030,7 +1030,7 @@ stationsRouter.get(
         source: 'audit',
         type: 'audit',
         at,
-        title: `Cáº¥u hĂ¬nh tráº¡m Â· ${String(row.action)}`,
+        title: `Cấu hình trạm · ${String(row.action)}`,
         detail: `Bá»Ÿi ${String(row.actor_name || 'há»‡ thá»‘ng')}`,
         level: 'info'
       });
@@ -1053,7 +1053,7 @@ stationsRouter.get(
       sources: sourceCounts,
       probeHistory: {
         available: false,
-        message: 'ChÆ°a lÆ°u lá»‹ch sá»­ probe; chá»‰ cĂ³ cáº¥u hĂ¬nh probe hiá»‡n táº¡i.'
+        message: 'Chưa lưu lịch sử probe; chỉ có cấu hình probe hiện tại.'
       }
     });
   })
@@ -1171,7 +1171,7 @@ stationsRouter.patch(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const before = await getStation(id);
-    if (!before) throw new ApiError(404, 'NOT_FOUND', 'KhĂ´ng tĂ¬m tháº¥y tráº¡m');
+    if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
     await assertRecordScope(req, before.owner_web_user_id);
     const body = updateSchema.parse(req.body);
     const ownerId =
@@ -1502,7 +1502,7 @@ stationsRouter.delete(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const before = await getStation(id);
-    if (!before) throw new ApiError(404, 'NOT_FOUND', 'KhĂ´ng tĂ¬m tháº¥y tráº¡m');
+    if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
     await assertRecordScope(req, before.owner_web_user_id);
     await adminPool.query('DELETE FROM stations WHERE id = ?', [id]);
     await writeAudit(adminPool, req.auth!.id, 'delete', 'station', id, before, null, ipFrom(req));

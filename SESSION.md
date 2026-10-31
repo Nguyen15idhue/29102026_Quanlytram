@@ -3,7 +3,7 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-10-30 21:00 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: P1.8 — Relay import DONE; tiếp theo P1.9
+- Phase hiện tại: P1.9 — Unicode/history DONE; tiếp theo P1.10
 - Trạng thái P1.0: DONE (backup/restore PASS, graphify 2364 nodes, Playwright 15/15)
 - Trạng thái P1.1: DONE (migration 014–017, station_sources 39, tenant scope)
 - Trạng thái P1.2: DONE (tenant RBAC, migration 018–019, server 53/53, P1 RBAC 3/3)
@@ -13,6 +13,7 @@
 - Trạng thái P1.6: DONE (mountpoint tối giản, drawer, impact, listener mapping, P1 mountpoint 2/2)
 - Trạng thái P1.7: DONE (account listener ACL, effective mountpoints, Go sourcetable, P1 ACL 1/1)
 - Trạng thái P1.8: DONE (form relay đầy đủ, JSON import dry-run/idempotent, P1 relay 1/1)
+- Trạng thái P1.9: DONE (utf8mb4, repair station notes, sạch mojibake, P1 unicode 1/1)
 - Trạng thái P0 Phase 1: DONE (drawer 5 tab, API connections/history/metadata)
 - Trạng thái P0 Phase 2: DONE (API list/detail, filter, drawer chuỗi)
 - Trạng thái P0 Phase 3: DONE (`/map`, API overview, layer/filter, redirect cũ)
@@ -86,9 +87,9 @@
 - Không có.
 
 ### Tiếp theo
-- P1.9 — Unicode, lịch sử và hiển thị; xem
+- P1.10 — Regression toàn bộ và bàn giao; xem
   `docs/1/03_CAC_BUOC_THUC_HIEN_P1.md`.
-- Không chuyển phase khi checklist P1.9 chưa PASS.
+- Không đóng P1 khi checklist P1.10 chưa PASS.
 
 ### Blocker
 - Không có. `go test -race` chưa chạy được vì môi trường Windows không bật

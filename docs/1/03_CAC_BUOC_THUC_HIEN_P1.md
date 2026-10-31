@@ -997,3 +997,21 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Playwright `p1-relay-import.spec.ts` **1/1 PASS**: dry-run không ghi,
     commit tạo mới, import lại theo id cập nhật, self-loop bị chặn.
 - Commit code: `8ba658c` — `feat(p1-8): relay form day du va import json`.
+
+### P1.9 — Unicode, lịch sử và hiển thị (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Pool MySQL thêm `charset: 'utf8mb4'`.
+- `020_p1_unicode_repair.sql`: sửa `stations.notes` id 79/80 thành
+  `Trạm thật <tên>`; không còn chuỗi `?`.
+- Sửa toàn bộ mojibake trong `server/src/routes/stations.ts`:
+  `KhĂ´ng`, `ChÆ°a`, `â€”`, `Â·`, `Má»Ÿ`, `Cáº¥u`, `giĂ¢y`, v.v.
+- Kiểm tra frontend source: 0 mojibake.
+- History/alerts giữ nguyên logic; UI hiển thị tiếng Việt đúng.
+- Test:
+  - Server build PASS; Vitest **53/53 PASS**.
+  - Frontend build PASS.
+  - Playwright `p1-unicode.spec.ts` **1/1 PASS**: station 79/80 đúng
+    “SLA Mộc Châu”/“THA Hậu Lộc”, notes đã repair, `/stations`, `/alerts`,
+    `/history` không chứa `�`, `â€`, `Ã`.
+- Commit code: sẽ ghi hash sau khi commit phase này.

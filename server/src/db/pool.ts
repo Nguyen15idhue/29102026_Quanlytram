@@ -9,6 +9,7 @@ export const adminPool: Pool = mysql.createPool({
   database: config.mysql.adminDatabase,
   waitForConnections: true,
   connectionLimit: 10,
+  charset: 'utf8mb4',
   timezone: 'Z',
   dateStrings: false,
   decimalNumbers: true
