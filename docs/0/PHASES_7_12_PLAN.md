@@ -323,14 +323,19 @@ Mở khi bấm avatar/tên người dùng.
 - Hồ sơ trạm + dictionary/custom fields + API trạm v2.
 - Danh sách trạm CRUD, quality, filter, import/export.
 - Form trạm nhóm; test connection GET-only.
+- **Rework 2026-10-30:** `source_type` + `ntrip_mode` (V1 no auth/V1 auth/V2 auth/
+  NtripClient), relay upstream host read-only, toạ độ chỉ đọc từ 1005/1006
+  (WGS84 6 số, VN2000 TM 105°, ITRF ECEF), không fallback lat/lon nhập tay.
 
 ### Phase 8 — Bản đồ & chi tiết trạm
-- Bản đồ trạm Leaflet/OSM, marker trạng thái, panel danh sách.
+- Bản đồ trạm Leaflet/OSM, marker trạng thái, panel danh sách; chỉ marker có 1005.
 - Popup chi tiết trạm: Tổng quan/Kết nối/Mountpoint/Chất lượng/Lịch sử; rộng 1080px.
 - Quality UI kiểu onocoy/CGBAS: KPI, activity timeline, metric selector,
   constellation breakdown. Metric chưa có dữ liệu hiện **disabled** + chú thích.
-- Sky Plot thật/cycle slip/RMS/latency/neighboring stations: **Phase 8–9**,
-  cần ephemeris/GSV/raw observation; không hiện số giả.
+- Cycle slip, Code & Phase RMS, Latency: đã triển khai từ MSM4/7 observation.
+- Sky Plot: cần ephemeris 1019/1020/1045/1046 hoặc GSV; nếu nguồn không phát
+  thì hiện chẩn đoán dữ liệu, không vẽ vị trí giả.
+- Neighboring stations: Phase 9.
 - Bản đồ online: marker tài khoản có toạ độ; badge số tài khoản không gửi toạ độ.
 - Danh sách online: bảng chi tiết, filter, export; force disconnect nếu có quyền.
 

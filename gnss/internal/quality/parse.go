@@ -33,6 +33,8 @@ type messageInfo struct {
 	ARPY          int64
 	ARPZ          int64
 	Antenna       string
+	Epoch         uint32
+	Observations  []observation
 }
 
 func normalizeText(value string) string {
@@ -150,17 +152,135 @@ func decodeMessage(payload []byte) (info messageInfo, err error) {
 		info.CellMask = header.CellMask
 		info.HasStation = true
 		info.StationID = header.ReferenceStationId
-		if info.Number%10 == 7 {
+		info.Epoch = header.Epoch
+		switch info.Number % 10 {
+		case 4:
+			msg := rtcm3.DeserializeMessageMsm4(payload)
+			info.Observations = observationsMsm4(msg)
+		case 7:
 			msg := rtcm3.DeserializeMessageMsm7(payload)
-			for _, cnr := range msg.SignalData.Cnrs {
-				if cnr == 0 {
-					continue
-				}
-				// RTCM MSM CNR resolution is 0.0625 dBHz.
-				info.CNRSum += float64(cnr) * 0.0625
-				info.CNRCount++
+			info.Observations = observationsMsm7(msg)
+		}
+		for _, observation := range info.Observations {
+			if observation.CNR <= 0 {
+				continue
 			}
+			info.CNRSum += observation.CNR
+			info.CNRCount++
 		}
 	}
 	return info, nil
+}
+
+type observation struct {
+	System      int
+	Satellite   int
+	Signal      int
+	Pseudorange float64
+	Phase       float64
+	Lock        uint16
+	HalfCycle   bool
+	CNR         float64
+}
+
+type cellRef struct {
+	Satellite      int
+	Signal         int
+	SatelliteIndex int
+}
+
+const speedOfLightMs = 299792458.0 / 1000.0
+
+func maskBits64(mask uint64) []int {
+	values := make([]int, 0, bits.OnesCount64(mask))
+	for index := 0; index < 64; index++ {
+		if mask&(uint64(1)<<uint(index)) != 0 {
+			values = append(values, index+1)
+		}
+	}
+	return values
+}
+
+func maskBits32(mask uint32) []int {
+	values := make([]int, 0, bits.OnesCount32(mask))
+	for index := 0; index < 32; index++ {
+		if mask&(uint32(1)<<uint(index)) != 0 {
+			values = append(values, index+1)
+		}
+	}
+	return values
+}
+
+func msmCellRefs(header rtcm3.MsmHeader) []cellRef {
+	satellites := maskBits64(header.SatelliteMask)
+	signals := maskBits32(header.SignalMask)
+	refs := make([]cellRef, 0, len(satellites)*len(signals))
+	index := 0
+	for satelliteIndex, satellite := range satellites {
+		for _, signal := range signals {
+			if header.CellMask&(uint64(1)<<uint(index)) != 0 {
+				refs = append(refs, cellRef{
+					Satellite:      satellite,
+					Signal:         signal,
+					SatelliteIndex: satelliteIndex,
+				})
+			}
+			index++
+		}
+	}
+	return refs
+}
+
+func observationsMsm4(msg rtcm3.MessageMsm4) []observation {
+	refs := msmCellRefs(msg.MsmHeader)
+	result := make([]observation, 0, len(refs))
+	for index, ref := range refs {
+		if index >= len(msg.SignalData.Pseudoranges) ||
+			index >= len(msg.SignalData.PhaseRanges) ||
+			ref.SatelliteIndex >= len(msg.SatelliteData.RangeMilliseconds) ||
+			ref.SatelliteIndex >= len(msg.SatelliteData.Ranges) {
+			break
+		}
+		coarseMs := float64(msg.SatelliteData.RangeMilliseconds[ref.SatelliteIndex]) +
+			float64(msg.SatelliteData.Ranges[ref.SatelliteIndex])/1024
+		coarseMeters := coarseMs * speedOfLightMs
+		result = append(result, observation{
+			System:      int(msg.MsmHeader.MessageNumber) / 10,
+			Satellite:   ref.Satellite,
+			Signal:      ref.Signal,
+			Pseudorange: coarseMeters + float64(msg.SignalData.Pseudoranges[index])*speedOfLightMs/float64(uint64(1)<<24),
+			Phase:       coarseMeters + float64(msg.SignalData.PhaseRanges[index])*speedOfLightMs/float64(uint64(1)<<29),
+			Lock:        uint16(msg.SignalData.PhaseRangeLocks[index]),
+			HalfCycle:   msg.SignalData.HalfCycles[index],
+			CNR:         float64(msg.SignalData.Cnrs[index]),
+		})
+	}
+	return result
+}
+
+func observationsMsm7(msg rtcm3.MessageMsm7) []observation {
+	refs := msmCellRefs(msg.MsmHeader)
+	result := make([]observation, 0, len(refs))
+	for index, ref := range refs {
+		if index >= len(msg.SignalData.Pseudoranges) ||
+			index >= len(msg.SignalData.PhaseRanges) ||
+			ref.SatelliteIndex >= len(msg.SatelliteData.RangeMilliseconds) ||
+			ref.SatelliteIndex >= len(msg.SatelliteData.Ranges) {
+			break
+		}
+		coarseMs := float64(msg.SatelliteData.RangeMilliseconds[ref.SatelliteIndex]) +
+			float64(msg.SatelliteData.Ranges[ref.SatelliteIndex])/1024
+		coarseMeters := coarseMs * speedOfLightMs
+		result = append(result, observation{
+			System:      int(msg.MsmHeader.MessageNumber) / 10,
+			Satellite:   ref.Satellite,
+			Signal:      ref.Signal,
+			Pseudorange: coarseMeters + float64(msg.SignalData.Pseudoranges[index])*speedOfLightMs/float64(uint64(1)<<29),
+			Phase:       coarseMeters + float64(msg.SignalData.PhaseRanges[index])*speedOfLightMs/float64(uint64(1)<<31),
+			Lock:        msg.SignalData.PhaseRangeLocks[index],
+			HalfCycle:   msg.SignalData.HalfCycles[index],
+			CNR:         float64(msg.SignalData.Cnrs[index]) * 0.0625,
+		})
+	}
+	return result
 }

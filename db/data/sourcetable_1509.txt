@@ -1,0 +1,35 @@
+HTTP/1.1 200 OK
+Ntrip-Version: Ntrip/2.0
+Server: GEO NTRIP Caster/2.0
+Date: Sat, 31 Oct 2026 10:25:26 GMT
+Connection: close
+Content-Type: gnss/sourcetable
+Content-Length: 2406
+
+STR;THA_NgocLac;THA_NgocLac;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;SLA_TPSONLA;SLA_TPSONLA;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;SLA_MocChau;SLA_MocChau;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;YBI_TpYenbai;YBI_TpYenbai;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;TNN_TpThaiNguyen;TNN_TpThaiNguyen;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;TNN_DinhHoa;TNN_DinhHoa;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;YBI_MuCangChai;YBI_MuCangChai;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;YBI_LucYen;YBI_LucYen;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;THA_HauLoc;THA_HauLoc;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;BDH1;BDH1;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;HBH_TpHoaBinh;HBH_TpHoaBinh;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;GLI1;GLI1;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;LCI_TpLaoCai;LCI_TpLaoCai;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;LCI_BaoHa;LCI_BaoHa;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;YBI_TramTau;YBI_TramTau;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;BTE_ChauThanh;BTE_ChauThanh;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;QBH_LeThuy;QBH_LeThuy;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;BKN_BaBe;BKN_BaBe;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;KGG_GiongRieng;KGG_GiongRieng;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;TQG_HamYen;TQG_HamYen;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;BKN_NARI;BKN_NARI;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;QNH_DongTrieu;QNH_DongTrieu;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;hauloc;hauloc;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;MocChautest;MocChautest;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;YBI_VanYen;YBI_VanYen;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;CMU_DatMui;CMU_DatMui;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+ENDSOURCETABLE

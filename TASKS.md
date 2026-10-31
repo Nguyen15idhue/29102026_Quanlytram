@@ -12,8 +12,8 @@
 | 4 | NTRIP caster & quản lý client | DONE (mock + real allowlist 2 relay/2 station) | Phase 3.5 |
 | 5 | Realtime, dashboard, vận hành | DONE (defer Taste auth) | Phase 4 |
 | 6 | RTCM Analytics & chất lượng trạm/relay | DONE (mock + real probe; load 50 PASS) | Phase 3.5–5 |
-| 7 | Nền tảng UI & Trạm danh sách | DONE (core; test connection defer Phase 8) | Phase 5–6 |
-| 8 | Bản đồ & chi tiết trạm | DONE (core; sky plot/advanced metrics defer) | Phase 7 |
+| 7 | Nền tảng UI & Trạm danh sách | DONE (core + nguồn trạm/1005; Playwright 8/8) | Phase 5–6 |
+| 8 | Bản đồ & chi tiết trạm | DONE (core + map 1005 + cycle slip/RMS/latency; Sky Plot chờ ephemeris nguồn) | Phase 7 |
 | 9 | CORS: NTRIP, mountpoint, caster | DONE (core; import/export defer) | Phase 7–8 |
 | 10 | Relay & Hệ thống | DONE (core; relay/role import-export defer) | Phase 7–9 |
 | 11 | Cá nhân, cấu hình & báo cáo | DONE (core; notification/config/log defer) | Phase 7–10 |
@@ -528,6 +528,8 @@ Hệ thống: Phân quyền | Người dùng | Lịch sử | Cảnh báo
 - [x] P7-08 Form trạm nhóm: Định danh / Vị trí / Thiết bị / Kết nối / Vận hành
       / Custom fields; test connection GET-only.
 - [x] P7-09 Test G7: list/pagination 10/import/export/form/menu/a11y.
+- [x] P7-10 Rework nguồn trạm/1005: `source_type`, `ntrip_mode`, relay upstream
+      read-only, WGS84 6 số/VN2000/ITRF, map chỉ marker 1005; Playwright 8/8.
 
 **Nghiệm thu Phase 7:** menu mới; mọi list có pagination 10 luôn hiển thị;
 import/export `.xlsx`; trạm đủ trường; test PASS.
@@ -537,8 +539,8 @@ import/export `.xlsx`; trạm đủ trường; test PASS.
       không hiện relay.
 - [x] P8-02 Popup chi tiết trạm rộng **1080px**: Tổng quan / Kết nối /
       Mountpoint / Chất lượng / Lịch sử; nút Sửa mở popup riêng.
-- [x] P8-05 Quality UI kiểu onocoy/CGBAS; metric thiếu dữ liệu disabled;
-      Sky Plot thật/cycle slip/RMS/latency/neighboring stations để Phase 8–9.
+- [x] P8-05 Quality UI kiểu onocoy/CGBAS; cycle slip/RMS/latency từ MSM;
+      Sky Plot hiện chẩn đoán nếu nguồn không phát ephemeris; neighboring stations Phase 9.
 - [x] P8-03 Bản đồ online: marker chỉ tài khoản NTRIP **có gửi toạ độ**;
       badge/tổng “x tài khoản không gửi tọa độ”.
 - [x] P8-04 Danh sách online: bảng chi tiết tài khoản online, filter, export;

@@ -1,0 +1,15 @@
+HTTP/1.1 200 OK
+Ntrip-Version: Ntrip/2.0
+Server: GEO NTRIP Caster/2.0
+Date: Sat, 31 Oct 2026 10:25:26 GMT
+Connection: close
+Content-Type: gnss/sourcetable
+Content-Length: 562
+
+STR;TNN_TPThaiNguyen;TNN_TPThaiNguyen;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;TNN_DaiTu;TNN_DaiTu;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;YBI_XuanAI;YBI_XuanAI;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;TNN_VoNhai;TNN_VoNhai;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;TNN_PhoYen;TNN_PhoYen;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+STR;BG.TP;BG.TP;;;2;GNSS;GEOStation;VNM;0.00;0.00;1;1;GEOStation;none;B;N;9600;
+ENDSOURCETABLE

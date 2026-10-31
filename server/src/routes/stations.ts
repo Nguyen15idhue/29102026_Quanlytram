@@ -6,6 +6,7 @@ import { runtimeQuery } from '../db/runtimePool';
 import { writeAudit } from '../lib/audit';
 import { buildWorkbook, readSheetRows, readWorkbook, sendWorkbook } from '../lib/excel';
 import { asyncHandler, ApiError } from '../lib/http';
+import { ecefToGeodetic, geodeticToVn2000 } from '../lib/geo';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import { assertRecordScope, ipFrom, listScope, pageFrom, scopeIdsFor } from '../rbac/access';
@@ -24,6 +25,9 @@ const createSchema = z.object({
   host: text(190),
   port: z.number().int().min(1).max(65535).optional().default(1509),
   connection_type: z.string().max(32).optional().default('ntrip'),
+  source_type: z.enum(['relay_caster', 'caster_ingest', 'probe_client', 'manual']).optional().default('manual'),
+  ntrip_version: z.enum(['v1', 'v2']).optional().default('v1'),
+  ntrip_mode: z.enum(['v1_noauth', 'v1_auth', 'v2_auth', 'ntrip_client']).optional().default('v1_noauth'),
   lat: nullableNumber(-90, 90),
   lon: nullableNumber(-180, 180),
   notes: text(500),
@@ -85,7 +89,7 @@ async function qualityMap(ids: number[]): Promise<Map<number, any>> {
   if (ids.length === 0) return map;
   const placeholders = ids.map(() => '?').join(',');
   const rows = await runtimeQuery<RowDataPacket[]>(
-    `SELECT target_id, score, state, ts FROM (
+    `SELECT target_id, score, state, ts, arp_x, arp_y, arp_z, reported_station_id, satellites, cells, age_ms FROM (
        SELECT qs.*, ROW_NUMBER() OVER (PARTITION BY target_id ORDER BY ts DESC) AS rn
          FROM quality_samples qs
         WHERE target_type = 'station' AND target_id IN (${placeholders})
@@ -96,12 +100,115 @@ async function qualityMap(ids: number[]): Promise<Map<number, any>> {
   return map;
 }
 
-function withQuality(row: any, quality: Map<number, any>) {
+async function relayMap(ids: number[]): Promise<Map<number, any>> {
+  const map = new Map<number, any>();
+  if (ids.length === 0) return map;
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = await query<RowDataPacket[]>(
+    `SELECT m.station_id, r.id AS relay_job_id, r.name AS relay_job_name,
+            r.upstream_host, r.upstream_port, r.upstream_mount, r.upstream_ntrip_version,
+            r.upstream_credential_id,
+            CASE
+              WHEN r.upstream_ntrip_version = 'v1' AND r.upstream_credential_id IS NULL THEN 'v1_noauth'
+              WHEN r.upstream_ntrip_version = 'v1' THEN 'v1_auth'
+              ELSE 'v2_auth'
+            END AS relay_ntrip_mode
+       FROM relay_jobs r
+       JOIN mountpoints m ON m.name = r.upstream_mount
+      WHERE r.deleted_at IS NULL AND m.station_id IN (${placeholders})
+      ORDER BY r.id`,
+    ids
+  );
+  for (const row of rows as any[]) {
+    if (!map.has(Number(row.station_id))) map.set(Number(row.station_id), row);
+  }
+  return map;
+}
+
+async function probeMap(ids: number[]): Promise<Map<number, any>> {
+  const map = new Map<number, any>();
+  if (ids.length === 0) return map;
+  const placeholders = ids.map(() => '?').join(',');
+  const rows = await query<RowDataPacket[]>(
+    `SELECT station_id, enabled, probe_interval_sec
+       FROM station_probes WHERE station_id IN (${placeholders})`,
+    ids
+  );
+  for (const row of rows as any[]) map.set(Number(row.station_id), row);
+  return map;
+}
+
+function withQuality(
+  row: any,
+  quality: Map<number, any>,
+  relays: Map<number, any>,
+  probes: Map<number, any>
+) {
   const item = quality.get(Number(row.id));
+  const relay = relays.get(Number(row.id));
+  const probe = probes.get(Number(row.id));
+  const sourceType = relay
+    ? 'relay_caster'
+    : probe?.enabled
+      ? 'probe_client'
+      : row.source_type || 'manual';
+  const ntripVersion = relay?.upstream_ntrip_version || row.ntrip_version || 'v1';
+  const ntripMode = relay?.relay_ntrip_mode || row.ntrip_mode || 'v1_noauth';
+  let reportedLat: number | null = null;
+  let reportedLon: number | null = null;
+  let reportedHeight: number | null = null;
+  let itrfX: number | null = null;
+  let itrfY: number | null = null;
+  let itrfZ: number | null = null;
+  let vn2000Easting: number | null = null;
+  let vn2000Northing: number | null = null;
+  if (
+    item &&
+    item.arp_x !== null &&
+    item.arp_x !== undefined &&
+    item.arp_y !== null &&
+    item.arp_y !== undefined &&
+    item.arp_z !== null &&
+    item.arp_z !== undefined
+  ) {
+    const x = Number(item.arp_x) / 10000;
+    const y = Number(item.arp_y) / 10000;
+    const z = Number(item.arp_z) / 10000;
+    const geodetic = ecefToGeodetic(x, y, z);
+    const vn2000 = geodeticToVn2000(geodetic.lat, geodetic.lon);
+    reportedLat = geodetic.lat;
+    reportedLon = geodetic.lon;
+    reportedHeight = geodetic.height;
+    itrfX = x;
+    itrfY = y;
+    itrfZ = z;
+    vn2000Easting = vn2000.easting;
+    vn2000Northing = vn2000.northing;
+  }
   return {
     ...row,
     owner_name: row.owner_name ?? '',
     mountpoint_count: Number(row.mountpoint_count ?? 0),
+    source_type: sourceType,
+    ntrip_version: ntripVersion,
+    ntrip_mode: ntripMode,
+    relay_job_id: relay?.relay_job_id ?? null,
+    relay_job_name: relay?.relay_job_name ?? null,
+    relay_upstream_host: relay?.upstream_host ?? null,
+    relay_upstream_port: relay?.upstream_port ?? null,
+    relay_upstream_mount: relay?.upstream_mount ?? null,
+    probe_enabled: Boolean(probe?.enabled),
+    probe_interval_sec: probe?.probe_interval_sec ?? null,
+    reported_lat: reportedLat,
+    reported_lon: reportedLon,
+    reported_height: reportedHeight,
+    itrf_x: itrfX,
+    itrf_y: itrfY,
+    itrf_z: itrfZ,
+    vn2000_easting: vn2000Easting,
+    vn2000_northing: vn2000Northing,
+    coordinate_source: reportedLat === null ? 'none' : '1005/1006',
+    reported_station_id: item?.reported_station_id ?? null,
     quality_score: item ? Number(item.score) : null,
     quality_state: item ? String(item.state) : 'unknown',
     last_data_at: item ? item.ts : null
@@ -154,9 +261,14 @@ stationsRouter.get(
       `SELECT COUNT(*) AS total FROM stations s WHERE ${where}`,
       params
     );
-    const quality = await qualityMap(rows.map((row) => Number(row.id)));
+    const idsForMeta = rows.map((row) => Number(row.id));
+    const [quality, relays, probes] = await Promise.all([
+      qualityMap(idsForMeta),
+      relayMap(idsForMeta),
+      probeMap(idsForMeta)
+    ]);
     res.json({
-      items: rows.map((row) => withQuality(row, quality)),
+      items: rows.map((row) => withQuality(row, quality, relays, probes)),
       total: Number(countRows[0].total),
       pageSize,
       offset
@@ -181,6 +293,7 @@ stationsRouter.get(
     );
     const headers = [
       'code', 'name', 'station_type', 'enabled', 'host', 'port', 'connection_type',
+      'source_type', 'ntrip_version', 'ntrip_mode',
       'lat', 'lon', 'region', 'address', 'contractor', 'receiver_type', 'receiver_sn',
       'receiver_firmware', 'antenna_type', 'antenna_sn', 'antenna_height',
       'elevation_mask', 'device_id', 'network_type', 'network_mode', 'protocol',
@@ -188,7 +301,8 @@ stationsRouter.get(
     ];
     const data = rows.map((row) => [
       row.code, row.name, row.station_type, row.enabled ? '1' : '0', row.host, row.port,
-      row.connection_type, row.lat, row.lon, row.region, row.address, row.contractor,
+      row.connection_type, row.source_type, row.ntrip_version, row.ntrip_mode,
+      row.lat, row.lon, row.region, row.address, row.contractor,
       row.receiver_type, row.receiver_sn, row.receiver_firmware, row.antenna_type,
       row.antenna_sn, row.antenna_height, row.elevation_mask, row.device_id,
       row.network_type, row.network_mode, row.protocol, row.owner_name, row.notes
@@ -224,6 +338,9 @@ stationsRouter.post(
         host: row.host ?? '',
         port: num('port') ?? 1509,
         connection_type: row.connection_type || 'ntrip',
+        source_type: row.source_type || 'manual',
+        ntrip_version: row.ntrip_version || 'v1',
+        ntrip_mode: row.ntrip_mode || 'v1_noauth',
         lat: num('lat') ?? null,
         lon: num('lon') ?? null,
         notes: row.notes ?? '',
@@ -275,7 +392,8 @@ stationsRouter.post(
         const data = item.data;
         const [existing]: any = await conn.query('SELECT id FROM stations WHERE code = ? LIMIT 1', [data.code]);
         const values = [
-          data.code, data.name, data.host ?? '', data.port, data.connection_type, data.lat, data.lon,
+          data.code, data.name, data.host ?? '', data.port, data.connection_type,
+          data.source_type, data.ntrip_version, data.ntrip_mode, data.lat, data.lon,
           data.notes ?? '', data.station_type, data.enabled, data.receiver_type ?? '',
           data.receiver_sn ?? '', data.receiver_firmware ?? '', data.antenna_type ?? '',
           data.antenna_sn ?? '', data.antenna_height, data.elevation_mask, data.contractor ?? '',
@@ -285,7 +403,8 @@ stationsRouter.post(
         ];
         if (existing[0]) {
           await conn.query(
-            `UPDATE stations SET name=?, host=?, port=?, connection_type=?, lat=?, lon=?, notes=?,
+            `UPDATE stations SET name=?, host=?, port=?, connection_type=?,
+               source_type=?, ntrip_version=?, ntrip_mode=?, lat=?, lon=?, notes=?,
                station_type=?, enabled=?, receiver_type=?, receiver_sn=?, receiver_firmware=?,
                antenna_type=?, antenna_sn=?, antenna_height=?, elevation_mask=?, contractor=?,
                region=?, address=?, device_id=?, network_type=?, network_mode=?, protocol=?,
@@ -296,11 +415,12 @@ stationsRouter.post(
         } else {
           await conn.query(
             `INSERT INTO stations
-              (code, name, host, port, connection_type, lat, lon, notes, station_type, enabled,
+              (code, name, host, port, connection_type, source_type, ntrip_version, ntrip_mode,
+               lat, lon, notes, station_type, enabled,
                receiver_type, receiver_sn, receiver_firmware, antenna_type, antenna_sn,
                antenna_height, elevation_mask, contractor, region, address, device_id,
                network_type, network_mode, protocol, custom_fields, owner_web_user_id, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [...values, req.auth!.id]
           );
           created += 1;
@@ -319,8 +439,13 @@ stationsRouter.get(
     const station = await getStation(Number(req.params.id));
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
     await assertRecordScope(req, station.owner_web_user_id);
-    const quality = await qualityMap([Number(station.id)]);
-    res.json({ item: withQuality(station, quality) });
+    const idsForMeta = [Number(station.id)];
+    const [quality, relays, probes] = await Promise.all([
+      qualityMap(idsForMeta),
+      relayMap(idsForMeta),
+      probeMap(idsForMeta)
+    ]);
+    res.json({ item: withQuality(station, quality, relays, probes) });
   })
 );
 
@@ -332,13 +457,15 @@ stationsRouter.post(
     const ownerId = await resolveOwner(req, body.owner_web_user_id);
     const [result] = await adminPool.query<any>(
       `INSERT INTO stations
-         (code, name, host, port, connection_type, lat, lon, notes, station_type, enabled,
+         (code, name, host, port, connection_type, source_type, ntrip_version, ntrip_mode,
+          lat, lon, notes, station_type, enabled,
           receiver_type, receiver_sn, receiver_firmware, antenna_type, antenna_sn,
           antenna_height, elevation_mask, contractor, region, address, device_id,
           network_type, network_mode, protocol, custom_fields, owner_web_user_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         body.code, body.name, body.host ?? '', body.port, body.connection_type,
+        body.source_type, body.ntrip_version, body.ntrip_mode,
         body.lat ?? null, body.lon ?? null, body.notes ?? '', body.station_type,
         body.enabled, body.receiver_type ?? '', body.receiver_sn ?? '',
         body.receiver_firmware ?? '', body.antenna_type ?? '', body.antenna_sn ?? '',
@@ -371,13 +498,15 @@ stationsRouter.patch(
     const value = (key: string) =>
       body[key as keyof typeof body] === undefined ? before[key] : body[key as keyof typeof body];
     await adminPool.query(
-      `UPDATE stations SET code=?, name=?, host=?, port=?, connection_type=?, lat=?, lon=?, notes=?,
+      `UPDATE stations SET code=?, name=?, host=?, port=?, connection_type=?,
+         source_type=?, ntrip_version=?, ntrip_mode=?, lat=?, lon=?, notes=?,
          station_type=?, enabled=?, receiver_type=?, receiver_sn=?, receiver_firmware=?,
          antenna_type=?, antenna_sn=?, antenna_height=?, elevation_mask=?, contractor=?,
          region=?, address=?, device_id=?, network_type=?, network_mode=?, protocol=?,
          custom_fields=?, owner_web_user_id=? WHERE id=?`,
       [
         value('code'), value('name'), value('host'), value('port'), value('connection_type'),
+        value('source_type'), value('ntrip_version'), value('ntrip_mode'),
         value('lat'), value('lon'), value('notes'), value('station_type'), value('enabled'),
         value('receiver_type'), value('receiver_sn'), value('receiver_firmware'),
         value('antenna_type'), value('antenna_sn'), value('antenna_height'), value('elevation_mask'),

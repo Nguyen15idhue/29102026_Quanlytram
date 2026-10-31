@@ -419,3 +419,24 @@ func TestSatelliteAggregationAcrossConstellations(t *testing.T) {
 		t.Fatalf("constellations = %d, want 3", len(state.constellations()))
 	}
 }
+
+func Test6T8MsmObservationMetrics(t *testing.T) {
+	analyzer := NewAnalyzer(Options{QueueSize: 8}, nil)
+	state := addState(analyzer, Target{Type: TargetStation, ID: 40, Direction: DirectionIngest})
+	now := time.Now().UTC()
+	ingestState(state, now, readFrame(t, "1077"), readFrame(t, "1087"))
+	if state.observationCount == 0 {
+		t.Fatalf("observations = 0, want > 0")
+	}
+	ingestState(state, now.Add(time.Second), readFrame(t, "1077"), readFrame(t, "1087"))
+	if state.codePhaseSamples == 0 {
+		t.Fatalf("code phase samples = 0, want > 0")
+	}
+	snapshot := state.snapshot(now.Add(2*time.Second), DefaultOptions())
+	if snapshot.Observations == 0 {
+		t.Fatalf("snapshot observations = 0")
+	}
+	if snapshot.LatencyMs < 0 {
+		t.Fatalf("latency = %d", snapshot.LatencyMs)
+	}
+}

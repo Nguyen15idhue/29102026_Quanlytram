@@ -41,6 +41,14 @@ export interface QualityLive {
   arpDeltaM?: number;
   antenna?: string;
   ageMs: number;
+  latencyMs: number;
+  cycleSlips: number;
+  cycleSlipRate: number;
+  codePhaseRmsM: number;
+  codePhaseSamples: number;
+  observations: number;
+  skyPlotAvailable: boolean;
+  skyPlotReason?: string;
   gaps: number;
   metadataOk: boolean;
   baselineSatellites: number;

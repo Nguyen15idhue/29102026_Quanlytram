@@ -37,7 +37,19 @@ Mã thường gặp: `UNAUTHENTICATED`, `SESSION_EXPIRED`, `CSRF_INVALID`, `FORB
 | PATCH | `/api/stations/:id` | `stations.edit` |
 | DELETE | `/api/stations/:id` | `stations.delete` |
 
-Body tạo/sửa: `code`, `name`, `host`, `port`, `connection_type`, `lat`, `lon`, `notes`, `owner_web_user_id`.
+Body tạo/sửa: `code`, `name`, `host`, `port`, `connection_type`,
+`source_type` (`relay_caster|caster_ingest|probe_client|manual`),
+`ntrip_version` (`v1|v2`), `ntrip_mode`
+(`v1_noauth|v1_auth|v2_auth|ntrip_client`), `lat`, `lon`, `notes`,
+`owner_web_user_id`.
+
+Response trạm có thêm metadata nguồn và toạ độ 1005/1006:
+`relay_job_id`, `relay_job_name`, `relay_upstream_host`, `relay_upstream_port`,
+`relay_upstream_mount`, `reported_lat`, `reported_lon`, `reported_height`,
+`itrf_x`, `itrf_y`, `itrf_z`, `vn2000_easting`, `vn2000_northing`,
+`coordinate_source` (`none|1005/1006`), `reported_station_id`.
+`reported_*`/`itrf_*`/`vn2000_*` chỉ có khi quality sample đã nhận 1005/1006;
+không fallback `lat/lon` nhập tay.
 
 ## 4. Mountpoints
 
@@ -260,6 +272,14 @@ Response quality (rút gọn):
     "avgCnr": 42.5,
     "reportedStationId": 1001,
     "ageMs": 850,
+    "latencyMs": 850,
+    "cycleSlips": 3,
+    "cycleSlipRate": 0.8,
+    "codePhaseRmsM": 0.048,
+    "codePhaseSamples": 2916,
+    "observations": 3024,
+    "skyPlotAvailable": false,
+    "skyPlotReason": "Nguồn RTCM chưa phát ephemeris 1019/1020/1045/1046 để tính azimuth/elevation",
     "gaps": 0
   }
 }
@@ -325,9 +345,11 @@ Sự kiện: `snapshot`, `relay.updated`, `relay.session`, `connection.updated`,
 | Method | Endpoint | Quyền |
 |---|---|---|
 | GET | `/api/snapshot` | Đăng nhập; mỗi mục lọc theo quyền |
-| GET | `/api/alerts?status=&severity=&targetType=&q=&page=&pageSize=` | `alerts.view` |
+| GET | `/api/alerts?status=&severity=&level=&eventType=&unread=&targetType=&q=&page=&pageSize=` | `alerts.view` |
 | GET | `/api/alerts/:id` | `alerts.view` |
 | POST | `/api/alerts/:id/ack` | `alerts.ack`; body `{ note? }`; ghi audit |
+| POST | `/api/alerts/:id/read` | `alerts.view`; đánh dấu đã đọc |
+| POST | `/api/alerts/read-all` | `alerts.view`; đánh dấu tất cả đã đọc |
 | GET | `/api/history/sessions?jobId=&from=&to=&page=&pageSize=` | `relay.view` |
 | GET | `/api/history/events?jobId=&from=&to=&type=&page=&pageSize=` | `relay.view` |
 | GET | `/api/history/hourly?jobId=&from=&to=&page=&pageSize=` | `relay.view` |

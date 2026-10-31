@@ -65,7 +65,7 @@ export function OnlineMap() {
     for (const connection of connections.data?.items ?? []) {
       const mountpoint = mountpointById.get(connection.mountpointId);
       const station = mountpoint?.station_id ? stationById.get(mountpoint.station_id) : null;
-      if (!station || station.lat === null || station.lon === null) {
+      if (!station || station.reported_lat == null || station.reported_lon == null) {
         withoutCoords += 1;
         continue;
       }
@@ -98,8 +98,8 @@ export function OnlineMap() {
     layer.clearLayers();
     for (const group of groups.groups) {
       const { station, accounts } = group;
-      if (station.lat === null || station.lon === null) continue;
-      const marker = L.circleMarker([station.lat, station.lon], {
+      if (station.reported_lat == null || station.reported_lon == null) continue;
+      const marker = L.circleMarker([station.reported_lat, station.reported_lon], {
         radius: 9,
         color: '#1f8a57',
         fillColor: '#1f8a57',

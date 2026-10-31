@@ -2,8 +2,10 @@ package quality
 
 import (
 	"context"
+	"math"
 	"math/bits"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -102,6 +104,11 @@ type sampleMark struct {
 	gaps    int
 }
 
+type cellHistory struct {
+	divergence float64
+	has        bool
+}
+
 type targetState struct {
 	target Target
 
@@ -126,6 +133,13 @@ type targetState struct {
 	cellMasks  map[int]uint64
 	cnrSum     float64
 	cnrCount   int
+
+	cellHistory      map[string]cellHistory
+	cycleSlips       uint64
+	codePhaseSamples uint64
+	rmsWindow        []float64
+	rmsWindowSum     float64
+	observationCount uint64
 
 	has1005 bool
 	has1006 bool
@@ -170,6 +184,7 @@ func newTargetState(target Target) *targetState {
 		satMasks:     make(map[int]uint64),
 		sigMasks:     make(map[int]uint32),
 		cellMasks:    make(map[int]uint64),
+		cellHistory:  make(map[string]cellHistory),
 		alerts:       make(map[string]*alertState),
 	}
 }
@@ -388,6 +403,32 @@ func (s *targetState) applyMessage(info messageInfo, frameBytes uint64) {
 		}
 		s.cnrSum += info.CNRSum
 		s.cnrCount += info.CNRCount
+		for _, observation := range info.Observations {
+			if observation.Pseudorange == 0 || observation.Phase == 0 {
+				continue
+			}
+			key := strconv.Itoa(observation.System) + ":" +
+				strconv.Itoa(observation.Satellite) + ":" +
+				strconv.Itoa(observation.Signal)
+			divergence := observation.Phase - observation.Pseudorange
+			if previous, ok := s.cellHistory[key]; ok && previous.has {
+				delta := divergence - previous.divergence
+				if math.Abs(delta) > 0.12 {
+					s.cycleSlips++
+				}
+				if math.Abs(delta) <= 10 {
+					s.rmsWindow = append(s.rmsWindow, delta)
+					s.rmsWindowSum += delta * delta
+					if len(s.rmsWindow) > 300 {
+						s.rmsWindowSum -= s.rmsWindow[0] * s.rmsWindow[0]
+						s.rmsWindow = s.rmsWindow[1:]
+					}
+				}
+				s.codePhaseSamples = uint64(len(s.rmsWindow))
+			}
+			s.cellHistory[key] = cellHistory{divergence: divergence, has: true}
+			s.observationCount++
+		}
 	}
 	if info.Has1005 {
 		s.has1005 = true
@@ -520,36 +561,52 @@ func (s *targetState) snapshot(now time.Time, opts Options) Snapshot {
 	for key, value := range s.messageTypes {
 		types[key] = value
 	}
+	cycleSlipRate := 0.0
+	if s.observationCount > 0 {
+		cycleSlipRate = 100 * float64(s.cycleSlips) / float64(s.observationCount)
+	}
+	codePhaseRms := 0.0
+	if s.codePhaseSamples > 0 {
+		codePhaseRms = math.Sqrt(s.rmsWindowSum / float64(s.codePhaseSamples))
+	}
 	snapshot := Snapshot{
-		TargetType:      s.target.Type,
-		TargetID:        s.target.ID,
-		MountpointID:    s.target.MountpointID,
-		Direction:       s.target.Direction,
-		Ts:              now.Format(time.RFC3339Nano),
-		Score:           score,
-		ScoreParts:      parts,
-		State:           state,
-		Frames:          s.frames,
-		Bytes:           s.bytes,
-		CRCErrors:       s.crc,
-		ParseErrors:     s.parse,
-		LengthErrors:    s.length,
-		UnknownMessages: s.unknown,
-		MSMEpochs:       s.msm,
-		Satellites:      s.satellites,
-		Signals:         s.signals,
-		Cells:           s.cells,
-		Constellations:  s.constellations(),
-		AvgCnr:          s.averageCNR(),
-		CNRAvailable:    s.cnrCount > 0,
-		Antenna:         s.antenna,
-		AgeMs:           ageMs,
-		Gaps:            s.gaps,
-		MetadataOK:      s.has1005 || s.has1006,
-		BaselineSat:     baselineSat,
-		BaselineCells:   baselineCells,
-		MessageTypes:    types,
-		Live:            state == "streaming",
+		TargetType:       s.target.Type,
+		TargetID:         s.target.ID,
+		MountpointID:     s.target.MountpointID,
+		Direction:        s.target.Direction,
+		Ts:               now.Format(time.RFC3339Nano),
+		Score:            score,
+		ScoreParts:       parts,
+		State:            state,
+		Frames:           s.frames,
+		Bytes:            s.bytes,
+		CRCErrors:        s.crc,
+		ParseErrors:      s.parse,
+		LengthErrors:     s.length,
+		UnknownMessages:  s.unknown,
+		MSMEpochs:        s.msm,
+		Satellites:       s.satellites,
+		Signals:          s.signals,
+		Cells:            s.cells,
+		Constellations:   s.constellations(),
+		AvgCnr:           s.averageCNR(),
+		CNRAvailable:     s.cnrCount > 0,
+		Antenna:          s.antenna,
+		AgeMs:            ageMs,
+		LatencyMs:        ageMs,
+		CycleSlips:       s.cycleSlips,
+		CycleSlipRate:    cycleSlipRate,
+		CodePhaseRmsM:    codePhaseRms,
+		CodePhaseSamples: s.codePhaseSamples,
+		Observations:     s.observationCount,
+		SkyPlotAvailable: false,
+		SkyPlotReason:    "Nguồn RTCM chưa phát ephemeris 1019/1020/1045/1046 để tính azimuth/elevation",
+		Gaps:             s.gaps,
+		MetadataOK:       s.has1005 || s.has1006,
+		BaselineSat:      baselineSat,
+		BaselineCells:    baselineCells,
+		MessageTypes:     types,
+		Live:             state == "streaming",
 	}
 	if s.hasStation {
 		value := s.stationID
@@ -863,6 +920,14 @@ func (a *Analyzer) emitSamples(now time.Time) {
 				"unknownMessages":   snapshot.UnknownMessages,
 				"reportedStationId": snapshot.ReportedStation,
 				"constellations":    snapshot.Constellations,
+				"latencyMs":         snapshot.LatencyMs,
+				"cycleSlips":        snapshot.CycleSlips,
+				"cycleSlipRate":     snapshot.CycleSlipRate,
+				"codePhaseRmsM":     snapshot.CodePhaseRmsM,
+				"codePhaseSamples":  snapshot.CodePhaseSamples,
+				"observations":      snapshot.Observations,
+				"skyPlotAvailable":  snapshot.SkyPlotAvailable,
+				"skyPlotReason":     snapshot.SkyPlotReason,
 			},
 		}
 		state.mark = sampleMark{

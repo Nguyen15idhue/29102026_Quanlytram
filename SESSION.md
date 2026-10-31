@@ -2,8 +2,8 @@
 
 ## 1. Thông tin phiên
 
-- Thời điểm: 2026-10-30 18:50 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: Phase 6 — DONE (mock + real probe; load 50 PASS; Taste auth defer)
+- Thời điểm: 2026-10-30 21:00 (Asia/Ho_Chi_Minh, +07:00)
+- Phase hiện tại: Phase 7 rework — DONE (nguồn trạm/1005, Playwright 8/8)
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
@@ -12,7 +12,9 @@
 - Trạng thái Phase 4: DONE (mock + real allowlist 2 relay/2 station)
 - Trạng thái Phase 5: DONE (realtime/dashboard/history/alerts/ops + audit)
 - Trạng thái Phase 6: DONE (mock + real probe; load 50 PASS; Taste auth defer)
-- Trạng thái Phase 7–12: PLANNED (roadmap chi tiết trong `docs/0/PHASES_7_12_PLAN.md`)
+- Trạng thái Phase 7: DONE core + rework nguồn trạm/1005 (Playwright 8/8)
+- Trạng thái Phase 8–11: DONE core (rà soát Playwright, còn defer đã ghi)
+- Trạng thái Phase 12: TODO (chưa commit hardening)
 - Người thực hiện: OpenCode
 
 ## 2. Trạng thái
@@ -575,6 +577,112 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - Defer: notification center nâng cao/event config, dictionary admin,
   system params/brand/logo, log viewer, dashboard report/retention.
 
+### 8.18. Rework Phase 7 — nguồn trạm, 1005/1006 và Playwright (2026-10-30)
+
+- Migration `admin/012_station_source.sql`: thêm `source_type`
+  (`relay_caster|caster_ingest|probe_client|manual`), `ntrip_version` (mặc định v1),
+  `ntrip_mode` (`v1_noauth|v1_auth|v2_auth|ntrip_client`); suy ra từ relay job
+  cho trạm đang được relay cấp dữ liệu.
+- API `/api/stations`: trả `relay_job_id/name`, upstream host/port/mount,
+  `ntrip_version`, `ntrip_mode`; đọc `arp_x/y/z` từ quality sample 1005/1006,
+  chuyển ECEF -> WGS84 bằng `server/src/lib/geo.ts`, tính VN2000 TM 105° và
+  ITRF ECEF; không fallback `lat/lon` nhập tay.
+- UI trạm: list/detail hiển thị nguồn “NTRIP caster (relay)”, NTRIP version/mode,
+  relay job, Relay upstream host read-only; toạ độ WGS84 6 chữ số, VN2000,
+  ITRF; form giữ Vĩ độ/Kinh độ nhưng read-only.
+- Bản đồ trạm/online dùng `reported_lat/reported_lon`; trạm chưa có 1005
+  hiển thị “Chưa có 1005” và không đặt marker.
+- CORS: NTRIP account list/detail hiển thị công ty/liên hệ/hiệu lực/khu vực/
+  auth method; mountpoint list/detail hiển thị service/position/satellite/
+  caster interval/code protocol.
+- Alerts: bổ sung filter `level`, `unread`, hiển thị `eventType`/unread và nút
+  “Đánh dấu đã đọc”.
+- FE tối ưu: lazy-load `StationMap`/`OnlineMap`, tách Leaflet khỏi bundle chính
+  (main ~442 kB, Leaflet ~150 kB chunk).
+- Fix mojibake toàn bộ chuỗi tiếng Việt trong `WebUsers.tsx`.
+- Sửa tên trạm bị mất dấu trong DB (audit qua API): `SLA Mộc Châu`,
+  `THA Hậu Lộc`, `Trạm test Hà Nội 01/02`, `Trạm test Đà Nẵng 01`.
+- Playwright: `workers: 1` để tránh rate limit login 10/phút; thêm
+  `station-source.spec.ts`, `phase7-11.spec.ts`; tổng **8/8 PASS**.
+
+| Mục | Kết quả | Bằng chứng |
+|---|---|---|
+| Migration | PASS | `[migrate] admin 012_station_source.sql applied` |
+| Trạm relay | PASS | THA_HauLoc: source `relay_caster`, v2, relay job #93 |
+| Toạ độ 1005 | PASS | WGS84 `19.999947, 105.969244`, ITRF/VN2000 có giá trị |
+| Server build/test | PASS | tsc + Vitest 35/35 (thêm geo) |
+| Go regression | PASS | `go test ./...` |
+| Frontend build | PASS | Vite build, không cảnh báo chunk >500 kB |
+| Playwright | PASS | 8/8 (map, phase7-11, quality, realtime, station-source, ui) |
+| Web rebuild | PASS | container web healthy, UI tiếng Việt đúng |
+
+### 8.19. Bổ sung chỉ số quality nâng cao (2026-10-30)
+
+- Parse MSM4/MSM7 observation (code, phase, lock, half-cycle, CNR) trong Go;
+  tính **Latency**, **Cycle slip**, **Code & Phase RMS** từ dữ liệu thực.
+- API `/api/stations/:id/quality` và `/api/relay-jobs/:id/quality` trả thêm
+  `latencyMs`, `cycleSlips`, `cycleSlipRate`, `codePhaseRmsM`,
+  `codePhaseSamples`, `observations`, `skyPlotAvailable`, `skyPlotReason`.
+- QualityPanel bỏ 4 nút disabled/“đang để Phase 8–9”; hiển thị số thực:
+  - Latency: tuổi dữ liệu + điểm latency.
+  - Cycle slip: số slip và % trên observation.
+  - Code & Phase RMS: RMS biến thiên code-phase (m).
+  - Sky Plot: nếu thiếu ephemeris 1019/1020/1045/1046 thì hiện đúng lý do,
+    không vẽ vị trí giả.
+- Kiểm chứng real station 80: latency ~0.7 s, cycle slip ~0.7%,
+  code-phase RMS ~0.03 m, cửa sổ 300 mẫu RMS.
+- Test: Go quality PASS; Node 35/35; frontend build PASS; Playwright
+  station-source PASS (gồm assert 4 heading quality nâng cao).
+
+### 8.20. Quét caster `rtktk.online` 1509/1508 (2026-10-31)
+
+- Relay config cập nhật: `db/data/config.json` **67 job (66 bật)**, 67 credential
+  upstream, 62 downstream, không SSL.
+- Quét NTRIP sourcetable (không dùng credential): 1509 có **26** mountpoint,
+  1508 có **6**; gộp không phân biệt hoa/thường được **36 trạm**.
+- 5 trạm chỉ có trong relay config (chưa thấy ở sourcetable): `DTP_TanHong`,
+  `GLI2`, `HUG_ViThuy`, `PYN_SongHinh`, `YBI_NghiaLo`.
+- 4 mountpoint chỉ có trong sourcetable: `BG.TP`, `hauloc`, `MocChautest`,
+  `TNN_DaiTu`; `BG.TP` -> station code `BG_TP`.
+- Sourcetable động (`BG.TP` lúc có lúc không); toạ độ trả `0.00` nên file import
+  để trống lat/lon.
+- File: `db/data/caster_stations.xlsx` (import trạm), `caster_stations.csv/json`,
+  `caster_mountpoints.csv/xlsx`, `sourcetable_1509/1508.txt`,
+  `caster_scan_summary.md`; script `scripts/scan-caster-stations.mjs`.
+- Lưu ý: xlsx chỉ tạo station; chưa tạo mountpoint/account/ACL/listener.
+
+### 8.21. Kiểm tra stream `hauloc` và `MocChautest` (2026-10-31)
+
+- Kết nối NTRIP `rtktk.online:1509`, dùng tài khoản được cấp (không lưu
+  credential), đọc 60 giây mỗi mountpoint.
+- `hauloc`: `ICY 200 OK`; 264 frame, CRC lỗi **0**; 1006/1033 12 frame,
+  MSM 1074/1084/1094/1124 mỗi loại 60 epoch; gap epoch **0**.
+  1006 st483: `19.999947, 105.969244`, h `-8.87 m`, antenna `0.41 m`.
+- `MocChautest`: `ICY 200 OK`; 265 frame, CRC lỗi **0**;
+  1006/1033 12 frame, MSM mỗi loại 60 epoch; gap epoch **0**; thêm 1 frame
+  proprietary 4063. 1006 st224: `20.846817, 104.639403`, h `804.11 m`,
+  antenna `2.46 m`.
+- Kết luận: RTCM hợp lệ, không mất epoch/CRC; throughput ~940 B/s và ~770 B/s.
+- Lưu ý: caster trả body dạng chunked (`\r\n<size>\r\n`) dù không có header
+  `Transfer-Encoding`; probe bỏ qua 420 byte chunk header/60 giây. Nếu đọc raw
+  TCP phải dechunk trước khi chuyển tiếp.
+- Bằng chứng: `db/data/probes/probe_hauloc.json`,
+  `probe_MocChautest.json` (bản timestamp kèm theo).
+
+### 8.22. Tạo tài liệu các bước thực hiện P0 (2026-10-31)
+
+- Thêm `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md`: 13 phase từ baseline, P0.1–P0.6,
+  chốt auth P0.11, provision P0.7/P0.12, HTTPS, load test, backup/rollback và
+  cutover; mỗi phase có mục tiêu, giải thích đơn giản, việc làm, yêu cầu,
+  checklist test và ghi chú.
+- Ghi rõ trạng thái hiện tại: P0.1–P0.12 **chưa hoàn tất**; P0.9 mới có load
+  test 50 job; P0.1–P0.6 chưa có route/API.
+- Thêm `.gitignore` cho `db/data/config.json` (chứa credential relay) để không
+  commit nhầm.
+- Kiểm tra: server build PASS; Vitest **35/35 PASS**; frontend build PASS;
+  `go test ./...` + `go vet ./...` PASS.
+- Chưa chạy Playwright trong lần cập nhật này; chưa commit/push.
+
 ## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |
@@ -618,4 +726,4 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 
 ## 10. Cập nhật lần cuối
 
-- 2026-10-30 18:50 +07:00
+- 2026-10-31 18:00 +07:00

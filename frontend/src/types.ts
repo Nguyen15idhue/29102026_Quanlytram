@@ -37,6 +37,26 @@ export interface Station {
   host: string;
   port: number;
   connection_type: string;
+  source_type?: 'relay_caster' | 'caster_ingest' | 'probe_client' | 'manual';
+  ntrip_version?: 'v1' | 'v2';
+  ntrip_mode?: 'v1_noauth' | 'v1_auth' | 'v2_auth' | 'ntrip_client';
+  relay_job_id?: number | null;
+  relay_job_name?: string | null;
+  relay_upstream_host?: string | null;
+  relay_upstream_port?: number | null;
+  relay_upstream_mount?: string | null;
+  probe_enabled?: boolean;
+  probe_interval_sec?: number | null;
+  reported_lat?: number | null;
+  reported_lon?: number | null;
+  reported_height?: number | null;
+  itrf_x?: number | null;
+  itrf_y?: number | null;
+  itrf_z?: number | null;
+  vn2000_easting?: number | null;
+  vn2000_northing?: number | null;
+  coordinate_source?: 'none' | '1005/1006';
+  reported_station_id?: number | null;
   lat: number | null;
   lon: number | null;
   notes: string;
@@ -304,6 +324,13 @@ export interface QualityConstellation {
   cells: number;
 }
 
+export interface SkyPoint {
+  azimuth: number;
+  elevation: number;
+  system: string;
+  satellite: number;
+}
+
 export interface QualityLiveItem {
   targetType: 'station' | 'relay_job';
   targetId: number;
@@ -333,6 +360,15 @@ export interface QualityLiveItem {
   arpDeltaM?: number;
   antenna?: string;
   ageMs: number;
+  latencyMs?: number;
+  cycleSlips?: number;
+  cycleSlipRate?: number;
+  codePhaseRmsM?: number;
+  codePhaseSamples?: number;
+  observations?: number;
+  skyPlotAvailable?: boolean;
+  skyPlotReason?: string;
+  skyPlot?: SkyPoint[];
   gaps: number;
   metadataOk: boolean;
   baselineSatellites: number;

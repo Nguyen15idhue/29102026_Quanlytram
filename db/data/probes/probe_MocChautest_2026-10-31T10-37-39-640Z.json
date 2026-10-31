@@ -1,0 +1,317 @@
+{
+  "host": "rtktk.online",
+  "port": 1509,
+  "mountpoint": "MocChautest",
+  "started_at": "2026-10-31T10:36:39.526Z",
+  "duration_ms": 60000,
+  "connected": true,
+  "status_line": "ICY 200 OK",
+  "headers": {},
+  "error": null,
+  "bytes": 46284,
+  "frames": 265,
+  "crc_ok": 265,
+  "crc_bad": 0,
+  "crc_bad_ratio": 0,
+  "skipped_bytes": 420,
+  "skipped_samples": [
+    "0d0a3265380d0a",
+    "0d0a3334640d0a",
+    "0d0a3265380d0a",
+    "0d0a3265380d0a",
+    "0d0a3265380d0a"
+  ],
+  "incomplete_bytes": 2,
+  "bytes_per_sec": 771.36,
+  "frames_per_sec": 4.42,
+  "message_types": {
+    "1006": 12,
+    "1033": 12,
+    "1074": 60,
+    "1084": 60,
+    "1094": 60,
+    "1124": 60,
+    "4063": 1
+  },
+  "coordinates": [
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    },
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    },
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    },
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    },
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    },
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    },
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    },
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    },
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    },
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    },
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    },
+    {
+      "type": 1006,
+      "payload_hex": "3ee0e003bc7d97930b8d6f57c1d5054095d2c60000",
+      "station_id": 224,
+      "ecef": {
+        "x": -1507278.3605000002,
+        "y": 5770259.7077,
+        "z": 2255839.7126
+      },
+      "lat": 20.846816920319167,
+      "lon": 104.63940302945166,
+      "height": 804.1068907780573,
+      "antenna_height_m": 2.4576000000000002,
+      "plausible": true
+    }
+  ],
+  "msm": {
+    "1074": {
+      "count": 60,
+      "unique_epochs": 60,
+      "first_epoch": 556619000,
+      "last_epoch": 556678000,
+      "median_interval_ms": 1000,
+      "max_gap_ms": 0,
+      "missing_epochs_est": 0,
+      "resets": 0
+    },
+    "1084": {
+      "count": 60,
+      "unique_epochs": 60,
+      "first_epoch": 854307368,
+      "last_epoch": 854366368,
+      "median_interval_ms": 1000,
+      "max_gap_ms": 0,
+      "missing_epochs_est": 0,
+      "resets": 0
+    },
+    "1094": {
+      "count": 60,
+      "unique_epochs": 60,
+      "first_epoch": 556619000,
+      "last_epoch": 556678000,
+      "median_interval_ms": 1000,
+      "max_gap_ms": 0,
+      "missing_epochs_est": 0,
+      "resets": 0
+    },
+    "1124": {
+      "count": 60,
+      "unique_epochs": 60,
+      "first_epoch": 556605000,
+      "last_epoch": 556664000,
+      "median_interval_ms": 1000,
+      "max_gap_ms": 0,
+      "missing_epochs_est": 0,
+      "resets": 0
+    }
+  },
+  "chunk_gaps": [
+    365,
+    969,
+    999,
+    1005,
+    988,
+    999,
+    1009,
+    981,
+    1019,
+    1150,
+    851,
+    999,
+    992,
+    1007,
+    1012,
+    979,
+    1011,
+    979,
+    1209,
+    849,
+    1010,
+    952,
+    1040,
+    950,
+    1013,
+    988,
+    1062,
+    958,
+    978,
+    1002,
+    994,
+    1007,
+    998,
+    1001,
+    998,
+    1000,
+    1001,
+    1000,
+    1001,
+    1018,
+    973,
+    1017,
+    985,
+    1008,
+    992,
+    1008,
+    999,
+    999,
+    1001,
+    989
+  ],
+  "max_chunk_gap_ms": 1209,
+  "first_frame_at_ms": 473,
+  "last_frame_at_ms": 59433,
+  "ended": true,
+  "verdict": "OK: valid stream, no packet loss/CRC error detected"
+}

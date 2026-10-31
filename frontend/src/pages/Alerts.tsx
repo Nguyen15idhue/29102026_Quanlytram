@@ -23,10 +23,11 @@ interface AlertList {
   total: number;
 }
 
-function severityKind(severity: string): 'info' | 'ok' | 'warn' | 'error' | 'neutral' {
-  if (severity === 'critical') return 'error';
-  if (severity === 'warning') return 'warn';
-  if (severity === 'info') return 'info';
+function levelKind(level?: string): 'info' | 'ok' | 'warn' | 'error' | 'neutral' {
+  if (level === 'critical') return 'error';
+  if (level === 'major') return 'warn';
+  if (level === 'minor') return 'info';
+  if (level === 'info') return 'neutral';
   return 'neutral';
 }
 
@@ -50,14 +51,18 @@ export function Alerts() {
     useListParams();
   const status = getParam('status') || 'open';
   const severity = getParam('severity');
+  const level = getParam('level');
+  const unread = getParam('unread');
 
   const list = useQuery({
-    queryKey: ['alerts', page, pageSize, q, status, severity],
+    queryKey: ['alerts', page, pageSize, q, status, severity, level, unread],
     queryFn: () =>
       apiFetch<AlertList>(
         `/api/alerts?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(
           q
-        )}&status=${encodeURIComponent(status)}&severity=${encodeURIComponent(severity)}`
+        )}&status=${encodeURIComponent(status)}&severity=${encodeURIComponent(
+          severity
+        )}&level=${encodeURIComponent(level)}&unread=${encodeURIComponent(unread)}`
       )
   });
 
@@ -65,6 +70,16 @@ export function Alerts() {
   useEffect(() => {
     void queryClient.invalidateQueries({ queryKey: ['alerts'] });
   }, [openIds, queryClient]);
+
+  const readAll = useMutation({
+    mutationFn: () => apiFetch('/api/alerts/read-all', { method: 'POST', body: {}, csrfToken }),
+    onSuccess: async () => {
+      push('Đã đánh dấu đã đọc', 'success');
+      await queryClient.invalidateQueries({ queryKey: ['alerts'] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Đánh dấu thất bại', 'error')
+  });
 
   const ack = useMutation({
     mutationFn: (alert: AlertItem) =>
@@ -108,9 +123,37 @@ export function Alerts() {
               <option value="warning">Warning</option>
               <option value="info">Info</option>
             </Select>
+            <Select
+              value={level}
+              onChange={(event) => setParam('level', event.target.value)}
+              aria-label="Level cảnh báo"
+            >
+              <option value="">Mọi level</option>
+              <option value="critical">critical</option>
+              <option value="major">major</option>
+              <option value="minor">minor</option>
+              <option value="info">info</option>
+            </Select>
+            <Select
+              value={unread}
+              onChange={(event) => setParam('unread', event.target.value)}
+              aria-label="Trạng thái đọc"
+            >
+              <option value="">Tất cả</option>
+              <option value="1">Chưa đọc</option>
+            </Select>
             <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
               Tải lại
             </Button>
+            {can('alerts', 'view') && (
+              <Button
+                variant="ghost"
+                onClick={() => readAll.mutate()}
+                loading={readAll.isPending}
+              >
+                Đánh dấu đã đọc
+              </Button>
+            )}
           </div>
         </div>
         <DataTable
@@ -124,7 +167,15 @@ export function Alerts() {
               key: 'severity',
               header: 'Mức độ',
               cell: (alert) => (
-                <StatusBadge label={alert.severity} kind={severityKind(alert.severity)} />
+                <div>
+                  <StatusBadge
+                    label={alert.level ?? alert.severity}
+                    kind={levelKind(alert.level ?? alert.severity)}
+                  />
+                  {alert.unread && (
+                    <div className="muted table-subline">chưa đọc</div>
+                  )}
+                </div>
               )
             },
             {
@@ -133,7 +184,9 @@ export function Alerts() {
               cell: (alert) => (
                 <div>
                   <strong>{alert.title}</strong>
-                  <div className="muted table-subline">{alert.message || alert.type}</div>
+                  <div className="muted table-subline">
+                    {alert.eventType || alert.type} · {alert.message || alert.title}
+                  </div>
                 </div>
               )
             },

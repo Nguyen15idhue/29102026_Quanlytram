@@ -145,3 +145,57 @@ export function formatNumber(value: number): string {
   if (Math.abs(value) >= 1000) return new Intl.NumberFormat('vi-VN').format(Math.round(value));
   return new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 1 }).format(value);
 }
+
+export interface SkyPoint {
+  azimuth: number;
+  elevation: number;
+  system: string;
+  satellite: number;
+}
+
+export function SkyPlot({ points = [], reason }: { points?: SkyPoint[]; reason?: string }) {
+  const size = 180;
+  const center = size / 2;
+  const radius = 76;
+  const ring = (elevation: number) => (radius * (90 - elevation)) / 90;
+  return (
+    <figure className="sky-plot" aria-label="Sky Plot vệ tinh">
+      <svg viewBox={`0 0 ${size} ${size}`} role="img">
+        {[0, 30, 60].map((elevation) => (
+          <circle
+            key={elevation}
+            cx={center}
+            cy={center}
+            r={ring(elevation)}
+            fill="none"
+            stroke="var(--border)"
+            strokeWidth="1"
+          />
+        ))}
+        <line x1={center} y1={center - radius} x2={center} y2={center + radius} stroke="var(--border)" />
+        <line x1={center - radius} y1={center} x2={center + radius} y2={center} stroke="var(--border)" />
+        <text x={center} y={12} textAnchor="middle" className="sky-label">N</text>
+        <text x={size - 6} y={center + 4} textAnchor="end" className="sky-label">E</text>
+        <text x={center} y={size - 4} textAnchor="middle" className="sky-label">S</text>
+        <text x={6} y={center + 4} className="sky-label">W</text>
+        {points.map((point) => {
+          const distance = ring(point.elevation);
+          const angle = (point.azimuth * Math.PI) / 180;
+          const x = center + distance * Math.sin(angle);
+          const y = center - distance * Math.cos(angle);
+          return (
+            <g key={`${point.system}-${point.satellite}`}>
+              <circle cx={x} cy={y} r="3.5" fill="var(--accent)" />
+              <text x={x + 5} y={y + 3} className="sky-label">
+                {point.system}{point.satellite}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+      {points.length === 0 && (
+        <figcaption className="muted">{reason || 'Chưa có ephemeris để tính azimuth/elevation.'}</figcaption>
+      )}
+    </figure>
+  );
+}

@@ -206,6 +206,32 @@ export function Mountpoints() {
               cell: (item) => (item.requires_auth ? 'Có' : 'Không')
             },
             {
+              key: 'service',
+              header: 'Dịch vụ',
+              hideOnMobile: true,
+              cell: (item) => (
+                <div>
+                  <div>{item.service_type || '—'}</div>
+                  <div className="muted table-subline">
+                    {item.position_mode || '—'} · {item.satellite_systems || '—'}
+                  </div>
+                </div>
+              )
+            },
+            {
+              key: 'caster',
+              header: 'Caster',
+              hideOnMobile: true,
+              cell: (item) => (
+                <div>
+                  <div>{item.code_protocol || '—'}</div>
+                  <div className="muted table-subline">
+                    {item.caster_interval ? `${item.caster_interval}s` : '—'}
+                  </div>
+                </div>
+              )
+            },
+            {
               key: 'owner',
               header: 'Owner',
               hideOnMobile: true,
@@ -375,6 +401,40 @@ export function Mountpoints() {
             <div>
               <dt>Owner</dt>
               <dd>{detail.owner_web_user_id ?? '—'}</dd>
+            </div>
+            <div>
+              <dt>Trạm</dt>
+              <dd>
+                {detail.station_code
+                  ? `${detail.station_code} · ${detail.station_name ?? ''}`
+                  : 'Chưa gắn trạm'}
+              </dd>
+            </div>
+            <div>
+              <dt>Dịch vụ</dt>
+              <dd>{detail.service_type || '—'}</dd>
+            </div>
+            <div>
+              <dt>Position mode</dt>
+              <dd>{detail.position_mode || '—'}</dd>
+            </div>
+            <div>
+              <dt>Hệ vệ tinh</dt>
+              <dd>{detail.satellite_systems || '—'}</dd>
+            </div>
+            <div>
+              <dt>Caster interval</dt>
+              <dd>{detail.caster_interval ? `${detail.caster_interval}s` : '—'}</dd>
+            </div>
+            <div>
+              <dt>Code protocol/type</dt>
+              <dd>
+                {[detail.code_protocol, detail.code_type].filter(Boolean).join(' · ') || '—'}
+              </dd>
+            </div>
+            <div>
+              <dt>Mô tả</dt>
+              <dd>{detail.description || '—'}</dd>
             </div>
           </dl>
         )}

@@ -1,0 +1,2296 @@
+{
+  "scanned_at": "2026-10-31T10:25:25.607Z",
+  "host": "rtktk.online",
+  "ports": [
+    1509,
+    1508
+  ],
+  "relay_config": "F:\\3.Laptrinh\\1. Project\\1. GNSS\\29102026_Quanlytram\\db\\data\\config.json",
+  "relay_jobs_total": 67,
+  "stations": [
+    {
+      "code": "BDH1",
+      "name": "BDH1",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: BDH_HoaiAn; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "BDH_HoaiAn"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "BG_TP",
+      "name": "BG.TP",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1508,
+      "connection_type": "ntrip",
+      "source_type": "caster_ingest",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Bắc Giang",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1508; không có trong relay config; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1508
+      ],
+      "caster_ports": [
+        1508
+      ],
+      "relay_ports": [],
+      "relay_jobs": [],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": false
+    },
+    {
+      "code": "BKN_BaBe",
+      "name": "BKN_BaBe",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Bắc Kạn",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: bkn_babe; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "bkn_babe"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "BKN_NARI",
+      "name": "BKN_NARI",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Bắc Kạn",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: bkn_nari1; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "bkn_nari1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "BTE_ChauThanh",
+      "name": "BTE_ChauThanh",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Bến Tre",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: bte_chauthanh1,bte_chauthanh2,bte_chauthanh3; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "bte_chauthanh1",
+        "bte_chauthanh2",
+        "bte_chauthanh3"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "CMU_DatMui",
+      "name": "CMU_DatMui",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Cà Mau",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: cmu_datmui1,cmu_datmui2; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "cmu_datmui1",
+        "cmu_datmui2"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "DTP_TanHong",
+      "name": "DTP_TanHong",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Đồng Tháp",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); không thấy trong sourcetable, chỉ có trong relay config; relay_jobs: dtp_tanhong1,dtp_tanhong3; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "dtp_tanhong1",
+        "dtp_tanhong3"
+      ],
+      "aliases": [],
+      "in_caster": false,
+      "in_relay": true
+    },
+    {
+      "code": "GLI1",
+      "name": "GLI1",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: GLI_GiaLai1; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "GLI_GiaLai1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "GLI2",
+      "name": "GLI2",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); không thấy trong sourcetable, chỉ có trong relay config; relay_jobs: GLI_GiaLai2; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "GLI_GiaLai2"
+      ],
+      "aliases": [],
+      "in_caster": false,
+      "in_relay": true
+    },
+    {
+      "code": "hauloc",
+      "name": "hauloc",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "caster_ingest",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; không có trong relay config; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [],
+      "relay_jobs": [],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": false
+    },
+    {
+      "code": "HBH_TpHoaBinh",
+      "name": "HBH_TpHoaBinh",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Hòa Bình",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: hbh_tphoabinh1; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "hbh_tphoabinh1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "HUG_ViThuy",
+      "name": "HUG_ViThuy",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Hậu Giang",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); không thấy trong sourcetable, chỉ có trong relay config; relay_jobs: hug_vithuy1,hug_vithuy2,hug_vithuy3; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "hug_vithuy1",
+        "hug_vithuy2",
+        "hug_vithuy3"
+      ],
+      "aliases": [],
+      "in_caster": false,
+      "in_relay": true
+    },
+    {
+      "code": "KGG_GiongRieng",
+      "name": "KGG_GiongRieng",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Kiên Giang",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: kgg_giongrieng1,kgg_giongrieng2,kgg_giongrieng3; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "kgg_giongrieng1",
+        "kgg_giongrieng2",
+        "kgg_giongrieng3"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "LCI_BaoHa",
+      "name": "LCI_BaoHa",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Lào Cai",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: LCI_BaoHa; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "LCI_BaoHa"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "LCI_TpLaoCai",
+      "name": "LCI_TpLaoCai",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Lào Cai",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: ybi_tplaocai; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "ybi_tplaocai"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "MocChautest",
+      "name": "MocChautest",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "caster_ingest",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; không có trong relay config; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [],
+      "relay_jobs": [],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": false
+    },
+    {
+      "code": "PYN_SongHinh",
+      "name": "PYN_SongHinh",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Phú Yên",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); không thấy trong sourcetable, chỉ có trong relay config; relay_jobs: PYN_SongHinh2; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "PYN_SongHinh2"
+      ],
+      "aliases": [],
+      "in_caster": false,
+      "in_relay": true
+    },
+    {
+      "code": "QBH_LeThuy",
+      "name": "QBH_LeThuy",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Quảng Bình",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: QBH_LeThuy; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "QBH_LeThuy"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "QNH_DongTrieu",
+      "name": "QNH_DongTrieu",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Quảng Ninh",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: QNH_DongTrieu; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "QNH_DongTrieu"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "SLA_MocChau",
+      "name": "SLA_MocChau",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Sơn La",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: sla_mocchau1; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "sla_mocchau1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "SLA_TPSONLA",
+      "name": "SLA_TPSONLA",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Sơn La",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: sla_tpsonla1; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "sla_tpsonla1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "THA_HauLoc",
+      "name": "THA_HauLoc",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Thanh Hóa",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: THA_HauLoc; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "THA_HauLoc"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "THA_NgocLac",
+      "name": "THA_NgocLac",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Thanh Hóa",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: tha_thoxuan1; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "tha_thoxuan1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "TNN_DaiTu",
+      "name": "TNN_DaiTu",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1508,
+      "connection_type": "ntrip",
+      "source_type": "caster_ingest",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Thái Nguyên",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1508; không có trong relay config; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1508
+      ],
+      "caster_ports": [
+        1508
+      ],
+      "relay_ports": [],
+      "relay_jobs": [],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": false
+    },
+    {
+      "code": "TNN_DinhHoa",
+      "name": "TNN_DinhHoa",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Thái Nguyên",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: tnn_dinhhoa1; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "tnn_dinhhoa1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "TNN_PhoYen",
+      "name": "TNN_PhoYen",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1508,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Thái Nguyên",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1508; relay_jobs: phoyen2; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1508
+      ],
+      "caster_ports": [
+        1508
+      ],
+      "relay_ports": [
+        1508
+      ],
+      "relay_jobs": [
+        "phoyen2"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "TNN_TpThaiNguyen",
+      "name": "TNN_TpThaiNguyen",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Thái Nguyên",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1508,1509; relay_jobs: TNN_TPThaiNguyen; alias: TNN_TPThaiNguyen; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1508,
+        1509
+      ],
+      "caster_ports": [
+        1508,
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "TNN_TPThaiNguyen"
+      ],
+      "aliases": [
+        "TNN_TPThaiNguyen"
+      ],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "TNN_VoNhai",
+      "name": "TNN_VoNhai",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1508,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Thái Nguyên",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1508; relay_jobs: TNN_VoNhai,vonhai2; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1508
+      ],
+      "caster_ports": [
+        1508
+      ],
+      "relay_ports": [
+        1508
+      ],
+      "relay_jobs": [
+        "TNN_VoNhai",
+        "vonhai2"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "TQG_HamYen",
+      "name": "TQG_HamYen",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Tuyên Quang",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: TQG_HamYen; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "TQG_HamYen"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "YBI_LucYen",
+      "name": "YBI_LucYen",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Yên Bái",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: ybi_lucyen1; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "ybi_lucyen1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "YBI_MuCangChai",
+      "name": "YBI_MuCangChai",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Yên Bái",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: ybi_mcc; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "ybi_mcc"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "YBI_NghiaLo",
+      "name": "YBI_NghiaLo",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Yên Bái",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); không thấy trong sourcetable, chỉ có trong relay config; relay_jobs: YBI_NghiaLo,YBI_NghiaLo5; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "YBI_NghiaLo",
+        "YBI_NghiaLo5"
+      ],
+      "aliases": [],
+      "in_caster": false,
+      "in_relay": true
+    },
+    {
+      "code": "YBI_TpYenbai",
+      "name": "YBI_TpYenbai",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Yên Bái",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: ybi_tpyenbai; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "ybi_tpyenbai"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "YBI_TramTau",
+      "name": "YBI_TramTau",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Yên Bái",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: ybi_tramtau; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "ybi_tramtau"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "YBI_VanYen",
+      "name": "YBI_VanYen",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1509,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Yên Bái",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1509; relay_jobs: tram_vanyen; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "tram_vanyen"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "code": "YBI_XuanAI",
+      "name": "YBI_XuanAI",
+      "station_type": "reference",
+      "enabled": true,
+      "host": "rtktk.online",
+      "port": 1508,
+      "connection_type": "ntrip",
+      "source_type": "relay_caster",
+      "ntrip_version": "v1",
+      "ntrip_mode": "v1_auth",
+      "lat": null,
+      "lon": null,
+      "region": "Yên Bái",
+      "address": "",
+      "contractor": "",
+      "receiver_type": "",
+      "receiver_sn": "",
+      "receiver_firmware": "",
+      "antenna_type": "",
+      "antenna_sn": "",
+      "antenna_height": null,
+      "elevation_mask": null,
+      "device_id": "",
+      "network_type": "",
+      "network_mode": "",
+      "protocol": "ntrip",
+      "owner_username": "",
+      "notes": "Quét sourcetable 2026-10-31 (1509/1508); caster: 1508; relay_jobs: YBI_XuanAi,xuanai2; toạ độ chờ 1005/1006; lat/lon sourcetable là 0.00 nên để trống",
+      "ports": [
+        1508
+      ],
+      "caster_ports": [
+        1508
+      ],
+      "relay_ports": [
+        1508
+      ],
+      "relay_jobs": [
+        "YBI_XuanAi",
+        "xuanai2"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    }
+  ],
+  "mountpoints": [
+    {
+      "mountpoint": "BDH1",
+      "station_code": "BDH1",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "BDH_HoaiAn"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "BG.TP",
+      "station_code": "BG_TP",
+      "ports": [
+        1508
+      ],
+      "caster_ports": [
+        1508
+      ],
+      "relay_ports": [],
+      "relay_jobs": [],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": false
+    },
+    {
+      "mountpoint": "BKN_BaBe",
+      "station_code": "BKN_BaBe",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "bkn_babe"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "BKN_NARI",
+      "station_code": "BKN_NARI",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "bkn_nari1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "BTE_ChauThanh",
+      "station_code": "BTE_ChauThanh",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "bte_chauthanh1",
+        "bte_chauthanh2",
+        "bte_chauthanh3"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "CMU_DatMui",
+      "station_code": "CMU_DatMui",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "cmu_datmui1",
+        "cmu_datmui2"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "DTP_TanHong",
+      "station_code": "DTP_TanHong",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "dtp_tanhong1",
+        "dtp_tanhong3"
+      ],
+      "aliases": [],
+      "in_caster": false,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "GLI1",
+      "station_code": "GLI1",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "GLI_GiaLai1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "GLI2",
+      "station_code": "GLI2",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "GLI_GiaLai2"
+      ],
+      "aliases": [],
+      "in_caster": false,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "hauloc",
+      "station_code": "hauloc",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [],
+      "relay_jobs": [],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": false
+    },
+    {
+      "mountpoint": "HBH_TpHoaBinh",
+      "station_code": "HBH_TpHoaBinh",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "hbh_tphoabinh1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "HUG_ViThuy",
+      "station_code": "HUG_ViThuy",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "hug_vithuy1",
+        "hug_vithuy2",
+        "hug_vithuy3"
+      ],
+      "aliases": [],
+      "in_caster": false,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "KGG_GiongRieng",
+      "station_code": "KGG_GiongRieng",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "kgg_giongrieng1",
+        "kgg_giongrieng2",
+        "kgg_giongrieng3"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "LCI_BaoHa",
+      "station_code": "LCI_BaoHa",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "LCI_BaoHa"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "LCI_TpLaoCai",
+      "station_code": "LCI_TpLaoCai",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "ybi_tplaocai"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "MocChautest",
+      "station_code": "MocChautest",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [],
+      "relay_jobs": [],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": false
+    },
+    {
+      "mountpoint": "PYN_SongHinh",
+      "station_code": "PYN_SongHinh",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "PYN_SongHinh2"
+      ],
+      "aliases": [],
+      "in_caster": false,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "QBH_LeThuy",
+      "station_code": "QBH_LeThuy",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "QBH_LeThuy"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "QNH_DongTrieu",
+      "station_code": "QNH_DongTrieu",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "QNH_DongTrieu"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "SLA_MocChau",
+      "station_code": "SLA_MocChau",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "sla_mocchau1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "SLA_TPSONLA",
+      "station_code": "SLA_TPSONLA",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "sla_tpsonla1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "THA_HauLoc",
+      "station_code": "THA_HauLoc",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "THA_HauLoc"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "THA_NgocLac",
+      "station_code": "THA_NgocLac",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "tha_thoxuan1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "TNN_DaiTu",
+      "station_code": "TNN_DaiTu",
+      "ports": [
+        1508
+      ],
+      "caster_ports": [
+        1508
+      ],
+      "relay_ports": [],
+      "relay_jobs": [],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": false
+    },
+    {
+      "mountpoint": "TNN_DinhHoa",
+      "station_code": "TNN_DinhHoa",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "tnn_dinhhoa1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "TNN_PhoYen",
+      "station_code": "TNN_PhoYen",
+      "ports": [
+        1508
+      ],
+      "caster_ports": [
+        1508
+      ],
+      "relay_ports": [
+        1508
+      ],
+      "relay_jobs": [
+        "phoyen2"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "TNN_TpThaiNguyen",
+      "station_code": "TNN_TpThaiNguyen",
+      "ports": [
+        1508,
+        1509
+      ],
+      "caster_ports": [
+        1508,
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "TNN_TPThaiNguyen"
+      ],
+      "aliases": [
+        "TNN_TPThaiNguyen"
+      ],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "TNN_VoNhai",
+      "station_code": "TNN_VoNhai",
+      "ports": [
+        1508
+      ],
+      "caster_ports": [
+        1508
+      ],
+      "relay_ports": [
+        1508
+      ],
+      "relay_jobs": [
+        "TNN_VoNhai",
+        "vonhai2"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "TQG_HamYen",
+      "station_code": "TQG_HamYen",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "TQG_HamYen"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "YBI_LucYen",
+      "station_code": "YBI_LucYen",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "ybi_lucyen1"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "YBI_MuCangChai",
+      "station_code": "YBI_MuCangChai",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "ybi_mcc"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "YBI_NghiaLo",
+      "station_code": "YBI_NghiaLo",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "YBI_NghiaLo",
+        "YBI_NghiaLo5"
+      ],
+      "aliases": [],
+      "in_caster": false,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "YBI_TpYenbai",
+      "station_code": "YBI_TpYenbai",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "ybi_tpyenbai"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "YBI_TramTau",
+      "station_code": "YBI_TramTau",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "ybi_tramtau"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "YBI_VanYen",
+      "station_code": "YBI_VanYen",
+      "ports": [
+        1509
+      ],
+      "caster_ports": [
+        1509
+      ],
+      "relay_ports": [
+        1509
+      ],
+      "relay_jobs": [
+        "tram_vanyen"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    },
+    {
+      "mountpoint": "YBI_XuanAI",
+      "station_code": "YBI_XuanAI",
+      "ports": [
+        1508
+      ],
+      "caster_ports": [
+        1508
+      ],
+      "relay_ports": [
+        1508
+      ],
+      "relay_jobs": [
+        "YBI_XuanAi",
+        "xuanai2"
+      ],
+      "aliases": [],
+      "in_caster": true,
+      "in_relay": true
+    }
+  ]
+}

@@ -95,10 +95,10 @@ export function WebUsers() {
       setDirty(false);
       setEditing(null);
       setError('');
-      push(editing ? 'ÄĂ£ cáº­p nháº­t tĂ i khoáº£n' : 'ÄĂ£ thĂªm tĂ i khoáº£n', 'success');
+      push(editing ? 'Đã cập nhật tài khoản' : 'Đã thêm tài khoản', 'success');
       await queryClient.invalidateQueries({ queryKey: ['web-users'] });
     },
-    onError: (err) => setError(err instanceof ApiClientError ? err.message : 'LÆ°u tháº¥t báº¡i')
+    onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Lưu thất bại')
   });
 
   const action = useMutation({
@@ -110,10 +110,10 @@ export function WebUsers() {
     onSuccess: async () => {
       setDeleteTarget(null);
       setDetail(null);
-      push('ÄĂ£ cáº­p nháº­t tĂ i khoáº£n', 'success');
+      push('Đã cập nhật tài khoản', 'success');
       await queryClient.invalidateQueries({ queryKey: ['web-users'] });
     },
-    onError: (err) => push(err instanceof ApiClientError ? err.message : 'Thao tĂ¡c tháº¥t báº¡i', 'error')
+    onError: (err) => push(err instanceof ApiClientError ? err.message : 'Thao tác thất bại', 'error')
   });
 
   const importUsers = useMutation({
@@ -190,8 +190,8 @@ export function WebUsers() {
   return (
     <section className="page">
       <PageHeader
-        title="NgÆ°á»i dĂ¹ng web"
-        description="TĂ i khoáº£n Ä‘Äƒng nháº­p UI, tĂ¡ch biá»‡t vá»›i tĂ i khoáº£n NTRIP."
+        title="Người dùng web"
+        description="Tài khoản đăng nhập UI, tách biệt với tài khoản NTRIP."
         actions={
           <div className="toolbar">
             {can('web_users', 'view') && (
@@ -231,17 +231,17 @@ export function WebUsers() {
 
       <div className="panel">
         <div className="table-head">
-          <SearchInput value={q} onChange={setQ} placeholder="TĂ¬m username, tĂªn, email" />
+          <SearchInput value={q} onChange={setQ} placeholder="Tìm username, tên, email" />
           <Button variant="ghost" onClick={() => users.refetch()} loading={users.isFetching}>
-            Táº£i láº¡i
+            Tải lại
           </Button>
         </div>
         <DataTable
           items={users.data?.items ?? []}
           rowKey={(user) => user.id}
           loading={users.isLoading}
-          error={users.isError ? 'KhĂ´ng táº£i Ä‘Æ°á»£c danh sĂ¡ch.' : undefined}
-          empty="ChÆ°a cĂ³ tĂ i khoáº£n."
+          error={users.isError ? 'Không tải được danh sách.' : undefined}
+          empty="Chưa có tài khoản."
           onRowClick={setDetail}
           columns={[
             {
@@ -249,10 +249,10 @@ export function WebUsers() {
               header: 'Username',
               cell: (user) => <span className="mono">{user.username}</span>
             },
-            { key: 'name', header: 'TĂªn', cell: (user) => user.displayName },
+            { key: 'name', header: 'Tên', cell: (user) => user.displayName },
             {
               key: 'role',
-              header: 'Vai trĂ²',
+              header: 'Vai trò',
               hideOnMobile: true,
               cell: (user) => (
                 <>
@@ -262,7 +262,7 @@ export function WebUsers() {
             },
             {
               key: 'status',
-              header: 'Tráº¡ng thĂ¡i',
+              header: 'Trạng thái',
               cell: (user) => (
                 <StatusBadge
                   label={user.status ?? 'active'}
@@ -279,7 +279,7 @@ export function WebUsers() {
                   {can('web_users', 'edit') && (
                     <>
                       <IconButton
-                        label={`Sá»­a ${user.username}`}
+                        label={`Sửa ${user.username}`}
                         onClick={(event) => {
                           event.stopPropagation();
                           openEdit(user);
@@ -288,7 +288,7 @@ export function WebUsers() {
                         <Pencil size={16} aria-hidden="true" />
                       </IconButton>
                       <IconButton
-                        label={user.status === 'active' ? `KhĂ³a ${user.username}` : `Má»Ÿ khĂ³a ${user.username}`}
+                        label={user.status === 'active' ? `Khóa ${user.username}` : `Mở khóa ${user.username}`}
                         onClick={(event) => {
                           event.stopPropagation();
                           action.mutate({
@@ -303,7 +303,7 @@ export function WebUsers() {
                   )}
                   {can('web_users', 'delete') && (
                     <IconButton
-                      label={`XĂ³a ${user.username}`}
+                      label={`Xóa ${user.username}`}
                       onClick={(event) => {
                         event.stopPropagation();
                         setDeleteTarget(user);
@@ -335,15 +335,15 @@ export function WebUsers() {
             setEditing(null);
           }
         }}
-        title={editing ? 'Sá»­a tĂ i khoáº£n web' : 'ThĂªm tĂ i khoáº£n web'}
-        description="TĂ i khoáº£n dĂ¹ng session cookie Ä‘á»ƒ Ä‘Äƒng nháº­p UI."
+        title={editing ? 'Sửa tài khoản web' : 'Thêm tài khoản web'}
+        description="Tài khoản dùng session cookie để đăng nhập UI."
         footer={
           <>
             <Button variant="ghost" onClick={() => setFormOpen(false)}>
-              Há»§y
+              Hủy
             </Button>
             <Button variant="primary" type="submit" form="web-user-form" loading={save.isPending}>
-              {editing ? 'Cáº­p nháº­t' : 'Táº¡o'}
+              {editing ? 'Cập nhật' : 'Tạo'}
             </Button>
           </>
         }
@@ -362,7 +362,7 @@ export function WebUsers() {
               required
             />
           </Field>
-          <Field label={editing ? 'Máº­t kháº©u má»›i (bá» trá»‘ng Ä‘á»ƒ giá»¯)' : 'Máº­t kháº©u'}>
+          <Field label={editing ? 'Mật khẩu mới (bỏ trống để giữ)' : 'Mật khẩu'}>
             <Input
               type="password"
               value={form.password}
@@ -371,7 +371,7 @@ export function WebUsers() {
               required={!editing}
             />
           </Field>
-          <Field label="TĂªn hiá»ƒn thá»‹">
+          <Field label="Tên hiển thị">
             <Input
               value={form.display_name}
               onChange={(event) => setForm({ ...form, display_name: event.target.value })}
@@ -385,13 +385,13 @@ export function WebUsers() {
               onChange={(event) => setForm({ ...form, email: event.target.value })}
             />
           </Field>
-          <Field label="Vai trĂ²">
+          <Field label="Vai trò">
             <Select
               value={form.role_id}
               onChange={(event) => setForm({ ...form, role_id: event.target.value })}
               required
             >
-              <option value="">Chá»n role</option>
+              <option value="">Chọn role</option>
               {roles.data?.items.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name} ({role.code})
@@ -405,7 +405,7 @@ export function WebUsers() {
       <Modal
         open={Boolean(detail)}
         onOpenChange={(open) => !open && setDetail(null)}
-        title={detail?.displayName ?? 'Chi tiáº¿t tĂ i khoáº£n'}
+        title={detail?.displayName ?? 'Chi tiết tài khoản'}
         description={detail?.username}
         side="right"
         footer={
@@ -413,11 +413,11 @@ export function WebUsers() {
             <>
               {can('web_users', 'edit') && (
                 <Button onClick={() => openEdit(detail)}>
-                  <Pencil size={16} aria-hidden="true" /> Sá»­a
+                  <Pencil size={16} aria-hidden="true" /> Sửa
                 </Button>
               )}
               <Button variant="ghost" onClick={() => setDetail(null)}>
-                ÄĂ³ng
+                Đóng
               </Button>
             </>
           )
@@ -431,16 +431,16 @@ export function WebUsers() {
             </div>
             <div>
               <dt>Email</dt>
-              <dd>{detail.email || 'â€”'}</dd>
+              <dd>{detail.email || '—'}</dd>
             </div>
             <div>
-              <dt>Vai trĂ²</dt>
+              <dt>Vai trò</dt>
               <dd>
                 {detail.role.name} ({detail.role.code})
               </dd>
             </div>
             <div>
-              <dt>Tráº¡ng thĂ¡i</dt>
+              <dt>Trạng thái</dt>
               <dd>{detail.status ?? 'active'}</dd>
             </div>
           </dl>
@@ -450,8 +450,8 @@ export function WebUsers() {
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
-        title="XĂ³a tĂ i khoáº£n?"
-        description={`TĂ i khoáº£n ${deleteTarget?.username ?? ''} sáº½ bá»‹ xĂ³a.`}
+        title="Xóa tài khoản?"
+        description={`Tài khoản ${deleteTarget?.username ?? ''} sẽ bị xóa.`}
         pending={action.isPending}
         onConfirm={() => deleteTarget && action.mutate({ user: deleteTarget, action: 'delete' })}
       />

@@ -126,7 +126,7 @@ Bằng chứng: `main.go:680-728`, `main.go:816-846`.
 | Caster / multi-client / ACL | **Không** | không có listener NTRIP |
 | MySQL | **Không** | dùng SQLite |
 
-**Dữ liệu:** `config.json` có **65 job (64 bật)**, phần lớn mountpoint CORS Việt Nam + 2 quốc tế; hiện không bật SSL/proxy.
+**Dữ liệu:** `config.json` bản 2026-10-31 có **67 job (66 bật)**, phần lớn mountpoint CORS Việt Nam + 2 quốc tế; hiện không bật SSL/proxy.
 
 **Test sẵn có:** `chunked_test.go`, `history_test.go`.
 

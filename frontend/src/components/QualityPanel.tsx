@@ -11,7 +11,7 @@ import type {
   QualitySample
 } from '../types';
 import { Button, EmptyState, IconButton, StatusBadge, Tabs } from './ui';
-import { BarChart, LineChart, ScoreDial, formatNumber } from './charts';
+import { BarChart, LineChart, ScoreDial, SkyPlot, formatNumber } from './charts';
 import { useToast } from './ToastProvider';
 
 type TargetType = 'station' | 'relay_job';
@@ -189,6 +189,26 @@ export function QualityPanel({ targetType, targetId, mountpointId }: QualityPane
       : 0;
   const minScore = samples.length ? Math.min(...scoreValues) : latest?.score ?? 0;
   const constellations = latestLive?.constellations ?? [];
+  const sampleDetails =
+    latest && 'details' in latest && latest.details && typeof latest.details === 'object'
+      ? (latest.details as Record<string, unknown>)
+      : null;
+  const latencyMs = latestLive?.latencyMs ?? latest?.ageMs ?? null;
+  const cycleSlips =
+    latestLive?.cycleSlips ??
+    (sampleDetails?.cycleSlips === undefined ? null : Number(sampleDetails.cycleSlips));
+  const cycleSlipRate =
+    latestLive?.cycleSlipRate ??
+    (sampleDetails?.cycleSlipRate === undefined ? null : Number(sampleDetails.cycleSlipRate));
+  const codePhaseRms =
+    latestLive?.codePhaseRmsM ??
+    (sampleDetails?.codePhaseRmsM === undefined ? null : Number(sampleDetails.codePhaseRmsM));
+  const observations =
+    latestLive?.observations ??
+    (sampleDetails?.observations === undefined ? null : Number(sampleDetails.observations));
+  const skyPlotReason =
+    latestLive?.skyPlotReason ??
+    (sampleDetails?.skyPlotReason ? String(sampleDetails.skyPlotReason) : null);
 
   return (
     <div className="quality-embedded">
@@ -319,23 +339,52 @@ export function QualityPanel({ targetType, targetId, mountpointId }: QualityPane
             )}
           </div>
 
-          <div className="quality-card">
-            <h3>Chỉ số nâng cao</h3>
-            <div className="toolbar">
-              {['Sky Plot', 'Cycle slip', 'Code & Phase RMS', 'Latency'].map((label) => (
-                <Button
-                  key={label}
-                  variant="ghost"
-                  disabled
-                  title="Chưa có dữ liệu từ luồng hiện tại"
-                >
-                  {label}
-                </Button>
-              ))}
+          <div className="quality-grid">
+            <div className="quality-card">
+              <h3>Latency</h3>
+              <strong className="quality-metric">
+                {latencyMs === null ? '—' : `${formatNumber(latencyMs)} ms`}
+              </strong>
+              <p className="muted">
+                Tuổi dữ liệu RTCM gần nhất; điểm latency{' '}
+                {latestLive?.scoreParts?.latency ?? '—'}/5.
+              </p>
             </div>
-            <p className="muted">
-              Các chỉ số này cần ephemeris/GSV/raw observation; đang để Phase 8–9.
-            </p>
+            <div className="quality-card">
+              <h3>Cycle slip</h3>
+              <strong className="quality-metric">
+                {cycleSlips === null ? '—' : formatNumber(cycleSlips)}
+              </strong>
+              <p className="muted">
+                {cycleSlipRate === null
+                  ? 'Chưa có MSM4/7 observation để đối chiếu phase.'
+                  : `${formatNumber(cycleSlipRate)}% trên ${formatNumber(
+                      observations ?? 0
+                    )} observation.`}
+              </p>
+            </div>
+            <div className="quality-card">
+              <h3>Code &amp; Phase RMS</h3>
+              <strong className="quality-metric">
+                {codePhaseRms === null ? '—' : `${formatNumber(codePhaseRms)} m`}
+              </strong>
+              <p className="muted">
+                RMS biến thiên code-phase giữa các epoch MSM; cần ít nhất 2 epoch.
+              </p>
+            </div>
+            <div className="quality-card">
+              <h3>Sky Plot</h3>
+              <SkyPlot
+                points={latestLive?.skyPlot ?? []}
+                reason={
+                  skyPlotReason ||
+                  'Chưa có ephemeris 1019/1020/1045/1046 để tính azimuth/elevation.'
+                }
+              />
+              <p className="muted">
+                Không vẽ vị trí giả khi nguồn không phát ephemeris.
+              </p>
+            </div>
           </div>
 
           <div className="quality-grid two">

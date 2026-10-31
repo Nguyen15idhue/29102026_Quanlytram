@@ -37,6 +37,7 @@ interface DictionaryItem {
 
 const emptyForm = {
   code: '', name: '', host: '', port: 1509, connection_type: 'ntrip',
+  source_type: 'manual', ntrip_version: 'v1', ntrip_mode: 'v1_noauth',
   lat: '', lon: '', notes: '', station_type: 'reference', enabled: true,
   receiver_type: '', receiver_sn: '', receiver_firmware: '',
   antenna_type: '', antenna_sn: '', antenna_height: '', elevation_mask: '',
@@ -52,6 +53,9 @@ function formFromStation(station: Station) {
     host: station.host,
     port: station.port,
     connection_type: station.connection_type,
+    source_type: station.source_type ?? 'manual',
+    ntrip_version: station.ntrip_version ?? 'v1',
+    ntrip_mode: station.ntrip_mode ?? 'v1_noauth',
     lat: station.lat === null ? '' : String(station.lat),
     lon: station.lon === null ? '' : String(station.lon),
     notes: station.notes,
@@ -132,6 +136,9 @@ export function Stations() {
         host: form.host,
         port: Number(form.port),
         connection_type: form.connection_type,
+        source_type: form.source_type,
+        ntrip_version: form.ntrip_version,
+        ntrip_mode: form.ntrip_mode,
         lat: form.lat === '' ? null : Number(form.lat),
         lon: form.lon === '' ? null : Number(form.lon),
         notes: form.notes,
@@ -327,6 +334,29 @@ export function Stations() {
               )
             },
             {
+              key: 'source',
+              header: 'Nguồn',
+              hideOnMobile: true,
+              cell: (station) => (
+                <div>
+                  <div>
+                    {station.source_type === 'relay_caster'
+                      ? 'NTRIP caster (relay)'
+                      : station.source_type === 'probe_client'
+                        ? 'NTRIP client (probe)'
+                        : station.source_type === 'caster_ingest'
+                          ? 'NTRIP caster (ingest)'
+                          : station.ntrip_mode === 'ntrip_client'
+                            ? 'NTRIP client'
+                            : 'Thủ công'}
+                  </div>
+                  <div className="muted table-subline">
+                    {station.ntrip_version?.toUpperCase() ?? 'V1'} · {station.ntrip_mode ?? 'v1_noauth'}
+                  </div>
+                </div>
+              )
+            },
+            {
               key: 'device',
               header: 'Thiết bị',
               hideOnMobile: true,
@@ -341,11 +371,14 @@ export function Stations() {
               key: 'location',
               header: 'Vị trí',
               hideOnMobile: true,
-              cell: (station) => (
-                <span className="mono">
-                  {station.lat ?? '—'}, {station.lon ?? '—'}
-                </span>
-              )
+              cell: (station) =>
+                station.reported_lat == null || station.reported_lon == null ? (
+                  <span className="muted">Chưa có 1005</span>
+                ) : (
+                  <span className="mono">
+                    {station.reported_lat.toFixed(6)}, {station.reported_lon.toFixed(6)}
+                  </span>
+                )
             },
             {
               key: 'mountpoints',
@@ -428,7 +461,7 @@ export function Stations() {
           }
         }}
         title={editing ? 'Sửa trạm' : 'Thêm trạm'}
-        description="Thông tin trạm vật lý; không gắn trực tiếp vào relay."
+        description="Thông tin trạm vật lý; nguồn relay/caster chỉ đọc từ cấu hình relay."
         size="lg"
         footer={
           <>
@@ -504,20 +537,26 @@ export function Stations() {
 
           <fieldset className="form-section">
             <legend>Vị trí</legend>
-            <Field label="Vĩ độ">
+            <Field label="Vĩ độ WGS84 (1005)">
               <Input
-                type="number"
-                step="0.0000001"
-                value={form.lat}
-                onChange={(event) => setForm({ ...form, lat: event.target.value })}
+                readOnly
+                value={
+                  editing?.reported_lat != null
+                    ? editing.reported_lat.toFixed(6)
+                    : form.lat
+                }
+                placeholder="Chờ message 1005/1006"
               />
             </Field>
-            <Field label="Kinh độ">
+            <Field label="Kinh độ WGS84 (1005)">
               <Input
-                type="number"
-                step="0.0000001"
-                value={form.lon}
-                onChange={(event) => setForm({ ...form, lon: event.target.value })}
+                readOnly
+                value={
+                  editing?.reported_lon != null
+                    ? editing.reported_lon.toFixed(6)
+                    : form.lon
+                }
+                placeholder="Chờ message 1005/1006"
               />
             </Field>
             <Field label="Elevation mask (°)">
@@ -594,12 +633,53 @@ export function Stations() {
 
           <fieldset className="form-section">
             <legend>Kết nối</legend>
-            <Field label="Host">
+            <Field label="Nguồn dữ liệu">
+              <Select
+                value={form.source_type}
+                disabled={Boolean(editing?.relay_job_id)}
+                onChange={(event) => setForm({ ...form, source_type: event.target.value })}
+              >
+                <option value="manual">Thủ công</option>
+                <option value="relay_caster">NTRIP caster (relay)</option>
+                <option value="caster_ingest">NTRIP caster (ingest)</option>
+                <option value="probe_client">NTRIP client (probe)</option>
+              </Select>
+            </Field>
+            <Field label="NTRIP mode">
+              <Select
+                value={form.ntrip_mode}
+                disabled={Boolean(editing?.relay_job_id)}
+                onChange={(event) => {
+                  const mode = event.target.value;
+                  const version = mode === 'v2_auth' ? 'v2' : mode === 'ntrip_client' ? form.ntrip_version : 'v1';
+                  setForm({ ...form, ntrip_mode: mode, ntrip_version: version });
+                }}
+              >
+                <option value="v1_noauth">V1 no auth</option>
+                <option value="v1_auth">V1 auth</option>
+                <option value="v2_auth">V2 auth</option>
+                <option value="ntrip_client">NtripClient</option>
+              </Select>
+            </Field>
+            <Field label="NTRIP version">
+              <Input readOnly value={(editing?.ntrip_version ?? form.ntrip_version).toUpperCase()} />
+            </Field>
+            <Field label={editing?.relay_job_id ? 'Relay upstream host' : 'Host'}>
               <Input
-                value={form.host}
+                readOnly={Boolean(editing?.relay_job_id)}
+                value={
+                  editing?.relay_job_id
+                    ? `${editing.relay_upstream_host ?? ''}:${editing.relay_upstream_port ?? ''}`
+                    : form.host
+                }
                 onChange={(event) => setForm({ ...form, host: event.target.value })}
               />
             </Field>
+            {editing?.relay_job_id && (
+              <Field label="Relay job">
+                <Input readOnly value={editing.relay_job_name ?? `#${editing.relay_job_id}`} />
+              </Field>
+            )}
             <Field label="Port">
               <Input
                 type="number"
@@ -681,11 +761,53 @@ export function Stations() {
         {detail && detailTab !== 'quality' && (
           <dl className="facts">
             <div>
-              <dt>Host</dt>
-              <dd className="mono">
-                {detail.host}:{detail.port}
+              <dt>Nguồn dữ liệu</dt>
+              <dd>
+                {detail.source_type === 'relay_caster'
+                  ? 'NTRIP caster (relay)'
+                  : detail.source_type === 'probe_client'
+                    ? 'NTRIP client (probe)'
+                    : detail.source_type === 'caster_ingest'
+                      ? 'NTRIP caster (ingest)'
+                      : detail.ntrip_mode === 'ntrip_client'
+                        ? 'NTRIP client'
+                        : 'Thủ công'}
               </dd>
             </div>
+            <div>
+              <dt>NTRIP</dt>
+              <dd>
+                {detail.ntrip_version?.toUpperCase() ?? 'V1'} · {detail.ntrip_mode ?? 'v1_noauth'}
+              </dd>
+            </div>
+            {detail.relay_job_id && (
+              <div>
+                <dt>Relay job</dt>
+                <dd>
+                  {detail.relay_job_name ?? `#${detail.relay_job_id}`}
+                  <span className="muted">
+                    {' '}· {detail.relay_upstream_host}:{detail.relay_upstream_port}
+                    {detail.relay_upstream_mount ? `/${detail.relay_upstream_mount}` : ''}
+                  </span>
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt>Relay upstream host</dt>
+              <dd className="mono">
+                {detail.relay_upstream_host
+                  ? `${detail.relay_upstream_host}:${detail.relay_upstream_port ?? ''}`
+                  : '—'}
+              </dd>
+            </div>
+            {!detail.relay_job_id && (
+              <div>
+                <dt>Host</dt>
+                <dd className="mono">
+                  {detail.host}:{detail.port}
+                </dd>
+              </div>
+            )}
             <div>
               <dt>Trạng thái</dt>
               <dd>
@@ -696,10 +818,38 @@ export function Stations() {
               </dd>
             </div>
             <div>
-              <dt>Vị trí</dt>
-              <dd>
-                {detail.lat ?? '—'}, {detail.lon ?? '—'}
+              <dt>WGS84 lat/lon (1005)</dt>
+              <dd className="mono">
+                {detail.reported_lat == null || detail.reported_lon == null
+                  ? 'Chưa có message 1005/1006'
+                  : `${detail.reported_lat.toFixed(6)}, ${detail.reported_lon.toFixed(6)}`}
               </dd>
+            </div>
+            <div>
+              <dt>WGS84 height</dt>
+              <dd className="mono">
+                {detail.reported_height == null ? '—' : `${detail.reported_height.toFixed(3)} m`}
+              </dd>
+            </div>
+            <div>
+              <dt>VN2000 (TM 105°)</dt>
+              <dd className="mono">
+                {detail.vn2000_easting == null || detail.vn2000_northing == null
+                  ? '—'
+                  : `E ${detail.vn2000_easting.toFixed(3)} · N ${detail.vn2000_northing.toFixed(3)}`}
+              </dd>
+            </div>
+            <div>
+              <dt>ITRF spatial (ECEF)</dt>
+              <dd className="mono">
+                {detail.itrf_x == null || detail.itrf_y == null || detail.itrf_z == null
+                  ? '—'
+                  : `X ${detail.itrf_x.toFixed(3)} · Y ${detail.itrf_y.toFixed(3)} · Z ${detail.itrf_z.toFixed(3)}`}
+              </dd>
+            </div>
+            <div>
+              <dt>Station ID 1005</dt>
+              <dd className="mono">{detail.reported_station_id ?? '—'}</dd>
             </div>
             <div>
               <dt>Owner</dt>

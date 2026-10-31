@@ -83,8 +83,8 @@ export function StationMap() {
     if (!layer) return;
     layer.clearLayers();
     for (const station of filtered) {
-      if (station.lat === null || station.lon === null) continue;
-      const marker = L.circleMarker([station.lat, station.lon], {
+      if (station.reported_lat == null || station.reported_lon == null) continue;
+      const marker = L.circleMarker([station.reported_lat, station.reported_lon], {
         radius: 7,
         color: colorFor(station.quality_state),
         fillColor: colorFor(station.quality_state),
@@ -95,12 +95,17 @@ export function StationMap() {
         `<strong>${escapeHtml(station.code)}</strong><br>${escapeHtml(station.name)}<br>` +
           `Trạng thái: ${escapeHtml(station.quality_state || 'unknown')}<br>` +
           `Quality: ${station.quality_score ?? '—'}<br>` +
-          `Mountpoint: ${station.mountpoint_count ?? 0}`
+          `Mountpoint: ${station.mountpoint_count ?? 0}<br>` +
+          `WGS84: ${station.reported_lat.toFixed(6)}, ${station.reported_lon.toFixed(6)}`
       );
       marker.on('click', () => setSelected(station));
       marker.addTo(layer);
     }
   }, [filtered]);
+
+  const withCoords = filtered.filter(
+    (station) => station.reported_lat != null && station.reported_lon != null
+  ).length;
 
   return (
     <section className="page">
@@ -112,6 +117,13 @@ export function StationMap() {
       <div className="map-shell">
         <aside className="panel map-side">
           <SearchInput value={q} onChange={setQ} placeholder="Tìm trạm, vùng, địa chỉ" />
+          <div className="map-summary">
+            <StatusBadge label={`${withCoords} có 1005`} kind="ok" />
+            <StatusBadge
+              label={`${filtered.length - withCoords} chưa có 1005`}
+              kind={filtered.length - withCoords ? 'warn' : 'neutral'}
+            />
+          </div>
           <div className="map-list">
             {filtered.map((station) => (
               <button
@@ -120,8 +132,8 @@ export function StationMap() {
                 className={`map-list-item ${selected?.id === station.id ? 'active' : ''}`}
                 onClick={() => {
                   setSelected(station);
-                  if (station.lat !== null && station.lon !== null) {
-                    mapInstance.current?.setView([station.lat, station.lon], 13);
+                  if (station.reported_lat != null && station.reported_lon != null) {
+                    mapInstance.current?.setView([station.reported_lat, station.reported_lon], 13);
                   }
                 }}
               >
@@ -129,10 +141,14 @@ export function StationMap() {
                   <strong>{station.name}</strong>
                   <small className="mono">{station.code}</small>
                 </span>
-                <StatusBadge
-                  label={station.quality_state || 'unknown'}
-                  kind={stateKind(station.quality_state)}
-                />
+                {station.reported_lat == null || station.reported_lon == null ? (
+                  <StatusBadge label="Chưa có 1005" kind="warn" />
+                ) : (
+                  <StatusBadge
+                    label={station.quality_state || 'unknown'}
+                    kind={stateKind(station.quality_state)}
+                  />
+                )}
               </button>
             ))}
           </div>

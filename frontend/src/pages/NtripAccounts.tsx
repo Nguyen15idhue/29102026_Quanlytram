@@ -222,6 +222,30 @@ export function NtripAccounts() {
               cell: (account) => account.maxConnections
             },
             {
+              key: 'company',
+              header: 'Công ty',
+              hideOnMobile: true,
+              cell: (account) => (
+                <div>
+                  <div>{account.company || '—'}</div>
+                  <div className="muted table-subline">
+                    {account.contactName || account.email || account.phone || '—'}
+                  </div>
+                </div>
+              )
+            },
+            {
+              key: 'validity',
+              header: 'Hiệu lực',
+              hideOnMobile: true,
+              cell: (account) =>
+                account.validFrom || account.validTo
+                  ? `${account.validFrom ? new Date(account.validFrom).toLocaleDateString('vi-VN') : '—'} → ${
+                      account.validTo ? new Date(account.validTo).toLocaleDateString('vi-VN') : '—'
+                    }`
+                  : 'Không giới hạn'
+            },
+            {
               key: 'owner',
               header: 'Owner',
               hideOnMobile: true,
@@ -411,6 +435,36 @@ export function NtripAccounts() {
               <div>
                 <dt>Owner</dt>
                 <dd>{detail.ownerWebUserId ?? '—'}</dd>
+              </div>
+              <div>
+                <dt>Công ty</dt>
+                <dd>{detail.company || '—'}</dd>
+              </div>
+              <div>
+                <dt>Liên hệ</dt>
+                <dd>{[detail.contactName, detail.email, detail.phone].filter(Boolean).join(' · ') || '—'}</dd>
+              </div>
+              <div>
+                <dt>Hiệu lực</dt>
+                <dd>
+                  {detail.validFrom || detail.validTo
+                    ? `${detail.validFrom ? new Date(detail.validFrom).toLocaleString('vi-VN') : '—'} → ${
+                        detail.validTo ? new Date(detail.validTo).toLocaleString('vi-VN') : '—'
+                      }`
+                    : 'Không giới hạn'}
+                </dd>
+              </div>
+              <div>
+                <dt>Khu vực</dt>
+                <dd>{detail.availableArea || '—'}</dd>
+              </div>
+              <div>
+                <dt>Auth method</dt>
+                <dd>{detail.authMethod || '—'}</dd>
+              </div>
+              <div>
+                <dt>Ghi chú</dt>
+                <dd>{detail.notes || '—'}</dd>
               </div>
             </dl>
             <div className="panel">

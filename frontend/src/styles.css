@@ -1541,6 +1541,37 @@ label.check input {
   font-weight: 600;
 }
 
+.quality-metric {
+  font-family: var(--font-mono);
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.sky-plot {
+  margin: 0;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.sky-plot svg {
+  width: min(100%, 180px);
+  height: auto;
+}
+
+.sky-plot .sky-label {
+  fill: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.sky-plot figcaption {
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .quality-meta {
   display: grid;
   grid-template-columns: minmax(90px, auto) 1fr;

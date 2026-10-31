@@ -20,6 +20,7 @@ dist-ssr/
 .env.production.local
 
 # Runtime / data
+db/data/config.json
 graphify-out/
 .taste-skill/
 logs/
