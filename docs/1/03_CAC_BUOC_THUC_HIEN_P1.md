@@ -862,4 +862,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Playwright `p1-bulk.spec.ts` **3/3 PASS**: chọn trang/bỏ chọn/reset,
     mobile 390 không tràn, multiselect search/focus, bulk station + audit batch,
     cross-tenant forbidden, 6 bulk route validate action.
-- Commit code: sẽ ghi hash sau khi commit phase này.
+- Commit code: `59deb9b` — `feat(p1-3): bang chon dong bulk action va multiselect`.
