@@ -292,6 +292,35 @@ func TestPasswordOnlyMountpoint(t *testing.T) {
 	rover.Close()
 }
 
+func TestPasswordOnlyLegacyAcceptsAnyNonEmptyPassword(t *testing.T) {
+	mountpoint := &MountpointConfig{
+		ID:           1,
+		Name:         "LEGACY",
+		Enabled:      true,
+		RequiresAuth: true,
+		AuthMode:     "password_only",
+	}
+	cfg := &Config{
+		Mountpoints: map[int64]*MountpointConfig{1: mountpoint},
+		Listeners: []*ListenerConfig{
+			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: mountpoint}},
+		},
+	}
+	manager, _ := newTestManager(t, cfg)
+	port := listenerPort(t, manager, 1)
+
+	_, _, status := connect(t, port, "GET /LEGACY HTTP/1.0\r\nAuthorization: Basic "+
+		base64.StdEncoding.EncodeToString([]byte(":"))+"\r\n\r\n")
+	if status != "ICY 401 Unauthorized" {
+		t.Fatalf("empty password status = %q", status)
+	}
+	_, _, status = connect(t, port, "GET /LEGACY HTTP/1.0\r\nAuthorization: Basic "+
+		base64.StdEncoding.EncodeToString([]byte(":random-nonempty"))+"\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("legacy non-empty password status = %q", status)
+	}
+}
+
 func TestListenerGroupsAndSourcetable(t *testing.T) {
 	mountpoint := &MountpointConfig{ID: 1, Name: "M", Enabled: true}
 	cfg := &Config{

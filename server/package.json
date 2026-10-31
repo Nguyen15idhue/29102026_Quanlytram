@@ -9,6 +9,7 @@
     "migrate": "node dist/db/migrate.js",
     "seed": "node dist/db/seed.js",
     "import:relay": "node dist/db/importRelay.js",
+    "import:legacy": "node dist/db/importLegacyCaster.js",
     "test": "vitest run"
   },
   "dependencies": {

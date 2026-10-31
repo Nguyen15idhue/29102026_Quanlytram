@@ -16,6 +16,7 @@ test.describe('Phase 7 station source and 1005 coordinates', () => {
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
     await page.goto('/stations');
+    await page.getByPlaceholder('Tìm mã, tên, địa chỉ').fill('THA_HauLoc');
     const row = page.getByRole('row', { name: /THA_HauLoc/ }).first();
     await expect(row).toBeVisible();
     await row.click();

@@ -454,7 +454,7 @@ export function Mountpoints() {
                 {detail.auth_mode === 'password_only'
                   ? detail.has_password
                     ? ' · đã đặt mật khẩu'
-                    : ' · chưa đặt mật khẩu'
+                    : ' · legacy: chấp nhận password không rỗng'
                   : ''}
               </dd>
             </div>

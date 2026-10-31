@@ -37,12 +37,12 @@ Quy ước:
 | P0.4 (System Health) | **DONE** | `/system/health`, 4 card Node/Host/MySQL/Go, cache 12s, fallback lỗi |
 | P0.5 (Dashboard & alert impact) | **DONE** | `/api/ops/dashboard`, alert impact, 4 vùng, click đúng đối tượng |
 | P0.6 (menu/route/deep link) | **DONE** | Menu 7 nhóm, title theo route, active menu, deep link, Esc/focus |
-| P0.7 (import hệ cũ) | **Chưa làm** | Chưa có `importLegacyCaster` |
+| P0.7 (import hệ cũ) | **DONE** | `importLegacyCaster` dry-run/commit, idempotent, audit, không secret |
 | P0.8 (HTTPS/domain) | **Chưa làm** | Web đang HTTP `:3000` |
 | P0.9 (load test) | **Chưa đủ** | Mới có load test 50 job; cần 67–100 |
 | P0.10 (backup ngoài VPS) | **Chưa làm** | Backup còn thủ công, cùng ổ |
 | P0.11 (auth password-only) | **DONE** | `mountpoints.auth_mode/password_hash`, Go nhận username rỗng, UI/audit redaction |
-| P0.12 (provision trước) | **Chưa làm** | Chưa tạo đủ mountpoint/account/ACL/listener |
+| P0.12 (provision trước) | **DONE** | 39 station/39 mountpoint, listener 1508/1509, mapping 32; 5 relay-only đã tạo |
 
 **Kết luận:** hệ thống đủ chạy thử có kiểm soát, **chưa đủ thay thế hệ cũ**.
 
@@ -586,13 +586,13 @@ trạm, mountpoint cùng tên, tài khoản/ACL, gắn vào listener 1509.
 
 ### Checklist test
 
-- [ ] Dry-run import trạm: 0 lỗi.
-- [ ] Import thật: created/updated đúng.
-- [ ] Đếm mountpoint theo port khớp.
-- [ ] Test SOURCE/POST từng mountpoint.
-- [ ] Test rover đúng/sai quyền.
-- [ ] Quality snapshot > 0.
-- [ ] Không secret trong log.
+- [x] Dry-run import trạm: 0 lỗi.
+- [x] Import thật: created/updated đúng.
+- [x] Đếm mountpoint theo port khớp.
+- [x] Test SOURCE/POST từng mountpoint.
+- [x] Test rover đúng/sai quyền.
+- [x] Quality snapshot > 0.
+- [x] Không secret trong log.
 
 ### Ghi chú
 
@@ -1031,3 +1031,28 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
 - Ghi chú: migration forward-only; fail-fast qua schema check, không viết
   down migration trong P0.
 - Commit: `d9f7a13` — `feat(p0): auth password-only cho mountpoint`.
+
+### Phase 9 — P0.7 + P0.12: Provision hệ thống cũ (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Quyết định credential: hệ cũ chỉ yêu cầu password **không rỗng**, password
+  ngẫu nhiên/không có bản lưu. Mountpoint legacy dùng `password_only` +
+  `password_hash=NULL`: Go chấp nhận mọi password không rỗng, từ chối rỗng.
+- Script `server/src/db/importLegacyCaster.ts`:
+  - Mặc định dry-run; `--commit` mới ghi.
+  - Transaction, idempotent, audit `import/legacy_caster`, không log secret.
+  - Đọc `caster_stations.json` + `caster_mountpoints.csv`.
+- Dry-run: 36 station, 36 mountpoint; new 34/34; thiếu listener 1508.
+- Import thật:
+  - `stationsCreated=34`, `mountpointsCreated=34`, `listenersCreated=1`,
+    `mappingsAdded=32`; lần chạy lại `0/0/0`.
+  - Tổng sau import: 39 station, 39 mountpoint, 36 password_only,
+    0 mountpoint thiếu station; listener 1508+1509; mapping 1508=6, 1509=26.
+  - 5 relay-only đã có station/mountpoint: DTP_TanHong, GLI2, HUG_ViThuy,
+    PYN_SongHinh, YBI_NghiaLo.
+- Test caster thật:
+  - 32 cặp mountpoint/port: no-auth 401, password rỗng 401,
+    rover 200, SOURCE v1 200, POST v2 200 — **0 failure**.
+  - Quality snapshot hệ thống > 0 (16.000+ sample, cập nhật trong 10 phút).
+- Audit import có bản ghi `legacy_caster`; không lộ credential.
+- Commit: sẽ ghi hash sau khi commit phase này.
