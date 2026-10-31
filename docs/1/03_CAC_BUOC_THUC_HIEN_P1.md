@@ -798,4 +798,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Migration dry-run/apply PASS, admin version 17.
 - Ghi chú: chưa drop `mountpoints.auth_mode/password_hash`; sẽ xử lý cùng reset
   mountpoint ở P1.6 để tránh gãy caster hiện tại.
-- Commit: sẽ ghi hash sau khi commit phase này.
+- Commit: `19cc562` — `feat(p1-1): schema station source listener acl va tenant scope`.
