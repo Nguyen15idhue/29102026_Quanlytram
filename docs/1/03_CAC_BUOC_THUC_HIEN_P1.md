@@ -1014,4 +1014,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Playwright `p1-unicode.spec.ts` **1/1 PASS**: station 79/80 đúng
     “SLA Mộc Châu”/“THA Hậu Lộc”, notes đã repair, `/stations`, `/alerts`,
     `/history` không chứa `�`, `â€`, `Ã`.
-- Commit code: sẽ ghi hash sau khi commit phase này.
+- Commit code: `fb4ac7f` — `fix(p1-9): utf8mb4 va repair unicode tieng viet`.
