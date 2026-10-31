@@ -830,4 +830,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Seed chạy lại: `[seed] role_permissions đã có dữ liệu, bỏ qua ghi đè` PASS.
 - Ghi chú: listener owner cũ đã gán admin; P1.6 sẽ gán owner theo công ty khi
   tạo/reimport.
-- Commit code/docs: sẽ ghi hash sau khi commit phase này.
+- Commit code: `147beb4` — `feat(p1-2): rbac tenant menu quyen va listener owner`.
