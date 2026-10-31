@@ -7,6 +7,7 @@ import {
   KeyRound,
   LayoutDashboard,
   List,
+  ListTree,
   LogOut,
   MapPinned,
   Menu,
@@ -28,6 +29,7 @@ const titles: Record<string, string> = {
   '/online': 'Danh sách online',
   '/online/map': 'Bản đồ online',
   '/mountpoints': 'Mountpoint',
+  '/mountpoints/explorer': 'Mountpoint Explorer',
   '/relay-jobs': 'Relay',
   '/history': 'Lịch sử relay',
   '/alerts': 'Cảnh báo',
@@ -70,7 +72,13 @@ export function Layout() {
         { to: '/online', label: 'Danh sách online', icon: List, show: can('connections', 'view') },
         { to: '/caster', label: 'Caster', icon: Antenna, show: can('settings', 'view') },
         { to: '/ntrip-accounts', label: 'Tài khoản NTRIP', icon: KeyRound, show: can('ntrip_accounts', 'view') },
-        { to: '/mountpoints', label: 'Mountpoint', icon: Network, show: can('mountpoints', 'view') }
+        { to: '/mountpoints', label: 'Mountpoint', icon: Network, show: can('mountpoints', 'view') },
+        {
+          to: '/mountpoints/explorer',
+          label: 'Mountpoint Explorer',
+          icon: ListTree,
+          show: can('mountpoints', 'view')
+        }
       ]
     },
     {
@@ -112,7 +120,7 @@ export function Layout() {
                     <NavLink
                       key={item.to}
                       to={item.to}
-                      end={item.to === '/'}
+                      end={item.to === '/' || item.to === '/mountpoints'}
                       className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                     >
                       <Icon size={18} aria-hidden="true" />

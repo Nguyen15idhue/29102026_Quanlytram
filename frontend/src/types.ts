@@ -638,3 +638,111 @@ export interface AuditLog {
   ip: string;
   createdAt: string;
 }
+
+export type MountpointSourceState =
+  | 'online'
+  | 'stale'
+  | 'offline'
+  | 'error'
+  | 'unknown'
+  | 'disabled';
+
+export interface MountpointExplorerRelay {
+  id: number;
+  name: string;
+  enabled: boolean;
+  desiredRevision: number;
+  appliedRevision: number | null;
+  runtimeState: string;
+  lastAppliedAt: string | null;
+  lastError: string | null;
+  upstream: {
+    host: string;
+    port: number;
+    mount: string;
+    ssl: boolean;
+    ntripVersion: string;
+  };
+  downstream: {
+    host: string;
+    port: number;
+    mount: string;
+    ssl: boolean;
+    ntripVersion: string;
+    mode: string;
+  };
+  hasCredential: { upstream: boolean; downstream: boolean };
+  origin: string;
+  updatedAt: string;
+}
+
+export interface MountpointExplorerListener {
+  id: number;
+  name: string;
+  port: number;
+  enabled: boolean;
+  role: string;
+}
+
+export interface MountpointExplorerAccount {
+  id: number;
+  username: string;
+  enabled: boolean;
+  maxConnections: number;
+}
+
+export interface MountpointExplorerItem {
+  id: number;
+  name: string;
+  enabled: boolean;
+  requiresAuth: boolean;
+  serviceType: string;
+  positionMode: string;
+  satelliteSystems: string;
+  casterInterval: number;
+  codeProtocol: string;
+  codeType: string;
+  description: string;
+  stationId: number | null;
+  stationCode: string | null;
+  stationName: string | null;
+  ownerWebUserId: number | null;
+  ownerName: string | null;
+  sourceState: MountpointSourceState;
+  quality: {
+    score: number;
+    state: string;
+    lastSampleAt: string;
+    ageSec: number | null;
+    bitrateBps: number;
+    messageRatePerMinute: number;
+  } | null;
+  bitrateBps: number;
+  messageRatePerMinute: number;
+  relays: MountpointExplorerRelay[];
+  listeners: MountpointExplorerListener[];
+  accounts: MountpointExplorerAccount[];
+  onlineConnections: CasterConnection[];
+  onlineCount: number;
+  alertsOpen: number;
+}
+
+export interface MountpointExplorerResponse {
+  items: MountpointExplorerItem[];
+  total: number;
+  pageSize: number;
+  offset: number;
+  casterAvailable: boolean;
+  filters: {
+    q: string;
+    stationId: number | null;
+    ownerId: number | null;
+    state: string | null;
+    alerts: boolean;
+  };
+}
+
+export interface MountpointExplorerDetailResponse {
+  item: MountpointExplorerItem;
+  casterAvailable: boolean;
+}

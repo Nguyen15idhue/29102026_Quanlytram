@@ -1480,6 +1480,11 @@ label.check input {
   font-weight: 500;
 }
 
+.quality-kpis strong.kpi-time {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .quality-kpis {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1499,6 +1504,11 @@ label.check input {
 .quality-kpis strong {
   font-size: 22px;
   font-weight: 500;
+}
+
+.quality-kpis strong.kpi-time {
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .quality-score-parts {

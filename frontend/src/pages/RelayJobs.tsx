@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FlaskConical, Pencil, Play, Plus, RotateCw, Square, Trash2 } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
@@ -51,6 +52,7 @@ export function RelayJobs() {
   const { can, csrfToken } = useAuth();
   const { push } = useToast();
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
@@ -68,6 +70,22 @@ export function RelayJobs() {
         `/api/relay-jobs?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
       )
   });
+
+  useEffect(() => {
+    const jobId = Number(searchParams.get('job'));
+    if (!jobId) return;
+    const found = list.data?.items.find((item) => item.id === jobId);
+    if (found) setDetail(found);
+  }, [list.data, searchParams]);
+
+  function closeDetail() {
+    setDetail(null);
+    if (searchParams.has('job')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('job');
+      setSearchParams(next, { replace: true });
+    }
+  }
 
   const save = useMutation({
     mutationFn: async () => {
@@ -420,7 +438,7 @@ export function RelayJobs() {
 
       <Modal
         open={Boolean(detail)}
-        onOpenChange={(open) => !open && setDetail(null)}
+        onOpenChange={(open) => !open && closeDetail()}
         title={detail?.name ?? 'Chi tiết relay job'}
         description={detail ? `${detail.upstream.mount} → ${detail.downstream.mount}` : undefined}
         side="right"
@@ -433,7 +451,7 @@ export function RelayJobs() {
                   <Pencil size={16} aria-hidden="true" /> Sửa
                 </Button>
               )}
-              <Button variant="ghost" onClick={() => setDetail(null)}>
+              <Button variant="ghost" onClick={closeDetail}>
                 Đóng
               </Button>
             </>

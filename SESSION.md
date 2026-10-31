@@ -3,8 +3,9 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-10-30 21:00 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: P0 Phase 1 — Chi tiết trạm DONE; tiếp theo P0 Phase 2
-- Trạng thái P0 Phase 1: DONE (drawer 5 tab, API connections/history/metadata, Playwright PASS)
+- Phase hiện tại: P0 Phase 2 — Mountpoint Explorer DONE; tiếp theo P0 Phase 3
+- Trạng thái P0 Phase 1: DONE (drawer 5 tab, API connections/history/metadata)
+- Trạng thái P0 Phase 2: DONE (API list/detail, filter, drawer chuỗi, Playwright PASS)
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
@@ -42,14 +43,17 @@
   REST/RBAC/socket, panel nhúng popup trạm/relay; xem mục 8.11.
 - P0 Phase 1: `/stations/:id`, drawer 5 tab, transport/quality/metadata status
   độc lập, reliability, API connections/history/metadata; Playwright PASS.
-  Chi tiết: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
+- P0 Phase 2: `/mountpoints/explorer`, API list/detail join relay/listener/ACL/
+  online/quality/alert, filter trạm/trạng thái/owner/alert, RBAC scope;
+  Playwright PASS. Chi tiết: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
 
 ### Đang làm
 - Không có.
 
 ### Tiếp theo
-- P0 Phase 2 — Mountpoint Explorer; xem `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md`.
-- Không chuyển phase khi checklist Phase 2 chưa PASS.
+- P0 Phase 3 — Bản đồ vận hành hợp nhất `/map`; xem
+  `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md`.
+- Không chuyển phase khi checklist Phase 3 chưa PASS.
 
 ### Blocker
 - Không có. `go test -race` chưa chạy được vì môi trường Windows không bật

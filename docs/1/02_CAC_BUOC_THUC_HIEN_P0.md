@@ -32,7 +32,8 @@ Quy ước:
 | Quét caster 1509/1508 | Đã có dữ liệu | 36 trạm; file trong `db/data/` |
 | Probe `hauloc`, `MocChautest` | PASS | 60 giây/mount; không CRC lỗi, không mất epoch |
 | P0.1 (chi tiết trạm) | **DONE** | `/stations/:id`, drawer 5 tab, 3 status độc lập, reliability, connections/history/metadata |
-| P0.2–P0.6 (UX vận hành) | **Chưa làm** | `App.tsx` chưa có `/map`, `/mountpoints/explorer`, `/system/health` |
+| P0.2 (Mountpoint Explorer) | **DONE** | `/mountpoints/explorer`, API list/detail, filter trạm/trạng thái/owner/alert |
+| P0.3–P0.6 (UX vận hành) | **Chưa làm** | `App.tsx` chưa có `/map`, `/system/health` |
 | P0.7 (import hệ cũ) | **Chưa làm** | Chưa có `importLegacyCaster` |
 | P0.8 (HTTPS/domain) | **Chưa làm** | Web đang HTTP `:3000` |
 | P0.9 (load test) | **Chưa đủ** | Mới có load test 50 job; cần 67–100 |
@@ -222,12 +223,12 @@ Mountpoint là “cửa” dữ liệu. Khi cửa có sự cố, cần biết ai
 
 ### Checklist test
 
-- [ ] API danh sách phân trang, search debounce.
-- [ ] API chi tiết join đúng.
-- [ ] RBAC scope.
-- [ ] Playwright mở explorer, xem chi tiết.
-- [ ] So số online với `/api/connections`.
-- [ ] Không có secret trong JSON.
+- [x] API danh sách phân trang, search debounce.
+- [x] API chi tiết join đúng.
+- [x] RBAC scope.
+- [x] Playwright mở explorer, xem chi tiết.
+- [x] So số online với `/api/connections`.
+- [x] Không có secret trong JSON.
 
 ### Ghi chú
 
@@ -862,3 +863,27 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
 - Ghi chú: lịch sử probe chưa có bảng nên API trả `available=false` và UI ghi
   rõ "chưa lưu lịch sử probe"; không bịa dữ liệu.
 - Commit: `079abb2` — `feat(p0): chi tiết trạm 5 tab và API vận hành`.
+
+### Phase 2 — P0.2: Mountpoint Explorer (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Backend:
+  - Thêm `GET /api/mountpoints/explorer` (search, `stationId`, `state`,
+    `ownerId`, `alerts=1`, phân trang) và `GET /api/mountpoints/:id/explorer`.
+  - Join trạm, relay job + state, listener, ACL tài khoản, kết nối Go,
+    quality, message stats, alert mở; chỉ trả `username`, không trả hash.
+  - Thêm helper `mountpointSourceState` và test đơn vị.
+- Frontend:
+  - Thêm `/mountpoints/explorer`, menu riêng, bảng + filter, drawer chuỗi đầy
+    đủ; nút mở trạm/relay/listener; RelayJobs nhận deep link `?job=`.
+- Kiểm thử:
+  - `server npm run build`: PASS; `server npm test`: 45/45 PASS.
+  - `frontend npm run build`: PASS.
+  - Playwright `mountpoint-explorer.spec.ts`: PASS — search THA, detail,
+    filter online, mobile 390 không tràn; regression Phase 1/quality PASS.
+  - API smoke: THA_HauLoc online, 1 relay, online khớp
+    `/api/stations/80/connections` (0); filter online trả 2 mountpoint.
+  - Test tạm listener/ACL mountpoint 67: API trả đúng listener/account, không
+    có `password_hash`; đã xoá dữ liệu tạm.
+  - RBAC `user1`: chỉ thấy `TEST_HNI_02`; mountpoint 67 trả 404.
+- Commit: sẽ ghi hash sau khi commit phase này.
