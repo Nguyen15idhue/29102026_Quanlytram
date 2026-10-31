@@ -3,7 +3,7 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-10-30 21:00 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: P1.10 — Regression DONE; P1 hoàn tất, P1.11 map defer
+- Phase hiện tại: P1.10.1 — Khắc phục trạm/kết nối/tọa độ/geo DONE; P1.11 map defer
 - Trạng thái P1.0: DONE (backup/restore PASS, graphify 2364 nodes, Playwright 15/15)
 - Trạng thái P1.1: DONE (migration 014–017, station_sources 39, tenant scope)
 - Trạng thái P1.2: DONE (tenant RBAC, migration 018–019, server 53/53, P1 RBAC 3/3)
@@ -15,6 +15,7 @@
 - Trạng thái P1.8: DONE (form relay đầy đủ, JSON import dry-run/idempotent, P1 relay 1/1)
 - Trạng thái P1.9: DONE (utf8mb4, repair station notes, sạch mojibake, P1 unicode 1/1)
 - Trạng thái P1.10: DONE (server 53/53, Go test/vet, Playwright 29/29, backup/restore 39/39)
+- Trạng thái P1.10.1: DONE (source listener/GGA, tọa độ động, geo fallback, uptime direction, Playwright 30/30)
 - Trạng thái P0 Phase 1: DONE (drawer 5 tab, API connections/history/metadata)
 - Trạng thái P0 Phase 2: DONE (API list/detail, filter, drawer chuỗi)
 - Trạng thái P0 Phase 3: DONE (`/map`, API overview, layer/filter, redirect cũ)

@@ -1,5 +1,7 @@
 ﻿import { Router } from 'express';
 import { z } from 'zod';
+import net from 'node:net';
+import tls from 'node:tls';
 import { RowDataPacket } from 'mysql2/promise';
 import { adminPool, query, withTransaction } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
@@ -9,7 +11,7 @@ import { type GoConnection, publicConnection } from '../lib/caster';
 import { buildWorkbook, readSheetRows, readWorkbook, sendWorkbook } from '../lib/excel';
 import { asyncHandler, ApiError } from '../lib/http';
 import { ecefToGeodetic, geodeticToVn2000 } from '../lib/geo';
-import { encryptSecret } from '../lib/crypto';
+import { decryptSecret, encryptSecret } from '../lib/crypto';
 import { callGoInternal } from '../lib/internalApi';
 import {
   fetchLiveQuality,
@@ -83,7 +85,14 @@ const createSchema = z.object({
 const updateSchema = createSchema.partial();
 
 const stationColumns = `s.*, u.display_name AS owner_name,
-  (SELECT COUNT(*) FROM mountpoints m WHERE m.station_id = s.id) AS mountpoint_count`;
+  (SELECT COUNT(*) FROM mountpoints m WHERE m.station_id = s.id) AS mountpoint_count,
+  (SELECT ss.source_role FROM station_sources ss WHERE ss.station_id = s.id) AS station_source_role,
+  (SELECT ss.client_host FROM station_sources ss WHERE ss.station_id = s.id) AS station_client_host,
+  (SELECT ss.client_port FROM station_sources ss WHERE ss.station_id = s.id) AS station_client_port,
+  (SELECT ss.client_mount FROM station_sources ss WHERE ss.station_id = s.id) AS station_client_mount,
+  (SELECT ss.caster_listener_id FROM station_sources ss WHERE ss.station_id = s.id) AS station_caster_listener_id,
+  (SELECT l.port FROM station_sources ss JOIN caster_listeners l ON l.id = ss.caster_listener_id
+    WHERE ss.station_id = s.id) AS station_caster_port`;
 
 async function resolveOwner(req: any, requested?: number | null): Promise<number> {
   const actor = req.auth!;
@@ -1229,6 +1238,7 @@ stationsRouter.get(
           `SELECT mountpoint_id, start_ts, end_ts, disconnect_reason
              FROM caster_connections
             WHERE mountpoint_id IN (${mountpointIds.map(() => '?').join(',')})
+              AND direction = 'source'
               AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
             ORDER BY start_ts`,
           [...mountpointIds, start, end]
@@ -1315,6 +1325,94 @@ stationsRouter.get(
   })
 );
 
+stationsRouter.post(
+  '/source/mountpoints',
+  requirePermission('stations', 'add'),
+  asyncHandler(async (req, res) => {
+    const body = z
+      .object({
+        host: z.string().trim().min(1).max(190),
+        port: z.number().int().min(1).max(65535).default(1509),
+        tls: z.boolean().optional().default(false),
+        username: z.string().max(128).optional().default(''),
+        password: z.string().max(512).optional().default(''),
+        stationId: z.number().int().positive().optional()
+      })
+      .parse(req.body);
+    let password = body.password;
+    if (!password && body.stationId) {
+      const station = await getStation(body.stationId);
+      if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+      await assertRecordScope(req, station.owner_web_user_id);
+      const rows = await query<RowDataPacket[]>(
+        'SELECT client_password_enc FROM station_sources WHERE station_id = ?',
+        [body.stationId]
+      );
+      if (rows[0]?.client_password_enc) {
+        try {
+          password = decryptSecret(rows[0].client_password_enc);
+        } catch {
+          password = '';
+        }
+      }
+    }
+    const items = await new Promise<Array<{ name: string }>>((resolve, reject) => {
+      const socket = body.tls
+        ? tls.connect({ host: body.host, port: body.port, servername: body.host })
+        : net.connect({ host: body.host, port: body.port });
+      let data = '';
+      let settled = false;
+      const finish = (err?: Error) => {
+        if (settled) return;
+        settled = true;
+        socket.destroy();
+        if (err) reject(err);
+        else {
+          const names = data
+            .split(/\r?\n/)
+            .filter((line) => line.startsWith('STR;'))
+            .map((line) => line.split(';')[1])
+            .filter(Boolean)
+            .map((name) => ({ name }));
+          resolve([...new Map(names.map((item) => [item.name, item])).values()]);
+        }
+      };
+      socket.setTimeout(6000, () => finish(new ApiError(504, 'SOURCE_TIMEOUT', 'Hết thời gian tải sourcetable')));
+      socket.on('error', (err) => finish(err));
+      socket.on('connect', () => {
+        if (body.tls) return;
+        const auth =
+          body.username || password
+            ? `Authorization: Basic ${Buffer.from(`${body.username}:${password}`).toString('base64')}\r\n`
+            : '';
+        socket.write(
+          `GET / HTTP/1.0\r\nHost: ${body.host}:${body.port}\r\n` +
+            `Ntrip-Version: Ntrip/2.0\r\nUser-Agent: NTRIP CORS-Manager/1.0\r\n` +
+            `${auth}\r\n`
+        );
+      });
+      socket.on('data', (chunk) => {
+        data += chunk.toString('utf8');
+        if (data.includes('ENDSOURCETABLE') || data.length > 256 * 1024) finish();
+      });
+      socket.on('end', () => finish());
+      socket.on('secureConnect', () => {
+        if (!body.tls) return;
+        const auth =
+          body.username || password
+            ? `Authorization: Basic ${Buffer.from(`${body.username}:${password}`).toString('base64')}\r\n`
+            : '';
+        socket.write(
+          `GET / HTTP/1.0\r\nHost: ${body.host}:${body.port}\r\n` +
+            `Ntrip-Version: Ntrip/2.0\r\nUser-Agent: NTRIP CORS-Manager/1.0\r\n` +
+            `${auth}\r\n`
+        );
+      });
+    });
+    res.json({ items });
+  })
+);
+
 const sourceSchema = z.object({
   source_role: z.enum(['ntrip_client', 'ntrip_caster']).default('ntrip_caster'),
   client_host: z.string().max(190).optional().default(''),
@@ -1325,10 +1423,13 @@ const sourceSchema = z.object({
   client_tls: z.boolean().optional().default(false),
   client_send_gga: z.boolean().optional().default(false),
   client_nmea_interval_sec: z.number().int().min(0).max(3600).optional().default(0),
+  client_gga_lat: z.number().min(-90).max(90).nullable().optional(),
+  client_gga_lon: z.number().min(-180).max(180).nullable().optional(),
   caster_version: z.enum(['v1', 'v2']).optional().default('v2'),
   caster_username: z.string().max(128).optional().default(''),
   caster_password: z.string().max(512).optional(),
-  caster_requires_auth: z.boolean().optional().default(true)
+  caster_requires_auth: z.boolean().optional().default(true),
+  caster_listener_id: z.number().int().positive().nullable().optional()
 });
 
 function publicSource(row: any) {
@@ -1343,10 +1444,16 @@ function publicSource(row: any) {
     client_tls: Boolean(row.client_tls),
     client_send_gga: Boolean(row.client_send_gga),
     client_nmea_interval_sec: Number(row.client_nmea_interval_sec ?? 0),
+    client_gga_lat: row.client_gga_lat === null ? null : Number(row.client_gga_lat),
+    client_gga_lon: row.client_gga_lon === null ? null : Number(row.client_gga_lon),
     caster_version: String(row.caster_version ?? 'v2'),
     caster_username: String(row.caster_username ?? ''),
     caster_has_password: Boolean(row.caster_password_enc),
     caster_requires_auth: Boolean(row.caster_requires_auth),
+    caster_listener_id:
+      row.caster_listener_id === null ? null : Number(row.caster_listener_id),
+    caster_listener_name: row.caster_listener_name ?? null,
+    caster_port: row.caster_port === null ? null : Number(row.caster_port),
     relay_job_id: row.relay_job_id === null ? null : Number(row.relay_job_id),
     updated_at: row.updated_at
   };
@@ -1360,7 +1467,10 @@ stationsRouter.get(
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
     await assertRecordScope(req, station.owner_web_user_id);
     const rows = await query<RowDataPacket[]>(
-      'SELECT * FROM station_sources WHERE station_id = ?',
+      `SELECT ss.*, l.name AS caster_listener_name, l.port AS caster_port
+         FROM station_sources ss
+         LEFT JOIN caster_listeners l ON l.id = ss.caster_listener_id
+        WHERE ss.station_id = ?`,
       [station.id]
     );
     res.json({ items: rows.map(publicSource) });
@@ -1375,8 +1485,19 @@ stationsRouter.put(
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
     await assertRecordScope(req, station.owner_web_user_id);
     const body = sourceSchema.parse(req.body);
+    if (body.source_role === 'ntrip_caster' && body.caster_listener_id) {
+      const listeners = await query<RowDataPacket[]>(
+        'SELECT id, owner_web_user_id FROM caster_listeners WHERE id = ?',
+        [body.caster_listener_id]
+      );
+      if (listeners.length === 0) throw new ApiError(400, 'INVALID_LISTENER', 'Listener không tồn tại');
+      await assertRecordScope(req, listeners[0].owner_web_user_id);
+    }
     const beforeRows = await query<RowDataPacket[]>(
-      'SELECT * FROM station_sources WHERE station_id = ?',
+      `SELECT ss.*, l.name AS caster_listener_name, l.port AS caster_port
+         FROM station_sources ss
+         LEFT JOIN caster_listeners l ON l.id = ss.caster_listener_id
+        WHERE ss.station_id = ?`,
       [station.id]
     );
     const before = beforeRows[0] ? publicSource(beforeRows[0]) : null;
@@ -1384,9 +1505,10 @@ stationsRouter.put(
       `INSERT INTO station_sources
          (station_id, source_role, client_host, client_port, client_mount,
           client_username, client_password_enc, client_tls, client_send_gga,
-          client_nmea_interval_sec, caster_version, caster_username,
-          caster_password_enc, caster_requires_auth)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          client_nmea_interval_sec, client_gga_lat, client_gga_lon,
+          caster_version, caster_username, caster_password_enc, caster_requires_auth,
+          caster_listener_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          source_role = VALUES(source_role), client_host = VALUES(client_host),
          client_port = VALUES(client_port), client_mount = VALUES(client_mount),
@@ -1394,9 +1516,11 @@ stationsRouter.put(
          client_password_enc = COALESCE(VALUES(client_password_enc), client_password_enc),
          client_tls = VALUES(client_tls), client_send_gga = VALUES(client_send_gga),
          client_nmea_interval_sec = VALUES(client_nmea_interval_sec),
+         client_gga_lat = VALUES(client_gga_lat), client_gga_lon = VALUES(client_gga_lon),
          caster_version = VALUES(caster_version), caster_username = VALUES(caster_username),
          caster_password_enc = COALESCE(VALUES(caster_password_enc), caster_password_enc),
-         caster_requires_auth = VALUES(caster_requires_auth)`,
+         caster_requires_auth = VALUES(caster_requires_auth),
+         caster_listener_id = VALUES(caster_listener_id)`,
       [
         station.id,
         body.source_role,
@@ -1408,14 +1532,24 @@ stationsRouter.put(
         body.client_tls ? 1 : 0,
         body.client_send_gga ? 1 : 0,
         body.client_nmea_interval_sec,
+        body.source_role === 'ntrip_client' && body.client_send_gga
+          ? body.client_gga_lat ?? null
+          : null,
+        body.source_role === 'ntrip_client' && body.client_send_gga
+          ? body.client_gga_lon ?? null
+          : null,
         body.caster_version,
         body.caster_username,
         body.caster_password ? encryptSecret(body.caster_password) : null,
-        body.caster_requires_auth ? 1 : 0
+        body.caster_requires_auth ? 1 : 0,
+        body.source_role === 'ntrip_caster' ? body.caster_listener_id ?? null : null
       ]
     );
     const rows = await query<RowDataPacket[]>(
-      'SELECT * FROM station_sources WHERE station_id = ?',
+      `SELECT ss.*, l.name AS caster_listener_name, l.port AS caster_port
+         FROM station_sources ss
+         LEFT JOIN caster_listeners l ON l.id = ss.caster_listener_id
+        WHERE ss.station_id = ?`,
       [station.id]
     );
     const after = rows[0] ? publicSource(rows[0]) : null;

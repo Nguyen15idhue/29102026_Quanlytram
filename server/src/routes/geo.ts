@@ -10,7 +10,38 @@ interface GeoResult {
   province: string;
   ward: string;
   addressDetail: string;
-  source: 'geoapify' | 'fallback';
+  source: 'geoapify' | 'nominatim' | 'fallback';
+}
+
+async function nominatim(lat: number, lon: number): Promise<GeoResult | null> {
+  try {
+    const url = new URL('https://nominatim.openstreetmap.org/reverse');
+    url.searchParams.set('format', 'jsonv2');
+    url.searchParams.set('lat', String(lat));
+    url.searchParams.set('lon', String(lon));
+    url.searchParams.set('accept-language', 'vi');
+    const response = await fetch(url, {
+      headers: { 'User-Agent': 'CORS-Manager/1.0' },
+      signal: AbortSignal.timeout(3500)
+    });
+    if (!response.ok) return null;
+    const data = (await response.json()) as any;
+    const address = data?.address ?? {};
+    return {
+      province: String(address.state ?? address.city ?? address.province ?? ''),
+      ward: String(
+        address.suburb ?? address.ward ?? address.city_district ?? address.county ?? ''
+      ),
+      addressDetail: String(
+        address.road
+          ? `${address.house_number ? `${address.house_number} ` : ''}${address.road}`
+          : data?.display_name ?? ''
+      ),
+      source: 'nominatim'
+    };
+  } catch {
+    return null;
+  }
 }
 
 const cache = new Map<string, { expiresAt: number; value: GeoResult }>();
@@ -63,6 +94,10 @@ geoRouter.get(
       } catch {
         value.source = 'fallback';
       }
+    }
+    if (!value.province && !value.ward && !value.addressDetail) {
+      const fallback = await nominatim(lat, lon);
+      if (fallback) value = fallback;
     }
     cache.set(key, { expiresAt: Date.now() + CACHE_MS, value });
     res.json({ item: value });

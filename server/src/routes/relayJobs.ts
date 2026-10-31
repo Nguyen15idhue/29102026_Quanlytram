@@ -573,6 +573,7 @@ relayJobsRouter.post(
   requireBulkPermission('relay', {
     enable: 'edit',
     disable: 'edit',
+    restart: 'edit',
     delete: 'delete'
   }),
   asyncHandler(async (req, res) => {
@@ -610,6 +611,13 @@ relayJobsRouter.post(
             `UPDATE relay_jobs
                 SET deleted_at = UTC_TIMESTAMP(3), enabled = 0, ${TOMBSTONE_KEY_SQL},
                     desired_revision = desired_revision + 1
+              WHERE id = ?`,
+            [row.id]
+          );
+        } else if (body.action === 'restart') {
+          await conn.query(
+            `UPDATE relay_jobs
+                SET desired_revision = desired_revision + 1
               WHERE id = ?`,
             [row.id]
           );
@@ -722,10 +730,19 @@ relayJobsRouter.post(
         for (const bodyItem of items) {
           const upstreamKey = endpointKey(bodyItem.upstream);
           const downstreamKey = endpointKey(bodyItem.downstream);
+          const existingRows = bodyItem.id
+            ? await conn.query(
+                'SELECT upstream_credential_id, downstream_credential_id FROM relay_jobs WHERE id = ?',
+                [bodyItem.id]
+              )
+            : null;
+          const existing = (existingRows as any[] | null)?.[0]?.[0] ?? null;
           const upstreamCredentialId = await upsertCredential(
             conn,
             bodyItem.upstreamCredential,
-            null,
+            existing?.upstream_credential_id
+              ? Number(existing.upstream_credential_id)
+              : null,
             `${bodyItem.name} upstream`,
             req.auth!.id,
             req.auth!.id
@@ -733,7 +750,9 @@ relayJobsRouter.post(
           const downstreamCredentialId = await upsertCredential(
             conn,
             bodyItem.downstreamCredential,
-            null,
+            existing?.downstream_credential_id
+              ? Number(existing.downstream_credential_id)
+              : null,
             `${bodyItem.name} downstream`,
             req.auth!.id,
             req.auth!.id

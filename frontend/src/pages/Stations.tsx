@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
-import type { Station, StationSource } from '../types';
+import type { CasterListener, Station, StationSource } from '../types';
 import {
   BulkActionBar,
   Button,
@@ -53,8 +53,10 @@ const emptyForm = {
   source_role: 'ntrip_caster' as 'ntrip_client' | 'ntrip_caster',
   client_host: '', client_port: 1509, client_mount: '', client_username: '',
   client_password: '', client_tls: false, client_send_gga: false,
-  client_nmea_interval_sec: 0, caster_version: 'v2' as 'v1' | 'v2',
-  caster_username: '', caster_password: '', caster_requires_auth: true
+  client_nmea_interval_sec: 0, client_gga_lat: '', client_gga_lon: '',
+  caster_version: 'v2' as 'v1' | 'v2',
+  caster_username: '', caster_password: '', caster_requires_auth: true,
+  caster_listener_id: '' as string | number
 };
 
 function formFromStation(station: Station) {
@@ -158,6 +160,8 @@ export function Stations() {
     items: Record<string, unknown>[];
     errors: string[];
   } | null>(null);
+  const [mountpointOptions, setMountpointOptions] = useState<string[]>([]);
+  const [mountpointLoading, setMountpointLoading] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
 
   const listQuery = useMemo(() => {
@@ -206,12 +210,22 @@ export function Stations() {
       client_tls: source.client_tls,
       client_send_gga: source.client_send_gga,
       client_nmea_interval_sec: source.client_nmea_interval_sec,
+      client_gga_lat: source.client_gga_lat == null ? '' : String(source.client_gga_lat),
+      client_gga_lon: source.client_gga_lon == null ? '' : String(source.client_gga_lon),
       caster_version: source.caster_version,
       caster_username: source.caster_username,
       caster_password: '',
-      caster_requires_auth: source.caster_requires_auth
+      caster_requires_auth: source.caster_requires_auth,
+      caster_listener_id: source.caster_listener_id ?? ''
     }));
   }, [sources.data]);
+
+  const sourceListeners = useQuery({
+    queryKey: ['caster-listeners', 'station-source'],
+    queryFn: () =>
+      apiFetch<{ items: CasterListener[] }>('/api/caster/listeners?page=1&pageSize=100'),
+    enabled: formOpen && can('caster', 'view')
+  });
 
   const dictionaries = useQuery({
     queryKey: ['dictionaries'],
@@ -231,12 +245,6 @@ export function Stations() {
       const body = {
         ...(editing ? { code: form.code } : {}),
         name: form.name,
-        host: form.host,
-        port: Number(form.port),
-        connection_type: form.connection_type,
-        source_type: form.source_type,
-        ntrip_version: form.ntrip_version,
-        ntrip_mode: form.ntrip_mode,
         lat: form.lat === '' ? null : Number(form.lat),
         lon: form.lon === '' ? null : Number(form.lon),
         notes: form.notes,
@@ -253,9 +261,6 @@ export function Stations() {
         region: form.region,
         address: form.address,
         device_id: form.device_id,
-        network_type: form.network_type,
-        network_mode: form.network_mode,
-        protocol: form.protocol,
         coordinate_type: form.coordinate_type,
         province: form.province,
         ward: form.ward,
@@ -285,10 +290,20 @@ export function Stations() {
           client_tls: form.client_tls,
           client_send_gga: form.client_send_gga,
           client_nmea_interval_sec: Number(form.client_nmea_interval_sec),
+          client_gga_lat:
+            form.client_send_gga && form.client_gga_lat !== ''
+              ? Number(form.client_gga_lat)
+              : null,
+          client_gga_lon:
+            form.client_send_gga && form.client_gga_lon !== ''
+              ? Number(form.client_gga_lon)
+              : null,
           caster_version: form.caster_version,
           caster_username: form.caster_username,
           ...(form.caster_password ? { caster_password: form.caster_password } : {}),
-          caster_requires_auth: form.caster_requires_auth
+          caster_requires_auth: form.caster_requires_auth,
+          caster_listener_id:
+            form.caster_listener_id === '' ? null : Number(form.caster_listener_id)
         }
       });
       return saved;
@@ -396,6 +411,42 @@ export function Stations() {
     );
   }
 
+  async function loadClientMountpoints() {
+    if (!form.client_host.trim()) {
+      push('Nhập host NTRIP client trước', 'error');
+      return;
+    }
+    setMountpointLoading(true);
+    try {
+      const data = await apiFetch<{ items: Array<{ name: string }> }>(
+        '/api/stations/source/mountpoints',
+        {
+          method: 'POST',
+          csrfToken,
+          body: {
+            host: form.client_host,
+            port: Number(form.client_port),
+            tls: form.client_tls,
+            username: form.client_username,
+            password: form.client_password,
+            stationId: editing?.id
+          }
+        }
+      );
+      const names = data.items.map((item) => item.name);
+      setMountpointOptions(names);
+      if (names.length === 1) setForm({ ...form, client_mount: names[0] });
+      push(
+        names.length ? `Tải được ${names.length} mountpoint` : 'Sourcetable không có mountpoint',
+        names.length ? 'success' : 'error'
+      );
+    } catch (err) {
+      push(err instanceof ApiClientError ? err.message : 'Tải mountpoint thất bại', 'error');
+    } finally {
+      setMountpointLoading(false);
+    }
+  }
+
   async function fillAddress() {
     const lat = editing?.reported_lat ?? (form.lat === '' ? NaN : Number(form.lat));
     const lon = editing?.reported_lon ?? (form.lon === '' ? NaN : Number(form.lon));
@@ -405,8 +456,17 @@ export function Stations() {
     }
     try {
       const data = await apiFetch<{
-        item: { province: string; ward: string; addressDetail: string };
+        item: {
+          province: string;
+          ward: string;
+          addressDetail: string;
+          source: 'geoapify' | 'nominatim' | 'fallback';
+        };
       }>(`/api/geo/reverse?lat=${lat}&lon=${lon}`);
+      if (!data.item.province && !data.item.ward && !data.item.addressDetail) {
+        push('Không tìm thấy địa chỉ cho tọa độ này', 'error');
+        return;
+      }
       setForm((current) => ({
         ...current,
         province: data.item.province || current.province,
@@ -414,7 +474,12 @@ export function Stations() {
         address_detail: data.item.addressDetail || current.address_detail
       }));
       setDirty(true);
-      push('Đã tra địa chỉ từ tọa độ', 'success');
+      push(
+        data.item.source === 'fallback'
+          ? 'Đã điền địa chỉ từ dữ liệu dự phòng'
+          : 'Đã tra địa chỉ từ tọa độ',
+        'success'
+      );
     } catch (err) {
       push(err instanceof ApiClientError ? err.message : 'Tra địa chỉ thất bại', 'error');
     }
@@ -629,23 +694,21 @@ export function Stations() {
               cell: (station) => (
                 <div>
                   <div>
-                    {station.source_type === 'relay_caster'
-                      ? 'Relay'
-                      : station.source_type === 'probe_client'
-                        ? 'Probe'
-                        : station.source_type === 'caster_ingest'
-                          ? 'Ingest'
-                          : station.ntrip_mode === 'ntrip_client'
-                            ? 'NTRIP client'
-                            : 'Manual'}
+                    {station.station_source_role === 'ntrip_client'
+                      ? 'NTRIP client'
+                      : station.station_source_role === 'ntrip_caster'
+                        ? 'NTRIP caster'
+                        : '—'}
                   </div>
                   <div className="muted table-subline">
-                    {station.ntrip_version?.toUpperCase() ?? 'V1'} ·{' '}
-                    {station.ntrip_mode ?? 'v1_noauth'}
+                    {station.station_source_role === 'ntrip_client'
+                      ? `${station.station_client_host ?? '—'}:${
+                          station.station_client_port ?? '—'
+                        }/${station.station_client_mount ?? '—'}`
+                      : station.station_caster_port
+                        ? `listener :${station.station_caster_port}`
+                        : '—'}
                   </div>
-                  {station.relay_job_name && (
-                    <div className="muted table-subline">Relay: {station.relay_job_name}</div>
-                  )}
                 </div>
               )
             },
@@ -841,28 +904,102 @@ export function Stations() {
                   <option value="itrf">ITRF</option>
                 </Select>
               </Field>
-              <Field label="Vĩ độ WGS84 (1005)">
-                <Input
-                  readOnly
-                  value={
-                    editing?.reported_lat != null
-                      ? editing.reported_lat.toFixed(6)
-                      : form.lat
-                  }
-                  placeholder="Chờ message 1005/1006"
-                />
-              </Field>
-              <Field label="Kinh độ WGS84 (1005)">
-                <Input
-                  readOnly
-                  value={
-                    editing?.reported_lon != null
-                      ? editing.reported_lon.toFixed(6)
-                      : form.lon
-                  }
-                  placeholder="Chờ message 1005/1006"
-                />
-              </Field>
+              {form.coordinate_type === 'wgs84' && (
+                <>
+                  <Field label="Vĩ độ WGS84">
+                    <Input
+                      readOnly
+                      value={
+                        editing?.reported_lat != null
+                          ? editing.reported_lat.toFixed(7)
+                          : '—'
+                      }
+                      placeholder="Chờ message 1005/1006"
+                    />
+                  </Field>
+                  <Field label="Kinh độ WGS84">
+                    <Input
+                      readOnly
+                      value={
+                        editing?.reported_lon != null
+                          ? editing.reported_lon.toFixed(7)
+                          : '—'
+                      }
+                      placeholder="Chờ message 1005/1006"
+                    />
+                  </Field>
+                  <Field label="Cao độ WGS84 (m)">
+                    <Input
+                      readOnly
+                      value={
+                        editing?.reported_height != null
+                          ? editing.reported_height.toFixed(3)
+                          : '—'
+                      }
+                    />
+                  </Field>
+                </>
+              )}
+              {form.coordinate_type === 'vn2000' && (
+                <>
+                  <Field label="VN2000 X / Easting (m)">
+                    <Input
+                      readOnly
+                      value={
+                        editing?.vn2000_easting != null
+                          ? editing.vn2000_easting.toFixed(3)
+                          : '—'
+                      }
+                    />
+                  </Field>
+                  <Field label="VN2000 Y / Northing (m)">
+                    <Input
+                      readOnly
+                      value={
+                        editing?.vn2000_northing != null
+                          ? editing.vn2000_northing.toFixed(3)
+                          : '—'
+                      }
+                    />
+                  </Field>
+                  <Field label="Cao độ (m)">
+                    <Input
+                      readOnly
+                      value={
+                        editing?.reported_height != null
+                          ? editing.reported_height.toFixed(3)
+                          : '—'
+                      }
+                    />
+                  </Field>
+                </>
+              )}
+              {form.coordinate_type === 'itrf' && (
+                <>
+                  <Field label="ITRF X (m)">
+                    <Input
+                      readOnly
+                      value={editing?.itrf_x != null ? editing.itrf_x.toFixed(3) : '—'}
+                    />
+                  </Field>
+                  <Field label="ITRF Y (m)">
+                    <Input
+                      readOnly
+                      value={editing?.itrf_y != null ? editing.itrf_y.toFixed(3) : '—'}
+                    />
+                  </Field>
+                  <Field label="Cao độ (m)">
+                    <Input
+                      readOnly
+                      value={
+                        editing?.reported_height != null
+                          ? editing.reported_height.toFixed(3)
+                          : '—'
+                      }
+                    />
+                  </Field>
+                </>
+              )}
               <Field label="Tỉnh/thành">
                 <Input
                   value={form.province}
@@ -882,7 +1019,12 @@ export function Stations() {
                 />
               </Field>
               <Field label="Tra địa chỉ">
-                <Button type="button" size="sm" onClick={fillAddress}>
+                <Button
+                  type="button"
+                  size="sm"
+                  aria-label="Lấy địa chỉ từ tọa độ"
+                  onClick={fillAddress}
+                >
                   Lấy địa chỉ từ tọa độ
                 </Button>
               </Field>
@@ -992,10 +1134,28 @@ export function Stations() {
                   />
                 </Field>
                 <Field label="Client mountpoint">
-                  <Input
-                    value={form.client_mount}
-                    onChange={(event) => setForm({ ...form, client_mount: event.target.value })}
-                  />
+                  <div className="toolbar">
+                    <Select
+                      value={form.client_mount}
+                      onChange={(event) => setForm({ ...form, client_mount: event.target.value })}
+                    >
+                      <option value="">— Chọn mountpoint —</option>
+                      {mountpointOptions.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </Select>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      loading={mountpointLoading}
+                      onClick={loadClientMountpoints}
+                    >
+                      Tải mountpoint
+                    </Button>
+                  </div>
                 </Field>
                 <Field label="Client username">
                   <Input
@@ -1051,6 +1211,30 @@ export function Stations() {
                     }
                   />
                 </Field>
+                {form.client_send_gga && (
+                  <>
+                    <Field label="GGA vĩ độ">
+                      <Input
+                        type="number"
+                        step="0.0000001"
+                        value={form.client_gga_lat}
+                        onChange={(event) =>
+                          setForm({ ...form, client_gga_lat: event.target.value })
+                        }
+                      />
+                    </Field>
+                    <Field label="GGA kinh độ">
+                      <Input
+                        type="number"
+                        step="0.0000001"
+                        value={form.client_gga_lon}
+                        onChange={(event) =>
+                          setForm({ ...form, client_gga_lon: event.target.value })
+                        }
+                      />
+                    </Field>
+                  </>
+                )}
               </>
             ) : (
               <>
@@ -1064,6 +1248,31 @@ export function Stations() {
                     <option value="v1">v1</option>
                     <option value="v2">v2</option>
                   </Select>
+                </Field>
+                <Field label="Listener / port">
+                  <Select
+                    value={form.caster_listener_id}
+                    onChange={(event) =>
+                      setForm({ ...form, caster_listener_id: event.target.value })
+                    }
+                  >
+                    <option value="">— Chọn listener —</option>
+                    {(sourceListeners.data?.items ?? []).map((listener) => (
+                      <option key={listener.id} value={listener.id}>
+                        {listener.name} · :{listener.port}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="Port">
+                  <Input
+                    readOnly
+                    value={
+                      sourceListeners.data?.items.find(
+                        (listener) => String(listener.id) === String(form.caster_listener_id)
+                      )?.port ?? ''
+                    }
+                  />
                 </Field>
                 <Field label="Caster username">
                   <Input
@@ -1099,86 +1308,6 @@ export function Stations() {
                 </Field>
               </>
             )}
-            <Field label="Nguồn dữ liệu">
-              <Select
-                value={form.source_type}
-                disabled={Boolean(editing?.relay_job_id)}
-                onChange={(event) => setForm({ ...form, source_type: event.target.value })}
-              >
-                <option value="manual">Thủ công</option>
-                <option value="relay_caster">NTRIP caster (relay)</option>
-                <option value="caster_ingest">NTRIP caster (ingest)</option>
-                <option value="probe_client">NTRIP client (probe)</option>
-              </Select>
-            </Field>
-            <Field label="NTRIP mode">
-              <Select
-                value={form.ntrip_mode}
-                disabled={Boolean(editing?.relay_job_id)}
-                onChange={(event) => {
-                  const mode = event.target.value;
-                  const version = mode === 'v2_auth' ? 'v2' : mode === 'ntrip_client' ? form.ntrip_version : 'v1';
-                  setForm({ ...form, ntrip_mode: mode, ntrip_version: version });
-                }}
-              >
-                <option value="v1_noauth">V1 no auth</option>
-                <option value="v1_auth">V1 auth</option>
-                <option value="v2_auth">V2 auth</option>
-                <option value="ntrip_client">NtripClient</option>
-              </Select>
-            </Field>
-            <Field label="NTRIP version">
-              <Input readOnly value={(editing?.ntrip_version ?? form.ntrip_version).toUpperCase()} />
-            </Field>
-            <Field label={editing?.relay_job_id ? 'Relay upstream host' : 'Host'}>
-              <Input
-                readOnly={Boolean(editing?.relay_job_id)}
-                value={
-                  editing?.relay_job_id
-                    ? `${editing.relay_upstream_host ?? ''}:${editing.relay_upstream_port ?? ''}`
-                    : form.host
-                }
-                onChange={(event) => setForm({ ...form, host: event.target.value })}
-              />
-            </Field>
-            {editing?.relay_job_id && (
-              <Field label="Relay job">
-                <Input readOnly value={editing.relay_job_name ?? `#${editing.relay_job_id}`} />
-              </Field>
-            )}
-            <Field label="Port">
-              <Input
-                type="number"
-                min={1}
-                max={65535}
-                value={form.port}
-                onChange={(event) => setForm({ ...form, port: Number(event.target.value) })}
-              />
-            </Field>
-            <Field label="Protocol">
-              <Input
-                value={form.protocol}
-                onChange={(event) => setForm({ ...form, protocol: event.target.value })}
-              />
-            </Field>
-            <Field label="Kiểu kết nối">
-              <Input
-                value={form.connection_type}
-                onChange={(event) => setForm({ ...form, connection_type: event.target.value })}
-              />
-            </Field>
-            <Field label="Network type">
-              <Input
-                value={form.network_type}
-                onChange={(event) => setForm({ ...form, network_type: event.target.value })}
-              />
-            </Field>
-            <Field label="Network mode">
-              <Input
-                value={form.network_mode}
-                onChange={(event) => setForm({ ...form, network_mode: event.target.value })}
-              />
-            </Field>
             <Field label="Ghi chú">
               <Input
                 value={form.notes}

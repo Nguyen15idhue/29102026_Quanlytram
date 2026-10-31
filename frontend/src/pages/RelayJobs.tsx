@@ -362,7 +362,8 @@ export function RelayJobs() {
             ...(can('relay', 'edit')
               ? [
                   { label: 'Bật', onClick: () => bulk.mutate('enable') },
-                  { label: 'Tắt', onClick: () => bulk.mutate('disable') }
+                  { label: 'Tắt', onClick: () => bulk.mutate('disable') },
+                  { label: 'Restart', onClick: () => bulk.mutate('restart') }
                 ]
               : []),
             ...(can('relay', 'delete')

@@ -47,7 +47,7 @@ test.describe('Phase 1 station detail', () => {
     await expect(page).toHaveURL(/\/stations\/80$/);
 
     await page.goto('/stations?page=1&pageSize=10&q=THA');
-    await page.getByRole('row', { name: /THA_HauLoc/ }).first().click();
+    await page.getByRole('row', { name: /THA Hậu Lộc/ }).first().click();
     await expect(page).toHaveURL(/\/stations\/80/);
     await page.reload();
     await expect(page.getByText('THA_HauLoc').first()).toBeVisible();

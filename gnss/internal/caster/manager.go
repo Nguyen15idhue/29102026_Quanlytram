@@ -350,6 +350,7 @@ func (m *manager) register(conn *connection, account *AccountConfig) error {
 		ListenerID:   conn.listenerID,
 		MountpointID: conn.mountpointID,
 		AccountID:    conn.accountID,
+		Direction:    conn.direction,
 		RemoteAddr:   conn.remoteAddr,
 		UserAgent:    conn.userAgent,
 		Start:        conn.start,

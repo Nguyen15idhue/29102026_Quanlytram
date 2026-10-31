@@ -73,7 +73,7 @@ app.use(cookieParser());
 app.use(
   rateLimit({
     windowMs: 60_000,
-    limit: 300,
+    limit: Number(process.env.API_RATE_LIMIT ?? 300),
     standardHeaders: true,
     legacyHeaders: false
   })

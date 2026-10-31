@@ -1038,3 +1038,47 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
 - Không secret trong diff; `.env.local` không tracked.
 - P1.11 map: **DEFER** theo kế hoạch; dữ liệu/contract đã giữ ổn định.
 - Commit code: `19bb03a` — `test(p1-10): regression toan bo va cap nhat test ui moi`.
+
+### P1.10.1 — Khắc phục lỗi trạm/kết nối/tọa độ/geo (2026-10-31)
+
+- Trạng thái: **DONE** (phần code + regression; runner station source riêng vẫn defer).
+- Migration:
+  - `admin/021_station_source_connection.sql`: thêm `caster_listener_id`,
+    `client_gga_lat`, `client_gga_lon`, FK listener.
+  - `runtime/005_caster_connection_direction.sql`: thêm `direction` vào
+    `caster_connections` để uptime chỉ tính source.
+- Station source:
+  - Caster: version, username, password, yêu cầu xác thực, listener + port
+    theo listener.
+  - Client: host, port, username, password, TLS, GGA + lat/lon; nút tải
+    sourcetable/mountpoint từ caster.
+  - Bỏ khỏi form/save các field legacy gây xung đột: `source_type`,
+    `ntrip_mode`, `NTRIP version`, `Host/Port`, `Protocol`,
+    `Kiểu kết nối`, `Network type/mode`.
+  - Bảng trạm hiển thị nguồn theo `station_sources`.
+- Tọa độ:
+  - WGS84: vĩ độ, kinh độ, cao độ.
+  - VN2000: X, Y, cao độ.
+  - ITRF: X, Y, cao độ.
+  - Đổi `coordinate_type` đổi đúng bộ trường.
+- Geo:
+  - Geoapify là primary; thêm Nominatim fallback.
+  - Frontend chỉ báo thành công khi có ít nhất một trường địa chỉ; rỗng thì báo lỗi.
+- Uptime:
+  - Chỉ lấy `caster_connections.direction = 'source'`.
+  - Go runtime ghi `direction` khi tạo connection.
+- Account/relay:
+  - Account create/update + ACL trong cùng transaction.
+  - Relay import update dùng lại credential ID cũ.
+  - Bulk relay có `restart`.
+- Rate limit:
+  - `API_RATE_LIMIT` cấu hình được; `.env.example` mặc định 300.
+- Test:
+  - Server build PASS; Vitest **53/53 PASS**.
+  - Frontend build PASS.
+  - Go `go test ./...` + `go vet ./...` PASS.
+  - Playwright **30/30 PASS** sau khi cập nhật test UI mới.
+  - `p1-station-fix.spec.ts` PASS: source caster listener/port, client GGA,
+    đổi WGS84/VN2000/ITRF, geo rỗng không báo thành công.
+- Còn defer: runner Go đọc `station_sources`; reset/reimport phá hủy mountpoint.
+- Commit code/docs: sẽ ghi hash sau khi commit.

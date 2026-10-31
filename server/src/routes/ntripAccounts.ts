@@ -340,37 +340,38 @@ ntripAccountsRouter.post(
     const passwordHash = await hashPassword(body.password);
     let accountId: number;
     try {
-      const [result]: any = await adminPool.query(
-        `INSERT INTO ntrip_accounts
-           (username, password_hash, enabled, max_connections,
-            company, contact_name, email, phone, valid_from, valid_to,
-            available_area, auth_method, notes, owner_web_user_id, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          body.username, passwordHash, body.enabled, body.max_connections,
-          body.company ?? '', body.contact_name ?? '', body.email ?? '', body.phone ?? '',
-          body.valid_from ?? null, body.valid_to ?? null, body.available_area ?? '',
-          body.auth_method ?? 'basic', body.notes ?? '', ownerId, req.auth!.id
-        ]
-      );
-      accountId = Number(result.insertId);
+      accountId = await withTransaction(async (conn) => {
+        const [result]: any = await conn.query(
+          `INSERT INTO ntrip_accounts
+             (username, password_hash, enabled, max_connections,
+              company, contact_name, email, phone, valid_from, valid_to,
+              available_area, auth_method, notes, owner_web_user_id, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            body.username, passwordHash, body.enabled, body.max_connections,
+            body.company ?? '', body.contact_name ?? '', body.email ?? '', body.phone ?? '',
+            body.valid_from ?? null, body.valid_to ?? null, body.available_area ?? '',
+            body.auth_method ?? 'basic', body.notes ?? '', ownerId, req.auth!.id
+          ]
+        );
+        const id = Number(result.insertId);
+        for (const listenerId of [...new Set(body.listenerIds ?? [])]) {
+          await conn.query(
+            'INSERT INTO account_listener_acl (account_id, listener_id) VALUES (?, ?)',
+            [id, listenerId]
+          );
+        }
+        for (const mountpointId of [...new Set(body.mountpointIds ?? [])]) {
+          await conn.query(
+            'INSERT INTO account_mountpoint_acl (account_id, mountpoint_id) VALUES (?, ?)',
+            [id, mountpointId]
+          );
+        }
+        return id;
+      });
     } catch (err) {
       duplicateGuard(err);
     }
-    await withTransaction(async (conn) => {
-      for (const listenerId of [...new Set(body.listenerIds ?? [])]) {
-        await conn.query(
-          'INSERT INTO account_listener_acl (account_id, listener_id) VALUES (?, ?)',
-          [accountId, listenerId]
-        );
-      }
-      for (const mountpointId of [...new Set(body.mountpointIds ?? [])]) {
-        await conn.query(
-          'INSERT INTO account_mountpoint_acl (account_id, mountpoint_id) VALUES (?, ?)',
-          [accountId, mountpointId]
-        );
-      }
-    });
     const account = await getAccount(accountId);
     await writeAudit(
       adminPool,
@@ -405,36 +406,32 @@ ntripAccountsRouter.patch(
         : await resolveOwner(req, body.owner_web_user_id);
     const passwordHash = body.password ? await hashPassword(body.password) : before.password_hash;
     try {
-      await adminPool.query(
-        `UPDATE ntrip_accounts
-            SET username = ?, password_hash = ?, enabled = ?, max_connections = ?,
-                company = ?, contact_name = ?, email = ?, phone = ?,
-                valid_from = ?, valid_to = ?, available_area = ?, auth_method = ?, notes = ?,
-                owner_web_user_id = ?
-          WHERE id = ?`,
-        [
-          body.username ?? before.username,
-          passwordHash,
-          body.enabled === undefined ? before.enabled : body.enabled,
-          body.max_connections ?? before.max_connections,
-          body.company ?? before.company,
-          body.contact_name ?? before.contact_name,
-          body.email ?? before.email,
-          body.phone ?? before.phone,
-          body.valid_from === undefined ? before.valid_from : body.valid_from,
-          body.valid_to === undefined ? before.valid_to : body.valid_to,
-          body.available_area ?? before.available_area,
-          body.auth_method ?? before.auth_method,
-          body.notes ?? before.notes,
-          ownerId,
-          id
-        ]
-      );
-    } catch (err) {
-      duplicateGuard(err);
-    }
-    if (body.listenerIds !== undefined || body.mountpointIds !== undefined) {
       await withTransaction(async (conn) => {
+        await conn.query(
+          `UPDATE ntrip_accounts
+              SET username = ?, password_hash = ?, enabled = ?, max_connections = ?,
+                  company = ?, contact_name = ?, email = ?, phone = ?,
+                  valid_from = ?, valid_to = ?, available_area = ?, auth_method = ?, notes = ?,
+                  owner_web_user_id = ?
+            WHERE id = ?`,
+          [
+            body.username ?? before.username,
+            passwordHash,
+            body.enabled === undefined ? before.enabled : body.enabled,
+            body.max_connections ?? before.max_connections,
+            body.company ?? before.company,
+            body.contact_name ?? before.contact_name,
+            body.email ?? before.email,
+            body.phone ?? before.phone,
+            body.valid_from === undefined ? before.valid_from : body.valid_from,
+            body.valid_to === undefined ? before.valid_to : body.valid_to,
+            body.available_area ?? before.available_area,
+            body.auth_method ?? before.auth_method,
+            body.notes ?? before.notes,
+            ownerId,
+            id
+          ]
+        );
         if (body.listenerIds !== undefined) {
           await conn.query('DELETE FROM account_listener_acl WHERE account_id = ?', [id]);
           for (const listenerId of [...new Set(body.listenerIds)]) {
@@ -454,6 +451,8 @@ ntripAccountsRouter.patch(
           }
         }
       });
+    } catch (err) {
+      duplicateGuard(err);
     }
     const after = await getAccount(id);
     await writeAudit(

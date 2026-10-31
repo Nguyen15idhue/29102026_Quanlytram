@@ -57,6 +57,7 @@ Chi tiết bằng chứng: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
 | P1.8 | Relay form + JSON import | DONE |
 | P1.9 | Unicode, history, hiển thị | DONE |
 | P1.10 | Regression và bàn giao P1 | DONE |
+| P1.10.1 | Khắc phục trạm/kết nối/tọa độ/geo | DONE |
 | P1.11 | Bản đồ vận hành | DEFER |
 
 Chi tiết bằng chứng: `docs/1/03_CAC_BUOC_THUC_HIEN_P1.md` mục 11.

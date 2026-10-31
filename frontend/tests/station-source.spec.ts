@@ -17,7 +17,7 @@ test.describe('Phase 7 station source and 1005 coordinates', () => {
 
     await page.goto('/stations');
     await page.getByPlaceholder('Tìm mã, tên, địa chỉ').fill('THA_HauLoc');
-    const row = page.getByRole('row', { name: /THA_HauLoc/ }).first();
+    const row = page.getByRole('row', { name: /THA Hậu Lộc/ }).first();
     await expect(row).toBeVisible();
     await row.click();
     const detail = page.getByRole('dialog');
@@ -46,10 +46,11 @@ test.describe('Phase 7 station source and 1005 coordinates', () => {
 
     await detail.getByRole('button', { name: 'Sửa', exact: true }).click();
     const form = page.getByRole('dialog');
-    await expect(form.getByLabel('Vĩ độ WGS84 (1005)')).not.toBeEditable();
-    await expect(form.getByLabel('Kinh độ WGS84 (1005)')).not.toBeEditable();
-    await expect(form.getByLabel('NTRIP mode')).toBeDisabled();
-    await expect(form.getByLabel('Relay upstream host')).not.toBeEditable();
+    await expect(form.getByLabel('Vĩ độ WGS84')).not.toBeEditable();
+    await expect(form.getByLabel('Kinh độ WGS84')).not.toBeEditable();
+    await expect(form.getByText('Thông tin kết nối', { exact: true })).toBeVisible();
+    await expect(form.getByLabel('Caster version')).toBeVisible();
+    await expect(form.getByLabel('NTRIP mode')).toHaveCount(0);
     await page.screenshot({
       path: 'test-results/station-source-form.png',
       fullPage: true

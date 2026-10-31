@@ -64,6 +64,12 @@ export interface Station {
   owner_name?: string;
   station_type?: string;
   status?: 'active' | 'disabled' | 'locked';
+  station_source_role?: 'ntrip_client' | 'ntrip_caster' | null;
+  station_client_host?: string | null;
+  station_client_port?: number | null;
+  station_client_mount?: string | null;
+  station_caster_listener_id?: number | null;
+  station_caster_port?: number | null;
   coordinate_type?: 'wgs84' | 'vn2000' | 'itrf';
   province?: string;
   ward?: string;
@@ -105,10 +111,15 @@ export interface StationSource {
   client_tls: boolean;
   client_send_gga: boolean;
   client_nmea_interval_sec: number;
+  client_gga_lat: number | null;
+  client_gga_lon: number | null;
   caster_version: 'v1' | 'v2';
   caster_username: string;
   caster_has_password: boolean;
   caster_requires_auth: boolean;
+  caster_listener_id: number | null;
+  caster_listener_name?: string | null;
+  caster_port?: number | null;
   relay_job_id: number | null;
   updated_at?: string;
 }

@@ -54,6 +54,7 @@ type StartInfo struct {
 	ListenerID   int64
 	MountpointID int64
 	AccountID    *int64
+	Direction    string
 	RemoteAddr   string
 	UserAgent    string
 	Start        time.Time

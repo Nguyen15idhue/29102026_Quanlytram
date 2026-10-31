@@ -202,11 +202,12 @@ func NewMySQLRuntimeStore(db *sql.DB) *MySQLRuntimeStore {
 func (s *MySQLRuntimeStore) Start(ctx context.Context, info StartInfo) (int64, error) {
 	result, err := s.db.ExecContext(ctx,
 		`INSERT INTO caster_connections
-		   (listener_id, mountpoint_id, account_id, remote_addr, user_agent, start_ts)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
+		   (listener_id, mountpoint_id, account_id, direction, remote_addr, user_agent, start_ts)
+		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		info.ListenerID,
 		info.MountpointID,
 		info.AccountID,
+		info.Direction,
 		info.RemoteAddr,
 		info.UserAgent,
 		info.Start.UTC(),
