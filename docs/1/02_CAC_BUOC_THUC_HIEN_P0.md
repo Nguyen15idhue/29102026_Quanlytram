@@ -981,4 +981,4 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
   - Regression Playwright 6 test PASS.
 - Ghi chú: tài liệu gốc liệt kê 6 nhãn nhưng yêu cầu “7 nhóm”; tách nhóm
   “Tài khoản” cho Tài khoản NTRIP để đủ 7 và không thêm mục rỗng.
-- Commit: sẽ ghi hash sau khi commit phase này.
+- Commit: `74a6f07` — `feat(p0): menu bay nhom va deep link dieu huong`.
