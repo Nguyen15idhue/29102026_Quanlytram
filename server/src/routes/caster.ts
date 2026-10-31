@@ -169,27 +169,42 @@ casterRouter.post(
   requirePermission('caster', 'add'),
   asyncHandler(async (req, res) => {
     const body = listenerCreateSchema.parse(req.body);
+    const mountpointIds = validateMountpointIds(body.mountpointIds ?? []);
+    await assertMountpointsExist(mountpointIds);
+    const writable = await writableMountpointIds(req);
+    if (writable && mountpointIds.some((mountpointId) => !writable.has(mountpointId))) {
+      throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
+    }
     let listenerId: number;
     try {
-      const [result] = await adminPool.query<any>(
-        `INSERT INTO caster_listeners
-           (name, port, enabled, role, description, owner_web_user_id, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          body.name,
-          body.port,
-          body.enabled,
-          body.role,
-          body.description,
-          req.auth!.id,
-          req.auth!.id
-        ]
-      );
-      listenerId = Number(result.insertId);
+      listenerId = await withTransaction(async (conn) => {
+        const [result] = await conn.query<any>(
+          `INSERT INTO caster_listeners
+             (name, port, enabled, role, description, owner_web_user_id, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            body.name,
+            body.port,
+            body.enabled,
+            body.role,
+            body.description,
+            req.auth!.id,
+            req.auth!.id
+          ]
+        );
+        const id = Number(result.insertId);
+        for (const mountpointId of mountpointIds) {
+          await conn.query(
+            'INSERT INTO caster_listener_mountpoints (listener_id, mountpoint_id) VALUES (?, ?)',
+            [id, mountpointId]
+          );
+        }
+        return id;
+      });
     } catch (err) {
       duplicateGuard(err);
     }
-    const row = await getListenerRow(listenerId);
+    const row = await getListenerRow(listenerId!);
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -214,20 +229,40 @@ casterRouter.patch(
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
     await assertRecordScope(req, before.owner_web_user_id);
     const body = listenerUpdateSchema.parse(req.body);
+    const mountpointIds =
+      body.mountpointIds === undefined ? null : validateMountpointIds(body.mountpointIds);
+    if (mountpointIds) {
+      await assertMountpointsExist(mountpointIds);
+      const writable = await writableMountpointIds(req);
+      if (writable && mountpointIds.some((mountpointId) => !writable.has(mountpointId))) {
+        throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
+      }
+    }
     try {
-      await adminPool.query(
-        `UPDATE caster_listeners
-            SET name = ?, port = ?, enabled = ?, role = ?, description = ?
-          WHERE id = ?`,
-        [
-          body.name ?? before.name,
-          body.port ?? before.port,
-          body.enabled === undefined ? before.enabled : body.enabled,
-          body.role ?? before.role,
-          body.description ?? before.description,
-          id
-        ]
-      );
+      await withTransaction(async (conn) => {
+        await conn.query(
+          `UPDATE caster_listeners
+              SET name = ?, port = ?, enabled = ?, role = ?, description = ?
+            WHERE id = ?`,
+          [
+            body.name ?? before.name,
+            body.port ?? before.port,
+            body.enabled === undefined ? before.enabled : body.enabled,
+            body.role ?? before.role,
+            body.description ?? before.description,
+            id
+          ]
+        );
+        if (mountpointIds) {
+          await conn.query('DELETE FROM caster_listener_mountpoints WHERE listener_id = ?', [id]);
+          for (const mountpointId of mountpointIds) {
+            await conn.query(
+              'INSERT INTO caster_listener_mountpoints (listener_id, mountpoint_id) VALUES (?, ?)',
+              [id, mountpointId]
+            );
+          }
+        }
+      });
     } catch (err) {
       duplicateGuard(err);
     }

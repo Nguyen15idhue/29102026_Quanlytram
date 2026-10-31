@@ -66,8 +66,20 @@ async function getMountpoint(id: number): Promise<RowDataPacket | null> {
 }
 
 function publicMountpoint(row: any) {
-  const { password_hash, ...rest } = row;
-  return { ...rest, has_password: Boolean(password_hash) };
+  return {
+    id: Number(row.id),
+    name: String(row.name),
+    station_id: row.station_id === null ? null : Number(row.station_id),
+    station_code: row.station_code ?? null,
+    station_name: row.station_name ?? null,
+    enabled: Boolean(row.enabled),
+    description: String(row.description ?? ''),
+    owner_web_user_id:
+      row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
+    owner_name: row.owner_name ?? null,
+    created_at: row.created_at,
+    updated_at: row.updated_at
+  };
 }
 
 function placeholders(values: unknown[]): string {
@@ -458,6 +470,50 @@ mountpointsRouter.get(
     await assertRecordScope(req, rows[0].owner_web_user_id);
     const enriched = await enrichExplorer(rows);
     res.json({ item: enriched.items[0], casterAvailable: enriched.casterAvailable });
+  })
+);
+
+mountpointsRouter.get(
+  '/:id/impact',
+  requirePermission('mountpoints', 'view'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const item = await getMountpoint(id);
+    if (!item) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
+    await assertRecordScope(req, item.owner_web_user_id);
+    const [listeners, accounts, relays] = await Promise.all([
+      query<RowDataPacket[]>(
+        `SELECT l.id, l.name, l.port, l.enabled
+           FROM caster_listener_mountpoints lm
+           JOIN caster_listeners l ON l.id = lm.listener_id
+          WHERE lm.mountpoint_id = ?`,
+        [id]
+      ),
+      query<RowDataPacket[]>(
+        `SELECT a.id, a.username, a.enabled
+           FROM account_mountpoint_acl am
+           JOIN ntrip_accounts a ON a.id = am.account_id
+          WHERE am.mountpoint_id = ?`,
+        [id]
+      ),
+      query<RowDataPacket[]>(
+        `SELECT id, name, enabled FROM relay_jobs
+          WHERE deleted_at IS NULL AND (upstream_mount = ? OR downstream_mount = ?)`,
+        [item.name, item.name]
+      )
+    ]);
+    const connections = await loadGoConnections();
+    const online = connections.items.filter(
+      (connection) => Number(connection.mountpointId) === id
+    );
+    res.json({
+      item,
+      listeners,
+      accounts,
+      relays,
+      online: online.length,
+      casterAvailable: connections.available
+    });
   })
 );
 

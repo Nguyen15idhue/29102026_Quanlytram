@@ -8,7 +8,6 @@ import {
   KeyRound,
   LayoutDashboard,
   List,
-  ListTree,
   LogOut,
   MapPinned,
   Menu,
@@ -29,7 +28,6 @@ const titles: Record<string, string> = {
   '/map': 'Bản đồ vận hành',
   '/online': 'Danh sách online',
   '/mountpoints': 'Mountpoint',
-  '/mountpoints/explorer': 'Mountpoint Explorer',
   '/relay-jobs': 'Relay',
   '/history': 'Lịch sử relay',
   '/alerts': 'Cảnh báo',
@@ -79,12 +77,6 @@ export function Layout() {
       label: 'CORS',
       items: [
         { to: '/mountpoints', label: 'Mountpoint', icon: Network, show: can('mountpoints', 'view') },
-        {
-          to: '/mountpoints/explorer',
-          label: 'Mountpoint Explorer',
-          icon: ListTree,
-          show: can('mountpoints', 'view')
-        },
         { to: '/caster', label: 'Listener', icon: Antenna, show: can('caster', 'view') }
       ]
     },

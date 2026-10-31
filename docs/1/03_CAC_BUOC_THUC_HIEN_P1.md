@@ -920,3 +920,32 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
     vị trí/hệ thống, sửa hiện đầy đủ, source API, geo không lộ key, uptime
     3 range, xóa sạch.
 - Commit code: `8777b65` — `feat(p1-5): form tram station source geo reverse va uptime`.
+
+### P1.6 — Mountpoint gộp Explorer + Listener (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Mountpoint:
+  - Bảng chỉ còn Tên, Trạm, Trạng thái, Ghi chú.
+  - Form chỉ còn tên, trạm, trạng thái, ghi chú.
+  - API public chỉ trả các trường tối giản; bỏ auth/password/service/
+    caster interval/code khỏi payload.
+  - Bỏ menu/route `/mountpoints/explorer`; click dòng mở drawer Explorer gộp
+    (source state, quality, relay, listener, account, online, alerts).
+  - `GET /api/mountpoints/:id/impact` trả listener/relay/account/online;
+    ConfirmDialog hiển thị liên kết trước khi xóa.
+- Listener:
+  - Create/Edit nhận `mountpointIds`; API transaction listener + mapping.
+  - Listener có owner_web_user_id.
+  - Form dùng `SearchableMultiSelect`.
+- Bulk mountpoint/listener giữ từ P1.3.
+- Dữ liệu:
+  - Giữ bộ 39 mountpoint đã reimport sạch từ P0 Phase 9; không chạy xóa/reimport
+    lại lần nữa để tránh mất mapping listener/account/relay trước P1.7.
+  - Sẽ đối chiếu 39/39 ở P1.10.
+- Test:
+  - Server build PASS; Vitest **53/53 PASS**.
+  - Frontend build PASS.
+  - Playwright `p1-mountpoint.spec.ts` **2/2 PASS**: API tối giản, listener
+    tạo kèm mapping, patch giữ mapping, impact cảnh báo, UI 4 cột, không
+    Explorer, mở drawer.
+- Commit code: sẽ ghi hash sau khi commit phase này.

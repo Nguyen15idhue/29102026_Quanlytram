@@ -16,7 +16,8 @@ export const listenerCreateSchema = z.object({
   port: portField,
   enabled: z.boolean().optional().default(true),
   role: z.enum(['both', 'source', 'rover']).optional().default('both'),
-  description: z.string().max(500).optional().default('')
+  description: z.string().max(500).optional().default(''),
+  mountpointIds: z.array(z.number().int().positive()).max(1000).optional()
 });
 
 export const listenerUpdateSchema = z.object({
@@ -24,7 +25,8 @@ export const listenerUpdateSchema = z.object({
   port: portField.optional(),
   enabled: z.boolean().optional(),
   role: z.enum(['both', 'source', 'rover']).optional(),
-  description: z.string().max(500).optional()
+  description: z.string().max(500).optional(),
+  mountpointIds: z.array(z.number().int().positive()).max(1000).optional()
 });
 
 export const listenerMountpointsSchema = z.object({

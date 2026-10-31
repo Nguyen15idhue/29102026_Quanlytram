@@ -8,7 +8,6 @@ import { Roles } from './pages/Roles';
 import { Stations } from './pages/Stations';
 import { OnlineList } from './pages/OnlineList';
 import { Mountpoints } from './pages/Mountpoints';
-import { MountpointExplorer } from './pages/MountpointExplorer';
 import { NtripAccounts } from './pages/NtripAccounts';
 import { RelayJobs } from './pages/RelayJobs';
 import { Caster } from './pages/Caster';
@@ -47,7 +46,6 @@ export function App() {
           <Route path="/map" element={<UnifiedMap />} />
           <Route path="/online" element={<OnlineList />} />
           <Route path="/mountpoints" element={<Mountpoints />} />
-          <Route path="/mountpoints/explorer" element={<MountpointExplorer />} />
           <Route path="/relay-jobs" element={<RelayJobs />} />
           <Route path="/history" element={<History />} />
           <Route path="/alerts" element={<Alerts />} />

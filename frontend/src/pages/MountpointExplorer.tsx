@@ -52,7 +52,7 @@ function runtimeKind(value: string): 'ok' | 'warn' | 'error' | 'neutral' {
   return 'neutral';
 }
 
-function Detail({ id, onClose }: { id: number; onClose: () => void }) {
+export function MountpointExplorerDrawer({ id, onClose }: { id: number; onClose: () => void }) {
   const navigate = useNavigate();
   const detail = useQuery({
     queryKey: ['mountpoint-explorer-detail', id],
@@ -586,7 +586,7 @@ export function MountpointExplorer() {
         />
       </div>
 
-      {selected !== null && <Detail id={selected} onClose={() => setSelected(null)} />}
+      {selected !== null && <MountpointExplorerDrawer id={selected} onClose={() => setSelected(null)} />}
     </section>
   );
 }

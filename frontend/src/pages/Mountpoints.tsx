@@ -24,6 +24,7 @@ import {
   TableToolbar
 } from '../components/ui';
 import { useToast } from '../components/ToastProvider';
+import { MountpointExplorerDrawer } from './MountpointExplorer';
 
 interface StationList {
   items: Station[];
@@ -91,6 +92,18 @@ export function Mountpoints() {
     queryKey: ['mountpoints', listQuery],
     queryFn: () => apiFetch<MountpointList>(`/api/mountpoints?${listQuery}`)
   });
+  const impact = useQuery({
+    queryKey: ['mountpoint-impact', deleteTarget?.id],
+    queryFn: () =>
+      apiFetch<{
+        listeners: Array<{ id: number; name: string }>;
+        accounts: Array<{ id: number; username: string }>;
+        relays: Array<{ id: number; name: string }>;
+        online: number;
+        casterAvailable: boolean;
+      }>(`/api/mountpoints/${deleteTarget?.id}/impact`),
+    enabled: Boolean(deleteTarget?.id)
+  });
 
   const save = useMutation({
     mutationFn: async () => {
@@ -98,15 +111,6 @@ export function Mountpoints() {
         name: form.name,
         station_id: form.station_id === '' ? null : Number(form.station_id),
         enabled: form.enabled,
-        requires_auth: form.requires_auth,
-        auth_mode: form.auth_mode,
-        ...(form.password ? { password: form.password } : {}),
-        service_type: form.service_type,
-        position_mode: form.position_mode,
-        satellite_systems: form.satellite_systems,
-        caster_interval: Number(form.caster_interval),
-        code_protocol: form.code_protocol,
-        code_type: form.code_type,
         description: form.description
       };
       if (editing) {
@@ -292,14 +296,7 @@ export function Mountpoints() {
             {
               key: 'name',
               header: 'Tên',
-              cell: (item) => (
-                <div>
-                  <span className="mono">{item.name}</span>
-                  {item.description && (
-                    <div className="muted table-subline">{item.description}</div>
-                  )}
-                </div>
-              )
+              cell: (item) => <span className="mono">{item.name}</span>
             },
             {
               key: 'station',
@@ -309,7 +306,7 @@ export function Mountpoints() {
             },
             {
               key: 'enabled',
-              header: 'Bật',
+              header: 'Trạng thái',
               cell: (item) => (
                 <StatusBadge
                   label={item.enabled ? 'enabled' : 'disabled'}
@@ -318,54 +315,10 @@ export function Mountpoints() {
               )
             },
             {
-              key: 'auth',
-              header: 'Auth',
+              key: 'note',
+              header: 'Ghi chú',
               hideOnMobile: true,
-              cell: (item) => (
-                <div>
-                  <div>{item.requires_auth ? 'Có' : 'Không'}</div>
-                  <div className="muted table-subline">
-                    {item.auth_mode === 'password_only'
-                      ? `password_only · ${item.has_password ? 'có hash' : 'legacy'}`
-                      : 'ntrip_account'}
-                  </div>
-                </div>
-              )
-            },
-            {
-              key: 'service',
-              header: 'Dịch vụ',
-              hideOnMobile: true,
-              cell: (item) => (
-                <div>
-                  <div>{item.service_type || '—'}</div>
-                  <div className="muted table-subline">
-                    {item.position_mode || '—'} · {item.satellite_systems || '—'}
-                  </div>
-                  <div className="muted table-subline">
-                    {item.code_protocol || '—'}/{item.code_type || '—'}
-                  </div>
-                </div>
-              )
-            },
-            {
-              key: 'caster',
-              header: 'Caster',
-              hideOnMobile: true,
-              cell: (item) => (
-                <div>
-                  <div>{item.code_protocol || '—'}</div>
-                  <div className="muted table-subline">
-                    {item.caster_interval ? `${item.caster_interval}s` : '—'}
-                  </div>
-                </div>
-              )
-            },
-            {
-              key: 'owner',
-              header: 'Owner',
-              hideOnMobile: true,
-              cell: (item) => <span className="muted">{item.owner_web_user_id ?? '—'}</span>
+              cell: (item) => <span className="muted">{item.description || '—'}</span>
             },
             {
               key: 'actions',
@@ -457,171 +410,43 @@ export function Mountpoints() {
               ))}
             </Select>
           </Field>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={form.enabled}
-              onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
-            />
-            Bật mountpoint
-          </label>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={form.requires_auth}
-              onChange={(event) => setForm({ ...form, requires_auth: event.target.checked })}
-            />
-            Yêu cầu xác thực
-          </label>
-          <Field label="Cơ chế xác thực">
+          <Field label="Trạng thái">
             <Select
-              value={form.auth_mode}
-              onChange={(event) => {
-                const authMode = event.target.value;
-                setForm({
-                  ...form,
-                  auth_mode: authMode,
-                  requires_auth: authMode === 'password_only' ? true : form.requires_auth
-                });
-              }}
+              value={form.enabled ? '1' : '0'}
+              onChange={(event) => setForm({ ...form, enabled: event.target.value === '1' })}
             >
-              <option value="ntrip_account">Tài khoản NTRIP (username + password)</option>
-              <option value="password_only">Chỉ password (thiết bị cũ)</option>
+              <option value="1">Mở</option>
+              <option value="0">Khóa</option>
             </Select>
           </Field>
-          {form.auth_mode === 'password_only' && (
-            <Field
-              label="Mật khẩu mountpoint"
-              hint={
-                editing?.has_password
-                  ? 'Đã đặt mật khẩu; để trống nếu giữ nguyên'
-                  : 'Bắt buộc khi chọn password_only'
-              }
-            >
-              <Input
-                type="password"
-                value={form.password}
-                onChange={(event) => setForm({ ...form, password: event.target.value })}
-                placeholder={editing?.has_password ? '••••••••' : 'Tối thiểu 6 ký tự'}
-                autoComplete="new-password"
-              />
-            </Field>
-          )}
-          <Field label="Service type">
-            <Input value={form.service_type} onChange={(event) => setForm({ ...form, service_type: event.target.value })} />
-          </Field>
-          <Field label="Position mode">
-            <Input value={form.position_mode} onChange={(event) => setForm({ ...form, position_mode: event.target.value })} />
-          </Field>
-          <Field label="Hệ vệ tinh">
-            <Input value={form.satellite_systems} onChange={(event) => setForm({ ...form, satellite_systems: event.target.value })} />
-          </Field>
-          <Field label="Caster interval (s)">
-            <Input type="number" min={0} value={form.caster_interval} onChange={(event) => setForm({ ...form, caster_interval: Number(event.target.value) })} />
-          </Field>
-          <Field label="Code protocol">
-            <Input value={form.code_protocol} onChange={(event) => setForm({ ...form, code_protocol: event.target.value })} />
-          </Field>
-          <Field label="Code type">
-            <Input value={form.code_type} onChange={(event) => setForm({ ...form, code_type: event.target.value })} />
-          </Field>
-          <Field label="Mô tả">
-            <Input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+          <Field label="Ghi chú">
+            <Input
+              value={form.description}
+              onChange={(event) => setForm({ ...form, description: event.target.value })}
+            />
           </Field>
         </form>
       </Modal>
 
-      <Modal
-        open={Boolean(detail)}
-        onOpenChange={(open) => !open && setDetail(null)}
-        title={detail?.name ?? 'Chi tiết mountpoint'}
-        description={detail?.station_code ? `Trạm ${detail.station_code}` : 'Chưa gắn trạm'}
-        side="right"
-        footer={
-          detail && (
-            <>
-              {can('mountpoints', 'edit') && (
-                <Button onClick={() => openEdit(detail)}>
-                  <Pencil size={16} aria-hidden="true" /> Sửa
-                </Button>
-              )}
-              <Button variant="ghost" onClick={() => setDetail(null)}>
-                Đóng
-              </Button>
-            </>
-          )
-        }
-      >
-        {detail && (
-          <dl className="facts">
-            <div>
-              <dt>Trạng thái</dt>
-              <dd>{detail.enabled ? 'enabled' : 'disabled'}</dd>
-            </div>
-            <div>
-              <dt>Xác thực</dt>
-              <dd>{detail.requires_auth ? 'Có' : 'Không'}</dd>
-            </div>
-            <div>
-              <dt>Cơ chế xác thực</dt>
-              <dd>
-                {detail.auth_mode === 'password_only'
-                  ? 'Chỉ password'
-                  : 'Tài khoản NTRIP'}
-                {detail.auth_mode === 'password_only'
-                  ? detail.has_password
-                    ? ' · đã đặt mật khẩu'
-                    : ' · legacy: chấp nhận password không rỗng'
-                  : ''}
-              </dd>
-            </div>
-            <div>
-              <dt>Owner</dt>
-              <dd>{detail.owner_web_user_id ?? '—'}</dd>
-            </div>
-            <div>
-              <dt>Trạm</dt>
-              <dd>
-                {detail.station_code
-                  ? `${detail.station_code} · ${detail.station_name ?? ''}`
-                  : 'Chưa gắn trạm'}
-              </dd>
-            </div>
-            <div>
-              <dt>Dịch vụ</dt>
-              <dd>{detail.service_type || '—'}</dd>
-            </div>
-            <div>
-              <dt>Position mode</dt>
-              <dd>{detail.position_mode || '—'}</dd>
-            </div>
-            <div>
-              <dt>Hệ vệ tinh</dt>
-              <dd>{detail.satellite_systems || '—'}</dd>
-            </div>
-            <div>
-              <dt>Caster interval</dt>
-              <dd>{detail.caster_interval ? `${detail.caster_interval}s` : '—'}</dd>
-            </div>
-            <div>
-              <dt>Code protocol/type</dt>
-              <dd>
-                {[detail.code_protocol, detail.code_type].filter(Boolean).join(' · ') || '—'}
-              </dd>
-            </div>
-            <div>
-              <dt>Mô tả</dt>
-              <dd>{detail.description || '—'}</dd>
-            </div>
-          </dl>
-        )}
-      </Modal>
+      {detail && (
+        <MountpointExplorerDrawer id={detail.id} onClose={() => setDetail(null)} />
+      )}
 
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="Xóa mountpoint?"
-        description={`Mountpoint ${deleteTarget?.name ?? ''} sẽ bị xóa.`}
+        description={
+          impact.data
+            ? `Mountpoint ${deleteTarget?.name ?? ''} sẽ bị xóa. Liên kết: ${
+                impact.data.listeners.length
+              } listener, ${impact.data.relays.length} relay, ${
+                impact.data.accounts.length
+              } tài khoản, ${impact.data.online} online${
+                impact.data.casterAvailable ? '' : ' (không gọi được caster)'
+              }.`
+            : `Mountpoint ${deleteTarget?.name ?? ''} sẽ bị xóa.`
+        }
         pending={remove.isPending}
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget)}
       />

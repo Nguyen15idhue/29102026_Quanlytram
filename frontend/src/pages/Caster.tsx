@@ -72,7 +72,7 @@ function ListenerPanel() {
   const mountpoints = useQuery({
     queryKey: ['mountpoints', 'caster-options'],
     queryFn: () => apiFetch<MountpointList>('/api/mountpoints?pageSize=50'),
-    enabled: Boolean(detail) && can('mountpoints', 'view')
+    enabled: (Boolean(detail) || formOpen) && can('mountpoints', 'view')
   });
   const mapping = useQuery({
     queryKey: ['caster-listener-mountpoints', detail?.id],
@@ -91,7 +91,8 @@ function ListenerPanel() {
         port: Number(form.port),
         enabled: form.enabled,
         role: form.role,
-        description: form.description
+        description: form.description,
+        mountpointIds
       };
       if (editing) {
         return apiFetch(`/api/caster/listeners/${editing.id}`, { method: 'PATCH', body, csrfToken });
@@ -160,11 +161,12 @@ function ListenerPanel() {
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
+    setMountpointIds([]);
     setError('');
     setFormOpen(true);
   }
 
-  function openEdit(listener: CasterListener) {
+  async function openEdit(listener: CasterListener) {
     setEditing(listener);
     setForm({
       name: listener.name,
@@ -176,6 +178,14 @@ function ListenerPanel() {
     setError('');
     setFormOpen(true);
     setDetail(null);
+    try {
+      const data = await apiFetch<{ item: CasterListener & { mountpointIds: number[] } }>(
+        `/api/caster/listeners/${listener.id}`
+      );
+      setMountpointIds(data.item.mountpointIds ?? []);
+    } catch {
+      setMountpointIds([]);
+    }
   }
 
   function submit(event: FormEvent) {
@@ -378,6 +388,19 @@ function ListenerPanel() {
             />
             Bật listener
           </label>
+          {mountpoints.data?.items.length ? (
+            <SearchableMultiSelect
+              items={mountpoints.data.items}
+              selectedIds={mountpointIds}
+              onChange={setMountpointIds}
+              getId={(item) => item.id}
+              getLabel={(item) => item.name}
+              label="Mountpoint"
+              placeholder="Tìm mountpoint..."
+            />
+          ) : (
+            <p className="muted">Chưa có mountpoint để gán.</p>
+          )}
         </form>
       </Modal>
 
