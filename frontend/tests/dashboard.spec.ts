@@ -14,7 +14,7 @@ test.describe('P0 Phase 5 ops dashboard', () => {
     await page.getByLabel('Tên đăng nhập').fill('superadmin');
     await page.getByLabel('Mật khẩu').fill(password);
     await page.getByRole('button', { name: 'Đăng nhập' }).click();
-    await expect(page.getByRole('heading', { name: 'Dashboard vận hành' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
     await expect(page.getByText('Trạm / Mountpoint')).toBeVisible();
     await expect(page.getByText('Sự cố mở')).toBeVisible();
@@ -35,7 +35,7 @@ test.describe('P0 Phase 5 ops dashboard', () => {
     await expect(page.getByRole('heading', { name: 'import THA_HauLoc' })).toBeVisible();
 
     await page.goto('/');
-    await expect(page.getByRole('heading', { name: 'Dashboard vận hành' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
     await page.screenshot({ path: 'test-results/dashboard-ops-light.png', fullPage: true });
 
     await page.getByRole('button', { name: /Chuyển giao diện/ }).click();
@@ -43,7 +43,7 @@ test.describe('P0 Phase 5 ops dashboard', () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'Dashboard vận hành' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
     );

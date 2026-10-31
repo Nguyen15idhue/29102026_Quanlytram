@@ -16,16 +16,18 @@ test.describe('Phase 8 maps', () => {
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
     await page.goto('/stations/map');
-    await expect(page.getByRole('heading', { name: 'Bản đồ trạm' })).toBeVisible();
+    await expect(page).toHaveURL(/\/map\?layer=stations/);
+    await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
     await expect(page.locator('.leaflet-container')).toBeVisible();
-    await expect(page.getByText(/\d+ có 1005/)).toBeVisible();
+    await expect(page.getByText(/\d+ chưa 1005/)).toBeVisible();
     await expect(page.locator('.leaflet-interactive').first()).toBeVisible({ timeout: 10_000 });
 
     await page.goto('/online');
     await expect(page.getByRole('heading', { name: 'Danh sách online' })).toBeVisible();
 
     await page.goto('/online/map');
-    await expect(page.getByRole('heading', { name: 'Bản đồ online' })).toBeVisible();
+    await expect(page).toHaveURL(/\/map\?layer=online/);
+    await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
     await expect(page.locator('.leaflet-container')).toBeVisible();
 
     expect(errors).toEqual([]);

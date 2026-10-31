@@ -471,13 +471,13 @@ Xác nhận P0.1–P0.6 chạy đúng trước khi chuyển sang migrate.
 
 ### Checklist test
 
-- [ ] `cd server && npm test`
-- [ ] `cd frontend && npm run build`
-- [ ] `cd gnss && go test ./... && go vet ./...`
-- [ ] Playwright toàn bộ.
-- [ ] `docker compose up -d --build server web gnss`
-- [ ] Health Node/Go OK.
-- [ ] `SESSION.md` cập nhật.
+- [x] `cd server && npm test`
+- [x] `cd frontend && npm run build`
+- [x] `cd gnss && go test ./... && go vet ./...`
+- [x] Playwright toàn bộ.
+- [x] `docker compose up -d --build server web gnss`
+- [x] Health Node/Go OK.
+- [x] `SESSION.md` cập nhật.
 
 ### Ghi chú
 
@@ -982,3 +982,25 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
 - Ghi chú: tài liệu gốc liệt kê 6 nhãn nhưng yêu cầu “7 nhóm”; tách nhóm
   “Tài khoản” cho Tài khoản NTRIP để đủ 7 và không thêm mục rỗng.
 - Commit: `74a6f07` — `feat(p0): menu bay nhom va deep link dieu huong`.
+
+### Phase 7 — Chốt P0 UX và regression (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Regression:
+  - `server npm run build` PASS; `server npm test` 48/48 PASS.
+  - `frontend npm run build` PASS.
+  - `gnss go test ./...` PASS; `go vet ./...` PASS.
+  - Playwright toàn bộ 14/14 PASS (dùng `E2E_PASSWORD` +
+    `E2E_USER_PASSWORD`), gồm dashboard, map, explorer, navigation,
+    phase7-11, quality, realtime, station detail/source, health, UI.
+  - `docker compose up -d --build server web gnss` PASS; Node `/health`
+    schema 12, Go `/health` schema 4.
+- Sửa tương thích sau regression:
+  - Dashboard giữ tiêu đề `Dashboard` để không phá test cũ.
+  - Station overview bổ sung lại `WGS84 lat/lon`, `ITRF spatial`,
+    `Relay upstream host`.
+  - Map test cũ cập nhật sang bản đồ hợp nhất.
+  - `AUTH_LOGIN_RATE_LIMIT` cấu hình được; mặc định vẫn 10/phút, local E2E
+    dùng 50/phút để chạy 14 test, không hạ bảo vệ production.
+- Không còn FAIL chưa xử lý; không secret trong diff/log.
+- Commit: sẽ ghi hash sau khi commit phase này.

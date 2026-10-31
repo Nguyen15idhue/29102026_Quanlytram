@@ -31,6 +31,7 @@ Quy tắc: không chuyển phase nếu checklist của phase hiện tại chưa 
 | P0.4 | System Health `/system/health` | DONE |
 | P0.5 | Dashboard vận hành & alert impact | DONE |
 | P0.6 | Menu, route, deep link | DONE |
+| P0 chốt UX | Regression Phase 7 | DONE |
 | P0.7 + P0.12 | Provision hệ cũ | TODO |
 | P0.8 | HTTPS/domain/reverse proxy | TODO |
 | P0.9 | Load test 67–100 relay job | TODO |

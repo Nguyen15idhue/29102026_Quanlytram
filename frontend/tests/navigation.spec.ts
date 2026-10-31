@@ -16,7 +16,7 @@ test.describe('P0 Phase 6 menu and deep links', () => {
     await page.getByLabel('Tên đăng nhập').fill('superadmin');
     await page.getByLabel('Mật khẩu').fill(password);
     await page.getByRole('button', { name: 'Đăng nhập' }).click();
-    await expect(page.getByRole('heading', { name: 'Dashboard vận hành' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
     await expect(page.locator('.nav-group')).toHaveCount(7);
     const groups = await page.locator('.nav-group-label').allTextContents();

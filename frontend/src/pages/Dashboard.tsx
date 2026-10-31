@@ -160,7 +160,7 @@ export function Dashboard() {
   return (
     <section className="page">
       <PageHeader
-        title="Dashboard vận hành"
+        title="Dashboard"
         description="Tổng quan hệ thống, sức khỏe dịch vụ và sự cố đang ảnh hưởng đến trạm/tài khoản."
         actions={
           <div className="toolbar">

@@ -339,7 +339,7 @@ function OverviewTab({ station }: { station: StationDetail }) {
           </dd>
         </div>
         <div>
-          <dt>WGS84 (1005)</dt>
+          <dt>WGS84 lat/lon (1005)</dt>
           <dd className="mono">
             {station.reported_lat == null || station.reported_lon == null
               ? 'Chưa có message 1005/1006'
@@ -352,6 +352,14 @@ function OverviewTab({ station }: { station: StationDetail }) {
             {station.vn2000_easting == null || station.vn2000_northing == null
               ? '—'
               : `E ${station.vn2000_easting.toFixed(3)} · N ${station.vn2000_northing.toFixed(3)}`}
+          </dd>
+        </div>
+        <div>
+          <dt>ITRF spatial (ECEF)</dt>
+          <dd className="mono">
+            {station.itrf_x == null || station.itrf_y == null || station.itrf_z == null
+              ? '—'
+              : `X ${station.itrf_x.toFixed(3)} · Y ${station.itrf_y.toFixed(3)} · Z ${station.itrf_z.toFixed(3)}`}
           </dd>
         </div>
         <div>
@@ -377,6 +385,14 @@ function OverviewTab({ station }: { station: StationDetail }) {
             {station.relay_upstream_host
               ? ` · ${station.relay_upstream_host}:${station.relay_upstream_port ?? ''}`
               : ''}
+          </dd>
+        </div>
+        <div>
+          <dt>Relay upstream host</dt>
+          <dd className="mono">
+            {station.relay_upstream_host
+              ? `${station.relay_upstream_host}:${station.relay_upstream_port ?? ''}`
+              : '—'}
           </dd>
         </div>
         <div>

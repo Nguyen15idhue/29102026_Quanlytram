@@ -82,7 +82,7 @@ app.use(
   '/api/auth/login',
   rateLimit({
     windowMs: 60_000,
-    limit: 10,
+    limit: Math.max(10, Number.parseInt(process.env.AUTH_LOGIN_RATE_LIMIT || '10', 10) || 10),
     standardHeaders: true,
     legacyHeaders: false
   })
