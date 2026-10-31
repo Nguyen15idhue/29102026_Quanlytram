@@ -774,4 +774,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Frontend source: không phát hiện mojibake.
   - Backend `server/src/routes/stations.ts`: 9 dòng chứa mojibake
     (`KhĂ´ng`, `ChÆ°a`, `â€”`, `Â·`); sẽ sửa ở P1.9.
-- Commit: sẽ ghi hash sau khi commit phase này.
+- Commit: `f21c5ed` — `chore(p1-0): chot baseline backup graphify va unicode audit`.
