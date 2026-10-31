@@ -886,4 +886,4 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
   - Test tạm listener/ACL mountpoint 67: API trả đúng listener/account, không
     có `password_hash`; đã xoá dữ liệu tạm.
   - RBAC `user1`: chỉ thấy `TEST_HNI_02`; mountpoint 67 trả 404.
-- Commit: sẽ ghi hash sau khi commit phase này.
+- Commit: `77cd2f4` — `feat(p0): mountpoint explorer day du chuoi van hanh`.
