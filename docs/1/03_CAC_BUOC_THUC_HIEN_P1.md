@@ -919,4 +919,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Playwright `p1-station.spec.ts` **1/1 PASS**: tạo không mã trạm, ẩn
     vị trí/hệ thống, sửa hiện đầy đủ, source API, geo không lộ key, uptime
     3 range, xóa sạch.
-- Commit code: sẽ ghi hash sau khi commit phase này.
+- Commit code: `8777b65` — `feat(p1-5): form tram station source geo reverse va uptime`.
