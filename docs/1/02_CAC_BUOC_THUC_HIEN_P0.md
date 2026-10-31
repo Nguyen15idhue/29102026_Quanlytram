@@ -960,4 +960,4 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
   - API: stations 5, mountpoint 5, relay 2 streaming/2, incidents 13,
     THA_HauLoc impact MP + relay desired/applied 2/2; không lộ secret.
   - RBAC `user1`: stations 1, mountpoint 1, relay 0, incidents 0.
-- Commit: sẽ ghi hash sau khi commit phase này.
+- Commit: `26c927f` — `feat(p0): dashboard van hanh va alert impact`.
