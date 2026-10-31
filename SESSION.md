@@ -3,12 +3,13 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-10-30 21:00 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: P0 Phase 5 — Dashboard vận hành DONE; tiếp theo P0 Phase 6
+- Phase hiện tại: P0 Phase 6 — Menu/route/deep link DONE; tiếp theo P0 Phase 7
 - Trạng thái P0 Phase 1: DONE (drawer 5 tab, API connections/history/metadata)
 - Trạng thái P0 Phase 2: DONE (API list/detail, filter, drawer chuỗi)
 - Trạng thái P0 Phase 3: DONE (`/map`, API overview, layer/filter, redirect cũ)
 - Trạng thái P0 Phase 4: DONE (`/system/health`, 4 card, cache 12s, fallback mock)
 - Trạng thái P0 Phase 5: DONE (`/api/ops/dashboard`, alert impact, 4 vùng)
+- Trạng thái P0 Phase 6: DONE (menu 7 nhóm, title/active, deep link, Esc/focus)
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
@@ -53,16 +54,18 @@
 - P0 Phase 4: `/system/health`, metric Node/Host/MySQL/Go, cache 12s, fallback
   Go/MySQL down và network không hỗ trợ.
 - P0 Phase 5: dashboard 4 vùng + `/api/ops/dashboard` + alert impact
-  desired/applied, click mở đúng relay/trạm; Playwright PASS. Chi tiết:
+  desired/applied, click mở đúng relay/trạm.
+- P0 Phase 6: menu 7 nhóm, title/active menu, deep link `/stations/:id` và
+  `/map?station=`, Esc/focus, mobile drawer; Playwright PASS. Chi tiết:
   `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
 
 ### Đang làm
 - Không có.
 
 ### Tiếp theo
-- P0 Phase 6 — Menu, route và deep link; xem
+- P0 Phase 7 — Chốt P0 UX + full regression; xem
   `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md`.
-- Không chuyển phase khi checklist Phase 6 chưa PASS.
+- Không chuyển phase khi checklist Phase 7 chưa PASS.
 
 ### Blocker
 - Không có. `go test -race` chưa chạy được vì môi trường Windows không bật

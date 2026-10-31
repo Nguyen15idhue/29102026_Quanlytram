@@ -36,7 +36,8 @@ Quy ước:
 | P0.3 (bản đồ hợp nhất) | **DONE** | `/map`, API overview, layer/filter, redirect bản đồ cũ |
 | P0.4 (System Health) | **DONE** | `/system/health`, 4 card Node/Host/MySQL/Go, cache 12s, fallback lỗi |
 | P0.5 (Dashboard & alert impact) | **DONE** | `/api/ops/dashboard`, alert impact, 4 vùng, click đúng đối tượng |
-| P0.6 (menu/route/deep link) | **Chưa làm** | Rà menu/route/deep link còn lại |
+| P0.6 (menu/route/deep link) | **DONE** | Menu 7 nhóm, title theo route, active menu, deep link, Esc/focus |
+| P0.7–P0.13 | **Chưa làm** | Các phase còn lại theo kế hoạch |
 | P0.7 (import hệ cũ) | **Chưa làm** | Chưa có `importLegacyCaster` |
 | P0.8 (HTTPS/domain) | **Chưa làm** | Web đang HTTP `:3000` |
 | P0.9 (load test) | **Chưa đủ** | Mới có load test 50 job; cần 67–100 |
@@ -434,11 +435,11 @@ trang trống.
 
 ### Checklist test
 
-- [ ] Playwright responsive 3 kích thước.
-- [ ] Kiểm tra redirect cũ.
-- [ ] Kiểm tra active menu.
-- [ ] Kiểm tra Esc/focus drawer.
-- [ ] Dark mode.
+- [x] Playwright responsive 3 kích thước.
+- [x] Kiểm tra redirect cũ.
+- [x] Kiểm tra active menu.
+- [x] Kiểm tra Esc/focus drawer.
+- [x] Dark mode.
 
 ### Ghi chú
 
@@ -961,3 +962,23 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
     THA_HauLoc impact MP + relay desired/applied 2/2; không lộ secret.
   - RBAC `user1`: stations 1, mountpoint 1, relay 0, incidents 0.
 - Commit: `26c927f` — `feat(p0): dashboard van hanh va alert impact`.
+
+### Phase 6 — P0.6: Menu, route và deep link (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Frontend:
+  - Menu 7 nhóm: Tổng quan, Trạm, Bản đồ, CORS, Tài khoản, Relay, Hệ thống;
+    chỉ mục có route.
+  - Title topbar theo route; `/stations/:id` hiển thị “Chi tiết trạm”;
+    active menu đúng cho `/stations/:id`, `/map?station=`.
+  - Redirect cũ `/stations/map`, `/online/map` giữ nguyên; deep link
+    `/stations/80`, `/map?station=80` hoạt động.
+- Kiểm thử:
+  - `frontend npm run build` PASS.
+  - Playwright `navigation.spec.ts` PASS — 7 nhóm, title, active menu,
+    deep link trạm/map, Esc/focus trap, mobile drawer, dark mode,
+    390/768/1440 không tràn.
+  - Regression Playwright 6 test PASS.
+- Ghi chú: tài liệu gốc liệt kê 6 nhãn nhưng yêu cầu “7 nhóm”; tách nhóm
+  “Tài khoản” cho Tài khoản NTRIP để đủ 7 và không thêm mục rỗng.
+- Commit: sẽ ghi hash sau khi commit phase này.

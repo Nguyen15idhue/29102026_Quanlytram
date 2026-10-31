@@ -46,6 +46,9 @@ export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const pageTitle = /^\/stations\/\d+$/.test(location.pathname)
+    ? 'Chi tiết trạm'
+    : titles[location.pathname] ?? 'Quản lý CORS';
 
   useEffect(() => setOpen(false), [location.pathname]);
 
@@ -62,42 +65,57 @@ export function Layout() {
     {
       label: 'Trạm',
       items: [
-        { to: '/map', label: 'Bản đồ vận hành', icon: MapPinned, show: can('stations', 'view') },
         { to: '/stations', label: 'Danh sách trạm', icon: RadioTower, show: can('stations', 'view') }
+      ]
+    },
+    {
+      label: 'Bản đồ',
+      items: [
+        { to: '/map', label: 'Bản đồ vận hành', icon: MapPinned, show: can('stations', 'view') },
+        { to: '/online', label: 'Danh sách online', icon: List, show: can('connections', 'view') }
       ]
     },
     {
       label: 'CORS',
       items: [
-        { to: '/online', label: 'Danh sách online', icon: List, show: can('connections', 'view') },
-        { to: '/caster', label: 'Caster', icon: Antenna, show: can('settings', 'view') },
-        { to: '/ntrip-accounts', label: 'Tài khoản NTRIP', icon: KeyRound, show: can('ntrip_accounts', 'view') },
         { to: '/mountpoints', label: 'Mountpoint', icon: Network, show: can('mountpoints', 'view') },
         {
           to: '/mountpoints/explorer',
           label: 'Mountpoint Explorer',
           icon: ListTree,
           show: can('mountpoints', 'view')
+        },
+        { to: '/caster', label: 'Listener', icon: Antenna, show: can('settings', 'view') }
+      ]
+    },
+    {
+      label: 'Tài khoản',
+      items: [
+        {
+          to: '/ntrip-accounts',
+          label: 'Tài khoản NTRIP',
+          icon: KeyRound,
+          show: can('ntrip_accounts', 'view')
         }
       ]
     },
     {
       label: 'Relay',
-      items: [{ to: '/relay-jobs', label: 'Relay', icon: Radio, show: can('relay', 'view') }]
+      items: [{ to: '/relay-jobs', label: 'Relay jobs', icon: Radio, show: can('relay', 'view') }]
     },
     {
       label: 'Hệ thống',
       items: [
-        { to: '/history', label: 'Lịch sử', icon: History, show: can('relay', 'view') || can('audit', 'view') },
-        { to: '/alerts', label: 'Cảnh báo', icon: Bell, show: can('alerts', 'view') },
-        { to: '/web-users', label: 'Người dùng', icon: Users, show: can('web_users', 'view') },
-        { to: '/roles', label: 'Phân quyền', icon: ShieldCheck, show: can('roles', 'view') },
         {
           to: '/system/health',
-          label: 'System Health',
+          label: 'Sức khỏe',
           icon: Activity,
           show: can('settings', 'view')
-        }
+        },
+        { to: '/alerts', label: 'Cảnh báo', icon: Bell, show: can('alerts', 'view') },
+        { to: '/history', label: 'Lịch sử', icon: History, show: can('relay', 'view') || can('audit', 'view') },
+        { to: '/web-users', label: 'Người dùng', icon: Users, show: can('web_users', 'view') },
+        { to: '/roles', label: 'Phân quyền', icon: ShieldCheck, show: can('roles', 'view') }
       ]
     }
   ];
@@ -147,7 +165,7 @@ export function Layout() {
               {open ? <X size={18} aria-hidden="true" /> : <Menu size={18} aria-hidden="true" />}
             </IconButton>
             <div>
-              <strong>{titles[location.pathname] ?? 'Quản lý CORS'}</strong>
+              <strong>{pageTitle}</strong>
               <span className="muted"> · {user?.role.name}</span>
             </div>
           </div>
