@@ -948,4 +948,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Playwright `p1-mountpoint.spec.ts` **2/2 PASS**: API tối giản, listener
     tạo kèm mapping, patch giữ mapping, impact cảnh báo, UI 4 cột, không
     Explorer, mở drawer.
-- Commit code: sẽ ghi hash sau khi commit phase này.
+- Commit code: `f644f6e` — `feat(p1-6): mountpoint toi gian drawer impact va listener mapping`.
