@@ -17,11 +17,8 @@ import { Alerts } from './pages/Alerts';
 import { History } from './pages/History';
 import { Profile } from './pages/Profile';
 
-const StationMap = lazy(() =>
-  import('./pages/StationMap').then((module) => ({ default: module.StationMap }))
-);
-const OnlineMap = lazy(() =>
-  import('./pages/OnlineMap').then((module) => ({ default: module.OnlineMap }))
+const UnifiedMap = lazy(() =>
+  import('./pages/UnifiedMap').then((module) => ({ default: module.UnifiedMap }))
 );
 
 function Protected() {
@@ -43,9 +40,10 @@ export function App() {
         <Route element={<Protected />}>
           <Route index element={<Dashboard />} />
           <Route path="/stations" element={<Stations />} />
+          <Route path="/stations/map" element={<Navigate to="/map?layer=stations" replace />} />
+          <Route path="/online/map" element={<Navigate to="/map?layer=online" replace />} />
           <Route path="/stations/:stationId" element={<Stations />} />
-          <Route path="/stations/map" element={<StationMap />} />
-          <Route path="/online/map" element={<OnlineMap />} />
+          <Route path="/map" element={<UnifiedMap />} />
           <Route path="/online" element={<OnlineList />} />
           <Route path="/mountpoints" element={<Mountpoints />} />
           <Route path="/mountpoints/explorer" element={<MountpointExplorer />} />

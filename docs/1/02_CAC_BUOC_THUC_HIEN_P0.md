@@ -33,7 +33,8 @@ Quy ước:
 | Probe `hauloc`, `MocChautest` | PASS | 60 giây/mount; không CRC lỗi, không mất epoch |
 | P0.1 (chi tiết trạm) | **DONE** | `/stations/:id`, drawer 5 tab, 3 status độc lập, reliability, connections/history/metadata |
 | P0.2 (Mountpoint Explorer) | **DONE** | `/mountpoints/explorer`, API list/detail, filter trạm/trạng thái/owner/alert |
-| P0.3–P0.6 (UX vận hành) | **Chưa làm** | `App.tsx` chưa có `/map`, `/system/health` |
+| P0.3 (bản đồ hợp nhất) | **DONE** | `/map`, API overview, layer/filter, redirect bản đồ cũ |
+| P0.4–P0.6 (UX vận hành) | **Chưa làm** | `App.tsx` chưa có `/system/health` |
 | P0.7 (import hệ cũ) | **Chưa làm** | Chưa có `importLegacyCaster` |
 | P0.8 (HTTPS/domain) | **Chưa làm** | Web đang HTTP `:3000` |
 | P0.9 (load test) | **Chưa đủ** | Mới có load test 50 job; cần 67–100 |
@@ -282,11 +283,11 @@ trạm nào lỗi, trạm nào chưa có toạ độ.
 
 ### Checklist test
 
-- [ ] API layer/filter trả đúng.
-- [ ] Playwright kiểm tra redirect, marker, panel, drawer.
-- [ ] Kiểm tra 1440/768/390.
-- [ ] Dark mode.
-- [ ] Không gọi tile/key thương mại; attribution OSM còn nguyên.
+- [x] API layer/filter trả đúng.
+- [x] Playwright kiểm tra redirect, marker, panel, drawer.
+- [x] Kiểm tra 1440/768/390.
+- [x] Dark mode.
+- [x] Không gọi tile/key thương mại; attribution OSM còn nguyên.
 
 ### Ghi chú
 
@@ -887,3 +888,27 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
     có `password_hash`; đã xoá dữ liệu tạm.
   - RBAC `user1`: chỉ thấy `TEST_HNI_02`; mountpoint 67 trả 404.
 - Commit: `77cd2f4` — `feat(p0): mountpoint explorer day du chuoi van hanh`.
+
+### Phase 3 — P0.3: Bản đồ vận hành hợp nhất (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Backend:
+  - Thêm `GET /api/map/overview?layer=&q=&region=&owner=`; scope RBAC theo
+    trạm, giới hạn 1000 điểm.
+  - Trả `has1005`, transport/quality/score, sourceType, mountpoint/relay,
+    onlineAccounts, vùng/owner; transport ưu tiên live quality từ Go.
+  - Layer: `stations`, `online`, `issues`, `online_accounts`, `missing_1005`.
+- Frontend:
+  - Thêm `/map` (Leaflet + OSM, marker chỉ khi có 1005), search/layer/vùng/
+    owner lưu URL, panel chi tiết và nút mở `/stations/:id`.
+  - `/stations/map` → `/map?layer=stations`; `/online/map` →
+    `/map?layer=online`; menu còn một mục “Bản đồ vận hành”.
+- Kiểm thử:
+  - `server npm run build` PASS; `server npm test` 45/45 PASS.
+  - `frontend npm run build` PASS.
+  - Playwright `unified-map.spec.ts` PASS — redirect, 3 marker có 1005, panel,
+    drawer, dark mode, 1440/768/390 không tràn, attribution OSM.
+  - API: THA_HauLoc online/score 84/source relay_caster; layer online = 2;
+    missing_1005 = 2; `user1` chỉ thấy `TEST_HNI_02`.
+- Ghi chú: marker chỉ dùng toạ độ 1005/1006; không dùng lat/lon nhập tay.
+- Commit: sẽ ghi hash sau khi commit phase này.

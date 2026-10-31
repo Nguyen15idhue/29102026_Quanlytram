@@ -10,6 +10,7 @@ import { adminPool } from './db/pool';
 import { asyncHandler, errorHandler, notFound } from './lib/http';
 import { authRouter } from './routes/auth';
 import { stationsRouter } from './routes/stations';
+import { mapRouter } from './routes/map';
 import { mountpointsRouter } from './routes/mountpoints';
 import { webUsersRouter } from './routes/webUsers';
 import { rolesRouter } from './routes/roles';
@@ -114,6 +115,7 @@ app.get(
 
 app.use('/api/auth', authRouter);
 app.use('/api/stations', stationsRouter);
+app.use('/api/map', mapRouter);
 app.use('/api/mountpoints', mountpointsRouter);
 app.use('/api/web-users', webUsersRouter);
 app.use('/api/roles', rolesRouter);

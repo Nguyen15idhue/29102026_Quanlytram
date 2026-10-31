@@ -3,9 +3,10 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-10-30 21:00 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: P0 Phase 2 — Mountpoint Explorer DONE; tiếp theo P0 Phase 3
+- Phase hiện tại: P0 Phase 3 — Bản đồ hợp nhất DONE; tiếp theo P0 Phase 4
 - Trạng thái P0 Phase 1: DONE (drawer 5 tab, API connections/history/metadata)
-- Trạng thái P0 Phase 2: DONE (API list/detail, filter, drawer chuỗi, Playwright PASS)
+- Trạng thái P0 Phase 2: DONE (API list/detail, filter, drawer chuỗi)
+- Trạng thái P0 Phase 3: DONE (`/map`, API overview, layer/filter, redirect cũ)
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
@@ -44,16 +45,18 @@
 - P0 Phase 1: `/stations/:id`, drawer 5 tab, transport/quality/metadata status
   độc lập, reliability, API connections/history/metadata; Playwright PASS.
 - P0 Phase 2: `/mountpoints/explorer`, API list/detail join relay/listener/ACL/
-  online/quality/alert, filter trạm/trạng thái/owner/alert, RBAC scope;
-  Playwright PASS. Chi tiết: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
+  online/quality/alert, filter trạm/trạng thái/owner/alert, RBAC scope.
+- P0 Phase 3: `/map` hợp nhất, marker chỉ từ 1005, layer/filter URL, panel +
+  mở drawer trạm, redirect hai bản đồ cũ; Playwright PASS. Chi tiết:
+  `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
 
 ### Đang làm
 - Không có.
 
 ### Tiếp theo
-- P0 Phase 3 — Bản đồ vận hành hợp nhất `/map`; xem
+- P0 Phase 4 — System Health `/system/health`; xem
   `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md`.
-- Không chuyển phase khi checklist Phase 3 chưa PASS.
+- Không chuyển phase khi checklist Phase 4 chưa PASS.
 
 ### Blocker
 - Không có. `go test -race` chưa chạy được vì môi trường Windows không bật

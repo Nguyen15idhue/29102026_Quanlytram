@@ -746,3 +746,38 @@ export interface MountpointExplorerDetailResponse {
   item: MountpointExplorerItem;
   casterAvailable: boolean;
 }
+
+export interface MapStationItem {
+  id: number;
+  code: string;
+  name: string;
+  lat: number | null;
+  lon: number | null;
+  has1005: boolean;
+  transport: 'online' | 'stale' | 'offline' | 'error' | 'unknown';
+  quality: string;
+  score: number | null;
+  sourceType: string;
+  mountpointCount: number;
+  relayJobCount: number;
+  onlineAccounts: number;
+  region: string;
+  address: string;
+  ownerWebUserId: number | null;
+  ownerName: string | null;
+}
+
+export interface MapOverviewResponse {
+  items: MapStationItem[];
+  total: number;
+  counts: {
+    all: number;
+    online: number;
+    issues: number;
+    online_accounts: number;
+    missing_1005: number;
+  };
+  regions: string[];
+  owners: Array<{ id: number; name: string }>;
+  filters: { q: string; region: string; owner: number | null; layer: string };
+}

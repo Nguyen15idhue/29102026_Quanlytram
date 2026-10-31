@@ -1221,6 +1221,23 @@ label.check input {
   font-size: 11px;
 }
 
+.map-detail {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.map-detail .facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+}
+
+.map-detail .detail-subhead h4 {
+  font-family: var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
 .map-canvas {
   min-height: 70vh;
   padding: 0;

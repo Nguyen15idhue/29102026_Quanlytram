@@ -25,9 +25,8 @@ import { ThemeToggle } from './ThemeToggle';
 const titles: Record<string, string> = {
   '/': 'Dashboard',
   '/stations': 'Danh sách trạm',
-  '/stations/map': 'Bản đồ trạm',
+  '/map': 'Bản đồ vận hành',
   '/online': 'Danh sách online',
-  '/online/map': 'Bản đồ online',
   '/mountpoints': 'Mountpoint',
   '/mountpoints/explorer': 'Mountpoint Explorer',
   '/relay-jobs': 'Relay',
@@ -61,14 +60,13 @@ export function Layout() {
     {
       label: 'Trạm',
       items: [
-        { to: '/stations/map', label: 'Bản đồ trạm', icon: MapPinned, show: can('stations', 'view') },
+        { to: '/map', label: 'Bản đồ vận hành', icon: MapPinned, show: can('stations', 'view') },
         { to: '/stations', label: 'Danh sách trạm', icon: RadioTower, show: can('stations', 'view') }
       ]
     },
     {
       label: 'CORS',
       items: [
-        { to: '/online/map', label: 'Bản đồ online', icon: MapPinned, show: can('connections', 'view') },
         { to: '/online', label: 'Danh sách online', icon: List, show: can('connections', 'view') },
         { to: '/caster', label: 'Caster', icon: Antenna, show: can('settings', 'view') },
         { to: '/ntrip-accounts', label: 'Tài khoản NTRIP', icon: KeyRound, show: can('ntrip_accounts', 'view') },

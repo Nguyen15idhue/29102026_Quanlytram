@@ -27,7 +27,7 @@ Quy tắc: không chuyển phase nếu checklist của phase hiện tại chưa 
 |---|---|---|
 | P0.1 | Chi tiết trạm `/stations/:id` 5 tab | DONE |
 | P0.2 | Mountpoint Explorer | DONE |
-| P0.3 | Bản đồ vận hành hợp nhất `/map` | TODO |
+| P0.3 | Bản đồ vận hành hợp nhất `/map` | DONE |
 | P0.4 | System Health `/system/health` | TODO |
 | P0.5 | Dashboard vận hành & alert impact | TODO |
 | P0.6 | Menu, route, deep link | TODO |
