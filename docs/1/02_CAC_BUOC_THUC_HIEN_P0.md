@@ -936,4 +936,4 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
     relay 2, caster 0, quality targets 6; không lộ secret.
   - Mock Go down (`GO_INTERNAL_URL` sai): overall/error, Go error, MySQL ok.
   - Mock MySQL down (`MYSQL_PORT` sai): overall/error, MySQL error, Go ok.
-- Commit: sẽ ghi hash sau khi commit phase này.
+- Commit: `9f52f48` — `feat(p0): system health bon card va fallback`.
