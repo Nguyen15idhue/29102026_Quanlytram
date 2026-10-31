@@ -1037,4 +1037,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - `graphify update .` PASS: **2.432 nodes, 6.023 edges, 172 communities**.
 - Không secret trong diff; `.env.local` không tracked.
 - P1.11 map: **DEFER** theo kế hoạch; dữ liệu/contract đã giữ ổn định.
-- Commit code: sẽ ghi hash sau khi commit phase này.
+- Commit code: `19bb03a` — `test(p1-10): regression toan bo va cap nhat test ui moi`.
