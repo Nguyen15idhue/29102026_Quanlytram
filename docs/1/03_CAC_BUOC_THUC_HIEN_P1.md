@@ -975,4 +975,4 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
   - Playwright `p1-ntrip-acl.spec.ts` **1/1 PASS**: account có 2 mountpoint
     nhưng listener chỉ 1 → effective còn 1; API không trả `authMethod`.
 - Ghi chú: cần rebuild container `gnss` ở P1.10 để chạy binary mới.
-- Commit code: sẽ ghi hash sau khi commit phase này.
+- Commit code: `e60150d` — `feat(p1-7): ntrip account listener acl va caster sourcetable`.
