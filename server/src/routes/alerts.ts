@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { RowDataPacket } from 'mysql2/promise';
 import { adminPool, query } from '../db/pool';
+import { buildAlertImpacts } from '../lib/alertImpact';
 import { writeAudit } from '../lib/audit';
 import { asyncHandler, ApiError } from '../lib/http';
 import { requireAuth, requirePermission } from '../middleware/auth';
@@ -97,8 +98,21 @@ alertsRouter.get(
       `SELECT COUNT(*) AS total FROM alerts WHERE ${where}`,
       params
     );
+    const includeImpact = ['1', 'true'].includes(String(req.query.includeImpact || ''));
+    const impacts = includeImpact
+      ? await buildAlertImpacts(
+          rows.map((row) => ({
+            key: `admin:${row.id}`,
+            targetType: String(row.target_type),
+            targetId: row.target_id === null ? null : Number(row.target_id)
+          }))
+        )
+      : null;
     res.json({
-      items: rows.map(publicAlert),
+      items: rows.map((row) => ({
+        ...publicAlert(row),
+        ...(impacts ? { impact: impacts.get(`admin:${row.id}`) ?? null } : {})
+      })),
       total: Number(countRows[0].total),
       pageSize,
       offset

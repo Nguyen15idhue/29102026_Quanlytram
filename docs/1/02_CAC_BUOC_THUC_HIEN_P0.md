@@ -35,7 +35,8 @@ Quy ước:
 | P0.2 (Mountpoint Explorer) | **DONE** | `/mountpoints/explorer`, API list/detail, filter trạm/trạng thái/owner/alert |
 | P0.3 (bản đồ hợp nhất) | **DONE** | `/map`, API overview, layer/filter, redirect bản đồ cũ |
 | P0.4 (System Health) | **DONE** | `/system/health`, 4 card Node/Host/MySQL/Go, cache 12s, fallback lỗi |
-| P0.5–P0.6 (UX vận hành) | **Chưa làm** | Dashboard/alert impact và menu/deep link còn lại |
+| P0.5 (Dashboard & alert impact) | **DONE** | `/api/ops/dashboard`, alert impact, 4 vùng, click đúng đối tượng |
+| P0.6 (menu/route/deep link) | **Chưa làm** | Rà menu/route/deep link còn lại |
 | P0.7 (import hệ cũ) | **Chưa làm** | Chưa có `importLegacyCaster` |
 | P0.8 (HTTPS/domain) | **Chưa làm** | Web đang HTTP `:3000` |
 | P0.9 (load test) | **Chưa đủ** | Mới có load test 50 job; cần 67–100 |
@@ -390,11 +391,11 @@ Một màn tổng hợp để biết “hôm nay có gì cần xử lý”, thay
 
 ### Checklist test
 
-- [ ] Test impact counts.
-- [ ] Test desired/applied.
-- [ ] Playwright 4 vùng + click alert.
-- [ ] So số với API.
-- [ ] RBAC scope.
+- [x] Test impact counts.
+- [x] Test desired/applied.
+- [x] Playwright 4 vùng + click alert.
+- [x] So số với API.
+- [x] RBAC scope.
 
 ### Ghi chú
 
@@ -937,3 +938,26 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
   - Mock Go down (`GO_INTERNAL_URL` sai): overall/error, Go error, MySQL ok.
   - Mock MySQL down (`MYSQL_PORT` sai): overall/error, MySQL error, Go ok.
 - Commit: `9f52f48` — `feat(p0): system health bon card va fallback`.
+
+### Phase 5 — P0.5: Dashboard vận hành & alert impact (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Backend:
+  - Thêm `GET /api/ops/dashboard?window=60`: tổng quan, sức khỏe, sự cố
+     (admin + quality, critical/major trước), audit gần đây; số liệu lấy từ
+     snapshot/realtime và RBAC scope.
+  - `/api/alerts?includeImpact=1` trả impact trạm/mountpoint/relay/listener/
+     tài khoản online, desired/applied; không lộ secret.
+  - Thêm `alertImpact` dùng chung cho dashboard và alerts.
+- Frontend:
+  - Dashboard 4 vùng: KPI, sức khỏe, sự cố, audit; click sự cố mở
+    relay `?job=`, trạm `/stations/:id`, caster hoặc system health.
+- Kiểm thử:
+  - `server npm run build` PASS; `server npm test` 48/48 PASS.
+  - `frontend npm run build` PASS.
+  - Playwright `dashboard.spec.ts` PASS — 4 vùng, impact link relay job,
+    dark mode, mobile 390 không tràn.
+  - API: stations 5, mountpoint 5, relay 2 streaming/2, incidents 13,
+    THA_HauLoc impact MP + relay desired/applied 2/2; không lộ secret.
+  - RBAC `user1`: stations 1, mountpoint 1, relay 0, incidents 0.
+- Commit: sẽ ghi hash sau khi commit phase này.

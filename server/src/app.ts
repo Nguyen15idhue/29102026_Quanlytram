@@ -26,6 +26,7 @@ import { auditRouter } from './routes/audit';
 import { dictionariesRouter } from './routes/dictionaries';
 import { profileRouter } from './routes/profile';
 import { systemRouter } from './routes/system';
+import { opsRouter } from './routes/ops';
 
 const logger = pino({
   level: config.logLevel,
@@ -133,6 +134,7 @@ app.use('/api/audit-logs', auditRouter);
 app.use('/api/dictionaries', dictionariesRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/system', systemRouter);
+app.use('/api/ops', opsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

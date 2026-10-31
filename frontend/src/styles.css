@@ -2138,3 +2138,105 @@ label.check input {
     grid-template-columns: 1fr;
   }
 }
+
+/* Ops dashboard */
+.ops-health {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.ops-health > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface-2, var(--surface));
+}
+
+.incident-list {
+  display: grid;
+  gap: 8px;
+}
+
+.incident-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.incident-item:hover {
+  background: var(--raised-2);
+}
+
+.incident-icon {
+  color: var(--warn);
+  padding-top: 2px;
+}
+
+.incident-body {
+  display: grid;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.incident-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.incident-head strong {
+  overflow-wrap: anywhere;
+}
+
+.incident-badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.incident-message,
+.incident-impact {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.incident-impact {
+  color: var(--text);
+}
+
+.incident-time {
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .ops-health {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 600px) {
+  .incident-item {
+    align-items: stretch;
+  }
+
+  .ops-health {
+    grid-template-columns: 1fr;
+  }
+}
