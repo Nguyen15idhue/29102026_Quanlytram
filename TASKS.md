@@ -32,6 +32,7 @@ Quy tắc: không chuyển phase nếu checklist của phase hiện tại chưa 
 | P0.5 | Dashboard vận hành & alert impact | DONE |
 | P0.6 | Menu, route, deep link | DONE |
 | P0 chốt UX | Regression Phase 7 | DONE |
+| UI/UX review | STT, màu, filter thu gọn, hot reload 1s | DONE |
 | P0.7 + P0.12 | Provision hệ cũ | DONE |
 | P0.8 | HTTPS/domain/reverse proxy | TODO |
 | P0.9 | Load test 67–100 relay job | TODO |

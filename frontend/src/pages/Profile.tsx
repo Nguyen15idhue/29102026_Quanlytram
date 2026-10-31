@@ -149,10 +149,11 @@ export function Profile() {
         <h2>Phiên đăng nhập</h2>
         <div className="table-wrap">
           <table className="data-table">
-            <thead><tr><th>Thiết bị/IP</th><th>Bắt đầu</th><th>Hết hạn</th><th>Trạng thái</th></tr></thead>
+            <thead><tr><th className="index-col">STT</th><th>Thiết bị/IP</th><th>Bắt đầu</th><th>Hết hạn</th><th>Trạng thái</th></tr></thead>
             <tbody>
-              {(sessions.data?.items ?? []).map((item) => (
+              {(sessions.data?.items ?? []).map((item, index) => (
                 <tr key={item.id}>
+                  <td className="index-col">{index + 1}</td>
                   <td className="mono">{item.ip || '—'} · {item.userAgent || '—'}</td>
                   <td className="mono">{new Date(item.createdAt).toLocaleString('vi-VN')}</td>
                   <td className="mono">{new Date(item.expiresAt).toLocaleString('vi-VN')}</td>

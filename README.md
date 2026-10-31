@@ -68,10 +68,11 @@ cp .env.example .env.local
 # điền giá trị thật trong .env.local (không commit)
 
 # 2. Khởi động hạ tầng
+# web/server chạy dev hot reload: Vite polling 1s, backend tsc/node watch
 docker compose up -d
 
-# 3. Migration
-npm run migrate
+# 3. Migration (migrate service tự chạy khi compose up)
+docker compose run --rm migrate
 
 # 4. Kiểm tra
 docker compose ps

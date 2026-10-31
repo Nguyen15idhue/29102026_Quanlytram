@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Lock, Pencil, Plus, Trash2, Unlock } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
@@ -17,7 +17,9 @@ import {
   PageHeader,
   Pagination,
   SearchInput,
-  StatusBadge
+  Select,
+  StatusBadge,
+  TableToolbar
 } from '../components/ui';
 import { useToast } from '../components/ToastProvider';
 
@@ -40,7 +42,19 @@ export function NtripAccounts() {
   const { can, csrfToken } = useAuth();
   const { push } = useToast();
   const queryClient = useQueryClient();
-  const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
+  const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
+    useListParams();
+  const enabled = getParam('enabled');
+  const activeFilterCount = [enabled].filter(Boolean).length;
+  const listQuery = useMemo(() => {
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+      q
+    });
+    if (enabled) params.set('enabled', enabled);
+    return params.toString();
+  }, [page, pageSize, q, enabled]);
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<NtripAccount | null>(null);
@@ -52,11 +66,8 @@ export function NtripAccounts() {
   const [aclIds, setAclIds] = useState<number[]>([]);
 
   const list = useQuery({
-    queryKey: ['ntrip-accounts', page, pageSize, q],
-    queryFn: () =>
-      apiFetch<AccountList>(
-        `/api/ntrip-accounts?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
-      )
+    queryKey: ['ntrip-accounts', listQuery],
+    queryFn: () => apiFetch<AccountList>(`/api/ntrip-accounts?${listQuery}`)
   });
   const mountpoints = useQuery({
     queryKey: ['mountpoints', 'options'],
@@ -186,12 +197,32 @@ export function NtripAccounts() {
       />
 
       <div className="panel">
-        <div className="table-head">
-          <SearchInput value={q} onChange={setQ} placeholder="Tìm username" />
-          <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
-            Tải lại
-          </Button>
-        </div>
+        <TableToolbar
+          search={
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              placeholder="Tìm username, công ty, email"
+            />
+          }
+          activeFilterCount={activeFilterCount}
+          actions={
+            <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
+              Tải lại
+            </Button>
+          }
+        >
+          <Field label="Trạng thái">
+            <Select
+              value={enabled}
+              onChange={(event) => setParam('enabled', event.target.value || null)}
+            >
+              <option value="">Tất cả</option>
+              <option value="1">Đang hoạt động</option>
+              <option value="0">Đã khóa</option>
+            </Select>
+          </Field>
+        </TableToolbar>
         <DataTable
           items={list.data?.items ?? []}
           rowKey={(account) => account.id}
@@ -220,6 +251,19 @@ export function NtripAccounts() {
               header: 'Max conn',
               align: 'right',
               cell: (account) => account.maxConnections
+            },
+            {
+              key: 'auth',
+              header: 'Auth',
+              hideOnMobile: true,
+              cell: (account) => (
+                <div>
+                  <div>{account.authMethod || 'basic'}</div>
+                  <div className="muted table-subline">
+                    {account.availableArea || 'Không giới hạn khu vực'}
+                  </div>
+                </div>
+              )
             },
             {
               key: 'company',

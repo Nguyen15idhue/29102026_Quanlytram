@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
@@ -18,7 +18,8 @@ import {
   Pagination,
   SearchInput,
   Select,
-  StatusBadge
+  StatusBadge,
+  TableToolbar
 } from '../components/ui';
 import { useToast } from '../components/ToastProvider';
 
@@ -51,7 +52,12 @@ export function Mountpoints() {
   const { can, csrfToken } = useAuth();
   const { push } = useToast();
   const queryClient = useQueryClient();
-  const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
+  const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
+    useListParams();
+  const stationId = getParam('stationId');
+  const enabled = getParam('enabled');
+  const authMode = getParam('authMode');
+  const activeFilterCount = [stationId, enabled, authMode].filter(Boolean).length;
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<Mountpoint | null>(null);
@@ -66,12 +72,20 @@ export function Mountpoints() {
     queryFn: () => apiFetch<StationList>('/api/stations?pageSize=50'),
     enabled: can('stations', 'view')
   });
+  const listQuery = useMemo(() => {
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+      q
+    });
+    if (stationId) params.set('stationId', stationId);
+    if (enabled) params.set('enabled', enabled);
+    if (authMode) params.set('authMode', authMode);
+    return params.toString();
+  }, [page, pageSize, q, stationId, enabled, authMode]);
   const list = useQuery({
-    queryKey: ['mountpoints', page, pageSize, q],
-    queryFn: () =>
-      apiFetch<MountpointList>(
-        `/api/mountpoints?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
-      )
+    queryKey: ['mountpoints', listQuery],
+    queryFn: () => apiFetch<MountpointList>(`/api/mountpoints?${listQuery}`)
   });
 
   const save = useMutation({
@@ -170,12 +184,55 @@ export function Mountpoints() {
       />
 
       <div className="panel">
-        <div className="table-head">
-          <SearchInput value={q} onChange={setQ} placeholder="Tìm mountpoint" />
-          <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
-            Tải lại
-          </Button>
-        </div>
+        <TableToolbar
+          search={
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              placeholder="Tìm mountpoint hoặc trạm"
+            />
+          }
+          activeFilterCount={activeFilterCount}
+          actions={
+            <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
+              Tải lại
+            </Button>
+          }
+        >
+          <Field label="Trạm">
+            <Select
+              value={stationId}
+              onChange={(event) => setParam('stationId', event.target.value || null)}
+            >
+              <option value="">Mọi trạm</option>
+              {(stations.data?.items ?? []).map((station) => (
+                <option key={station.id} value={station.id}>
+                  {station.code}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Trạng thái">
+            <Select
+              value={enabled}
+              onChange={(event) => setParam('enabled', event.target.value || null)}
+            >
+              <option value="">Tất cả</option>
+              <option value="1">Đang bật</option>
+              <option value="0">Đã tắt</option>
+            </Select>
+          </Field>
+          <Field label="Cơ chế auth">
+            <Select
+              value={authMode}
+              onChange={(event) => setParam('authMode', event.target.value || null)}
+            >
+              <option value="">Mọi cơ chế</option>
+              <option value="ntrip_account">Tài khoản NTRIP</option>
+              <option value="password_only">Chỉ password</option>
+            </Select>
+          </Field>
+        </TableToolbar>
         <DataTable
           items={list.data?.items ?? []}
           rowKey={(item) => item.id}
@@ -187,7 +244,14 @@ export function Mountpoints() {
             {
               key: 'name',
               header: 'Tên',
-              cell: (item) => <span className="mono">{item.name}</span>
+              cell: (item) => (
+                <div>
+                  <span className="mono">{item.name}</span>
+                  {item.description && (
+                    <div className="muted table-subline">{item.description}</div>
+                  )}
+                </div>
+              )
             },
             {
               key: 'station',
@@ -213,7 +277,9 @@ export function Mountpoints() {
                 <div>
                   <div>{item.requires_auth ? 'Có' : 'Không'}</div>
                   <div className="muted table-subline">
-                    {item.auth_mode === 'password_only' ? 'password_only' : 'account'}
+                    {item.auth_mode === 'password_only'
+                      ? `password_only · ${item.has_password ? 'có hash' : 'legacy'}`
+                      : 'ntrip_account'}
                   </div>
                 </div>
               )
@@ -227,6 +293,9 @@ export function Mountpoints() {
                   <div>{item.service_type || '—'}</div>
                   <div className="muted table-subline">
                     {item.position_mode || '—'} · {item.satellite_systems || '—'}
+                  </div>
+                  <div className="muted table-subline">
+                    {item.code_protocol || '—'}/{item.code_type || '—'}
                   </div>
                 </div>
               )

@@ -9,12 +9,14 @@ import type { AlertItem } from '../types';
 import {
   Button,
   DataTable,
+  Field,
   IconButton,
   PageHeader,
   Pagination,
   SearchInput,
   Select,
-  StatusBadge
+  StatusBadge,
+  TableToolbar
 } from '../components/ui';
 import { useToast } from '../components/ToastProvider';
 
@@ -53,6 +55,12 @@ export function Alerts() {
   const severity = getParam('severity');
   const level = getParam('level');
   const unread = getParam('unread');
+  const activeFilterCount = [
+    severity,
+    level,
+    unread,
+    status !== 'open' ? status : ''
+  ].filter(Boolean).length;
 
   const list = useQuery({
     queryKey: ['alerts', page, pageSize, q, status, severity, level, unread],
@@ -101,9 +109,27 @@ export function Alerts() {
       />
 
       <div className="panel">
-        <div className="table-head">
-          <SearchInput value={q} onChange={setQ} placeholder="Tìm cảnh báo" />
-          <div className="toolbar">
+        <TableToolbar
+          search={<SearchInput value={q} onChange={setQ} placeholder="Tìm cảnh báo" />}
+          activeFilterCount={activeFilterCount}
+          actions={
+            <>
+              <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
+                Tải lại
+              </Button>
+              {can('alerts', 'view') && (
+                <Button
+                  variant="ghost"
+                  onClick={() => readAll.mutate()}
+                  loading={readAll.isPending}
+                >
+                  Đánh dấu đã đọc
+                </Button>
+              )}
+            </>
+          }
+        >
+          <Field label="Trạng thái">
             <Select
               value={status}
               onChange={(event) => setParam('status', event.target.value)}
@@ -113,6 +139,8 @@ export function Alerts() {
               <option value="open">Đang mở</option>
               <option value="acked">Đã xác nhận</option>
             </Select>
+          </Field>
+          <Field label="Mức độ">
             <Select
               value={severity}
               onChange={(event) => setParam('severity', event.target.value)}
@@ -123,6 +151,8 @@ export function Alerts() {
               <option value="warning">Warning</option>
               <option value="info">Info</option>
             </Select>
+          </Field>
+          <Field label="Level">
             <Select
               value={level}
               onChange={(event) => setParam('level', event.target.value)}
@@ -134,6 +164,8 @@ export function Alerts() {
               <option value="minor">minor</option>
               <option value="info">info</option>
             </Select>
+          </Field>
+          <Field label="Đã đọc">
             <Select
               value={unread}
               onChange={(event) => setParam('unread', event.target.value)}
@@ -142,20 +174,8 @@ export function Alerts() {
               <option value="">Tất cả</option>
               <option value="1">Chưa đọc</option>
             </Select>
-            <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
-              Tải lại
-            </Button>
-            {can('alerts', 'view') && (
-              <Button
-                variant="ghost"
-                onClick={() => readAll.mutate()}
-                loading={readAll.isPending}
-              >
-                Đánh dấu đã đọc
-              </Button>
-            )}
-          </div>
-        </div>
+          </Field>
+        </TableToolbar>
         <DataTable
           items={list.data?.items ?? []}
           rowKey={(alert) => alert.id}
@@ -195,10 +215,15 @@ export function Alerts() {
               header: 'Đối tượng',
               hideOnMobile: true,
               cell: (alert) => (
-                <span className="mono">
-                  {alert.targetType}
-                  {alert.targetId ? ` #${alert.targetId}` : ''}
-                </span>
+                <div>
+                  <div className="mono">
+                    {alert.targetType}
+                    {alert.targetId ? ` #${alert.targetId}` : ''}
+                  </div>
+                  <div className="muted table-subline">
+                    Owner {alert.ownerWebUserId ?? '—'}
+                  </div>
+                </div>
               )
             },
             {
@@ -219,7 +244,11 @@ export function Alerts() {
                   {alert.ackedAt && (
                     <div className="muted table-subline">
                       Ack {formatLocal(alert.ackedAt)}
+                      {alert.ackedBy ? ` · #${alert.ackedBy}` : ''}
                     </div>
+                  )}
+                  {alert.ackNote && (
+                    <div className="muted table-subline">{alert.ackNote}</div>
                   )}
                 </div>
               )

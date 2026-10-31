@@ -11,12 +11,23 @@ import * as DialogPrimitive from '@radix-ui/react-dialog';
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog';
 import {
   AlertTriangle,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Loader2,
   Search,
+  SlidersHorizontal,
   X
 } from 'lucide-react';
+
+function nodeText(node: ReactNode): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  if (Array.isArray(node)) return node.map(nodeText).join(' ');
+  if (node && typeof node === 'object' && 'props' in node) {
+    return nodeText((node as { props: { children?: ReactNode } }).props.children);
+  }
+  return '';
+}
 
 export function Button({
   variant = 'secondary',
@@ -31,9 +42,14 @@ export function Button({
   size?: 'sm' | 'md';
   loading?: boolean;
 }) {
+  const label = nodeText(children);
+  const actionClass =
+    /^(Tải lại|Làm mới)/i.test(label.trim()) && variant === 'ghost'
+      ? 'action-refresh'
+      : '';
   return (
     <button
-      className={`btn ${variant} ${size === 'sm' ? 'small' : ''} ${className}`.trim()}
+      className={`btn ${variant} ${size === 'sm' ? 'small' : ''} ${actionClass} ${className}`.trim()}
       disabled={disabled || loading}
       {...props}
     >
@@ -148,6 +164,51 @@ export function SearchInput({
   );
 }
 
+export function TableToolbar({
+  search,
+  actions,
+  children,
+  activeFilterCount = 0
+}: {
+  search?: ReactNode;
+  actions?: ReactNode;
+  children?: ReactNode;
+  activeFilterCount?: number;
+}) {
+  const [open, setOpen] = useState(activeFilterCount > 0);
+  return (
+    <div className="table-toolbar">
+      <div className="table-toolbar-row">
+        <div className="table-toolbar-search">{search}</div>
+        <div className="toolbar">
+          {children && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className={`filter-toggle ${open ? 'active' : ''}`}
+              aria-expanded={open}
+              onClick={() => setOpen((value) => !value)}
+            >
+              <SlidersHorizontal size={16} aria-hidden="true" />
+              Bộ lọc
+              {activeFilterCount > 0 && (
+                <span className="filter-count">{activeFilterCount}</span>
+              )}
+              <ChevronDown
+                size={14}
+                aria-hidden="true"
+                className={open ? 'chevron-up' : ''}
+              />
+            </Button>
+          )}
+          {actions}
+        </div>
+      </div>
+      {children && open && <div className="filter-grid">{children}</div>}
+    </div>
+  );
+}
+
 export function Modal({
   open,
   onOpenChange,
@@ -256,7 +317,8 @@ export function DataTable<T>({
   loading = false,
   error,
   empty,
-  onRowClick
+  onRowClick,
+  showIndex = true
 }: {
   columns: Column<T>[];
   items: T[];
@@ -265,12 +327,14 @@ export function DataTable<T>({
   error?: string;
   empty?: ReactNode;
   onRowClick?: (row: T) => void;
+  showIndex?: boolean;
 }) {
   return (
     <div className="table-wrap">
       <table className="data-table">
         <thead>
           <tr>
+            {showIndex && <th className="index-col">STT</th>}
             {columns.map((column) => (
               <th
                 key={column.key}
@@ -287,6 +351,11 @@ export function DataTable<T>({
           {loading &&
             Array.from({ length: 5 }).map((_, index) => (
               <tr key={`skeleton-${index}`} className="skeleton-row">
+                {showIndex && (
+                  <td className="index-col">
+                    <span className="skeleton" />
+                  </td>
+                )}
                 {columns.map((column) => (
                   <td key={column.key} className={column.hideOnMobile ? 'hide-mobile' : ''}>
                     <span className="skeleton" />
@@ -296,21 +365,21 @@ export function DataTable<T>({
             ))}
           {!loading && error && (
             <tr>
-              <td colSpan={columns.length}>
+              <td colSpan={columns.length + (showIndex ? 1 : 0)}>
                 <div className="table-state error">{error}</div>
               </td>
             </tr>
           )}
           {!loading && !error && items.length === 0 && (
             <tr>
-              <td colSpan={columns.length}>
+              <td colSpan={columns.length + (showIndex ? 1 : 0)}>
                 <div className="table-state">{empty ?? 'Chưa có dữ liệu.'}</div>
               </td>
             </tr>
           )}
           {!loading &&
             !error &&
-            items.map((row) => (
+            items.map((row, rowIndex) => (
               <tr
                 key={rowKey(row)}
                 className={onRowClick ? 'clickable' : ''}
@@ -328,6 +397,7 @@ export function DataTable<T>({
                 }}
                 tabIndex={onRowClick ? 0 : undefined}
               >
+                {showIndex && <td className="index-col">{rowIndex + 1}</td>}
                 {columns.map((column) => (
                   <td
                     key={column.key}

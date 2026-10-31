@@ -1056,3 +1056,29 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
   - Quality snapshot hệ thống > 0 (16.000+ sample, cập nhật trong 10 phút).
 - Audit import có bản ghi `legacy_caster`; không lộ credential.
 - Commit: `1be9a30` — `feat(p0): provision 36 mountpoint he cu va legacy password`.
+
+### Rà soát UI/UX & Docker hot reload (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Docker:
+  - `web` chạy Vite dev trong container, bind mount `./frontend`, polling 1s,
+    HMR qua cổng 3000; proxy `/api` + `/socket.io` sang `server:4000`.
+  - `server` chạy `tsc --watch` + `node --watch dist/index.js`, bind mount
+    `./server`; sửa backend tự restart, không cần rebuild image.
+- UI:
+  - `DataTable` tự thêm cột **STT**; bổ sung STT cho các bảng thủ công.
+  - `TableToolbar`: tìm kiếm luôn hiện, bộ lọc phụ thu gọn, badge số filter.
+  - Nút action có màu: Sửa/Xóa/Tải lại/Đăng xuất/Excel/Import.
+  - Dashboard chia 4 vùng màu: tổng quan, sức khỏe, sự cố, hoạt động.
+  - Bổ sung filter FE/BE cho trạm, mountpoint, relay, tài khoản NTRIP,
+    người dùng, cảnh báo, lịch sử, Mountpoint Explorer.
+  - Bảng hiển thị thêm dữ liệu cuối, probe, relay, auth mode, serial thiết bị,
+    độ cao, thời lượng online, UA, desired/applied, ack note, last login.
+- Kiểm thử:
+  - `frontend npm run build` PASS; `server npm run build` PASS.
+  - `server npm test` 48/48 PASS.
+  - Playwright 15/15 PASS.
+  - API filter smoke: stations 30, password_only 36, relay enabled 2,
+    NTRIP enabled 2, web user active 4.
+  - Vite log xác nhận HMR update khi sửa page/component/CSS.
+- Commit: sẽ ghi hash sau khi commit đợt này.

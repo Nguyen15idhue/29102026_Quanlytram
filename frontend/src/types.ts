@@ -278,6 +278,8 @@ export interface WebUser {
     name: string;
     level: number;
   };
+  createdAt?: string;
+  lastLoginAt?: string | null;
 }
 
 export interface NtripAccount {

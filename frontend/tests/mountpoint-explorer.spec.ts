@@ -39,6 +39,7 @@ test.describe('P0 Phase 2 mountpoint explorer', () => {
     await expect(page.getByRole('heading', { name: 'Mountpoint Explorer' })).toBeVisible();
     await page.getByRole('row', { name: /THA_HauLoc/ }).first().click();
     await page.getByRole('button', { name: 'Đóng' }).last().click();
+    await page.getByRole('button', { name: /Bộ lọc/ }).click();
     await page.getByLabel('Lọc trạng thái').selectOption('online');
     await expect(page).toHaveURL(/state=online/);
     await expect(page.getByRole('row', { name: /THA_HauLoc/ }).first()).toBeVisible();

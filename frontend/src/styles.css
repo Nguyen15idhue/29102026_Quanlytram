@@ -352,6 +352,65 @@ p {
   flex-wrap: wrap;
 }
 
+.table-toolbar {
+  display: grid;
+  gap: 12px;
+}
+
+.table-toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.table-toolbar-search {
+  flex: 1 1 280px;
+  min-width: 0;
+  max-width: 460px;
+}
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+
+.filter-grid .field {
+  min-width: 0;
+}
+
+.filter-toggle {
+  color: var(--info);
+  background: var(--info-soft);
+}
+
+.filter-toggle.active {
+  border-color: var(--info);
+}
+
+.filter-toggle .chevron-up {
+  transform: rotate(180deg);
+}
+
+.filter-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--info);
+  color: var(--surface);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* KPI */
 .kpi-strip {
   display: grid;
@@ -383,6 +442,50 @@ p {
   font-weight: 400;
   letter-spacing: -0.03em;
   font-variant-numeric: tabular-nums;
+}
+
+.kpi-overview {
+  background: var(--accent-soft);
+}
+
+.kpi-relay {
+  background: var(--info-soft);
+}
+
+.kpi-online {
+  background: var(--ok-soft);
+}
+
+.kpi-incidents {
+  background: var(--warn-soft);
+}
+
+.dashboard-zone {
+  border-left-width: 4px;
+}
+
+.zone-health {
+  border-left-color: var(--ok);
+}
+
+.zone-health h2 {
+  color: var(--ok);
+}
+
+.zone-incidents {
+  border-left-color: var(--danger);
+}
+
+.zone-incidents h2 {
+  color: var(--danger);
+}
+
+.zone-activity {
+  border-left-color: var(--info);
+}
+
+.zone-activity h2 {
+  color: var(--info);
 }
 
 /* Buttons */
@@ -463,6 +566,63 @@ p {
 .icon-btn:hover {
   background: var(--raised-2);
   color: var(--text);
+}
+
+.btn:has(.lucide-refresh-cw),
+.btn.action-refresh {
+  background: var(--info-soft);
+  color: var(--info);
+  border-color: transparent;
+}
+
+.btn:has(.lucide-pencil) {
+  background: var(--info-soft);
+  color: var(--info);
+  border-color: transparent;
+}
+
+.btn:has(.lucide-download) {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.btn:has(.lucide-upload) {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.icon-btn:has(.lucide-pencil) {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.icon-btn:has(.lucide-trash-2) {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.icon-btn:has(.lucide-refresh-cw) {
+  background: var(--info-soft);
+  color: var(--info);
+}
+
+.icon-btn[aria-label='Đăng xuất'] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.data-table .index-col {
+  width: 52px;
+  min-width: 52px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.data-table td.index-col {
+  font-family: var(--font-mono);
+  font-size: 11px;
 }
 
 .btn:focus-visible,

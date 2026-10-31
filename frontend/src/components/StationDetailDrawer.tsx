@@ -598,6 +598,7 @@ function MetadataTab({ stationId }: { stationId: number }) {
           <table className="data-table">
             <thead>
               <tr>
+                <th className="index-col">STT</th>
                 <th>Type</th>
                 <th className="align-right">Count</th>
                 <th className="align-right">Bytes</th>
@@ -606,8 +607,9 @@ function MetadataTab({ stationId }: { stationId: number }) {
               </tr>
             </thead>
             <tbody>
-              {data.messages.map((message) => (
+              {data.messages.map((message, index) => (
                 <tr key={message.messageType}>
+                  <td className="index-col">{index + 1}</td>
                   <td className="mono">{message.messageType}</td>
                   <td className="align-right mono">{formatNumber(message.count)}</td>
                   <td className="align-right mono">{formatNumber(message.bytes)}</td>

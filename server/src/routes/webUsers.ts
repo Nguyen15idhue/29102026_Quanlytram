@@ -144,6 +144,16 @@ webUsersRouter.get(
       where += ' AND (u.username LIKE ? OR u.display_name LIKE ? OR u.email LIKE ?)';
       params.push(`%${q}%`, `%${q}%`, `%${q}%`);
     }
+    const roleId = Number(req.query.roleId || 0);
+    if (Number.isInteger(roleId) && roleId > 0) {
+      where += ' AND u.role_id = ?';
+      params.push(roleId);
+    }
+    const status = String(req.query.status || '').trim();
+    if (status === 'active' || status === 'locked') {
+      where += ' AND u.status = ?';
+      params.push(status);
+    }
     const [rows] = await adminPool.query<RowDataPacket[]>(
       `SELECT u.*, r.code AS role_code, r.name AS role_name, r.level AS role_level
          FROM web_users u JOIN roles r ON r.id = u.role_id

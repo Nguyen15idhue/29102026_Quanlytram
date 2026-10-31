@@ -104,8 +104,18 @@ ntripAccountsRouter.get(
     const params: unknown[] = [...scope.params];
     let where = scope.sql;
     if (q) {
-      where += ' AND a.username LIKE ?';
-      params.push(`%${q}%`);
+      where += ' AND (a.username LIKE ? OR a.company LIKE ? OR a.email LIKE ?)';
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    const enabled = String(req.query.enabled || '').trim();
+    if (enabled === '0' || enabled === '1') {
+      where += ' AND a.enabled = ?';
+      params.push(Number(enabled));
+    }
+    const ownerId = Number(req.query.ownerId || 0);
+    if (Number.isInteger(ownerId) && ownerId > 0) {
+      where += ' AND a.owner_web_user_id = ?';
+      params.push(ownerId);
     }
     const [rows] = await adminPool.query<RowDataPacket[]>(
       `SELECT a.* FROM ntrip_accounts a WHERE ${where} ORDER BY a.id DESC LIMIT ? OFFSET ?`,

@@ -318,6 +318,7 @@ export function QualityPanel({ targetType, targetId, mountpointId }: QualityPane
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th className="index-col">STT</th>
                       <th>Chòm</th>
                       <th className="align-right">Vệ tinh</th>
                       <th className="align-right">Signal</th>
@@ -325,8 +326,9 @@ export function QualityPanel({ targetType, targetId, mountpointId }: QualityPane
                     </tr>
                   </thead>
                   <tbody>
-                    {constellations.map((item) => (
+                    {constellations.map((item, index) => (
                       <tr key={item.system}>
+                        <td className="index-col">{index + 1}</td>
                         <td>{item.system}</td>
                         <td className="align-right mono">{item.satellites}</td>
                         <td className="align-right mono">{item.signals}</td>

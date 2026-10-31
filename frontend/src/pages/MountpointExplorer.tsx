@@ -16,12 +16,14 @@ import {
   Button,
   DataTable,
   EmptyState,
+  Field,
   Modal,
   PageHeader,
   Pagination,
   SearchInput,
   Select,
-  StatusBadge
+  StatusBadge,
+  TableToolbar
 } from '../components/ui';
 import { formatNumber } from '../components/charts';
 
@@ -346,6 +348,7 @@ export function MountpointExplorer() {
   const state = getParam('state');
   const ownerId = getParam('ownerId');
   const alerts = getParam('alerts');
+  const activeFilterCount = [stationId, state, ownerId, alerts].filter(Boolean).length;
 
   const stations = useQuery({
     queryKey: ['stations', 'options'],
@@ -387,9 +390,22 @@ export function MountpointExplorer() {
       />
 
       <div className="panel">
-        <div className="table-head">
-          <SearchInput value={q} onChange={setQ} placeholder="Tìm mountpoint hoặc trạm" />
-          <div className="toolbar">
+        <TableToolbar
+          search={
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              placeholder="Tìm mountpoint hoặc trạm"
+            />
+          }
+          activeFilterCount={activeFilterCount}
+          actions={
+            <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
+              <RefreshCw size={16} aria-hidden="true" /> Tải lại
+            </Button>
+          }
+        >
+          <Field label="Trạm">
             <Select
               aria-label="Lọc trạm"
               value={stationId}
@@ -402,6 +418,8 @@ export function MountpointExplorer() {
                 </option>
               ))}
             </Select>
+          </Field>
+          <Field label="Trạng thái nguồn">
             <Select
               aria-label="Lọc trạng thái"
               value={state}
@@ -415,7 +433,9 @@ export function MountpointExplorer() {
               <option value="unknown">Unknown</option>
               <option value="disabled">Disabled</option>
             </Select>
-            {can('web_users', 'view') && (
+          </Field>
+          {can('web_users', 'view') && (
+            <Field label="Owner">
               <Select
                 aria-label="Lọc owner"
                 value={ownerId}
@@ -428,7 +448,9 @@ export function MountpointExplorer() {
                   </option>
                 ))}
               </Select>
-            )}
+            </Field>
+          )}
+          <Field label="Cảnh báo">
             <Select
               aria-label="Lọc cảnh báo"
               value={alerts}
@@ -437,11 +459,8 @@ export function MountpointExplorer() {
               <option value="">Mọi alert</option>
               <option value="1">Chỉ có alert mở</option>
             </Select>
-            <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
-              <RefreshCw size={16} aria-hidden="true" /> Tải lại
-            </Button>
-          </div>
-        </div>
+          </Field>
+        </TableToolbar>
 
         <DataTable
           items={list.data?.items ?? []}

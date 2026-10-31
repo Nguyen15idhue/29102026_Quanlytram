@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { z } from 'zod';
 import { RowDataPacket } from 'mysql2/promise';
 import { adminPool, query, withTransaction } from '../db/pool';
@@ -76,16 +76,16 @@ async function resolveOwner(req: any, requested?: number | null): Promise<number
   const actor = req.auth!;
   if (!requested || Number(requested) === actor.id) return actor.id;
   if (req.permissionScope === 'own') {
-    throw new ApiError(403, 'FORBIDDEN', 'Không được gán chủ sở hữu khác');
+    throw new ApiError(403, 'FORBIDDEN', 'KhĂ´ng Ä‘Æ°á»£c gĂ¡n chá»§ sá»Ÿ há»¯u khĂ¡c');
   }
   if (req.permissionScope === 'subtree') {
     const ids = await scopeIdsFor(req);
     if (!ids.includes(Number(requested))) {
-      throw new ApiError(403, 'FORBIDDEN', 'Chủ sở hữu ngoài phạm vi quản lý');
+      throw new ApiError(403, 'FORBIDDEN', 'Chá»§ sá»Ÿ há»¯u ngoĂ i pháº¡m vi quáº£n lĂ½');
     }
   }
   const exists = await query<RowDataPacket[]>('SELECT id FROM web_users WHERE id = ?', [requested]);
-  if (exists.length === 0) throw new ApiError(400, 'INVALID_OWNER', 'Chủ sở hữu không tồn tại');
+  if (exists.length === 0) throw new ApiError(400, 'INVALID_OWNER', 'Chá»§ sá»Ÿ há»¯u khĂ´ng tá»“n táº¡i');
   return Number(requested);
 }
 
@@ -263,7 +263,7 @@ async function stationSampleRows(id: number, windowSec = 900): Promise<any[]> {
 
 async function scopedStation(req: any, id: number): Promise<any> {
   const station = await getStation(id);
-  if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+  if (!station) throw new ApiError(404, 'NOT_FOUND', 'KhĂ´ng tĂ¬m tháº¥y tráº¡m');
   await assertRecordScope(req, station.owner_web_user_id);
   return station;
 }
@@ -333,7 +333,7 @@ function parseHistoryBoundary(raw: unknown, label: string): Date | null {
   if (raw === undefined || raw === null || raw === '') return null;
   const date = new Date(String(raw));
   if (Number.isNaN(date.getTime())) {
-    throw new ApiError(400, 'VALIDATION_ERROR', `${label} không hợp lệ`);
+    throw new ApiError(400, 'VALIDATION_ERROR', `${label} khĂ´ng há»£p lá»‡`);
   }
   return date;
 }
@@ -350,9 +350,19 @@ function whereFrom(req: any, scope: any, params: unknown[]) {
   const region = String(req.query.region || '').trim();
   const owner = Number(req.query.owner || 0);
   const receiver = String(req.query.receiver || '').trim();
+  const enabled = String(req.query.enabled || '').trim();
+  const sourceType = String(req.query.sourceType || '').trim();
   if (q) {
-    where += ' AND (s.code LIKE ? OR s.name LIKE ? OR s.address LIKE ?)';
-    params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    where += ' AND (s.code LIKE ? OR s.name LIKE ? OR s.address LIKE ? OR s.region LIKE ? OR s.host LIKE ?)';
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  if (enabled === '0' || enabled === '1') {
+    where += ' AND s.enabled = ?';
+    params.push(Number(enabled));
+  }
+  if (['relay_caster', 'caster_ingest', 'probe_client', 'manual'].includes(sourceType)) {
+    where += ' AND s.source_type = ?';
+    params.push(sourceType);
   }
   if (region) {
     where += ' AND s.region = ?';
@@ -804,7 +814,7 @@ stationsRouter.get(
       onlineConnections: online,
       probeHistory: {
         available: false,
-        message: 'Chưa lưu lịch sử probe; chỉ có cấu hình probe hiện tại.'
+        message: 'ChÆ°a lÆ°u lá»‹ch sá»­ probe; chá»‰ cĂ³ cáº¥u hĂ¬nh probe hiá»‡n táº¡i.'
       }
     });
   })
@@ -817,12 +827,12 @@ stationsRouter.get(
     const station = await scopedStation(req, Number(req.params.id));
     const stationId = Number(station.id);
     const { pageSize, offset } = pageFrom(req);
-    const to = parseHistoryBoundary(req.query.to, 'Đến ngày') ?? new Date();
+    const to = parseHistoryBoundary(req.query.to, 'Äáº¿n ngĂ y') ?? new Date();
     const from =
-      parseHistoryBoundary(req.query.from, 'Từ ngày') ??
+      parseHistoryBoundary(req.query.from, 'Tá»« ngĂ y') ??
       new Date(to.getTime() - 24 * 3600_000);
     if (from.getTime() > to.getTime()) {
-      throw new ApiError(400, 'VALIDATION_ERROR', 'Từ ngày phải trước đến ngày');
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Tá»« ngĂ y pháº£i trÆ°á»›c Ä‘áº¿n ngĂ y');
     }
 
     const events: Array<{
@@ -858,8 +868,8 @@ stationsRouter.get(
           source: 'quality',
           type: 'quality_start',
           at,
-          title: 'Bắt đầu có dữ liệu chất lượng',
-          detail: `Score ${score} · ${state}`,
+          title: 'Báº¯t Ä‘áº§u cĂ³ dá»¯ liá»‡u cháº¥t lÆ°á»£ng',
+          detail: `Score ${score} Â· ${state}`,
           level: state === 'error' ? 'critical' : state === 'stale' ? 'warning' : 'info'
         });
       } else if (state !== previous.state) {
@@ -868,8 +878,8 @@ stationsRouter.get(
           source: 'quality',
           type: 'quality_state',
           at,
-          title: `Chất lượng đổi trạng thái: ${previous.state} → ${state}`,
-          detail: `Score ${score} · frame ${Number(row.frames ?? 0)} · CRC ${Number(row.crc_errors ?? 0)}`,
+          title: `Cháº¥t lÆ°á»£ng Ä‘á»•i tráº¡ng thĂ¡i: ${previous.state} â†’ ${state}`,
+          detail: `Score ${score} Â· frame ${Number(row.frames ?? 0)} Â· CRC ${Number(row.crc_errors ?? 0)}`,
           level: state === 'error' ? 'critical' : state === 'stale' ? 'warning' : 'info'
         });
       } else if (Math.abs(score - Number(previous.score ?? 0)) >= 5) {
@@ -878,8 +888,8 @@ stationsRouter.get(
           source: 'quality',
           type: 'quality_score',
           at,
-          title: `Điểm chất lượng đổi ${Number(previous.score ?? 0)} → ${score}`,
-          detail: `Frame ${Number(row.frames ?? 0)} · age ${Number(row.age_ms ?? 0)} ms · gap ${Number(row.gaps ?? 0)}`,
+          title: `Äiá»ƒm cháº¥t lÆ°á»£ng Ä‘á»•i ${Number(previous.score ?? 0)} â†’ ${score}`,
+          detail: `Frame ${Number(row.frames ?? 0)} Â· age ${Number(row.age_ms ?? 0)} ms Â· gap ${Number(row.gaps ?? 0)}`,
           level: score < 60 ? 'critical' : score < 85 ? 'warning' : 'info'
         });
       }
@@ -909,7 +919,7 @@ stationsRouter.get(
         )
       : [];
     for (const row of casterRows) {
-      const mountpointName = mountpointNames.get(Number(row.mountpoint_id)) ?? '—';
+      const mountpointName = mountpointNames.get(Number(row.mountpoint_id)) ?? 'â€”';
       const startAt = iso(row.start_ts);
       if (startAt && new Date(startAt) >= from) {
         events.push({
@@ -917,8 +927,8 @@ stationsRouter.get(
           source: 'caster',
           type: 'caster_open',
           at: startAt,
-          title: `Mở kết nối caster · ${mountpointName}`,
-          detail: `${String(row.remote_addr || '—')}${row.user_agent ? ` · ${String(row.user_agent)}` : ''}`,
+          title: `Má»Ÿ káº¿t ná»‘i caster Â· ${mountpointName}`,
+          detail: `${String(row.remote_addr || 'â€”')}${row.user_agent ? ` Â· ${String(row.user_agent)}` : ''}`,
           level: 'info'
         });
       }
@@ -929,8 +939,8 @@ stationsRouter.get(
           source: 'caster',
           type: 'caster_close',
           at: endAt,
-          title: `Đóng kết nối caster · ${mountpointName}`,
-          detail: `${String(row.disconnect_reason || 'unknown')} · in ${Number(row.bytes_in ?? 0)} B · out ${Number(row.bytes_out ?? 0)} B`,
+          title: `ÄĂ³ng káº¿t ná»‘i caster Â· ${mountpointName}`,
+          detail: `${String(row.disconnect_reason || 'unknown')} Â· in ${Number(row.bytes_in ?? 0)} B Â· out ${Number(row.bytes_out ?? 0)} B`,
           level: row.disconnect_reason ? 'warning' : 'info'
         });
       }
@@ -970,7 +980,7 @@ stationsRouter.get(
           source: 'relay',
           type: 'relay_start',
           at: startAt,
-          title: `Relay bắt đầu · ${jobName}`,
+          title: `Relay báº¯t Ä‘áº§u Â· ${jobName}`,
           detail: `Job #${Number(row.relay_job_id)}`,
           level: 'info'
         });
@@ -982,8 +992,8 @@ stationsRouter.get(
           source: 'relay',
           type: 'relay_end',
           at: endAt,
-          title: `Relay kết thúc · ${jobName}`,
-          detail: `${String(row.result || row.close_reason || 'unknown')} · ${Number(row.duration_sec ?? 0)} giây${row.message ? ` · ${String(row.message)}` : ''}`,
+          title: `Relay káº¿t thĂºc Â· ${jobName}`,
+          detail: `${String(row.result || row.close_reason || 'unknown')} Â· ${Number(row.duration_sec ?? 0)} giĂ¢y${row.message ? ` Â· ${String(row.message)}` : ''}`,
           level: row.close_reason === 'network' || row.close_reason === 'timeout' ? 'warning' : 'info'
         });
       }
@@ -1007,8 +1017,8 @@ stationsRouter.get(
         source: 'audit',
         type: 'audit',
         at,
-        title: `Cấu hình trạm · ${String(row.action)}`,
-        detail: `Bởi ${String(row.actor_name || 'hệ thống')}`,
+        title: `Cáº¥u hĂ¬nh tráº¡m Â· ${String(row.action)}`,
+        detail: `Bá»Ÿi ${String(row.actor_name || 'há»‡ thá»‘ng')}`,
         level: 'info'
       });
     }
@@ -1030,7 +1040,7 @@ stationsRouter.get(
       sources: sourceCounts,
       probeHistory: {
         available: false,
-        message: 'Chưa lưu lịch sử probe; chỉ có cấu hình probe hiện tại.'
+        message: 'ChÆ°a lÆ°u lá»‹ch sá»­ probe; chá»‰ cĂ³ cáº¥u hĂ¬nh probe hiá»‡n táº¡i.'
       }
     });
   })
@@ -1144,7 +1154,7 @@ stationsRouter.patch(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const before = await getStation(id);
-    if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+    if (!before) throw new ApiError(404, 'NOT_FOUND', 'KhĂ´ng tĂ¬m tháº¥y tráº¡m');
     await assertRecordScope(req, before.owner_web_user_id);
     const body = updateSchema.parse(req.body);
     const ownerId =
@@ -1184,7 +1194,7 @@ stationsRouter.delete(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const before = await getStation(id);
-    if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+    if (!before) throw new ApiError(404, 'NOT_FOUND', 'KhĂ´ng tĂ¬m tháº¥y tráº¡m');
     await assertRecordScope(req, before.owner_web_user_id);
     await adminPool.query('DELETE FROM stations WHERE id = ?', [id]);
     await writeAudit(adminPool, req.auth!.id, 'delete', 'station', id, before, null, ipFrom(req));

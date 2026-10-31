@@ -182,24 +182,24 @@ export function Dashboard() {
       ) : (
         <>
           <div className="kpi-strip">
-            <div className="kpi">
+            <div className="kpi kpi-overview">
               <span className="kpi-label">Trạm / Mountpoint</span>
               <strong className="kpi-value">{summary?.stations ?? 0}</strong>
               <span className="muted kpi-sub">{summary?.mountpoints ?? 0} mountpoint</span>
             </div>
-            <div className="kpi">
+            <div className="kpi kpi-relay">
               <span className="kpi-label">Relay</span>
               <strong className="kpi-value">{summary?.relayStreaming ?? 0}</strong>
               <span className="muted kpi-sub">
                 / {summary?.relayTotal ?? 0} job · {summary?.relayIssues ?? 0} cần xử lý
               </span>
             </div>
-            <div className="kpi">
+            <div className="kpi kpi-online">
               <span className="kpi-label">Online</span>
               <strong className="kpi-value">{summary?.onlineConnections ?? 0}</strong>
               <span className="muted kpi-sub">{summary?.onlineAccounts ?? 0} tài khoản</span>
             </div>
-            <div className="kpi">
+            <div className="kpi kpi-incidents">
               <span className="kpi-label">Sự cố mở</span>
               <strong className="kpi-value">
                 {(summary?.openAlerts ?? 0) + (summary?.qualityOpen ?? 0)}
@@ -210,7 +210,7 @@ export function Dashboard() {
             </div>
           </div>
 
-          <div className="panel">
+          <div className="panel dashboard-zone zone-health">
             <div className="table-head">
               <div>
                 <h2>Sức khỏe hệ thống</h2>
@@ -252,7 +252,7 @@ export function Dashboard() {
             )}
           </div>
 
-          <div className="panel">
+          <div className="panel dashboard-zone zone-incidents">
             <div className="table-head">
               <div>
                 <h2>Sự cố cần xử lý</h2>
@@ -305,7 +305,7 @@ export function Dashboard() {
           </div>
 
           {can('audit', 'view') && (
-            <div className="panel">
+            <div className="panel dashboard-zone zone-activity">
               <div className="table-head">
                 <h2>Hoạt động gần đây</h2>
                 <Link className="btn ghost small" to="/history?tab=audit">

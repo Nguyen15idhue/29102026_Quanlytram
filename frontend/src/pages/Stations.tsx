@@ -19,7 +19,8 @@ import {
   Pagination,
   SearchInput,
   Select,
-  StatusBadge
+  StatusBadge,
+  TableToolbar
 } from '../components/ui';
 import {
   StationDetailDrawer,
@@ -88,6 +89,17 @@ function stateKind(state?: string): 'ok' | 'warn' | 'error' | 'neutral' {
   return 'neutral';
 }
 
+function formatLocal(value: string | null | undefined): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    dateStyle: 'short',
+    timeStyle: 'short'
+  }).format(date);
+}
+
 const DETAIL_TABS: StationDetailTab[] = [
   'overview',
   'connection',
@@ -109,7 +121,13 @@ export function Stations() {
   const navigate = useNavigate();
   const { stationId: routeStationId } = useParams();
   const [searchParams] = useSearchParams();
-  const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
+  const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
+    useListParams();
+  const region = getParam('region');
+  const sourceType = getParam('sourceType');
+  const enabled = getParam('enabled');
+  const owner = getParam('owner');
+  const activeFilterCount = [region, sourceType, enabled, owner].filter(Boolean).length;
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<Station | null>(null);
@@ -128,12 +146,29 @@ export function Stations() {
   } | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
+  const listQuery = useMemo(() => {
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+      q
+    });
+    if (region) params.set('region', region);
+    if (sourceType) params.set('sourceType', sourceType);
+    if (enabled) params.set('enabled', enabled);
+    if (owner) params.set('owner', owner);
+    return params.toString();
+  }, [page, pageSize, q, region, sourceType, enabled, owner]);
   const list = useQuery({
-    queryKey: ['stations', page, pageSize, q],
+    queryKey: ['stations', listQuery],
+    queryFn: () => apiFetch<StationList>(`/api/stations?${listQuery}`)
+  });
+  const owners = useQuery({
+    queryKey: ['web-users', 'station-filter'],
     queryFn: () =>
-      apiFetch<StationList>(
-        `/api/stations?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
-      )
+      apiFetch<{
+        items: Array<{ id: number; username: string; displayName?: string; display_name?: string }>;
+      }>('/api/web-users?pageSize=50'),
+    enabled: can('web_users', 'view')
   });
 
   const dictionaries = useQuery({
@@ -304,7 +339,7 @@ export function Stations() {
   }
 
   async function exportExcel() {
-    const response = await fetch(`/api/stations/export?q=${encodeURIComponent(q)}`, {
+    const response = await fetch(`/api/stations/export?${listQuery}`, {
       credentials: 'include'
     });
     if (!response.ok) {
@@ -355,12 +390,62 @@ export function Stations() {
       />
 
       <div className="panel">
-        <div className="table-head">
-          <SearchInput value={q} onChange={setQ} placeholder="Tìm mã, tên, địa chỉ" />
-          <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
-            Tải lại
-          </Button>
-        </div>
+        <TableToolbar
+          search={
+            <SearchInput value={q} onChange={setQ} placeholder="Tìm mã, tên, địa chỉ" />
+          }
+          activeFilterCount={activeFilterCount}
+          actions={
+            <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
+              Tải lại
+            </Button>
+          }
+        >
+          <Field label="Vùng">
+            <Input
+              value={region}
+              onChange={(event) => setParam('region', event.target.value || null)}
+              placeholder="Ví dụ: Hà Nội"
+            />
+          </Field>
+          <Field label="Nguồn dữ liệu">
+            <Select
+              value={sourceType}
+              onChange={(event) => setParam('sourceType', event.target.value || null)}
+            >
+              <option value="">Mọi nguồn</option>
+              <option value="relay_caster">NTRIP caster (relay)</option>
+              <option value="caster_ingest">NTRIP caster (ingest)</option>
+              <option value="probe_client">NTRIP client (probe)</option>
+              <option value="manual">Thủ công</option>
+            </Select>
+          </Field>
+          <Field label="Trạng thái">
+            <Select
+              value={enabled}
+              onChange={(event) => setParam('enabled', event.target.value || null)}
+            >
+              <option value="">Tất cả</option>
+              <option value="1">Đang bật</option>
+              <option value="0">Đã tắt</option>
+            </Select>
+          </Field>
+          {can('web_users', 'view') && (
+            <Field label="Owner">
+              <Select
+                value={owner}
+                onChange={(event) => setParam('owner', event.target.value || null)}
+              >
+                <option value="">Mọi owner</option>
+                {(owners.data?.items ?? []).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.displayName || item.display_name || item.username}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+        </TableToolbar>
         <DataTable
           items={list.data?.items ?? []}
           rowKey={(station) => station.id}
@@ -370,19 +455,31 @@ export function Stations() {
           onRowClick={(station) => openDetail(station)}
           columns={[
             {
-              key: 'code',
-              header: 'Mã',
-              cell: (station) => <span className="mono">{station.code}</span>
+              key: 'name',
+              header: 'Tên',
+              cell: (station) => (
+                <div>
+                  <div>{station.name}</div>
+                  <div className="muted table-subline">
+                    {station.owner_name || station.owner_web_user_id || '—'}
+                  </div>
+                </div>
+              )
             },
             { key: 'name', header: 'Tên', cell: (station) => station.name },
             {
               key: 'status',
               header: 'Trạng thái',
               cell: (station) => (
-                <StatusBadge
-                  label={station.quality_state || 'unknown'}
-                  kind={stateKind(station.quality_state)}
-                />
+                <div>
+                  <StatusBadge
+                    label={station.quality_state || 'unknown'}
+                    kind={stateKind(station.quality_state)}
+                  />
+                  <div className="muted table-subline">
+                    {station.enabled === false ? 'disabled' : 'enabled'}
+                  </div>
+                </div>
               )
             },
             {
@@ -393,18 +490,22 @@ export function Stations() {
                 <div>
                   <div>
                     {station.source_type === 'relay_caster'
-                      ? 'NTRIP caster (relay)'
+                      ? 'Relay'
                       : station.source_type === 'probe_client'
-                        ? 'NTRIP client (probe)'
+                        ? 'Probe'
                         : station.source_type === 'caster_ingest'
-                          ? 'NTRIP caster (ingest)'
+                          ? 'Ingest'
                           : station.ntrip_mode === 'ntrip_client'
                             ? 'NTRIP client'
-                            : 'Thủ công'}
+                            : 'Manual'}
                   </div>
                   <div className="muted table-subline">
-                    {station.ntrip_version?.toUpperCase() ?? 'V1'} · {station.ntrip_mode ?? 'v1_noauth'}
+                    {station.ntrip_version?.toUpperCase() ?? 'V1'} ·{' '}
+                    {station.ntrip_mode ?? 'v1_noauth'}
                   </div>
+                  {station.relay_job_name && (
+                    <div className="muted table-subline">Relay: {station.relay_job_name}</div>
+                  )}
                 </div>
               )
             },
@@ -415,7 +516,9 @@ export function Stations() {
               cell: (station) => (
                 <div>
                   <div>{station.receiver_type || '—'}</div>
-                  <div className="muted table-subline">{station.antenna_type || '—'}</div>
+                  <div className="muted table-subline">
+                    SN {station.receiver_sn || '—'} · antenna {station.antenna_type || '—'}
+                  </div>
                 </div>
               )
             },
@@ -425,11 +528,16 @@ export function Stations() {
               hideOnMobile: true,
               cell: (station) =>
                 station.reported_lat == null || station.reported_lon == null ? (
-                  <span className="muted">Chưa có 1005</span>
+                  <span className="muted">Chưa 1005</span>
                 ) : (
-                  <span className="mono">
-                    {station.reported_lat.toFixed(6)}, {station.reported_lon.toFixed(6)}
-                  </span>
+                  <div>
+                    <div className="mono">
+                      {station.reported_lat.toFixed(6)}, {station.reported_lon.toFixed(6)}
+                    </div>
+                    <div className="muted table-subline">
+                      h {station.reported_height?.toFixed(2) ?? '—'} m
+                    </div>
+                  </div>
                 )
             },
             {
@@ -437,7 +545,24 @@ export function Stations() {
               header: 'MP',
               align: 'right',
               hideOnMobile: true,
-              cell: (station) => station.mountpoint_count ?? 0
+              cell: (station) => (
+                <div>
+                  <div className="mono align-right">{station.mountpoint_count ?? 0}</div>
+                  <div className="muted table-subline">
+                    {station.probe_enabled
+                      ? `probe ${station.probe_interval_sec ?? '—'}s`
+                      : 'probe off'}
+                  </div>
+                </div>
+              )
+            },
+            {
+              key: 'lastData',
+              header: 'Dữ liệu cuối',
+              hideOnMobile: true,
+              cell: (station) => (
+                <span className="mono muted">{formatLocal(station.last_data_at)}</span>
+              )
             },
             {
               key: 'quality',
@@ -452,14 +577,6 @@ export function Stations() {
                     kind={stateKind(station.quality_state)}
                   />
                 )
-            },
-            {
-              key: 'owner',
-              header: 'Owner',
-              hideOnMobile: true,
-              cell: (station) => (
-                <span className="muted">{station.owner_name || station.owner_web_user_id || '—'}</span>
-              )
             },
             {
               key: 'actions',
@@ -820,6 +937,7 @@ export function Stations() {
           <table className="data-table">
             <thead>
               <tr>
+                <th className="index-col">STT</th>
                 <th>Mã</th>
                 <th>Tên</th>
                 <th>Host</th>
@@ -830,6 +948,7 @@ export function Stations() {
             <tbody>
               {(importPreview?.items ?? []).slice(0, 20).map((row, index) => (
                 <tr key={`${row.code}-${index}`}>
+                  <td className="index-col">{index + 1}</td>
                   <td className="mono">{String(row.code ?? '')}</td>
                   <td>{String(row.name ?? '')}</td>
                   <td className="mono">{String(row.host ?? '')}</td>

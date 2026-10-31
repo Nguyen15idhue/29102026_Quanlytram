@@ -21,6 +21,7 @@ import {
   SearchInput,
   Select,
   StatusBadge,
+  TableToolbar,
   Tabs
 } from '../components/ui';
 
@@ -73,6 +74,7 @@ export function History() {
   const jobId = getParam('jobId');
   const from = getParam('from');
   const to = getParam('to');
+  const activeFilterCount = [from, to].filter(Boolean).length;
 
   const jobs = useQuery({
     queryKey: ['relay-jobs', 'history-options'],
@@ -140,23 +142,36 @@ export function History() {
       />
 
       <div className="panel">
-        <div className="table-head history-filters">
-          {tab === 'audit' ? (
-            <Field label="Tìm kiếm">
-              <SearchInput value={q} onChange={setQ} placeholder="Người dùng, hành động, đối tượng" />
-            </Field>
-          ) : (
-            <Field label="Relay job">
-              <Select value={jobId} onChange={(event) => setParam('jobId', event.target.value)}>
-                <option value="">Tất cả</option>
+        <TableToolbar
+          search={
+            tab === 'audit' ? (
+              <SearchInput
+                value={q}
+                onChange={setQ}
+                placeholder="Người dùng, hành động, đối tượng"
+              />
+            ) : (
+              <Select
+                aria-label="Lọc relay job"
+                value={jobId}
+                onChange={(event) => setParam('jobId', event.target.value)}
+              >
+                <option value="">Tất cả relay job</option>
                 {jobs.data?.items.map((job) => (
                   <option key={job.id} value={job.id}>
                     {job.name}
                   </option>
                 ))}
               </Select>
-            </Field>
-          )}
+            )
+          }
+          activeFilterCount={activeFilterCount}
+          actions={
+            <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
+              Tải lại
+            </Button>
+          }
+        >
           <Field label="Từ (giờ máy)">
             <Input
               type="datetime-local"
@@ -171,10 +186,7 @@ export function History() {
               onChange={(event) => setParam('to', event.target.value)}
             />
           </Field>
-          <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
-            Tải lại
-          </Button>
-        </div>
+        </TableToolbar>
 
         {tab === 'sessions' && (
           <DataTable
@@ -193,7 +205,12 @@ export function History() {
                 key: 'start',
                 header: 'Bắt đầu',
                 cell: (row) => (
-                  <span className="mono">{formatLocal((row as RelaySession).startTs)}</span>
+                  <div>
+                    <div className="mono">{formatLocal((row as RelaySession).startTs)}</div>
+                    <div className="muted table-subline">
+                      Kết thúc {formatLocal((row as RelaySession).endTs)}
+                    </div>
+                  </div>
                 )
               },
               {
@@ -210,7 +227,16 @@ export function History() {
                 key: 'result',
                 header: 'Kết quả',
                 hideOnMobile: true,
-                cell: (row) => (row as RelaySession).result || '—'
+                cell: (row) => (
+                  <div>
+                    <div>{(row as RelaySession).result || '—'}</div>
+                    {(row as RelaySession).message && (
+                      <div className="muted table-subline">
+                        {(row as RelaySession).message}
+                      </div>
+                    )}
+                  </div>
+                )
               },
               {
                 key: 'close',

@@ -1,4 +1,4 @@
-﻿import { useRef, useState, type FormEvent } from 'react';
+﻿import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, Lock, Pencil, Plus, Trash2, Unlock, Upload } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
@@ -18,7 +18,8 @@ import {
   Pagination,
   SearchInput,
   Select,
-  StatusBadge
+  StatusBadge,
+  TableToolbar
 } from '../components/ui';
 import { useToast } from '../components/ToastProvider';
 
@@ -43,7 +44,21 @@ export function WebUsers() {
   const { can, csrfToken } = useAuth();
   const { push } = useToast();
   const queryClient = useQueryClient();
-  const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
+  const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
+    useListParams();
+  const roleId = getParam('roleId');
+  const status = getParam('status');
+  const activeFilterCount = [roleId, status].filter(Boolean).length;
+  const listQuery = useMemo(() => {
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+      q
+    });
+    if (roleId) params.set('roleId', roleId);
+    if (status) params.set('status', status);
+    return params.toString();
+  }, [page, pageSize, q, roleId, status]);
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<WebUser | null>(null);
@@ -56,11 +71,8 @@ export function WebUsers() {
   const [importData, setImportData] = useState('');
 
   const users = useQuery({
-    queryKey: ['web-users', page, pageSize, q],
-    queryFn: () =>
-      apiFetch<UserList>(
-        `/api/web-users?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
-      )
+    queryKey: ['web-users', listQuery],
+    queryFn: () => apiFetch<UserList>(`/api/web-users?${listQuery}`)
   });
   const roles = useQuery({
     queryKey: ['roles', 'options'],
@@ -230,12 +242,45 @@ export function WebUsers() {
       />
 
       <div className="panel">
-        <div className="table-head">
-          <SearchInput value={q} onChange={setQ} placeholder="Tìm username, tên, email" />
-          <Button variant="ghost" onClick={() => users.refetch()} loading={users.isFetching}>
-            Tải lại
-          </Button>
-        </div>
+        <TableToolbar
+          search={
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              placeholder="Tìm username, tên, email"
+            />
+          }
+          activeFilterCount={activeFilterCount}
+          actions={
+            <Button variant="ghost" onClick={() => users.refetch()} loading={users.isFetching}>
+              Tải lại
+            </Button>
+          }
+        >
+          <Field label="Vai trò">
+            <Select
+              value={roleId}
+              onChange={(event) => setParam('roleId', event.target.value || null)}
+            >
+              <option value="">Mọi vai trò</option>
+              {(roles.data?.items ?? []).map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Field label="Trạng thái">
+            <Select
+              value={status}
+              onChange={(event) => setParam('status', event.target.value || null)}
+            >
+              <option value="">Tất cả</option>
+              <option value="active">Đang hoạt động</option>
+              <option value="locked">Đã khóa</option>
+            </Select>
+          </Field>
+        </TableToolbar>
         <DataTable
           items={users.data?.items ?? []}
           rowKey={(user) => user.id}
@@ -249,7 +294,16 @@ export function WebUsers() {
               header: 'Username',
               cell: (user) => <span className="mono">{user.username}</span>
             },
-            { key: 'name', header: 'Tên', cell: (user) => user.displayName },
+            {
+              key: 'name',
+              header: 'Tên',
+              cell: (user) => (
+                <div>
+                  <div>{user.displayName}</div>
+                  <div className="muted table-subline">{user.email || '—'}</div>
+                </div>
+              )
+            },
             {
               key: 'role',
               header: 'Vai trò',
@@ -258,6 +312,18 @@ export function WebUsers() {
                 <>
                   {user.role.name} <span className="muted">({user.role.code})</span>
                 </>
+              )
+            },
+            {
+              key: 'lastLogin',
+              header: 'Đăng nhập cuối',
+              hideOnMobile: true,
+              cell: (user) => (
+                <span className="mono muted">
+                  {user.lastLoginAt
+                    ? new Date(user.lastLoginAt).toLocaleString('vi-VN')
+                    : 'Chưa đăng nhập'}
+                </span>
               )
             },
             {

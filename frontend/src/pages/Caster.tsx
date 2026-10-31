@@ -494,7 +494,36 @@ function ConnectionsPanel() {
             key: 'remote',
             header: 'Remote',
             hideOnMobile: true,
-            cell: (connection) => <span className="mono">{connection.remoteAddr}</span>
+            cell: (connection) => (
+              <div>
+                <div className="mono">{connection.remoteAddr}</div>
+                {connection.userAgent && (
+                  <div className="muted table-subline">{connection.userAgent}</div>
+                )}
+              </div>
+            )
+          },
+          {
+            key: 'start',
+            header: 'Bắt đầu / thời lượng',
+            hideOnMobile: true,
+            cell: (connection) => {
+              const seconds = Math.max(
+                0,
+                Math.floor((Date.now() - new Date(connection.startTs).getTime()) / 1000)
+              );
+              return (
+                <div>
+                  <div className="mono">
+                    {new Date(connection.startTs).toLocaleString('vi-VN')}
+                  </div>
+                  <div className="muted table-subline">
+                    {Math.floor(seconds / 3600)}h{' '}
+                    {Math.floor((seconds % 3600) / 60)}m
+                  </div>
+                </div>
+              );
+            }
           },
           {
             key: 'bytes',

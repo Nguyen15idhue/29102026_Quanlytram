@@ -79,7 +79,12 @@ export function OnlineList() {
             {
               key: 'account',
               header: 'Tài khoản',
-              cell: (item) => <strong>{item.accountUsername || '—'}</strong>
+              cell: (item) => (
+                <div>
+                  <strong>{item.accountUsername || '—'}</strong>
+                  <div className="muted table-subline">{item.direction}</div>
+                </div>
+              )
             },
             {
               key: 'mountpoint',
@@ -96,13 +101,34 @@ export function OnlineList() {
               key: 'remote',
               header: 'Remote IP',
               hideOnMobile: true,
-              cell: (item) => <span className="mono">{item.remoteAddr || '—'}</span>
+              cell: (item) => (
+                <div>
+                  <span className="mono">{item.remoteAddr || '—'}</span>
+                  {item.userAgent && (
+                    <div className="muted table-subline">{item.userAgent}</div>
+                  )}
+                </div>
+              )
             },
             {
               key: 'start',
               header: 'Bắt đầu',
               hideOnMobile: true,
-              cell: (item) => <span className="mono">{formatLocal(item.startTs)}</span>
+              cell: (item) => {
+                const seconds = Math.max(
+                  0,
+                  Math.floor((Date.now() - new Date(item.startTs).getTime()) / 1000)
+                );
+                return (
+                  <div>
+                    <div className="mono">{formatLocal(item.startTs)}</div>
+                    <div className="muted table-subline">
+                      {Math.floor(seconds / 3600)}h{' '}
+                      {Math.floor((seconds % 3600) / 60)}m
+                    </div>
+                  </div>
+                );
+              }
             },
             {
               key: 'bytes',

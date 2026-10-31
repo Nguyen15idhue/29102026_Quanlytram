@@ -14,6 +14,7 @@ test.describe('Phase 7-11 operational flows', () => {
 
     await page.goto('/alerts');
     await expect(page.getByRole('heading', { name: 'Cảnh báo' })).toBeVisible();
+    await page.getByRole('button', { name: /Bộ lọc/ }).click();
     await expect(page.getByLabel('Level cảnh báo')).toBeVisible();
     await expect(page.getByLabel('Trạng thái đọc')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Đánh dấu đã đọc' })).toBeVisible();

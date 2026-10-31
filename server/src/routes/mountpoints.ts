@@ -330,8 +330,28 @@ mountpointsRouter.get(
     const params: unknown[] = [...scope.params];
     let where = scope.sql;
     if (q) {
-      where += ' AND m.name LIKE ?';
-      params.push(`%${q}%`);
+      where += ' AND (m.name LIKE ? OR s.code LIKE ? OR s.name LIKE ?)';
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    const stationId = Number(req.query.stationId || 0);
+    if (Number.isInteger(stationId) && stationId > 0) {
+      where += ' AND m.station_id = ?';
+      params.push(stationId);
+    }
+    const enabled = String(req.query.enabled || '').trim();
+    if (enabled === '0' || enabled === '1') {
+      where += ' AND m.enabled = ?';
+      params.push(Number(enabled));
+    }
+    const authMode = String(req.query.authMode || '').trim();
+    if (authMode === 'ntrip_account' || authMode === 'password_only') {
+      where += ' AND m.auth_mode = ?';
+      params.push(authMode);
+    }
+    const ownerId = Number(req.query.ownerId || 0);
+    if (Number.isInteger(ownerId) && ownerId > 0) {
+      where += ' AND m.owner_web_user_id = ?';
+      params.push(ownerId);
     }
     const [rows] = await adminPool.query<RowDataPacket[]>(
       `SELECT m.*, s.code AS station_code, s.name AS station_name

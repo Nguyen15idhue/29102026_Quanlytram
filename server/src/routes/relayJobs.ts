@@ -298,6 +298,11 @@ relayJobsRouter.get(
       where += ' AND (j.name LIKE ? OR j.external_key LIKE ? OR j.upstream_host LIKE ? OR j.downstream_host LIKE ?)';
       params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
     }
+    const enabled = String(req.query.enabled || '').trim();
+    if (enabled === '0' || enabled === '1') {
+      where += ' AND j.enabled = ?';
+      params.push(Number(enabled));
+    }
     const [rows] = await adminPool.query<any[]>(
       `${JOB_SELECT} WHERE ${where} ORDER BY j.id DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]

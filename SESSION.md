@@ -13,6 +13,7 @@
 - Trạng thái P0 Phase 7: DONE (Playwright 14/14, server 48/48, Go test/vet)
 - Trạng thái P0 Phase 8: DONE (auth password-only, migration 013, Go/UI/audit PASS)
 - Trạng thái P0 Phase 9: DONE (39 station/39 mountpoint, 36 password_only, 32 mapping, caster 0 fail)
+- Trạng thái UI/UX review: DONE (STT, filter thu gọn, màu action/zone, hot reload Docker)
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
@@ -66,7 +67,11 @@
   API/UI/audit không lộ hash; Go unit + API + caster thật + Playwright PASS.
 - P0 Phase 9: `importLegacyCaster` dry-run/commit, 36 station/mountpoint legacy,
   password-only legacy không hash, listener 1508/1509, 32 mapping; 32 cặp
-  SOURCE/POST/rover PASS. Chi tiết: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
+  SOURCE/POST/rover PASS.
+- UI/UX review: STT toàn bộ bảng, filter thu gọn + filter backend, nút action
+  có màu, Dashboard 4 vùng màu, bổ sung thông tin bảng; Docker web/server
+  hot reload 1s. Playwright 15/15, server test 48/48. Chi tiết:
+  `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
 
 ### Đang làm
 - Không có.

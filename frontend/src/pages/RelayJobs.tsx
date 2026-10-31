@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FlaskConical, Pencil, Play, Plus, RotateCw, Square, Trash2 } from 'lucide-react';
@@ -19,7 +19,8 @@ import {
   Pagination,
   SearchInput,
   Select,
-  StatusBadge
+  StatusBadge,
+  TableToolbar
 } from '../components/ui';
 import { QualityPanel } from '../components/QualityPanel';
 import { useToast } from '../components/ToastProvider';
@@ -53,7 +54,10 @@ export function RelayJobs() {
   const { push } = useToast();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
+  const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
+    useListParams();
+  const enabled = getParam('enabled');
+  const activeFilterCount = [enabled].filter(Boolean).length;
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<RelayJob | null>(null);
@@ -63,12 +67,18 @@ export function RelayJobs() {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
 
+  const listQuery = useMemo(() => {
+    const params = new URLSearchParams({
+      page: String(page),
+      pageSize: String(pageSize),
+      q
+    });
+    if (enabled) params.set('enabled', enabled);
+    return params.toString();
+  }, [page, pageSize, q, enabled]);
   const list = useQuery({
-    queryKey: ['relay-jobs', page, pageSize, q],
-    queryFn: () =>
-      apiFetch<RelayJobList>(
-        `/api/relay-jobs?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
-      )
+    queryKey: ['relay-jobs', listQuery],
+    queryFn: () => apiFetch<RelayJobList>(`/api/relay-jobs?${listQuery}`)
   });
 
   useEffect(() => {
@@ -192,12 +202,32 @@ export function RelayJobs() {
       />
 
       <div className="panel">
-        <div className="table-head">
-          <SearchInput value={q} onChange={setQ} placeholder="Tìm relay job" />
-          <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
-            Tải lại
-          </Button>
-        </div>
+        <TableToolbar
+          search={
+            <SearchInput
+              value={q}
+              onChange={setQ}
+              placeholder="Tìm relay job, host, mountpoint"
+            />
+          }
+          activeFilterCount={activeFilterCount}
+          actions={
+            <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
+              Tải lại
+            </Button>
+          }
+        >
+          <Field label="Trạng thái">
+            <Select
+              value={enabled}
+              onChange={(event) => setParam('enabled', event.target.value || null)}
+            >
+              <option value="">Tất cả</option>
+              <option value="1">Đang bật</option>
+              <option value="0">Đã tắt</option>
+            </Select>
+          </Field>
+        </TableToolbar>
         <DataTable
           items={list.data?.items ?? []}
           rowKey={(job) => job.id}
@@ -221,9 +251,16 @@ export function RelayJobs() {
               header: 'Upstream',
               hideOnMobile: true,
               cell: (job) => (
-                <span className="mono">
-                  {job.upstream.host}:{job.upstream.port}/{job.upstream.mount}
-                </span>
+                <div>
+                  <div className="mono">
+                    {job.upstream.host}:{job.upstream.port}/{job.upstream.mount}
+                  </div>
+                  <div className="muted table-subline">
+                    {job.upstream.ntripVersion?.toUpperCase() ?? 'V1'} ·{' '}
+                    {job.upstream.ssl ? 'TLS' : 'TCP'} ·{' '}
+                    {job.upstream.credential?.username || 'no-auth'}
+                  </div>
+                </div>
               )
             },
             {
@@ -231,9 +268,16 @@ export function RelayJobs() {
               header: 'Downstream',
               hideOnMobile: true,
               cell: (job) => (
-                <span className="mono">
-                  {job.downstream.host}:{job.downstream.port}/{job.downstream.mount}
-                </span>
+                <div>
+                  <div className="mono">
+                    {job.downstream.host}:{job.downstream.port}/{job.downstream.mount}
+                  </div>
+                  <div className="muted table-subline">
+                    {job.downstreamMode} · {job.downstream.ntripVersion?.toUpperCase() ?? 'V1'} ·{' '}
+                    {job.downstream.ssl ? 'TLS' : 'TCP'} ·{' '}
+                    {job.downstream.credential?.username || 'no-auth'}
+                  </div>
+                </div>
               )
             },
             {
@@ -257,9 +301,16 @@ export function RelayJobs() {
               align: 'right',
               hideOnMobile: true,
               cell: (job) => (
-                <span className="mono">
-                  {job.state?.appliedRevision ?? 0}/{job.desiredRevision}
-                </span>
+                <div>
+                  <div className="mono">
+                    {job.state?.appliedRevision ?? 0}/{job.desiredRevision}
+                  </div>
+                  <div className="muted table-subline">
+                    {job.state?.lastAppliedAt
+                      ? new Date(job.state.lastAppliedAt).toLocaleString('vi-VN')
+                      : 'chưa áp dụng'}
+                  </div>
+                </div>
               )
             },
             {

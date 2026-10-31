@@ -242,6 +242,7 @@ export function Roles() {
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th className="index-col">STT</th>
                       <th>Module</th>
                       <th>Hành động</th>
                       <th>Mã quyền</th>
@@ -252,6 +253,7 @@ export function Roles() {
                     {grouped.map(([module, rows]) =>
                       rows.map((row, index) => (
                         <tr key={row.code}>
+                          <td className="index-col">{index + 1}</td>
                           <td>{index === 0 ? module : ''}</td>
                           <td>{row.action}</td>
                           <td className="mono muted">{row.code}</td>
