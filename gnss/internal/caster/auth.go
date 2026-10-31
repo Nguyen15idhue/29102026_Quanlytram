@@ -23,7 +23,7 @@ func ParseBasic(header string) (string, string, bool) {
 		return "", "", false
 	}
 	username, password, ok := strings.Cut(string(raw), ":")
-	if !ok || username == "" {
+	if !ok {
 		return "", "", false
 	}
 	return username, password, true

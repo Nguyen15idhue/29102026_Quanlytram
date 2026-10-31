@@ -36,6 +36,8 @@ const emptyForm = {
   station_id: '' as string | number,
   enabled: true,
   requires_auth: true,
+  auth_mode: 'ntrip_account',
+  password: '',
   service_type: 'rtcm',
   position_mode: 'normal',
   satellite_systems: '',
@@ -79,6 +81,8 @@ export function Mountpoints() {
         station_id: form.station_id === '' ? null : Number(form.station_id),
         enabled: form.enabled,
         requires_auth: form.requires_auth,
+        auth_mode: form.auth_mode,
+        ...(form.password ? { password: form.password } : {}),
         service_type: form.service_type,
         position_mode: form.position_mode,
         satellite_systems: form.satellite_systems,
@@ -130,6 +134,8 @@ export function Mountpoints() {
       station_id: item.station_id ?? '',
       enabled: Boolean(item.enabled),
       requires_auth: Boolean(item.requires_auth),
+      auth_mode: item.auth_mode ?? 'ntrip_account',
+      password: '',
       service_type: item.service_type ?? 'rtcm',
       position_mode: item.position_mode ?? 'normal',
       satellite_systems: item.satellite_systems ?? '',
@@ -203,7 +209,14 @@ export function Mountpoints() {
               key: 'auth',
               header: 'Auth',
               hideOnMobile: true,
-              cell: (item) => (item.requires_auth ? 'Có' : 'Không')
+              cell: (item) => (
+                <div>
+                  <div>{item.requires_auth ? 'Có' : 'Không'}</div>
+                  <div className="muted table-subline">
+                    {item.auth_mode === 'password_only' ? 'password_only' : 'account'}
+                  </div>
+                </div>
+              )
             },
             {
               key: 'service',
@@ -343,6 +356,40 @@ export function Mountpoints() {
             />
             Yêu cầu xác thực
           </label>
+          <Field label="Cơ chế xác thực">
+            <Select
+              value={form.auth_mode}
+              onChange={(event) => {
+                const authMode = event.target.value;
+                setForm({
+                  ...form,
+                  auth_mode: authMode,
+                  requires_auth: authMode === 'password_only' ? true : form.requires_auth
+                });
+              }}
+            >
+              <option value="ntrip_account">Tài khoản NTRIP (username + password)</option>
+              <option value="password_only">Chỉ password (thiết bị cũ)</option>
+            </Select>
+          </Field>
+          {form.auth_mode === 'password_only' && (
+            <Field
+              label="Mật khẩu mountpoint"
+              hint={
+                editing?.has_password
+                  ? 'Đã đặt mật khẩu; để trống nếu giữ nguyên'
+                  : 'Bắt buộc khi chọn password_only'
+              }
+            >
+              <Input
+                type="password"
+                value={form.password}
+                onChange={(event) => setForm({ ...form, password: event.target.value })}
+                placeholder={editing?.has_password ? '••••••••' : 'Tối thiểu 6 ký tự'}
+                autoComplete="new-password"
+              />
+            </Field>
+          )}
           <Field label="Service type">
             <Input value={form.service_type} onChange={(event) => setForm({ ...form, service_type: event.target.value })} />
           </Field>
@@ -397,6 +444,19 @@ export function Mountpoints() {
             <div>
               <dt>Xác thực</dt>
               <dd>{detail.requires_auth ? 'Có' : 'Không'}</dd>
+            </div>
+            <div>
+              <dt>Cơ chế xác thực</dt>
+              <dd>
+                {detail.auth_mode === 'password_only'
+                  ? 'Chỉ password'
+                  : 'Tài khoản NTRIP'}
+                {detail.auth_mode === 'password_only'
+                  ? detail.has_password
+                    ? ' · đã đặt mật khẩu'
+                    : ' · chưa đặt mật khẩu'
+                  : ''}
+              </dd>
             </div>
             <div>
               <dt>Owner</dt>

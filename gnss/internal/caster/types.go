@@ -20,6 +20,8 @@ type MountpointConfig struct {
 	StationID    int64
 	Enabled      bool
 	RequiresAuth bool
+	AuthMode     string
+	PasswordHash string
 }
 
 type ListenerConfig struct {

@@ -243,6 +243,55 @@ func TestAuthACLAndMaxConnections(t *testing.T) {
 	}
 }
 
+func TestPasswordOnlyMountpoint(t *testing.T) {
+	hash := passwordHash("secret123")
+	mountpoint := &MountpointConfig{
+		ID:           1,
+		Name:         "P",
+		Enabled:      true,
+		RequiresAuth: true,
+		AuthMode:     "password_only",
+		PasswordHash: hash,
+	}
+	cfg := &Config{
+		Mountpoints: map[int64]*MountpointConfig{1: mountpoint},
+		Listeners: []*ListenerConfig{
+			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: mountpoint}},
+		},
+	}
+	manager, _ := newTestManager(t, cfg)
+	port := listenerPort(t, manager, 1)
+
+	_, _, status := connect(t, port, "GET /P HTTP/1.0\r\n\r\n")
+	if status != "ICY 401 Unauthorized" {
+		t.Fatalf("missing auth status = %q", status)
+	}
+	_, _, status = connect(t, port, "GET /P HTTP/1.1\r\nHost: x\r\nAuthorization: Basic "+
+		base64.StdEncoding.EncodeToString([]byte(":wrong"))+"\r\n\r\n")
+	if status != "HTTP/1.1 401 Unauthorized" {
+		t.Fatalf("wrong password status = %q", status)
+	}
+
+	auth := "Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte(":secret123"))
+	source, _, status := connect(t, port, "SOURCE /P HTTP/1.0\r\n"+auth+"\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("password-only source v1 status = %q", status)
+	}
+	source.Close()
+
+	source, _, status = connect(t, port, "POST /P HTTP/1.1\r\nHost: x\r\n"+auth+"\r\n\r\n")
+	if status != "HTTP/1.1 200 OK" {
+		t.Fatalf("password-only source v2 status = %q", status)
+	}
+	source.Close()
+
+	rover, _, status := connect(t, port, "GET /P HTTP/1.1\r\nHost: x\r\nNtrip-Version: Ntrip/2.0\r\n"+auth+"\r\n\r\n")
+	if status != "HTTP/1.1 200 OK" {
+		t.Fatalf("password-only rover status = %q", status)
+	}
+	rover.Close()
+}
+
 func TestListenerGroupsAndSourcetable(t *testing.T) {
 	mountpoint := &MountpointConfig{ID: 1, Name: "M", Enabled: true}
 	cfg := &Config{

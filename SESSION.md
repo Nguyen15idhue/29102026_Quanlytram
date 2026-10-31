@@ -3,7 +3,7 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-10-30 21:00 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: P0 Phase 7 — Regression DONE; tiếp theo P0 Phase 8
+- Phase hiện tại: P0 Phase 8 — Auth password-only DONE; tiếp theo P0 Phase 9
 - Trạng thái P0 Phase 1: DONE (drawer 5 tab, API connections/history/metadata)
 - Trạng thái P0 Phase 2: DONE (API list/detail, filter, drawer chuỗi)
 - Trạng thái P0 Phase 3: DONE (`/map`, API overview, layer/filter, redirect cũ)
@@ -11,6 +11,7 @@
 - Trạng thái P0 Phase 5: DONE (`/api/ops/dashboard`, alert impact, 4 vùng)
 - Trạng thái P0 Phase 6: DONE (menu 7 nhóm, title/active, deep link, Esc/focus)
 - Trạng thái P0 Phase 7: DONE (Playwright 14/14, server 48/48, Go test/vet)
+- Trạng thái P0 Phase 8: DONE (auth password-only, migration 013, Go/UI/audit PASS)
 - Trạng thái Phase 0: DONE
 - Trạng thái Phase 1: DONE
 - Trạng thái Phase 2: DONE
@@ -59,16 +60,18 @@
 - P0 Phase 6: menu 7 nhóm, title/active menu, deep link `/stations/:id` và
   `/map?station=`, Esc/focus, mobile drawer.
 - P0 Phase 7: full regression PASS (Playwright 14/14, server 48/48, Go test/vet,
-  build Docker, health Node/Go). Chi tiết:
-  `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
+  build Docker, health Node/Go).
+- P0 Phase 8: `auth_mode=password_only`, hash Argon2id, Go nhận username rỗng,
+  API/UI/audit không lộ hash; Go unit + API + caster thật + Playwright PASS.
+  Chi tiết: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
 
 ### Đang làm
 - Không có.
 
 ### Tiếp theo
-- P0 Phase 8 — Auth `password_only`; xem
+- P0 Phase 9 — Provision hệ cũ; xem
   `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md`.
-- Không chuyển phase khi checklist Phase 8 chưa PASS.
+- Không chuyển phase khi checklist Phase 9 chưa PASS.
 
 ### Blocker
 - Không có. `go test -race` chưa chạy được vì môi trường Windows không bật

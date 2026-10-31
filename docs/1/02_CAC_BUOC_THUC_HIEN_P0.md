@@ -37,12 +37,11 @@ Quy ước:
 | P0.4 (System Health) | **DONE** | `/system/health`, 4 card Node/Host/MySQL/Go, cache 12s, fallback lỗi |
 | P0.5 (Dashboard & alert impact) | **DONE** | `/api/ops/dashboard`, alert impact, 4 vùng, click đúng đối tượng |
 | P0.6 (menu/route/deep link) | **DONE** | Menu 7 nhóm, title theo route, active menu, deep link, Esc/focus |
-| P0.7–P0.13 | **Chưa làm** | Các phase còn lại theo kế hoạch |
 | P0.7 (import hệ cũ) | **Chưa làm** | Chưa có `importLegacyCaster` |
 | P0.8 (HTTPS/domain) | **Chưa làm** | Web đang HTTP `:3000` |
 | P0.9 (load test) | **Chưa đủ** | Mới có load test 50 job; cần 67–100 |
 | P0.10 (backup ngoài VPS) | **Chưa làm** | Backup còn thủ công, cùng ổ |
-| P0.11 (auth password-only) | **Chưa làm** | Caster hiện cần username hoặc tắt auth |
+| P0.11 (auth password-only) | **DONE** | `mountpoints.auth_mode/password_hash`, Go nhận username rỗng, UI/audit redaction |
 | P0.12 (provision trước) | **Chưa làm** | Chưa tạo đủ mountpoint/account/ACL/listener |
 
 **Kết luận:** hệ thống đủ chạy thử có kiểm soát, **chưa đủ thay thế hệ cũ**.
@@ -521,13 +520,13 @@ không chọn cách tương thích, thiết bị cũ sẽ không publish đượ
 
 ### Checklist test
 
-- [ ] Test đúng/sai password.
-- [ ] Test username rỗng (B).
-- [ ] Test ACL/max connection.
-- [ ] Test rover.
-- [ ] Test SOURCE/POST v1/v2.
-- [ ] Test audit không lộ secret.
-- [ ] Migration rollback/fail-fast.
+- [x] Test đúng/sai password.
+- [x] Test username rỗng (B).
+- [x] Test ACL/max connection.
+- [x] Test rover.
+- [x] Test SOURCE/POST v1/v2.
+- [x] Test audit không lộ secret.
+- [x] Migration rollback/fail-fast.
 
 ### Ghi chú
 
@@ -1004,3 +1003,31 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
     dùng 50/phút để chạy 14 test, không hạ bảo vệ production.
 - Không còn FAIL chưa xử lý; không secret trong diff/log.
 - Commit: `8e42989` — `test(p0): full regression va tuong thich giao dien`.
+
+### Phase 8 — P0.11: Auth password-only (2026-10-31)
+
+- Trạng thái: **DONE** — chọn phương án **B**.
+- Backend:
+  - Migration `admin/013_mountpoint_auth_mode.sql`: `auth_mode`
+    (`ntrip_account|password_only`) + `password_hash`.
+  - API mountpoint nhận/đổi password qua trường `password`, hash Argon2id;
+    không trả `password_hash` (chỉ `has_password`); audit redaction.
+  - Go caster cho phép username rỗng với `password_only`; sai/thiếu password
+    401; mountpoint thường vẫn dùng tài khoản + ACL + max connection.
+- Frontend:
+  - Form mountpoint chọn cơ chế auth, nhập/đổi password; detail chỉ hiện
+    “đã đặt mật khẩu”, không lộ hash.
+- Kiểm thử:
+  - Go `TestPasswordOnlyMountpoint` PASS: no auth 401, sai 401,
+    rover v2 200, SOURCE v1 200, POST v2 200.
+  - Go `go test ./...` + `go vet ./...` PASS; Node build PASS; frontend build PASS.
+  - API tạo/xóa mountpoint password-only: `auth_mode=password_only`,
+    `has_password=true`, list không có `password_hash`, không lộ secret.
+  - Caster container thật: username rỗng đúng password 200; sai/thiếu 401;
+    SOURCE v1/POST v2/rover đều 200; đã xoá mountpoint và khôi phục listener.
+  - Playwright `auth-password-only.spec.ts` PASS — tạo, xem, xóa qua UI,
+    không hiện hash/password.
+  - Migration admin 13 áp dụng; Node/Go health OK (admin 13, Go schema 4).
+- Ghi chú: migration forward-only; fail-fast qua schema check, không viết
+  down migration trong P0.
+- Commit: sẽ ghi hash sau khi commit phase này.

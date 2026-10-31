@@ -251,6 +251,8 @@ export interface Mountpoint {
   station_id: number | null;
   enabled: number;
   requires_auth: number;
+  auth_mode?: 'ntrip_account' | 'password_only';
+  has_password?: boolean;
   owner_web_user_id: number | null;
   station_code?: string | null;
   station_name?: string | null;

@@ -260,6 +260,12 @@ func (m *manager) authorize(req *request, mountpoint *MountpointConfig) (*Accoun
 	if !ok {
 		return nil, 401, "Unauthorized"
 	}
+	if mountpoint.AuthMode == "password_only" {
+		if mountpoint.PasswordHash == "" || !VerifyPassword(mountpoint.PasswordHash, password) {
+			return nil, 401, "Unauthorized"
+		}
+		return nil, 0, ""
+	}
 	account := m.accountByUsername(username)
 	if account == nil || !account.Enabled || !VerifyPassword(account.PasswordHash, password) {
 		return nil, 401, "Unauthorized"

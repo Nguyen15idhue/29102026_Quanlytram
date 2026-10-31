@@ -36,7 +36,7 @@ Quy tắc: không chuyển phase nếu checklist của phase hiện tại chưa 
 | P0.8 | HTTPS/domain/reverse proxy | TODO |
 | P0.9 | Load test 67–100 relay job | TODO |
 | P0.10 | Backup/restore/rollback | TODO |
-| P0.11 | Auth password-only | TODO |
+| P0.11 | Auth password-only | DONE |
 | P0.13 | Cutover & theo dõi | TODO |
 
 Chi tiết bằng chứng: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
