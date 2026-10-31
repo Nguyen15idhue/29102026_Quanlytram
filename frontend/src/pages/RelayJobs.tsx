@@ -33,15 +33,30 @@ interface RelayJobList {
 }
 
 const emptyForm = {
+  externalKey: '',
   name: '',
   enabled: false,
   upstreamHost: '',
   upstreamPort: 1509,
   upstreamMount: '',
+  upstreamProxy: '',
+  upstreamSsl: false,
+  upstreamVersion: 'v2' as 'v1' | 'v2',
+  upstreamUser: '',
+  upstreamPass: '',
   downstreamHost: '',
   downstreamPort: 1509,
   downstreamMount: '',
-  downstreamMode: 'auto'
+  downstreamProxy: '',
+  downstreamSsl: false,
+  downstreamVersion: 'v2' as 'v1' | 'v2',
+  downstreamUser: '',
+  downstreamPass: '',
+  downstreamMode: 'auto',
+  lat: '',
+  lon: '',
+  uaPrefix: '',
+  nmeaIntervalSec: 0
 };
 
 function stateKind(state: string): 'ok' | 'warn' | 'error' | 'neutral' {
@@ -70,6 +85,15 @@ export function RelayJobs() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importPreview, setImportPreview] = useState<{
+    dryRun: boolean;
+    created: number;
+    updated: number;
+    errors: string[];
+    items: number;
+  } | null>(null);
 
   const listQuery = useMemo(() => {
     const params = new URLSearchParams({
@@ -104,19 +128,46 @@ export function RelayJobs() {
   const save = useMutation({
     mutationFn: async () => {
       const body = {
+        externalKey: form.externalKey || null,
         name: form.name,
         enabled: form.enabled,
         downstreamMode: form.downstreamMode,
         upstream: {
           host: form.upstreamHost,
           port: Number(form.upstreamPort),
-          mount: form.upstreamMount
+          mount: form.upstreamMount,
+          proxy: form.upstreamProxy,
+          ssl: form.upstreamSsl,
+          ntripVersion: form.upstreamVersion
         },
         downstream: {
           host: form.downstreamHost,
           port: Number(form.downstreamPort),
-          mount: form.downstreamMount
-        }
+          mount: form.downstreamMount,
+          proxy: form.downstreamProxy,
+          ssl: form.downstreamSsl,
+          ntripVersion: form.downstreamVersion
+        },
+        ...(form.upstreamUser
+          ? {
+              upstreamCredential: {
+                username: form.upstreamUser,
+                ...(form.upstreamPass ? { password: form.upstreamPass } : {})
+              }
+            }
+          : {}),
+        ...(form.downstreamUser
+          ? {
+              downstreamCredential: {
+                username: form.downstreamUser,
+                ...(form.downstreamPass ? { password: form.downstreamPass } : {})
+              }
+            }
+          : {}),
+        lat: form.lat === '' ? null : Number(form.lat),
+        lon: form.lon === '' ? null : Number(form.lon),
+        uaPrefix: form.uaPrefix,
+        nmeaIntervalSec: Number(form.nmeaIntervalSec)
       };
       if (editing) {
         return apiFetch(`/api/relay-jobs/${editing.id}`, { method: 'PATCH', body, csrfToken });
@@ -132,6 +183,39 @@ export function RelayJobs() {
       await queryClient.invalidateQueries({ queryKey: ['relay-jobs'] });
     },
     onError: (err) => setError(err instanceof ApiClientError ? err.message : 'Lưu thất bại')
+  });
+
+  const importJson = useMutation({
+    mutationFn: (dryRun: boolean) => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(importText);
+      } catch {
+        throw new ApiClientError(400, 'INVALID_JSON', 'JSON không hợp lệ');
+      }
+      return apiFetch<{
+        dryRun: boolean;
+        created: number;
+        updated: number;
+        errors: string[];
+        items: number;
+      }>('/api/relay-jobs/import', {
+        method: 'POST',
+        csrfToken,
+        body: { data: parsed, dryRun }
+      });
+    },
+    onSuccess: async (result, dryRun) => {
+      setImportPreview(result);
+      if (dryRun) return;
+      push(`Import xong: ${result.created} thêm, ${result.updated} cập nhật`, 'success');
+      setImportOpen(false);
+      setImportText('');
+      setImportPreview(null);
+      await queryClient.invalidateQueries({ queryKey: ['relay-jobs'] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Import thất bại', 'error')
   });
 
   const bulk = useMutation({
@@ -189,15 +273,30 @@ export function RelayJobs() {
   function openEdit(job: RelayJob) {
     setEditing(job);
     setForm({
+      externalKey: job.externalKey ?? '',
       name: job.name,
       enabled: job.enabled,
       upstreamHost: job.upstream.host,
       upstreamPort: job.upstream.port,
       upstreamMount: job.upstream.mount,
+      upstreamProxy: job.upstream.proxy ?? '',
+      upstreamSsl: Boolean(job.upstream.ssl),
+      upstreamVersion: (job.upstream.ntripVersion as 'v1' | 'v2') ?? 'v2',
+      upstreamUser: job.upstream.credential?.username ?? '',
+      upstreamPass: '',
       downstreamHost: job.downstream.host,
       downstreamPort: job.downstream.port,
       downstreamMount: job.downstream.mount,
-      downstreamMode: job.downstreamMode
+      downstreamProxy: job.downstream.proxy ?? '',
+      downstreamSsl: Boolean(job.downstream.ssl),
+      downstreamVersion: (job.downstream.ntripVersion as 'v1' | 'v2') ?? 'v2',
+      downstreamUser: job.downstream.credential?.username ?? '',
+      downstreamPass: '',
+      downstreamMode: job.downstreamMode,
+      lat: job.lat == null ? '' : String(job.lat),
+      lon: job.lon == null ? '' : String(job.lon),
+      uaPrefix: job.uaPrefix ?? '',
+      nmeaIntervalSec: job.nmeaIntervalSec ?? 0
     });
     setError('');
     setDirty(false);
@@ -217,9 +316,14 @@ export function RelayJobs() {
         description="Cấu hình đã lưu và trạng thái Go đã áp dụng."
         actions={
           can('relay', 'add') && (
-            <Button variant="primary" onClick={openCreate}>
-              <Plus size={16} aria-hidden="true" /> Thêm relay job
-            </Button>
+            <div className="toolbar">
+              <Button variant="ghost" onClick={() => setImportOpen(true)}>
+                Import JSON
+              </Button>
+              <Button variant="primary" onClick={openCreate}>
+                <Plus size={16} aria-hidden="true" /> Thêm relay job
+              </Button>
+            </div>
           )
         }
       />
@@ -461,6 +565,12 @@ export function RelayJobs() {
           onSubmit={submit}
           onChange={() => setDirty(true)}
         >
+          <Field label="External key">
+            <Input
+              value={form.externalKey}
+              onChange={(event) => setForm({ ...form, externalKey: event.target.value })}
+            />
+          </Field>
           <Field label="Tên" error={error || undefined}>
             <Input
               value={form.name}
@@ -501,6 +611,46 @@ export function RelayJobs() {
               required
             />
           </Field>
+          <Field label="Upstream proxy">
+            <Input
+              value={form.upstreamProxy}
+              onChange={(event) => setForm({ ...form, upstreamProxy: event.target.value })}
+            />
+          </Field>
+          <Field label="Upstream SSL">
+            <Select
+              value={form.upstreamSsl ? '1' : '0'}
+              onChange={(event) => setForm({ ...form, upstreamSsl: event.target.value === '1' })}
+            >
+              <option value="0">Không</option>
+              <option value="1">Có</option>
+            </Select>
+          </Field>
+          <Field label="Upstream NTRIP version">
+            <Select
+              value={form.upstreamVersion}
+              onChange={(event) =>
+                setForm({ ...form, upstreamVersion: event.target.value as 'v1' | 'v2' })
+              }
+            >
+              <option value="v2">v2</option>
+              <option value="v1">v1</option>
+            </Select>
+          </Field>
+          <Field label="Upstream username">
+            <Input
+              value={form.upstreamUser}
+              onChange={(event) => setForm({ ...form, upstreamUser: event.target.value })}
+            />
+          </Field>
+          <Field label="Upstream password">
+            <Input
+              type="password"
+              value={form.upstreamPass}
+              placeholder={editing?.upstream.credential?.hasSecret ? 'Đã đặt mật khẩu' : ''}
+              onChange={(event) => setForm({ ...form, upstreamPass: event.target.value })}
+            />
+          </Field>
           <Field label="Downstream host">
             <Input
               value={form.downstreamHost}
@@ -524,6 +674,78 @@ export function RelayJobs() {
               required
             />
           </Field>
+          <Field label="Downstream proxy">
+            <Input
+              value={form.downstreamProxy}
+              onChange={(event) => setForm({ ...form, downstreamProxy: event.target.value })}
+            />
+          </Field>
+          <Field label="Downstream SSL">
+            <Select
+              value={form.downstreamSsl ? '1' : '0'}
+              onChange={(event) => setForm({ ...form, downstreamSsl: event.target.value === '1' })}
+            >
+              <option value="0">Không</option>
+              <option value="1">Có</option>
+            </Select>
+          </Field>
+          <Field label="Downstream NTRIP version">
+            <Select
+              value={form.downstreamVersion}
+              onChange={(event) =>
+                setForm({ ...form, downstreamVersion: event.target.value as 'v1' | 'v2' })
+              }
+            >
+              <option value="v2">v2</option>
+              <option value="v1">v1</option>
+            </Select>
+          </Field>
+          <Field label="Downstream username">
+            <Input
+              value={form.downstreamUser}
+              onChange={(event) => setForm({ ...form, downstreamUser: event.target.value })}
+            />
+          </Field>
+          <Field label="Downstream password">
+            <Input
+              type="password"
+              value={form.downstreamPass}
+              placeholder={editing?.downstream.credential?.hasSecret ? 'Đã đặt mật khẩu' : ''}
+              onChange={(event) => setForm({ ...form, downstreamPass: event.target.value })}
+            />
+          </Field>
+          <Field label="Vĩ độ">
+            <Input
+              type="number"
+              step="0.000001"
+              value={form.lat}
+              onChange={(event) => setForm({ ...form, lat: event.target.value })}
+            />
+          </Field>
+          <Field label="Kinh độ">
+            <Input
+              type="number"
+              step="0.000001"
+              value={form.lon}
+              onChange={(event) => setForm({ ...form, lon: event.target.value })}
+            />
+          </Field>
+          <Field label="UA prefix">
+            <Input
+              value={form.uaPrefix}
+              onChange={(event) => setForm({ ...form, uaPrefix: event.target.value })}
+            />
+          </Field>
+          <Field label="NMEA interval (giây)">
+            <Input
+              type="number"
+              min={0}
+              value={form.nmeaIntervalSec}
+              onChange={(event) =>
+                setForm({ ...form, nmeaIntervalSec: Number(event.target.value) })
+              }
+            />
+          </Field>
           <label className="check">
             <input
               type="checkbox"
@@ -533,6 +755,64 @@ export function RelayJobs() {
             Bật relay job
           </label>
         </form>
+      </Modal>
+
+      <Modal
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        title="Import relay JSON"
+        description="Object hoặc array; hỗ trợ src_*/dst_* và id để cập nhật."
+        size="lg"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setImportOpen(false)}>
+              Hủy
+            </Button>
+            <Button
+              onClick={() => importJson.mutate(true)}
+              loading={importJson.isPending}
+              disabled={!importText.trim()}
+            >
+              Kiểm tra
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => importJson.mutate(false)}
+              loading={importJson.isPending}
+              disabled={!importPreview || importPreview.errors.length > 0}
+            >
+              Ghi vào hệ thống
+            </Button>
+          </>
+        }
+      >
+        <Field label="JSON">
+          <textarea
+            className="input"
+            rows={12}
+            value={importText}
+            onChange={(event) => {
+              setImportText(event.target.value);
+              setImportPreview(null);
+            }}
+            placeholder='[{"name":"job","src_host":"...","src_mount":"...","dst_host":"...","dst_mount":"..."}]'
+          />
+        </Field>
+        {importPreview && (
+          <div className="panel">
+            <p>
+              {importPreview.dryRun ? 'Dry-run' : 'Đã ghi'}: {importPreview.items} dòng ·{' '}
+              {importPreview.created} thêm · {importPreview.updated} cập nhật
+            </p>
+            {importPreview.errors.length > 0 && (
+              <div className="alert error">
+                {importPreview.errors.map((item) => (
+                  <div key={item}>{item}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
 
       <Modal

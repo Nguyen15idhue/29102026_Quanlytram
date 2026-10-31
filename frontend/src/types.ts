@@ -349,12 +349,20 @@ export interface RelayJobState {
 
 export interface RelayJob {
   id: number;
+  externalKey?: string | null;
   name: string;
   enabled: boolean;
   desiredRevision: number;
   upstream: RelayEndpoint;
   downstream: RelayEndpoint;
   downstreamMode: 'auto' | 'post' | 'source';
+  lat?: number | null;
+  lon?: number | null;
+  uaPrefix?: string;
+  nmeaIntervalSec?: number;
+  origin?: string;
+  originRef?: string;
+  ownerWebUserId?: number | null;
   state: RelayJobState | null;
 }
 

@@ -638,6 +638,176 @@ relayJobsRouter.post(
   })
 );
 
+const importJobSchema = z.object({
+  data: z.unknown(),
+  dryRun: z.boolean().default(true)
+});
+
+function normalizeImportItem(raw: any): any {
+  if (!raw || typeof raw !== 'object') return raw;
+  if (raw.upstream && raw.downstream) return raw;
+  const credential = (username: unknown, password: unknown) =>
+    username ? { username: String(username), ...(password ? { password: String(password) } : {}) } : null;
+  return {
+    id: raw.id,
+    externalKey: raw.external_key ?? raw.externalKey ?? null,
+    name: raw.name ?? raw.external_key ?? `Import ${Date.now()}`,
+    enabled: Boolean(raw.enabled ?? false),
+    upstream: {
+      host: String(raw.src_host ?? ''),
+      port: Number(raw.src_port ?? 1509),
+      mount: String(raw.src_mount ?? ''),
+      proxy: String(raw.src_proxy ?? ''),
+      ssl: Boolean(raw.src_ssl ?? false),
+      ntripVersion: String(raw.src_ntrip_version ?? raw.src_version ?? 'v2')
+    },
+    downstream: {
+      host: String(raw.dst_host ?? ''),
+      port: Number(raw.dst_port ?? 1509),
+      mount: String(raw.dst_mount ?? ''),
+      proxy: String(raw.dst_proxy ?? ''),
+      ssl: Boolean(raw.dst_ssl ?? false),
+      ntripVersion: String(raw.dst_ntrip_version ?? raw.dst_version ?? 'v2')
+    },
+    upstreamCredential: credential(raw.src_user ?? raw.src_username, raw.src_pass ?? raw.src_password),
+    downstreamCredential: credential(raw.dst_user ?? raw.dst_username, raw.dst_pass ?? raw.dst_password),
+    downstreamMode: raw.dst_mode ?? raw.downstreamMode ?? 'auto',
+    lat: raw.lat ?? null,
+    lon: raw.lon ?? null,
+    uaPrefix: raw.ua_prefix ?? raw.uaPrefix ?? '',
+    nmeaIntervalSec: Number(raw.nmea_interval_sec ?? raw.nmeaIntervalSec ?? 0),
+    origin: 'import',
+    originRef: String(raw.id ?? raw.external_key ?? ''),
+    tags: raw.tags ?? null
+  };
+}
+
+relayJobsRouter.post(
+  '/import',
+  requirePermission('relay', 'add'),
+  asyncHandler(async (req, res) => {
+    const body = importJobSchema.parse(req.body);
+    const rawItems = Array.isArray(body.data) ? body.data : [body.data];
+    const items: any[] = [];
+    const errors: string[] = [];
+    for (const [index, raw] of rawItems.entries()) {
+      try {
+        const item = createSchema.parse(normalizeImportItem(raw));
+        const id = raw && typeof raw === 'object' ? Number((raw as any).id ?? 0) : 0;
+        if (id > 0) {
+          const existing = await getJobRow(id);
+          if (!existing || existing.deleted_at !== null) {
+            throw new ApiError(404, 'NOT_FOUND', 'Relay job không tồn tại');
+          }
+          await assertRecordScope(req, existing.owner_web_user_id);
+        }
+        await assertNoCycles({
+          id: id > 0 ? id : null,
+          upstreamKey: endpointKey(item.upstream),
+          downstreamKey: endpointKey(item.downstream),
+          enabled: item.enabled
+        });
+        items.push({ ...item, id: id > 0 ? id : null });
+      } catch (err) {
+        errors.push(
+          `Dòng ${index + 1}: ${err instanceof Error ? err.message : 'dữ liệu không hợp lệ'}`
+        );
+      }
+    }
+    let created = 0;
+    let updated = 0;
+    const touchedIds: number[] = [];
+    if (!body.dryRun && errors.length === 0) {
+      await withTransaction(async (conn) => {
+        for (const bodyItem of items) {
+          const upstreamKey = endpointKey(bodyItem.upstream);
+          const downstreamKey = endpointKey(bodyItem.downstream);
+          const upstreamCredentialId = await upsertCredential(
+            conn,
+            bodyItem.upstreamCredential,
+            null,
+            `${bodyItem.name} upstream`,
+            req.auth!.id,
+            req.auth!.id
+          );
+          const downstreamCredentialId = await upsertCredential(
+            conn,
+            bodyItem.downstreamCredential,
+            null,
+            `${bodyItem.name} downstream`,
+            req.auth!.id,
+            req.auth!.id
+          );
+          if (bodyItem.id) {
+            await conn.query(
+              `UPDATE relay_jobs SET
+                 external_key=?, name=?, enabled=?, upstream_host=?, upstream_port=?,
+                 upstream_mount=?, upstream_credential_id=?, upstream_proxy=?, upstream_ssl=?,
+                 upstream_ntrip_version=?, downstream_host=?, downstream_port=?,
+                 downstream_mount=?, downstream_credential_id=?, downstream_proxy=?,
+                 downstream_ssl=?, downstream_ntrip_version=?, downstream_mode=?, lat=?, lon=?,
+                 ua_prefix=?, nmea_interval_sec=?, origin='import', origin_ref=?, tags=?,
+                 upstream_key=?, downstream_key=?, desired_revision=desired_revision+1
+               WHERE id=?`,
+              [
+                bodyItem.externalKey, bodyItem.name, bodyItem.enabled ? 1 : 0,
+                bodyItem.upstream.host, bodyItem.upstream.port, bodyItem.upstream.mount,
+                upstreamCredentialId, bodyItem.upstream.proxy, bodyItem.upstream.ssl ? 1 : 0,
+                bodyItem.upstream.ntripVersion, bodyItem.downstream.host, bodyItem.downstream.port,
+                bodyItem.downstream.mount, downstreamCredentialId, bodyItem.downstream.proxy,
+                bodyItem.downstream.ssl ? 1 : 0, bodyItem.downstream.ntripVersion,
+                bodyItem.downstreamMode, bodyItem.lat, bodyItem.lon, bodyItem.uaPrefix,
+                bodyItem.nmeaIntervalSec, bodyItem.originRef,
+                bodyItem.tags === null ? null : JSON.stringify(bodyItem.tags),
+                upstreamKey, downstreamKey, bodyItem.id
+              ]
+            );
+            updated += 1;
+            touchedIds.push(bodyItem.id);
+          } else {
+            const [result]: any = await conn.query(
+              `INSERT INTO relay_jobs (
+                 external_key, name, enabled, upstream_host, upstream_port, upstream_mount,
+                 upstream_credential_id, upstream_proxy, upstream_ssl, upstream_ntrip_version,
+                 downstream_host, downstream_port, downstream_mount, downstream_credential_id,
+                 downstream_proxy, downstream_ssl, downstream_ntrip_version, downstream_mode,
+                 lat, lon, ua_prefix, nmea_interval_sec, origin, origin_ref, tags,
+                 desired_revision, upstream_key, downstream_key, owner_web_user_id, created_by
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?, 1, ?, ?, ?, ?)`,
+              [
+                bodyItem.externalKey, bodyItem.name, bodyItem.enabled ? 1 : 0,
+                bodyItem.upstream.host, bodyItem.upstream.port, bodyItem.upstream.mount,
+                upstreamCredentialId, bodyItem.upstream.proxy, bodyItem.upstream.ssl ? 1 : 0,
+                bodyItem.upstream.ntripVersion, bodyItem.downstream.host, bodyItem.downstream.port,
+                bodyItem.downstream.mount, downstreamCredentialId, bodyItem.downstream.proxy,
+                bodyItem.downstream.ssl ? 1 : 0, bodyItem.downstream.ntripVersion,
+                bodyItem.downstreamMode, bodyItem.lat, bodyItem.lon, bodyItem.uaPrefix,
+                bodyItem.nmeaIntervalSec, bodyItem.originRef,
+                bodyItem.tags === null ? null : JSON.stringify(bodyItem.tags),
+                upstreamKey, downstreamKey, req.auth!.id, req.auth!.id
+              ]
+            );
+            created += 1;
+            touchedIds.push(Number(result.insertId));
+          }
+        }
+      });
+      await writeAudit(
+        adminPool,
+        req.auth!.id,
+        'import',
+        'relay_job',
+        `bulk:${items.length}`,
+        null,
+        { created, updated },
+        ipFrom(req)
+      );
+      for (const id of touchedIds) await requestReconcile(id);
+    }
+    res.json({ dryRun: body.dryRun, created, updated, errors, items: items.length });
+  })
+);
+
 relayJobsRouter.delete(
   '/:id',
   requirePermission('relay', 'delete'),

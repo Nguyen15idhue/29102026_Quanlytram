@@ -976,3 +976,24 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
     nhưng listener chỉ 1 → effective còn 1; API không trả `authMethod`.
 - Ghi chú: cần rebuild container `gnss` ở P1.10 để chạy binary mới.
 - Commit code: `e60150d` — `feat(p1-7): ntrip account listener acl va caster sourcetable`.
+
+### P1.8 — Relay form và import JSON (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Form:
+  - external key, source/destination host/port/mount/proxy/SSL/version,
+    username/password, lat/lon, UA prefix, NMEA interval.
+  - Credential password để trống giữ nguyên; password mới mã hóa.
+- Import JSON:
+  - `POST /api/relay-jobs/import` nhận object/array.
+  - Map `src_*`/`dst_*` sang schema; `dryRun` mặc định true.
+  - Commit transaction; idempotent theo `id`; kiểm self-loop/cycle.
+  - Preview UI hiển thị số dòng, created/updated, errors.
+  - Audit batch không log password.
+- Bulk enable/disable/delete giữ từ P1.3.
+- Test:
+  - Server build PASS; Vitest **53/53 PASS**.
+  - Frontend build PASS.
+  - Playwright `p1-relay-import.spec.ts` **1/1 PASS**: dry-run không ghi,
+    commit tạo mới, import lại theo id cập nhật, self-loop bị chặn.
+- Commit code: sẽ ghi hash sau khi commit phase này.
