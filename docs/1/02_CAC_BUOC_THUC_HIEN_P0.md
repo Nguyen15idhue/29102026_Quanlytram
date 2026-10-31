@@ -846,7 +846,8 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
 - Frontend:
   - Thêm `StationDetailDrawer.tsx` 5 tab; Reliability block; deep link
     `/stations/:id?tab=...`; giữ `page/pageSize/q` khi đóng.
-  - Thêm type station detail/connections/history/metadata và CSS responsive.
+  - Thêm type station detail/connections/history/metadata và CSS responsive;
+    sửa `.modal-body` để grid không bị co rút, vẫn cuộn đúng với drawer cao.
   - Tab lịch sử có lọc 24h/7d/30d, phân trang, hiển thị nguồn thật.
 - Kiểm thử:
   - `server npm run build`: PASS.
@@ -860,4 +861,4 @@ Chuyển hệ thống thật sang hệ mới với cửa sổ bảo trì, có ki
   - RBAC `user1`: chỉ thấy `TEST_HNI_02`; trạm 80 trả 404.
 - Ghi chú: lịch sử probe chưa có bảng nên API trả `available=false` và UI ghi
   rõ "chưa lưu lịch sử probe"; không bịa dữ liệu.
-- Commit: sẽ ghi hash sau khi commit phase này.
+- Commit: `079abb2` — `feat(p0): chi tiết trạm 5 tab và API vận hành`.
