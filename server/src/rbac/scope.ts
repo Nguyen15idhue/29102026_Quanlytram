@@ -1,7 +1,7 @@
 import { RowDataPacket } from 'mysql2/promise';
 import { query } from '../db/pool';
 
-export type Scope = 'all' | 'subtree' | 'own' | 'none';
+export type Scope = 'all' | 'subtree' | 'tenant' | 'own' | 'none';
 
 export async function subtreeIds(userId: number): Promise<number[]> {
   const rows = await query<RowDataPacket[]>(
@@ -14,6 +14,30 @@ export async function subtreeIds(userId: number): Promise<number[]> {
     [userId]
   );
   return rows.map((row) => Number(row.id));
+}
+
+export async function tenantRootId(userId: number): Promise<number> {
+  const rows = await query<RowDataPacket[]>(
+    `WITH RECURSIVE ancestry AS (
+       SELECT u.id, u.parent_user_id, r.code AS role_code, 0 AS depth
+         FROM web_users u JOIN roles r ON r.id = u.role_id
+        WHERE u.id = ?
+       UNION ALL
+       SELECT u.id, u.parent_user_id, r.code AS role_code, a.depth + 1
+         FROM web_users u
+         JOIN roles r ON r.id = u.role_id
+         JOIN ancestry a ON u.id = a.parent_user_id
+     )
+     SELECT id FROM ancestry
+      WHERE role_code <> 'super_admin'
+      ORDER BY depth DESC LIMIT 1`,
+    [userId]
+  );
+  return Number(rows[0]?.id ?? userId);
+}
+
+export async function tenantIds(userId: number): Promise<number[]> {
+  return subtreeIds(await tenantRootId(userId));
 }
 
 export function scopeClause(

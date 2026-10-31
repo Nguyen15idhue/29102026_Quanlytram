@@ -1,4 +1,4 @@
-export type Scope = 'all' | 'subtree' | 'own' | 'none';
+export type Scope = 'all' | 'subtree' | 'tenant' | 'own' | 'none';
 
 export interface Permission {
   code: string;

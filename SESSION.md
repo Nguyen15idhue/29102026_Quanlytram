@@ -3,9 +3,10 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-10-30 21:00 (Asia/Ho_Chi_Minh, +07:00)
-- Phase hiện tại: P1.1 — Schema nền DONE; tiếp theo P1.2
+- Phase hiện tại: P1.2 — RBAC tenant DONE; tiếp theo P1.3
 - Trạng thái P1.0: DONE (backup/restore PASS, graphify 2364 nodes, Playwright 15/15)
 - Trạng thái P1.1: DONE (migration 014–017, station_sources 39, tenant scope)
+- Trạng thái P1.2: DONE (tenant RBAC, migration 018–019, server 53/53, P1 RBAC 3/3)
 - Trạng thái P0 Phase 1: DONE (drawer 5 tab, API connections/history/metadata)
 - Trạng thái P0 Phase 2: DONE (API list/detail, filter, drawer chuỗi)
 - Trạng thái P0 Phase 3: DONE (`/map`, API overview, layer/filter, redirect cũ)
@@ -79,9 +80,9 @@
 - Không có.
 
 ### Tiếp theo
-- P1.2 — RBAC tenant và menu; xem
+- P1.3 — Shared UI: chọn dòng, bulk action, multiselect; xem
   `docs/1/03_CAC_BUOC_THUC_HIEN_P1.md`.
-- Không chuyển phase khi checklist P1.2 chưa PASS.
+- Không chuyển phase khi checklist P1.3 chưa PASS.
 
 ### Blocker
 - Không có. `go test -race` chưa chạy được vì môi trường Windows không bật

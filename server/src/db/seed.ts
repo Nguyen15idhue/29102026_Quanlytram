@@ -1,8 +1,7 @@
 import { hashPassword } from '../lib/password';
 import { adminPool } from './pool';
 import { config } from '../config';
-
-type Scope = 'all' | 'subtree' | 'own' | 'none';
+import { roleMatrix } from '../rbac/matrix';
 
 const permissions = [
   ['web_users.view', 'web_users', 'view'],
@@ -37,34 +36,13 @@ const permissions = [
   ['alerts.ack', 'alerts', 'ack'],
   ['quality.view', 'quality', 'view'],
   ['quality.ack', 'quality', 'ack'],
-  ['audit.view', 'audit', 'view']
+  ['audit.view', 'audit', 'view'],
+  ['system_health.view', 'system_health', 'view'],
+  ['caster.view', 'caster', 'view'],
+  ['caster.add', 'caster', 'add'],
+  ['caster.edit', 'caster', 'edit'],
+  ['caster.delete', 'caster', 'delete']
 ] as const;
-
-function roleMatrix(role: string, code: string): Scope {
-  if (role === 'super_admin') return 'all';
-  if (role === 'admin') {
-    if (code === 'roles.view') return 'all';
-    if (code === 'settings.view') return 'all';
-    if (code === 'settings.edit') return 'none';
-    if (code.startsWith('web_users.')) return 'subtree';
-    if (code.startsWith('roles.')) return 'none';
-    if (code.startsWith('alerts.')) return 'subtree';
-    if (code.startsWith('quality.')) return 'subtree';
-    if (code === 'audit.view') return 'subtree';
-    if (code.endsWith('.view') || code.endsWith('.add') || code.endsWith('.edit') || code.endsWith('.delete')) {
-      return 'subtree';
-    }
-    return 'none';
-  }
-  if (role === 'user') {
-    if (code === 'web_users.view' || code === 'web_users.edit') return 'own';
-    if (code === 'alerts.view') return 'own';
-    if (code.startsWith('alerts.')) return 'none';
-    if (code.endsWith('.view')) return 'own';
-    return 'none';
-  }
-  return 'none';
-}
 
 async function main(): Promise<void> {
   await adminPool.query(
@@ -94,16 +72,30 @@ async function main(): Promise<void> {
     'SELECT id, code FROM permissions'
   );
 
-  for (const role of roleRows) {
-    await adminPool.query('DELETE FROM role_permissions WHERE role_id = ?', [role.id]);
-    for (const permission of permissionRows) {
-      const scope = roleMatrix(role.code, permission.code);
-      if (scope === 'none') continue;
-      await adminPool.query(
-        'INSERT INTO role_permissions (role_id, permission_id, scope) VALUES (?, ?, ?)',
-        [role.id, permission.id, scope]
-      );
+  const resetRbac = process.argv.includes('--reset-rbac');
+  if (resetRbac) {
+    await adminPool.query(
+      'DELETE rp FROM role_permissions rp JOIN roles r ON r.id = rp.role_id WHERE r.code IN (?, ?, ?)',
+      ['super_admin', 'admin', 'user']
+    );
+    console.log('[seed] --reset-rbac: đã xóa quyền của 3 role hệ thống');
+  }
+  const [[rbacCount]] = await adminPool.query<any[]>(
+    'SELECT COUNT(*) AS count FROM role_permissions'
+  );
+  if (resetRbac || Number(rbacCount.count) === 0) {
+    for (const role of roleRows) {
+      for (const permission of permissionRows) {
+        const scope = roleMatrix(role.code, permission.code);
+        if (scope === 'none') continue;
+        await adminPool.query(
+          'INSERT INTO role_permissions (role_id, permission_id, scope) VALUES (?, ?, ?)',
+          [role.id, permission.id, scope]
+        );
+      }
     }
+  } else {
+    console.log('[seed] role_permissions đã có dữ liệu, bỏ qua ghi đè');
   }
 
   const roleId = async (code: string): Promise<number> => {

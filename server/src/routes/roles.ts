@@ -12,7 +12,7 @@ export const rolesRouter = Router();
 rolesRouter.use(requireAuth);
 rolesRouter.use(csrfProtection);
 
-const scopeSchema = z.enum(['all', 'subtree', 'own', 'none']);
+const scopeSchema = z.enum(['all', 'subtree', 'tenant', 'own', 'none']);
 
 const createSchema = z.object({
   code: z.string().min(2).max(50).regex(/^[a-z0-9_]+$/),

@@ -22,6 +22,13 @@ describe('scopeClause', () => {
     });
   });
 
+  it('restricts tenant records by tenant ids', () => {
+    expect(scopeClause('tenant', 20, [10, 11, 12], 'owner_web_user_id')).toEqual({
+      sql: 'owner_web_user_id IN (?,?,?)',
+      params: [10, 11, 12]
+    });
+  });
+
   it('denies none', () => {
     expect(scopeClause('none', 10, [10], 'owner_web_user_id')).toEqual({ sql: '1=0', params: [] });
   });
@@ -34,6 +41,8 @@ describe('inScope', () => {
     expect(inScope('own', 10, [], 11)).toBe(false);
     expect(inScope('subtree', 10, [10, 11], 11)).toBe(true);
     expect(inScope('subtree', 10, [10, 11], 12)).toBe(false);
+    expect(inScope('tenant', 20, [10, 11, 12], 11)).toBe(true);
+    expect(inScope('tenant', 20, [10, 11, 12], 20)).toBe(false);
     expect(inScope('none', 10, [10], 10)).toBe(false);
   });
 });

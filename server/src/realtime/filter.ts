@@ -141,11 +141,12 @@ export function canSubscribeResource(
   code: string,
   userId: number,
   subtreeIds: number[],
-  ownerId: number | null
+  ownerId: number | null,
+  tenantIds: number[] = subtreeIds
 ): boolean {
   const scope = scopeOf(map, code);
   if (scope === 'none') return false;
-  return inScope(scope, userId, subtreeIds, ownerId);
+  return inScope(scope, userId, scope === 'tenant' ? tenantIds : subtreeIds, ownerId);
 }
 
 export function buildSnapshot(
@@ -153,8 +154,11 @@ export function buildSnapshot(
   alerts: RawAlert[],
   permissions: PermissionMap,
   userId: number,
-  subtreeIds: number[]
+  subtreeIds: number[],
+  tenantIds: number[] = subtreeIds
 ): Snapshot {
+  const idsFor = (scope: Scope): number[] =>
+    scope === 'tenant' ? tenantIds : subtreeIds;
   const jobById = new Map(raw.jobs.map((job) => [job.id, job]));
   const mountpointById = new Map(raw.mountpoints.map((item) => [item.id, item]));
 
@@ -166,7 +170,7 @@ export function buildSnapshot(
           .flatMap((metric) => {
             const job = jobById.get(metric.jobId);
             if (!job) return [];
-            if (!inScope(relayScope, userId, subtreeIds, job.ownerId)) return [];
+            if (!inScope(relayScope, userId, idsFor(relayScope), job.ownerId)) return [];
             return [
               {
                 jobId: job.id,
@@ -193,7 +197,7 @@ export function buildSnapshot(
           .filter((item) => {
             const mountpoint = mountpointById.get(item.mountpointId);
             if (!mountpoint) return connectionScope === 'all';
-            return inScope(connectionScope, userId, subtreeIds, mountpoint.ownerId);
+            return inScope(connectionScope, userId, idsFor(connectionScope), mountpoint.ownerId);
           })
           .map((item) => ({
             id: item.id,
@@ -212,7 +216,7 @@ export function buildSnapshot(
     stationScope === 'none'
       ? 0
       : raw.stations.filter((station) =>
-          inScope(stationScope, userId, subtreeIds, station.ownerId)
+          inScope(stationScope, userId, idsFor(stationScope), station.ownerId)
         ).length;
 
   const alertScope = scopeOf(permissions, 'alerts.view');
@@ -220,7 +224,7 @@ export function buildSnapshot(
     alertScope === 'none'
       ? []
       : alerts
-          .filter((alert) => inScope(alertScope, userId, subtreeIds, alert.ownerId))
+          .filter((alert) => inScope(alertScope, userId, idsFor(alertScope), alert.ownerId))
           .map((alert) => ({
             id: alert.id,
             type: alert.type,
@@ -250,7 +254,7 @@ export function buildSnapshot(
       relayError,
       relayPending,
       connections: connections.length,
-      listeners: scopeOf(permissions, 'settings.view') === 'all' ? raw.listenersCount : 0,
+      listeners: scopeOf(permissions, 'system_health.view') === 'all' ? raw.listenersCount : 0,
       openAlerts: visibleAlerts.filter((alert) => alert.status === 'open').length
     },
     relays,

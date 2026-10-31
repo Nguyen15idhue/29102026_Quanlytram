@@ -168,7 +168,7 @@ function ListenerPanel() {
             <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
               Tải lại
             </Button>
-            {can('settings', 'edit') && (
+            {can('caster', 'add') && (
               <Button variant="primary" onClick={openCreate}>
                 <Plus size={16} aria-hidden="true" /> Thêm listener
               </Button>
@@ -221,7 +221,7 @@ function ListenerPanel() {
               align: 'right',
               cell: (listener) => (
                 <div className="row-actions">
-                  {can('settings', 'edit') && (
+                  {can('caster', 'edit') && (
                     <>
                       <IconButton
                         label={`Sửa ${listener.name}`}
@@ -243,7 +243,7 @@ function ListenerPanel() {
                       </IconButton>
                     </>
                   )}
-                  {can('settings', 'edit') && (
+                  {can('caster', 'delete') && (
                     <IconButton
                       label={`Xóa ${listener.name}`}
                       onClick={(event) => {
@@ -341,7 +341,7 @@ function ListenerPanel() {
         footer={
           detail && (
             <>
-              {can('settings', 'edit') && (
+              {can('caster', 'edit') && (
                 <Button onClick={() => openEdit(detail)}>
                   <Pencil size={16} aria-hidden="true" /> Sửa
                 </Button>
@@ -376,7 +376,7 @@ function ListenerPanel() {
             <div className="panel">
               <div className="table-head">
                 <h2>Mountpoint trên listener</h2>
-                {can('settings', 'edit') && (
+                {can('caster', 'edit') && (
                   <Button size="sm" onClick={() => saveMapping.mutate()} loading={saveMapping.isPending}>
                     Lưu mountpoint
                   </Button>
@@ -389,7 +389,7 @@ function ListenerPanel() {
                       <input
                         type="checkbox"
                         checked={mountpointIds.includes(mountpoint.id)}
-                        disabled={!can('settings', 'edit')}
+                        disabled={!can('caster', 'edit')}
                         onChange={(event) =>
                           setMountpointIds((current) =>
                             event.target.checked

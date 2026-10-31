@@ -130,7 +130,7 @@ describe('realtime payload filtering', () => {
       { code: 'connections.view', scope: 'own' },
       { code: 'stations.view', scope: 'own' },
       { code: 'alerts.view', scope: 'own' },
-      { code: 'settings.view', scope: 'all' }
+      { code: 'system_health.view', scope: 'all' }
     ]);
     const snapshot = buildSnapshot(raw, alerts, permissions, 10, [10, 11]);
     expect(snapshot.relays.map((item) => item.jobId)).toEqual([1]);
@@ -139,6 +139,18 @@ describe('realtime payload filtering', () => {
     expect(snapshot.summary.openAlerts).toBe(0);
     expect(snapshot.summary.relayStreaming).toBe(1);
     expect(snapshot.summary.listeners).toBe(1);
+  });
+
+  it('uses tenant ids only for tenant scoped permissions', () => {
+    const permissions = permissionMap([
+      { code: 'stations.view', scope: 'tenant' },
+      { code: 'relay.view', scope: 'tenant' },
+      { code: 'alerts.view', scope: 'own' }
+    ]);
+    const snapshot = buildSnapshot(raw, alerts, permissions, 20, [20, 21], [10, 11]);
+    expect(snapshot.summary.stations).toBe(1);
+    expect(snapshot.relays.map((item) => item.jobId)).toEqual([1, 2]);
+    expect(snapshot.alerts).toEqual([]);
   });
 
   it('limits subtree scope and never leaks outside owner', () => {

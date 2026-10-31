@@ -9,7 +9,7 @@ import { getSystemHealth } from '../lib/systemHealth';
 import { requireAuth } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import { permissionsForRole } from '../rbac/permissions';
-import { inScope, subtreeIds } from '../rbac/scope';
+import { inScope, subtreeIds, tenantIds } from '../rbac/scope';
 import { loadBaseData, loadOpenAlerts } from '../realtime/data';
 import { buildSnapshot, permissionMap, scopeOf } from '../realtime/filter';
 
@@ -38,18 +38,20 @@ opsRouter.get(
   '/dashboard',
   asyncHandler(async (req, res) => {
     const auth = req.auth!;
-    const ids = await subtreeIds(auth.id);
-    const [permissions, raw, openAlerts] = await Promise.all([
+    const [ids, tenants, permissions, raw, openAlerts] = await Promise.all([
+      subtreeIds(auth.id),
+      tenantIds(auth.id),
       permissionsForRole(auth.roleId),
       loadBaseData(),
       loadOpenAlerts()
     ]);
     const perms = permissionMap(permissions);
-    const snapshot = buildSnapshot(raw, openAlerts, perms, auth.id, ids);
+    const idsFor = (scope: string): number[] => (scope === 'tenant' ? tenants : ids);
+    const snapshot = buildSnapshot(raw, openAlerts, perms, auth.id, ids, tenants);
 
     const mountScope = scopeOf(perms, 'mountpoints.view');
     const mountpoints = raw.mountpoints.filter((item) =>
-      inScope(mountScope, auth.id, ids, item.ownerId)
+      inScope(mountScope, auth.id, idsFor(mountScope), item.ownerId)
     ).length;
     const onlineAccounts = new Set(
       snapshot.connections
@@ -62,11 +64,12 @@ opsRouter.get(
     let qualityRows: RowDataPacket[] = [];
     let qualityOpen = 0;
     if (qualityScope !== 'none') {
+      const qualityIds = idsFor(qualityScope);
       const stationIds = raw.stations
-        .filter((item) => inScope(qualityScope, auth.id, ids, item.ownerId))
+        .filter((item) => inScope(qualityScope, auth.id, qualityIds, item.ownerId))
         .map((item) => item.id);
       const relayIds = raw.jobs
-        .filter((item) => inScope(qualityScope, auth.id, ids, item.ownerId))
+        .filter((item) => inScope(qualityScope, auth.id, qualityIds, item.ownerId))
         .map((item) => item.id);
       const where = qualityWhere(stationIds, relayIds);
       [qualityRows, [{ count: qualityOpen }]] = await Promise.all([
@@ -143,11 +146,12 @@ opsRouter.get(
       let where = '1=1';
       let params: unknown[] = [];
       if (auditScope !== 'all') {
-        if (ids.length === 0) {
+        const auditIds = idsFor(auditScope);
+        if (auditIds.length === 0) {
           where = '1=0';
         } else {
-          where = `a.actor_web_user_id IN (${ids.map(() => '?').join(',')})`;
-          params = ids;
+          where = `a.actor_web_user_id IN (${auditIds.map(() => '?').join(',')})`;
+          params = auditIds;
         }
       }
       const rows = await adminQuery<RowDataPacket[]>(
@@ -170,7 +174,7 @@ opsRouter.get(
     }
 
     let health: any = null;
-    if (scopeOf(perms, 'settings.view') !== 'none') {
+    if (scopeOf(perms, 'system_health.view') !== 'none') {
       try {
         const metrics = await getSystemHealth();
         health = {

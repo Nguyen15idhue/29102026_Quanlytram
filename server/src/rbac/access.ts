@@ -2,11 +2,13 @@ import { NextFunction, Request, Response } from 'express';
 import { ApiError } from '../lib/http';
 import { clientIp, pagination } from '../lib/http';
 import { query } from '../db/pool';
-import { inScope, scopeClause, subtreeIds } from '../rbac/scope';
+import { inScope, scopeClause, subtreeIds, tenantIds } from '../rbac/scope';
 
 export async function scopeIdsFor(req: Request): Promise<number[]> {
   if (!req.auth) return [];
-  return subtreeIds(req.auth.id);
+  return req.permissionScope === 'tenant'
+    ? tenantIds(req.auth.id)
+    : subtreeIds(req.auth.id);
 }
 
 export async function assertRecordScope(
@@ -17,7 +19,12 @@ export async function assertRecordScope(
   if (!req.auth || !req.permissionScope) {
     throw new ApiError(403, 'FORBIDDEN', 'Không có quyền');
   }
-  const ids = req.permissionScope === 'subtree' ? await subtreeIds(req.auth.id) : [];
+  const ids =
+    req.permissionScope === 'tenant'
+      ? await tenantIds(req.auth.id)
+      : req.permissionScope === 'subtree'
+        ? await subtreeIds(req.auth.id)
+        : [];
   if (!inScope(req.permissionScope, req.auth.id, ids, ownerId)) {
     throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy bản ghi');
   }

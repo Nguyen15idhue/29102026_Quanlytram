@@ -210,6 +210,7 @@ export function Dashboard() {
             </div>
           </div>
 
+          {can('system_health', 'view') && (
           <div className="panel dashboard-zone zone-health">
             <div className="table-head">
               <div>
@@ -218,7 +219,7 @@ export function Dashboard() {
                   Cập nhật {formatLocal(data.generatedAt)} · cửa sổ {data.windowMinutes} phút
                 </p>
               </div>
-              {can('settings', 'view') && (
+              {can('caster', 'view') && (
                 <Link className="btn ghost small" to="/system/health">
                   Mở System Health <ArrowUpRight size={16} aria-hidden="true" />
                 </Link>
@@ -251,6 +252,7 @@ export function Dashboard() {
               <div className="table-state">Không có quyền xem sức khỏe hệ thống.</div>
             )}
           </div>
+          )}
 
           <div className="panel dashboard-zone zone-incidents">
             <div className="table-head">

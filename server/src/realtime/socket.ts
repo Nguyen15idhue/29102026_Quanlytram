@@ -8,7 +8,7 @@ import { evaluateAlerts } from '../lib/alerts';
 import { fetchLiveQuality, mapAlert, type QualityLive } from '../lib/quality';
 import { sha256 } from '../lib/token';
 import { permissionsForRole } from '../rbac/permissions';
-import { inScope, subtreeIds } from '../rbac/scope';
+import { inScope, subtreeIds, tenantIds } from '../rbac/scope';
 import { qualityBus } from './qualityBus';
 import { loadBaseData, loadOpenAlerts } from './data';
 import {
@@ -34,6 +34,7 @@ interface SocketState {
   auth: SocketAuth;
   permissions: PermissionMap;
   subtreeIds: number[];
+  tenantIds: number[];
   lastRelaySig: string;
   lastConnSig: string;
   lastQualitySig: string;
@@ -131,11 +132,15 @@ async function stateForSocket(socket: Socket): Promise<SocketState | null> {
   const latest = await refreshAuth(state.auth);
   if (!latest || latest.userId !== state.auth.userId) return null;
   if (latest.roleId !== state.auth.roleId || latest.sessionId !== state.auth.sessionId) {
-    const permissions = permissionMap(await permissionsForRole(latest.roleId));
-    const ids = await subtreeIds(latest.userId);
+    const [permissions, ids, tenants] = await Promise.all([
+      permissionsForRole(latest.roleId).then(permissionMap),
+      subtreeIds(latest.userId),
+      tenantIds(latest.userId)
+    ]);
     state.auth = latest;
     state.permissions = permissions;
     state.subtreeIds = ids;
+    state.tenantIds = tenants;
     state.lastRelaySig = '';
     state.lastConnSig = '';
     state.lastQualitySig = '';
@@ -157,7 +162,8 @@ async function sendSnapshot(
     alertItems,
     state.permissions,
     state.auth.userId,
-    state.subtreeIds
+    state.subtreeIds,
+    state.tenantIds
   );
   socket.emit('snapshot', snapshot);
   state.lastRelaySig = JSON.stringify(snapshot.relays);
@@ -199,12 +205,16 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
       if (!token) return next(new Error('UNAUTHENTICATED'));
       const auth = await loadSessionByToken(token);
       if (!auth) return next(new Error('UNAUTHENTICATED'));
-      const permissions = permissionMap(await permissionsForRole(auth.roleId));
-      const ids = await subtreeIds(auth.userId);
+      const [permissions, ids, tenants] = await Promise.all([
+        permissionsForRole(auth.roleId).then(permissionMap),
+        subtreeIds(auth.userId),
+        tenantIds(auth.userId)
+      ]);
       const state: SocketState = {
         auth,
         permissions,
         subtreeIds: ids,
+        tenantIds: tenants,
         lastRelaySig: '',
         lastConnSig: '',
         lastQualitySig: '',
@@ -259,7 +269,8 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
               'quality.view',
               current.auth.userId,
               current.subtreeIds,
-              ownerId === null ? null : Number(ownerId)
+              ownerId === null ? null : Number(ownerId),
+              current.tenantIds
             )
           ) {
             ack?.({ ok: false, error: 'FORBIDDEN' });
@@ -282,14 +293,16 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
               'relay.view',
               current.auth.userId,
               current.subtreeIds,
-              owner
+              owner,
+              current.tenantIds
             ) ||
             canSubscribeResource(
               current.permissions,
               'quality.view',
               current.auth.userId,
               current.subtreeIds,
-              owner
+              owner,
+              current.tenantIds
             );
           if (rows.length === 0 || !allowed) {
             ack?.({ ok: false, error: 'FORBIDDEN' });
@@ -394,6 +407,8 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
         }
 
         const qualityScope = scopeOf(state.permissions, 'quality.view');
+        const qualityIds =
+          qualityScope === 'tenant' ? state.tenantIds : state.subtreeIds;
         const visibleQuality: QualityLive[] =
           qualityScope === 'none'
             ? []
@@ -401,7 +416,7 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
                 inScope(
                   qualityScope,
                   state.auth.userId,
-                  state.subtreeIds,
+                  qualityIds,
                   qualityOwner(data, item.targetType, item.targetId)
                 )
               );
@@ -420,7 +435,7 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
                   inScope(
                     qualityScope,
                     state.auth.userId,
-                    state.subtreeIds,
+                    qualityIds,
                     qualityOwner(data, String(row.target_type), Number(row.target_id))
                   )
                 )

@@ -14,7 +14,7 @@ import { asyncHandler, ApiError } from '../lib/http';
 import { callGoInternal } from '../lib/internalApi';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
-import { assertRecordScope, ipFrom, pageFrom, scopeIdsFor } from '../rbac/access';
+import { assertRecordScope, ipFrom, listScope, pageFrom, scopeIdsFor } from '../rbac/access';
 import { inScope } from '../rbac/scope';
 
 export const casterRouter = Router();
@@ -114,12 +114,14 @@ async function fetchConnections(): Promise<GoConnection[]> {
 
 casterRouter.get(
   '/listeners',
-  requirePermission('settings', 'view'),
+  requirePermission('caster', 'view'),
   asyncHandler(async (req, res) => {
     const { pageSize, offset } = pageFrom(req);
     const q = String(req.query.q || '').trim();
-    const params: unknown[] = [];
-    let where = '1=1';
+    const ids = await scopeIdsFor(req);
+    const scope = listScope(req, ids, 'l.owner_web_user_id');
+    const params: unknown[] = [...scope.params];
+    let where = scope.sql;
     if (q) {
       where += ' AND (l.name LIKE ? OR l.description LIKE ?)';
       params.push(`%${q}%`, `%${q}%`);
@@ -143,10 +145,11 @@ casterRouter.get(
 
 casterRouter.get(
   '/listeners/:id',
-  requirePermission('settings', 'view'),
+  requirePermission('caster', 'view'),
   asyncHandler(async (req, res) => {
     const row = await getListenerRow(Number(req.params.id));
     if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
+    await assertRecordScope(req, row.owner_web_user_id);
     res.json({
       item: { ...publicListener(row), mountpointIds: await listenerMountpointIds(Number(row.id)) }
     });
@@ -155,15 +158,24 @@ casterRouter.get(
 
 casterRouter.post(
   '/listeners',
-  requirePermission('settings', 'edit'),
+  requirePermission('caster', 'add'),
   asyncHandler(async (req, res) => {
     const body = listenerCreateSchema.parse(req.body);
     let listenerId: number;
     try {
       const [result] = await adminPool.query<any>(
-        `INSERT INTO caster_listeners (name, port, enabled, role, description, created_by)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [body.name, body.port, body.enabled, body.role, body.description, req.auth!.id]
+        `INSERT INTO caster_listeners
+           (name, port, enabled, role, description, owner_web_user_id, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [
+          body.name,
+          body.port,
+          body.enabled,
+          body.role,
+          body.description,
+          req.auth!.id,
+          req.auth!.id
+        ]
       );
       listenerId = Number(result.insertId);
     } catch (err) {
@@ -187,11 +199,12 @@ casterRouter.post(
 
 casterRouter.patch(
   '/listeners/:id',
-  requirePermission('settings', 'edit'),
+  requirePermission('caster', 'edit'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const before = await getListenerRow(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
+    await assertRecordScope(req, before.owner_web_user_id);
     const body = listenerUpdateSchema.parse(req.body);
     try {
       await adminPool.query(
@@ -228,11 +241,12 @@ casterRouter.patch(
 
 casterRouter.delete(
   '/listeners/:id',
-  requirePermission('settings', 'edit'),
+  requirePermission('caster', 'delete'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const before = await getListenerRow(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
+    await assertRecordScope(req, before.owner_web_user_id);
     await adminPool.query('DELETE FROM caster_listeners WHERE id = ?', [id]);
     await writeAudit(
       adminPool,
@@ -253,6 +267,7 @@ async function setListenerEnabled(req: Request, enabled: boolean) {
   const id = Number(req.params.id);
   const before = await getListenerRow(id);
   if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
+  await assertRecordScope(req, before.owner_web_user_id);
   await adminPool.query('UPDATE caster_listeners SET enabled = ? WHERE id = ?', [enabled, id]);
   const after = await getListenerRow(id);
   await writeAudit(
@@ -271,7 +286,7 @@ async function setListenerEnabled(req: Request, enabled: boolean) {
 
 casterRouter.post(
   '/listeners/:id/enable',
-  requirePermission('settings', 'edit'),
+  requirePermission('caster', 'edit'),
   asyncHandler(async (req, res) => {
     res.json({ item: await setListenerEnabled(req, true) });
   })
@@ -279,7 +294,7 @@ casterRouter.post(
 
 casterRouter.post(
   '/listeners/:id/disable',
-  requirePermission('settings', 'edit'),
+  requirePermission('caster', 'edit'),
   asyncHandler(async (req, res) => {
     res.json({ item: await setListenerEnabled(req, false) });
   })
@@ -287,11 +302,12 @@ casterRouter.post(
 
 casterRouter.get(
   '/listeners/:id/mountpoints',
-  requirePermission('settings', 'view'),
+  requirePermission('caster', 'view'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const listener = await getListenerRow(id);
     if (!listener) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
+    await assertRecordScope(req, listener.owner_web_user_id);
     const rows = await query<RowDataPacket[]>(
       `SELECT m.id, m.name, m.station_id, s.code AS station_code, s.name AS station_name
          FROM caster_listener_mountpoints lm
@@ -306,14 +322,19 @@ casterRouter.get(
 
 casterRouter.put(
   '/listeners/:id/mountpoints',
-  requirePermission('settings', 'edit'),
+  requirePermission('caster', 'edit'),
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const listener = await getListenerRow(id);
     if (!listener) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
+    await assertRecordScope(req, listener.owner_web_user_id);
     const body = listenerMountpointsSchema.parse(req.body);
     const mountpointIds = validateMountpointIds(body.mountpointIds);
     await assertMountpointsExist(mountpointIds);
+    const writable = await writableMountpointIds(req);
+    if (writable && mountpointIds.some((mountpointId) => !writable.has(mountpointId))) {
+      throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
+    }
     const beforeMountpointIds = await listenerMountpointIds(id);
     await withTransaction(async (conn) => {
       await conn.query('DELETE FROM caster_listener_mountpoints WHERE listener_id = ?', [id]);

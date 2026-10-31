@@ -169,7 +169,7 @@ export function Roles() {
     <section className="page">
       <PageHeader
         title="Vai trò & quyền"
-        description="Ma trận view/add/edit/delete + scope all/subtree/own."
+        description="Ma trận view/add/edit/delete + scope all/subtree/tenant/own."
         actions={
           can('roles', 'add') && (
             <Button variant="primary" onClick={openCreateRole}>
@@ -268,6 +268,7 @@ export function Roles() {
                               <option value="none">none</option>
                               <option value="own">own</option>
                               <option value="subtree">subtree</option>
+                              <option value="tenant">tenant</option>
                               <option value="all">all</option>
                             </Select>
                           </td>

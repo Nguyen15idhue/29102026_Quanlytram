@@ -10,7 +10,7 @@ systemRouter.use(csrfProtection);
 
 systemRouter.get(
   '/health',
-  requirePermission('settings', 'view'),
+  requirePermission('system_health', 'view'),
   asyncHandler(async (_req, res) => {
     res.json(await getSystemHealth());
   })

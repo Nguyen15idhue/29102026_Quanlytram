@@ -85,7 +85,7 @@ export function Layout() {
           icon: ListTree,
           show: can('mountpoints', 'view')
         },
-        { to: '/caster', label: 'Listener', icon: Antenna, show: can('settings', 'view') }
+        { to: '/caster', label: 'Listener', icon: Antenna, show: can('caster', 'view') }
       ]
     },
     {
@@ -110,7 +110,7 @@ export function Layout() {
           to: '/system/health',
           label: 'Sức khỏe',
           icon: Activity,
-          show: can('settings', 'view')
+          show: can('system_health', 'view')
         },
         { to: '/alerts', label: 'Cảnh báo', icon: Bell, show: can('alerts', 'view') },
         { to: '/history', label: 'Lịch sử', icon: History, show: can('relay', 'view') || can('audit', 'view') },

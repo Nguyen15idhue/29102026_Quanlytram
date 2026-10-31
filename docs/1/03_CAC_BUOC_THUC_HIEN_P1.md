@@ -799,3 +799,35 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
 - Ghi chú: chưa drop `mountpoints.auth_mode/password_hash`; sẽ xử lý cùng reset
   mountpoint ở P1.6 để tránh gãy caster hiện tại.
 - Commit: `19cc562` — `feat(p1-1): schema station source listener acl va tenant scope`.
+
+### P1.2 — RBAC tenant và menu (2026-10-31)
+
+- Trạng thái: **DONE**.
+- Graphify:
+  - `graphify update .` PASS: 2.380 nodes, 5.835 edges, 174 communities.
+- Code:
+  - `Scope` thêm `tenant`; `tenantRootId`, `tenantIds` dựa cây
+    `parent_user_id`.
+  - `scopeIdsFor`, `assertRecordScope`, realtime filter/socket và dashboard
+    dùng đúng ids theo từng scope (tenant/subtree/own).
+  - `roleMatrix` tách sang `server/src/rbac/matrix.ts`.
+  - Seed không xóa `role_permissions`; thêm cờ `--reset-rbac`.
+  - Permission mới `system_health.view`, `caster.view/add/edit/delete`;
+    route caster không còn dùng `settings.*`.
+  - Caster listener có owner, list/detail/update/delete/mountpoint đều kiểm
+    scope; listener cũ được backfill owner admin.
+  - Frontend ẩn System Health với Admin/User; Caster dùng `caster.*`;
+    Roles có scope `tenant` và Admin read-only.
+- Migration:
+  - `018_p1_rbac_matrix.sql`: permission mới + ma trận 3 role hệ thống.
+  - `019_listener_owner_backfill.sql`: gán owner listener null.
+- Test:
+  - Server build PASS; Vitest **53/53 PASS** (thêm matrix/tenant/realtime).
+  - Frontend build PASS.
+  - Playwright `p1-rbac.spec.ts` **3/3 PASS**:
+    Admin không xem System Health, không tạo role; User không tạo/xóa trạm,
+    không sửa relay; công ty A không thấy trạm công ty B; cleanup PASS.
+  - Seed chạy lại: `[seed] role_permissions đã có dữ liệu, bỏ qua ghi đè` PASS.
+- Ghi chú: listener owner cũ đã gán admin; P1.6 sẽ gán owner theo công ty khi
+  tạo/reimport.
+- Commit code/docs: sẽ ghi hash sau khi commit phase này.
