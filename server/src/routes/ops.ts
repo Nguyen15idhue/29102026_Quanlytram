@@ -135,7 +135,67 @@ opsRouter.get(
       if (rank !== 0) return rank;
       return new Date(b.lastSeen ?? b.createdAt).getTime() - new Date(a.lastSeen ?? a.createdAt).getTime();
     });
-    const topIncidents = incidents.slice(0, 20).map((item) => ({
+    const incidentCounts = { total: incidents.length, critical: 0, warning: 0, info: 0 };
+    for (const item of incidents) {
+      if (item.severity === 'critical') incidentCounts.critical += 1;
+      else if (item.severity === 'warning') incidentCounts.warning += 1;
+      else incidentCounts.info += 1;
+    }
+
+    const stationScope = scopeOf(perms, 'stations.view');
+    const stationRows = await adminQuery<RowDataPacket[]>(
+      'SELECT id, status, enabled, owner_web_user_id FROM stations'
+    );
+    const stations = { total: 0, active: 0, disabled: 0, locked: 0, other: 0 };
+    if (stationScope !== 'none') {
+      const stationIds = idsFor(stationScope);
+      for (const row of stationRows) {
+        if (!inScope(stationScope, auth.id, stationIds, row.owner_web_user_id)) continue;
+        stations.total += 1;
+        const status = String(row.status ?? (row.enabled ? 'active' : 'disabled'));
+        if (status === 'active') stations.active += 1;
+        else if (status === 'disabled') stations.disabled += 1;
+        else if (status === 'locked') stations.locked += 1;
+        else stations.other += 1;
+      }
+    }
+
+    const accountScope = scopeOf(perms, 'ntrip_accounts.view');
+    const accountRows = await adminQuery<RowDataPacket[]>(
+      'SELECT id, enabled, valid_from, valid_to, owner_web_user_id FROM ntrip_accounts'
+    );
+    const ntripAccounts = { total: 0, active: 0, disabled: 0, expired: 0, other: 0 };
+    const now = Date.now();
+    if (accountScope !== 'none') {
+      const accountIds = idsFor(accountScope);
+      for (const row of accountRows) {
+        if (!inScope(accountScope, auth.id, accountIds, row.owner_web_user_id)) continue;
+        ntripAccounts.total += 1;
+        const validFrom = row.valid_from ? new Date(row.valid_from).getTime() : null;
+        const validTo = row.valid_to ? new Date(row.valid_to).getTime() : null;
+        if (!row.enabled) ntripAccounts.disabled += 1;
+        else if (validTo !== null && validTo < now) ntripAccounts.expired += 1;
+        else if (validFrom !== null && validFrom > now) ntripAccounts.other += 1;
+        else ntripAccounts.active += 1;
+      }
+    }
+
+    const relayScope = scopeOf(perms, 'relay.view');
+    const relayState = new Map(raw.relay.map((item) => [item.jobId, item.state]));
+    const relays = { total: 0, streaming: 0, disabled: 0, error: 0, other: 0 };
+    if (relayScope !== 'none') {
+      const relayIds = idsFor(relayScope);
+      for (const job of raw.jobs) {
+        if (!inScope(relayScope, auth.id, relayIds, job.ownerId)) continue;
+        relays.total += 1;
+        if (!job.enabled) relays.disabled += 1;
+        else if (relayState.get(job.id) === 'error') relays.error += 1;
+        else if (relayState.get(job.id) === 'streaming') relays.streaming += 1;
+        else relays.other += 1;
+      }
+    }
+
+    const topIncidents = incidents.slice(0, 5).map((item) => ({
       ...item,
       impact: impacts.get(`${item.source}:${item.id}`) ?? null
     }));
@@ -160,7 +220,7 @@ opsRouter.get(
            FROM audit_logs a
            LEFT JOIN web_users u ON u.id = a.actor_web_user_id
           WHERE ${where}
-          ORDER BY a.id DESC LIMIT 8`,
+          ORDER BY a.id DESC LIMIT 5`,
         params
       );
       recentAudit = rows.map((row) => ({
@@ -193,6 +253,10 @@ opsRouter.get(
     res.json({
       generatedAt: new Date().toISOString(),
       windowMinutes: Math.max(1, Math.min(1440, Number(req.query.window || 60) || 60)),
+      stations,
+      ntripAccounts,
+      relays,
+      incidentsCount: incidentCounts,
       summary: {
         stations: snapshot.summary.stations,
         mountpoints,

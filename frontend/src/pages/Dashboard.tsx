@@ -44,6 +44,22 @@ interface OpsIncident {
 interface OpsDashboard {
   generatedAt: string;
   windowMinutes: number;
+  stations: { total: number; active: number; disabled: number; locked: number; other: number };
+  ntripAccounts: {
+    total: number;
+    active: number;
+    disabled: number;
+    expired: number;
+    other: number;
+  };
+  relays: {
+    total: number;
+    streaming: number;
+    disabled: number;
+    error: number;
+    other: number;
+  };
+  incidentsCount: { total: number; critical: number; warning: number; info: number };
   summary: {
     stations: number;
     mountpoints: number;
@@ -135,7 +151,6 @@ export function Dashboard() {
     refetchInterval: 10_000
   });
   const data = ops.data;
-  const summary = data?.summary;
 
   function openIncident(incident: OpsIncident) {
     if (incident.targetType === 'relay_job' && incident.targetId) {
@@ -183,29 +198,35 @@ export function Dashboard() {
         <>
           <div className="kpi-strip">
             <div className="kpi kpi-overview">
-              <span className="kpi-label">Trạm / Mountpoint</span>
-              <strong className="kpi-value">{summary?.stations ?? 0}</strong>
-              <span className="muted kpi-sub">{summary?.mountpoints ?? 0} mountpoint</span>
-            </div>
-            <div className="kpi kpi-relay">
-              <span className="kpi-label">Relay</span>
-              <strong className="kpi-value">{summary?.relayStreaming ?? 0}</strong>
+              <span className="kpi-label">Trạm</span>
+              <strong className="kpi-value">{data.stations.total}</strong>
               <span className="muted kpi-sub">
-                / {summary?.relayTotal ?? 0} job · {summary?.relayIssues ?? 0} cần xử lý
+                {data.stations.active} hoạt động · {data.stations.disabled} tắt ·{' '}
+                {data.stations.locked} khóa
               </span>
             </div>
             <div className="kpi kpi-online">
-              <span className="kpi-label">Online</span>
-              <strong className="kpi-value">{summary?.onlineConnections ?? 0}</strong>
-              <span className="muted kpi-sub">{summary?.onlineAccounts ?? 0} tài khoản</span>
+              <span className="kpi-label">Tài khoản NTRIP</span>
+              <strong className="kpi-value">{data.ntripAccounts.total}</strong>
+              <span className="muted kpi-sub">
+                {data.ntripAccounts.active} active · {data.ntripAccounts.disabled} khóa ·{' '}
+                {data.ntripAccounts.expired} hết hạn
+              </span>
+            </div>
+            <div className="kpi kpi-relay">
+              <span className="kpi-label">Relay</span>
+              <strong className="kpi-value">{data.relays.total}</strong>
+              <span className="muted kpi-sub">
+                {data.relays.streaming} streaming · {data.relays.error} lỗi ·{' '}
+                {data.relays.disabled} tắt
+              </span>
             </div>
             <div className="kpi kpi-incidents">
               <span className="kpi-label">Sự cố mở</span>
-              <strong className="kpi-value">
-                {(summary?.openAlerts ?? 0) + (summary?.qualityOpen ?? 0)}
-              </strong>
+              <strong className="kpi-value">{data.incidentsCount.total}</strong>
               <span className="muted kpi-sub">
-                {summary?.openAlerts ?? 0} hệ thống · {summary?.qualityOpen ?? 0} quality
+                {data.incidentsCount.critical} critical · {data.incidentsCount.warning} cảnh báo ·{' '}
+                {data.incidentsCount.info} info
               </span>
             </div>
           </div>
@@ -254,6 +275,7 @@ export function Dashboard() {
           </div>
           )}
 
+          <div className="dashboard-two-col">
           <div className="panel dashboard-zone zone-incidents">
             <div className="table-head">
               <div>
@@ -272,7 +294,7 @@ export function Dashboard() {
               <div className="table-state">Không có sự cố mở.</div>
             ) : (
               <div className="incident-list">
-                {data.incidents.slice(0, 10).map((incident) => (
+                {data.incidents.slice(0, 5).map((incident) => (
                   <button
                     type="button"
                     className="incident-item"
@@ -334,6 +356,7 @@ export function Dashboard() {
               )}
             </div>
           )}
+          </div>
         </>
       )}
     </section>

@@ -460,6 +460,19 @@ p {
   background: var(--warn-soft);
 }
 
+.dashboard-two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 767px) {
+  .dashboard-two-col {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .dashboard-zone {
   border-left-width: 4px;
 }

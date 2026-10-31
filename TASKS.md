@@ -50,7 +50,7 @@ Chi tiết bằng chứng: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
 | P1.1 | Schema và dữ liệu nền | DONE |
 | P1.2 | RBAC tenant và menu | DONE |
 | P1.3 | DataTable selection, BulkActionBar, MultiSelect | DONE |
-| P1.4 | Dashboard counts và layout | TODO |
+| P1.4 | Dashboard counts và layout | DONE |
 | P1.5 | Trạm: form/view/source/Geoapify/uptime | TODO |
 | P1.6 | Mountpoint gộp Explorer + Listener | TODO |
 | P1.7 | NTRIP listener ACL + caster sourcetable | TODO |

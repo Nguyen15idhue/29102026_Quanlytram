@@ -863,3 +863,24 @@ Khi làm phase map, cần đọc lại `docs/1/02` Phase 3 và cập nhật map 
     mobile 390 không tràn, multiselect search/focus, bulk station + audit batch,
     cross-tenant forbidden, 6 bulk route validate action.
 - Commit code: `59deb9b` — `feat(p1-3): bang chon dong bulk action va multiselect`.
+
+### P1.4 — Dashboard số liệu và layout (2026-10-31)
+
+- Trạng thái: **DONE**.
+- API `GET /api/ops/dashboard`:
+  - `stations {total, active, disabled, locked, other}`.
+  - `ntripAccounts {total, active, disabled, expired, other}`.
+  - `relays {total, streaming, disabled, error, other}`.
+  - `incidentsCount {total, critical, warning, info}`.
+  - `incidents` tối đa 5; `recentAudit` tối đa 5.
+  - Mọi số liệu lọc theo scope tenant/subtree/own.
+- Frontend:
+  - 4 KPI: Trạm, Tài khoản NTRIP, Relay, Sự cố mở.
+  - Sự cố + Hoạt động gần đây 2 cột desktop/tablet, stack mobile.
+  - Giữ màu phân loại zone; health chỉ hiện với `system_health.view`.
+- Test:
+  - Server build PASS; Vitest **53/53 PASS**.
+  - Frontend build PASS.
+  - Playwright `p1-dashboard.spec.ts` **2/2 PASS**: số liệu khớp API,
+    incidents/audit ≤5, 2 cột 1440/768, stack 390, user tenant + health null.
+- Commit code: sẽ ghi hash sau khi commit phase này.
