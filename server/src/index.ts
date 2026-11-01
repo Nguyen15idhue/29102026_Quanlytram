@@ -3,10 +3,12 @@ import { app } from './app';
 import { config } from './config';
 import { closePool } from './db/pool';
 import { closeRuntimePool } from './db/runtimePool';
+import { startMaintenanceScheduler } from './lib/maintenance';
 import { initRealtime } from './realtime/socket';
 
 const server = http.createServer(app);
 const realtime = initRealtime(server);
+startMaintenanceScheduler();
 
 server.listen(config.port, '0.0.0.0', () => {
   console.log(`[server] listening on :${config.port}`);

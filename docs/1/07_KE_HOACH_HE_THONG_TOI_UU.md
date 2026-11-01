@@ -833,7 +833,7 @@ F:\3.Laptrinh\1. Project\1. GNSS\relayrtcm\backup
 | P07-0 | DONE | `feat(system): P07-0 menu Hệ thống và tab mặc định Sức khỏe` | server build PASS; frontend build PASS; Playwright `system-health` + `navigation` 2/2 PASS | `/system` + 3 tab; `/system/health` redirect; menu còn 1 mục Hệ thống; HealthTab tách khỏi `SystemHealth.tsx` (đã xóa) |
 | P07-1 | DONE | `feat(system): P07-1 bảng cấu hình bảo trì và quyền system_ops` | migrate 034 PASS; server build PASS; vitest 74/74 PASS | 11 job + 1 settings + 2 permission; super_admin 2 grant, admin/user 0; bỏ retention khỏi `.env.example` |
 | P07-2 | DONE | `feat(system): P07-2 API tối ưu chỉ số hệ thống` | server build PASS; vitest 80/80 PASS; API superadmin 200, 11 retention job | `GET /api/system/optimize`; fallback performance_schema; cache 20s; API admin 403 BLOCKED do thiếu mật khẩu admin local khớp (matrix test PASS) |
-| P07-3 | PENDING | | | |
+| P07-3 | DONE | `feat(system): P07-3 API tự động hóa và scheduler bảo trì` | server build PASS; vitest 88/88 PASS; API jobs 11, PUT config, dry-run, runs PASS; runtime prune 502 chờ P07-4 | Admin cleanup + scheduler; validation 400; lock 409; audit; `reconcile` gọi Go (P07-4 hoàn tất endpoint) |
 | P07-4 | PENDING | | | |
 | P07-5 | PENDING | | | |
 | P07-6 | PENDING | | | |
@@ -861,3 +861,13 @@ Bằng chứng P07-2:
   `retention.jobs=11`; response không chứa DSN/secret.
 - `GET /api/system/optimize` với admin → BLOCKED: không có mật khẩu admin
   local khớp; thay thế bằng `matrix.test.ts` (admin/user = none).
+
+Bằng chứng P07-3:
+- `docker exec -w /app cors-mvp-server-1 npm run build` → PASS.
+- `docker exec -w /app cors-mvp-server-1 npm test` → 14 files / 88 tests PASS
+  (thêm `maintenance.test.ts` 8 test: dry-run, batch, guard acked, runtime,
+  Go lỗi 502, lock 409, nextDailyRun).
+- API superadmin: `jobs=11`, `settings=3:0`; PUT `audit-logs` 365→366→365;
+  `POST /run` dry-run `status=ok`, `runs.total=1`.
+- Validation sai (`retentionDays=0`) → 400.
+- Runtime dry-run → 502 (đúng dự kiến, chờ P07-4 thêm endpoint Go).

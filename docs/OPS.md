@@ -60,6 +60,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restore-mysql.ps1 `
 - Không bao giờ xóa session/connection đang mở, alert `open`,
   `quality_alerts` chưa resolve, `relay_job_state`.
 - Chạy thử/chạy tay và lịch sử: UI `/system?tab=automation` (P07-5).
+- API: `GET/PUT /api/system/maintenance/jobs`, `GET/PUT .../settings`,
+  `GET .../runs`, `POST .../run` (`system_ops.view/edit`).
+- Scheduler Node chỉ chạy job admin; job runtime do Go chạy theo `interval_sec`.
 - Lịch sử chạy: `cors_admin.maintenance_runs`.
 
 ## 5. Load test (mock only)

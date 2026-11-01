@@ -1075,3 +1075,8 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   backlog retention, gợi ý rule-based; cache 20s; performance_schema tắt →
   `available:false`. Test: build PASS, vitest 80/80; API superadmin 200
   (11 job). Admin API 403 BLOCKED do thiếu mật khẩu local khớp; matrix test PASS.
+- P07-3 DONE: `maintenanceConfig.ts` (đọc/validate/ghi DB, cache, optimistic),
+  `maintenance.ts` (dry-run, batch, lock 409, runs + audit, scheduler admin,
+  reconcile Go), routes jobs/settings/runs/run; scheduler khởi động trong
+  `index.ts`. Test: build PASS, vitest 88/88; API jobs=11, PUT 365→366→365,
+  dry-run ok, runs.total=1, validation 400. Runtime prune 502 chờ P07-4.
