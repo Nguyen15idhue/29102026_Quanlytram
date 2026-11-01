@@ -1505,7 +1505,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 6
 - Thời điểm: 2026-11-01 10:43 +07:00
 - Trạng thái: DONE
-- Commit: (cập nhật sau commit)
+- Commit: 325f60b
 - Push: origin/main
 - Đã làm:
   - Chặn sửa tên mountpoint; trả 409.
