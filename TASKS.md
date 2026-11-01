@@ -116,7 +116,7 @@ Chi tiết: `docs/1/06_KE_HOACH_NANG_CAP_BAN_DO.md`.
 | P06-5.0 | Baseline & chốt kế hoạch | DONE (baseline map 4/4; commit `ee402e5`) |
 | P06-5.1 | Full-bleed + MapToolbar | DONE (bỏ `.map-side`, icon rail, overlay state, map full; smoke 1440/390 PASS) |
 | P06-5.2 | Filter/legend/search nổi | DONE (popover/sheet, Esc/outside/focus, legend desktop-on/mobile-off, MapSearchBox gộp trạm+địa chỉ, badge, RBAC option; smoke 3/3) |
-| P06-5.3 | StationListDrawer + deep link | TODO |
+| P06-5.3 | StationListDrawer + deep link | DONE (drawer/sheet, list+summary, marker không mở drawer, ?station mở drawer, fit/reset giữ mode; smoke 2/2) |
 | P06-5.4 | Responsive/dark/a11y/rollout | TODO |
 
 Chi tiết: mục 13 của `docs/1/06_KE_HOACH_NANG_CAP_BAN_DO.md`.

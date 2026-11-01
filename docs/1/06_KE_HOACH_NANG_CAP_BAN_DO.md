@@ -1093,5 +1093,5 @@ Geoapify forward/reverse trả kết quả.
 | P06-5.0 Baseline | DONE | docker/health OK; fixtures 480/481/482; frontend tsc; Playwright map-upgrade/unified-map/map 4/4 PASS; commit `ee402e5` |
 | P06-5.1 Full-bleed + toolbar | DONE | bỏ `.map-side`; `MapToolbar` icon rail; overlay state filter/list/legend/layers/modes; map full; smoke desktop 1440 + mobile 390 PASS; tsc/build PASS |
 | P06-5.2 Filter/legend/search | DONE | filter popover/sheet đóng mặc định, Esc/click ngoài/focus trả; legend ẩn khi panel mở, desktop hiện mặc định; `MapSearchBox` gộp trạm + nhóm địa chỉ (debounce/AbortController); layer/mode popover; badge filter/list; RBAC ẩn option online-account; smoke 3/3 PASS; tsc/build PASS |
-| P06-5.3 Station list/drawer/deep link | TODO | - |
+| P06-5.3 Station list/drawer/deep link | DONE | `StationListDrawer` (drawer desktop/bottom sheet mobile, list + tóm tắt + “Mở chi tiết trạm”); marker không tự mở drawer; list sync + flyTo; `?station=` mở drawer; Fit/Về mặc định giữ mode; smoke 2/2 PASS; tsc/build PASS |
 | P06-5.4 Responsive/dark/a11y/rollout | TODO | - |
