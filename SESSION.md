@@ -3,6 +3,8 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-11-01 09:27 (Asia/Ho_Chi_Minh, +07:00)
+- Kế hoạch 05: P05-1 DONE (backup `cors-mysql-20261101-165655.sql.zip`; migration 028–030; 1 company `admin`, user admin/user1/user2 có company_id; báo cáo backfill 247 dòng cho tài nguyên owner super/null)
+- Kế hoạch 05: P05-2 IN PROGRESS (tenant = company, peer admin policy, listener global, auth chặn company disabled)
 - Kế hoạch 04: Bước 1 DONE (backup/restore PASS, baseline 40 trạm/39 mountpoint/2 account/2 listener/0 connection mở)
 - Kế hoạch 04: Bước 2 DONE (reset/seed script dry-run; chưa thay đổi dữ liệu)
 - Kế hoạch 04: Bước 3 DONE (migration 023–024; paused_by_mountpoint_id + managed_by_station_id)

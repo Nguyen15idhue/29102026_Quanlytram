@@ -85,6 +85,18 @@ Chi tiết bằng chứng: `docs/1/03_CAC_BUOC_THUC_HIEN_P1.md` mục 11.
 Bổ sung 2026-11-01: trạng thái streaming `online | offline | no data | —`;
 `relay_caster` lấy từ relay runtime. Chi tiết: `docs/1/04_KE_HOACH_REALTIME_CRUD.md`.
 
+## 1e. Kế hoạch 05 — Công ty nhiều admin
+
+| Bước | Tên | Trạng thái |
+|---|---|---|
+| P05-1 | Schema companies + company_id + backfill | DONE |
+| P05-2 | RBAC company, peer admin, listener global | IN PROGRESS |
+| P05-3 | API companies/users/resources/audit | TODO |
+| P05-4 | UI Companies, cột/filter công ty | TODO |
+| P05-5 | Test matrix 05-T1..T19, regression, rollout | TODO |
+
+Chi tiết: `docs/1/05_KE_HOACH_CONG_TY_NHIEU_ADMIN.md`.
+
 ---
 
 ## 2. Phase 0 — Chuẩn bị & xác minh
