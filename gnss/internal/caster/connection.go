@@ -34,6 +34,7 @@ type connection struct {
 
 	bytesIn  atomic.Uint64
 	bytesOut atomic.Uint64
+	closed   atomic.Bool
 }
 
 func (c *connection) snapshot() ConnectionSnapshot {
@@ -53,6 +54,7 @@ func (c *connection) snapshot() ConnectionSnapshot {
 
 func (c *connection) closeWithReason(reason string) {
 	c.closeOnce.Do(func() {
+		c.closed.Store(true)
 		c.reasonMu.Lock()
 		c.reason = reason
 		c.reasonMu.Unlock()
@@ -63,6 +65,10 @@ func (c *connection) closeWithReason(reason string) {
 			c.mgr.connectionClosed(c, reason)
 		}
 	})
+}
+
+func (c *connection) isClosed() bool {
+	return c.closed.Load()
 }
 
 func (c *connection) closeReason() string {

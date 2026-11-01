@@ -545,3 +545,127 @@ func Test6T3ByteExactWithQualityAnalyzer(t *testing.T) {
 	}
 	t.Fatalf("analyzer did not observe station ingest")
 }
+
+func TestTargetedDisconnect(t *testing.T) {
+	cfg := &Config{
+		Mountpoints: map[int64]*MountpointConfig{
+			1: {ID: 1, Name: "M", Enabled: true},
+		},
+		Listeners: []*ListenerConfig{
+			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: {ID: 1, Name: "M", Enabled: true}}},
+		},
+	}
+	manager, _ := newTestManager(t, cfg)
+	port := listenerPort(t, manager, 1)
+
+	first, _, status := connect(t, port, "GET /M HTTP/1.0\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("first status = %q", status)
+	}
+	defer first.Close()
+	second, _, status := connect(t, port, "GET /M HTTP/1.0\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("second status = %q", status)
+	}
+	defer second.Close()
+
+	if closed := manager.DisconnectMountpoint(1, "mountpoint_disabled"); closed != 2 {
+		t.Fatalf("DisconnectMountpoint closed = %d, want 2", closed)
+	}
+	waitClosed(t, manager, 0)
+
+	third, _, status := connect(t, port, "GET /M HTTP/1.0\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("third status = %q", status)
+	}
+	defer third.Close()
+	if closed := manager.DisconnectListener(1, "listener_disabled"); closed != 1 {
+		t.Fatalf("DisconnectListener closed = %d, want 1", closed)
+	}
+	waitClosed(t, manager, 0)
+
+	fourth, _, status := connect(t, port, "GET /M HTTP/1.0\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("fourth status = %q", status)
+	}
+	defer fourth.Close()
+	if closed := manager.DisconnectAccount(9000, "account_disabled"); closed != 1 {
+		t.Fatalf("DisconnectAccount closed = %d, want 1", closed)
+	}
+	waitClosed(t, manager, 0)
+}
+
+func TestReconcileClosesExcessConnections(t *testing.T) {
+	cfg := &Config{
+		Mountpoints: map[int64]*MountpointConfig{
+			1: {ID: 1, Name: "M", Enabled: true},
+		},
+		Accounts: []*AccountConfig{{
+			ID:             1,
+			Username:       "test",
+			PasswordHash:   passwordHash("test"),
+			Enabled:        true,
+			MaxConnections: 2,
+			ACL:            map[int64]bool{1: true},
+		}},
+		Listeners: []*ListenerConfig{
+			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: {ID: 1, Name: "M", Enabled: true}}},
+		},
+	}
+	manager, _ := newTestManager(t, cfg)
+	port := listenerPort(t, manager, 1)
+
+	first, _, status := connect(t, port, "GET /M HTTP/1.0\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("first status = %q", status)
+	}
+	defer first.Close()
+	time.Sleep(20 * time.Millisecond)
+	second, _, status := connect(t, port, "GET /M HTTP/1.0\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("second status = %q", status)
+	}
+	defer second.Close()
+	if got := len(manager.Connections()); got != 2 {
+		t.Fatalf("connections = %d, want 2", got)
+	}
+	firstID := manager.Connections()[1].ID
+
+	cfg.Accounts[0].MaxConnections = 1
+	if err := manager.Reconcile(context.Background()); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	waitClosed(t, manager, 1)
+	remaining := manager.Connections()
+	if remaining[0].ID != firstID {
+		t.Fatalf("remaining connection = %d, want oldest %d", remaining[0].ID, firstID)
+	}
+}
+
+func TestClosedConnectionIsNotAddedToHub(t *testing.T) {
+	mountpoint := &MountpointConfig{ID: 1, Name: "M", Enabled: true}
+	h := newHub(mountpoint, nil)
+	conn := &connection{id: 1}
+	conn.closed.Store(true)
+	if h.addRover(conn) {
+		t.Fatal("closed rover was added to hub")
+	}
+	if h.addSource(conn) {
+		t.Fatal("closed source was added to hub")
+	}
+	if len(h.rovers) != 0 || h.source != nil {
+		t.Fatal("closed connection remained in hub")
+	}
+}
+
+func waitClosed(t *testing.T, manager *manager, want int) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if len(manager.Connections()) == want {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatalf("connections = %d, want %d", len(manager.Connections()), want)
+}

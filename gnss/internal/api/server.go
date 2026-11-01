@@ -31,6 +31,9 @@ type CasterManager interface {
 	Reconcile(ctx context.Context) error
 	Connections() []caster.ConnectionSnapshot
 	Disconnect(id int64) bool
+	DisconnectAccount(accountID int64, reason string) int
+	DisconnectMountpoint(mountpointID int64, reason string) int
+	DisconnectListener(listenerID int64, reason string) int
 	Listeners() []caster.ListenerSnapshot
 }
 
@@ -85,6 +88,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/internal/snapshot", s.requireSignature(s.handleSnapshot, http.MethodGet))
 	mux.HandleFunc("/internal/caster/connections", s.requireSignature(s.handleCasterConnections, http.MethodGet))
 	mux.HandleFunc("/internal/caster/disconnect", s.requireSignature(s.handleCasterDisconnect, http.MethodPost))
+	mux.HandleFunc("/internal/caster/disconnect-account", s.requireSignature(s.handleCasterDisconnectAccount, http.MethodPost))
+	mux.HandleFunc("/internal/caster/disconnect-mountpoint", s.requireSignature(s.handleCasterDisconnectMountpoint, http.MethodPost))
+	mux.HandleFunc("/internal/caster/disconnect-listener", s.requireSignature(s.handleCasterDisconnectListener, http.MethodPost))
 	mux.HandleFunc("/internal/caster/reconcile", s.requireSignature(s.handleCasterReconcile, http.MethodPost))
 	mux.HandleFunc("/internal/probe/reconcile", s.requireSignature(s.handleProbeReconcile, http.MethodPost))
 	mux.HandleFunc("/internal/caster/listeners", s.requireSignature(s.handleCasterListeners, http.MethodGet))
@@ -270,6 +276,62 @@ func (s *Server) handleCasterDisconnect(w http.ResponseWriter, _ *http.Request, 
 	}
 	found := s.caster.Disconnect(request.ConnectionID)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "found": found})
+}
+
+type casterDisconnectRequest struct {
+	AccountID    int64  `json:"accountId"`
+	MountpointID int64  `json:"mountpointId"`
+	ListenerID   int64  `json:"listenerId"`
+	Reason       string `json:"reason"`
+}
+
+func disconnectReason(reason string) string {
+	if strings.TrimSpace(reason) == "" {
+		return "config_changed"
+	}
+	return reason
+}
+
+func (s *Server) handleCasterDisconnectAccount(w http.ResponseWriter, _ *http.Request, body []byte) {
+	if s.caster == nil {
+		writeError(w, http.StatusServiceUnavailable, "caster is not running")
+		return
+	}
+	var request casterDisconnectRequest
+	if err := json.Unmarshal(body, &request); err != nil || request.AccountID == 0 {
+		writeError(w, http.StatusBadRequest, "accountId is required")
+		return
+	}
+	closed := s.caster.DisconnectAccount(request.AccountID, disconnectReason(request.Reason))
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "closed": closed})
+}
+
+func (s *Server) handleCasterDisconnectMountpoint(w http.ResponseWriter, _ *http.Request, body []byte) {
+	if s.caster == nil {
+		writeError(w, http.StatusServiceUnavailable, "caster is not running")
+		return
+	}
+	var request casterDisconnectRequest
+	if err := json.Unmarshal(body, &request); err != nil || request.MountpointID == 0 {
+		writeError(w, http.StatusBadRequest, "mountpointId is required")
+		return
+	}
+	closed := s.caster.DisconnectMountpoint(request.MountpointID, disconnectReason(request.Reason))
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "closed": closed})
+}
+
+func (s *Server) handleCasterDisconnectListener(w http.ResponseWriter, _ *http.Request, body []byte) {
+	if s.caster == nil {
+		writeError(w, http.StatusServiceUnavailable, "caster is not running")
+		return
+	}
+	var request casterDisconnectRequest
+	if err := json.Unmarshal(body, &request); err != nil || request.ListenerID == 0 {
+		writeError(w, http.StatusBadRequest, "listenerId is required")
+		return
+	}
+	closed := s.caster.DisconnectListener(request.ListenerID, disconnectReason(request.Reason))
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "closed": closed})
 }
 
 func (s *Server) handleCasterReconcile(w http.ResponseWriter, r *http.Request, _ []byte) {

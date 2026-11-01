@@ -41,10 +41,14 @@ func (h *hub) snapshotMountpoint() *MountpointConfig {
 func (h *hub) addSource(c *connection) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.source != nil {
+	if h.source != nil || c.isClosed() {
 		return false
 	}
 	h.source = c
+	if c.isClosed() {
+		h.source = nil
+		return false
+	}
 	return true
 }
 
@@ -69,10 +73,18 @@ func (h *hub) removeSource(c *connection) []*connection {
 	return rovers
 }
 
-func (h *hub) addRover(c *connection) {
+func (h *hub) addRover(c *connection) bool {
 	h.mu.Lock()
+	defer h.mu.Unlock()
+	if c.isClosed() {
+		return false
+	}
 	h.rovers[c.id] = c
-	h.mu.Unlock()
+	if c.isClosed() {
+		delete(h.rovers, c.id)
+		return false
+	}
+	return true
 }
 
 func (h *hub) removeRover(c *connection) {

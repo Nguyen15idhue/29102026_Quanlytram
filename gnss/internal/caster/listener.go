@@ -41,6 +41,9 @@ func (lr *listenerRuntime) serve() {
 
 func (lr *listenerRuntime) handle(conn net.Conn) {
 	defer conn.Close()
+	if lr.isClosed() {
+		return
+	}
 
 	_ = conn.SetReadDeadline(time.Now().Add(lr.mgr.opts.HeaderTimeout))
 	req, br, err := readRequest(conn, lr.mgr.opts.MaxHeader)
@@ -126,7 +129,10 @@ func (lr *listenerRuntime) handleRover(conn net.Conn, br *bufio.Reader, req *req
 		}
 		return
 	}
-	h.addRover(c)
+	if !h.addRover(c) {
+		c.closeWithReason("config_changed")
+		return
+	}
 	if err := writeSuccess(conn, req); err != nil {
 		c.closeWithReason("network")
 		return
@@ -197,6 +203,12 @@ func (lr *listenerRuntime) handleSource(conn net.Conn, br *bufio.Reader, req *re
 		return
 	}
 	c.sourceReadLoop(req.bodyReader(br), lr.mgr.opts.ReadBuffer)
+}
+
+func (lr *listenerRuntime) isClosed() bool {
+	lr.mu.Lock()
+	defer lr.mu.Unlock()
+	return lr.closed
 }
 
 func (lr *listenerRuntime) config() *ListenerConfig {

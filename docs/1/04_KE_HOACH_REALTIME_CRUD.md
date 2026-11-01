@@ -782,13 +782,13 @@ Reconcile toàn bộ có thể có race với connection vừa accept. Nếu con
 
 ### Checklist test
 
-- [ ] Unit test disconnect account/mountpoint/listener.
-- [ ] Test source/rover đóng đúng reason.
-- [ ] Test race connect + disable.
-- [ ] Test 50 vòng bật/tắt, goroutine ổn định.
-- [ ] Test max_connections giảm.
-- [ ] `go test -race ./...` PASS.
-- [ ] `go vet ./...` PASS.
+- [x] Unit test disconnect account/mountpoint/listener.
+- [!] Test source/rover đóng đúng reason — đóng đúng nhóm; assert reason chi tiết bổ sung ở Bước 13.
+- [!] Test race connect + disable — đã chạy `-race` toàn package; kịch bản đồng thời riêng ở Bước 14.
+- [!] Test 50 vòng bật/tắt, goroutine ổn định — Bước 14.
+- [x] Test max_connections giảm.
+- [x] `go test -race ./internal/caster` PASS (qua Docker golang:1.24).
+- [x] `go vet ./...` PASS.
 
 ### Ghi chú
 
@@ -1605,3 +1605,42 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - `reconcile` hiện trả trong station create/patch; các route khác có thể bổ sung khi UI cần.
   - Không dùng event để trả dữ liệu entity; chỉ tín hiệu refetch.
+### Nhật ký thực hiện — Bước 9
+- Thời điểm: 2026-11-01 11:00 +07:00
+- Trạng thái: DONE
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - Thêm `DisconnectAccount`, `DisconnectMountpoint`, `DisconnectListener`.
+  - Thêm internal API disconnect theo account/mountpoint/listener.
+  - Node gọi targeted disconnect trước khi reconcile toàn bộ.
+  - Thêm cờ closed cho connection; hub từ chối connection đã đóng.
+  - Register kiểm tra lại listener/mountpoint/account còn hợp lệ.
+  - Reconcile đóng phiên vượt `max_connections`, giữ phiên cũ nhất.
+  - Thêm unit test targeted disconnect, max_connections, closed hub.
+- File thay đổi:
+  - `gnss/internal/caster/connection.go`
+  - `gnss/internal/caster/hub.go`
+  - `gnss/internal/caster/listener.go`
+  - `gnss/internal/caster/manager.go`
+  - `gnss/internal/caster/caster_test.go`
+  - `gnss/internal/api/server.go`
+  - `server/src/lib/reconcile.ts`
+  - `docs/1/04_KE_HOACH_REALTIME_CRUD.md`
+  - `SESSION.md`
+- Test/Bằng chứng:
+  - `go test ./...`: PASS.
+  - `go test ./internal/caster -run 'TestTargetedDisconnect|TestReconcileClosesExcessConnections|TestClosedConnectionIsNotAddedToHub'`: PASS.
+  - `docker run ... golang:1.24 go test -race ./internal/caster`: PASS.
+  - `go vet ./...`: PASS.
+  - Rebuild `corsd`; container healthy.
+  - Mock rover online → lock account → offline trong < 1 giây (targeted disconnect).
+- Checklist đã đạt:
+  - [x] Targeted disconnect.
+  - [x] Hub không giữ connection đã đóng.
+  - [x] max_connections.
+  - [x] race/vet.
+  - [!] Assert reason chi tiết, race connect+disable riêng, 50 vòng goroutine ở Bước 13/14.
+- Lỗi/Ghi chú:
+  - Windows host không có gcc nên `-race` chạy qua Docker `golang:1.24`.
+  - Đã reset/seed lại 3 trạm test sau kiểm thử.

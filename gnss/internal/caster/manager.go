@@ -69,9 +69,10 @@ func (o Options) withDefaults() Options {
 }
 
 var (
-	errStopping     = errors.New("caster is stopping")
-	errMaxConns     = errors.New("maximum connections reached")
-	errSourceExists = errors.New("mountpoint already has a source")
+	errStopping      = errors.New("caster is stopping")
+	errMaxConns      = errors.New("maximum connections reached")
+	errSourceExists  = errors.New("mountpoint already has a source")
+	errInvalidConfig = errors.New("configuration is no longer valid")
 )
 
 type manager struct {
@@ -220,6 +221,7 @@ func (m *manager) Reconcile(ctx context.Context) error {
 	m.listeners = nextListeners
 
 	invalid := m.collectInvalidLocked(listenerByID, restartIDs)
+	excess := m.excessConnectionsLocked()
 	m.mu.Unlock()
 
 	for _, runtime := range toStop {
@@ -235,6 +237,11 @@ func (m *manager) Reconcile(ctx context.Context) error {
 	}
 	for _, conn := range invalid {
 		conn.closeWithReason("config_changed")
+	}
+	for _, conn := range excess {
+		if !conn.isClosed() {
+			conn.closeWithReason("max_connections")
+		}
 	}
 	return nil
 }
@@ -344,6 +351,10 @@ func (m *manager) register(conn *connection, account *AccountConfig) error {
 		conn.accountID = &accountID
 		conn.accountUsername = account.Username
 	}
+	if m.isInvalidLocked(conn, m.listenerCfgs) {
+		m.mu.Unlock()
+		return errInvalidConfig
+	}
 
 	startCtx, cancel := context.WithTimeout(baseCtx, m.opts.DBTimeout)
 	startID, err := m.runtime.Start(startCtx, StartInfo{
@@ -442,6 +453,75 @@ func (m *manager) Disconnect(id int64) bool {
 	}
 	conn.closeWithReason("manual")
 	return true
+}
+
+func (m *manager) DisconnectAccount(accountID int64, reason string) int {
+	m.mu.Lock()
+	conns := make([]*connection, 0)
+	for _, conn := range m.conns {
+		if conn.accountID != nil && *conn.accountID == accountID {
+			conns = append(conns, conn)
+		}
+	}
+	m.mu.Unlock()
+	for _, conn := range conns {
+		conn.closeWithReason(reason)
+	}
+	return len(conns)
+}
+
+func (m *manager) DisconnectMountpoint(mountpointID int64, reason string) int {
+	m.mu.Lock()
+	conns := make([]*connection, 0)
+	for _, conn := range m.conns {
+		if conn.mountpointID == mountpointID {
+			conns = append(conns, conn)
+		}
+	}
+	m.mu.Unlock()
+	for _, conn := range conns {
+		conn.closeWithReason(reason)
+	}
+	return len(conns)
+}
+
+func (m *manager) DisconnectListener(listenerID int64, reason string) int {
+	m.mu.Lock()
+	conns := make([]*connection, 0)
+	for _, conn := range m.conns {
+		if conn.listenerID == listenerID {
+			conns = append(conns, conn)
+		}
+	}
+	m.mu.Unlock()
+	for _, conn := range conns {
+		conn.closeWithReason(reason)
+	}
+	return len(conns)
+}
+
+func (m *manager) excessConnectionsLocked() []*connection {
+	byAccount := make(map[int64][]*connection)
+	for _, conn := range m.conns {
+		if conn.accountID == nil {
+			continue
+		}
+		byAccount[*conn.accountID] = append(byAccount[*conn.accountID], conn)
+	}
+	excess := make([]*connection, 0)
+	for accountID, conns := range byAccount {
+		account := m.accountsByID[accountID]
+		if account == nil || len(conns) <= account.MaxConnections {
+			continue
+		}
+		sort.Slice(conns, func(i, j int) bool {
+			return conns[i].start.Before(conns[j].start)
+		})
+		for index := account.MaxConnections; index < len(conns); index++ {
+			excess = append(excess, conns[index])
+		}
+	}
+	return excess
 }
 
 func (m *manager) Listeners() []ListenerSnapshot {

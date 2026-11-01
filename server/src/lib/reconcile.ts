@@ -38,6 +38,30 @@ export async function reconcileAffected(
   let caster: ReconcileResult['caster'] = 'skipped';
   if (needsCaster) {
     try {
+      for (const accountId of [...new Set(targets.accountIds ?? [])]) {
+        if (accountId > 0) {
+          await callGoInternal('/internal/caster/disconnect-account', {
+            accountId,
+            reason: 'config_changed'
+          });
+        }
+      }
+      for (const mountpointId of [...new Set(targets.mountpointIds ?? [])]) {
+        if (mountpointId > 0) {
+          await callGoInternal('/internal/caster/disconnect-mountpoint', {
+            mountpointId,
+            reason: 'config_changed'
+          });
+        }
+      }
+      for (const listenerId of [...new Set(targets.listenerIds ?? [])]) {
+        if (listenerId > 0) {
+          await callGoInternal('/internal/caster/disconnect-listener', {
+            listenerId,
+            reason: 'config_changed'
+          });
+        }
+      }
       await callGoInternal('/internal/caster/reconcile', {});
       caster = 'ok';
     } catch (err) {
