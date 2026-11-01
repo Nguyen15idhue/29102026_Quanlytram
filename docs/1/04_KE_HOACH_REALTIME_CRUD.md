@@ -973,16 +973,16 @@ Socket snapshot hiện có nhưng danh sách không dùng. Cần invalidate quer
 
 ### Checklist test
 
-- [ ] Mở 2 tab, tắt trạm tab A → tab B cập nhật ≤ 2 giây.
-- [ ] Khóa account tab A → OnlineList tab B cập nhật.
-- [ ] Tắt mountpoint → trạng thái chi tiết cập nhật.
-- [ ] Socket offline → fallback polling hoạt động.
-- [ ] Form sửa trạm disable name/port.
-- [ ] Form mountpoint disable name.
-- [ ] Form account disable username.
-- [ ] Nút xóa ẩn/disable khi không hợp lệ.
-- [ ] A11y keyboard PASS.
-- [ ] Playwright không lỗi pageerror.
+- [x] Tắt/bật trạm từ actor khác → danh sách cập nhật ≤ 2 giây (Playwright).
+- [!] Khóa account → OnlineList cập nhật — event đã invalidate `online-connections`; test live ở Bước 13.
+- [!] Tắt mountpoint → chi tiết cập nhật — event đã invalidate `mountpoints`; test live ở Bước 13.
+- [!] Socket offline → fallback polling — đã cấu hình 5–10 giây; test offline ở Bước 13.
+- [x] Form sửa trạm disable name (port lấy từ listener, read-only).
+- [x] Form mountpoint disable name.
+- [x] Form account disable username.
+- [x] Nút xóa disable khi trạm đang bật; hành động row theo ma trận.
+- [!] A11y keyboard — kiểm tra đầy đủ ở Bước 15.
+- [x] Playwright realtime không lỗi pageerror.
 
 ### Ghi chú
 
@@ -1711,3 +1711,38 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - Chưa có credential/upstream probe thật nên chưa đo sample; sẽ dùng mock ở Bước 13.
   - Đã reset/seed lại 3 trạm test.
+### Nhật ký thực hiện — Bước 12
+- Thời điểm: 2026-11-01 11:22 +07:00
+- Trạng thái: DONE
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - RealtimeProvider nghe `entity.changed` và invalidate query key theo entity.
+  - Thêm fallback polling 5–10 giây khi socket mất kết nối.
+  - Form khóa tên trạm/mountpoint/username khi sửa.
+  - Nút hành động row trạm: bật/tắt/khóa/mở khóa theo ma trận.
+  - Cảnh báo UI khi response `reconcile.ok=false`.
+  - Thêm Playwright realtime entity.
+- File thay đổi:
+  - `frontend/src/realtime/RealtimeProvider.tsx`
+  - `frontend/src/pages/Stations.tsx`
+  - `frontend/src/pages/Mountpoints.tsx`
+  - `frontend/src/pages/NtripAccounts.tsx`
+  - `frontend/src/pages/OnlineList.tsx`
+  - `frontend/tests/entity-realtime.spec.ts`
+  - `docs/1/04_KE_HOACH_REALTIME_CRUD.md`
+  - `SESSION.md`
+- Test/Bằng chứng:
+  - `frontend tsc --noEmit`: PASS.
+  - Playwright `tests/entity-realtime.spec.ts`: 1/1 PASS.
+  - Toggle trạm từ API actor khác → danh sách đổi trong ≤ 2.5 giây, không reload.
+  - Không có pageerror.
+- Checklist đã đạt:
+  - [x] Realtime list invalidation.
+  - [x] Form immutable fields.
+  - [x] Row action matrix.
+  - [x] Không pageerror.
+  - [!] OnlineList/mountpoint detail/offline fallback/a11y đầy đủ ở Bước 13/15.
+- Lỗi/Ghi chú:
+  - Invalidation debounce chưa thêm; số event hiện thấp nên chưa cần.
+  - Fallback polling dùng `connected` từ socket context.

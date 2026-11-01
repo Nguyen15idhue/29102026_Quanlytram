@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import { Download, Lock, LockOpen, Pencil, Plus, Power, PowerOff, Trash2, Upload } from 'lucide-react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { useRealtime } from '../realtime/RealtimeProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
@@ -145,6 +146,7 @@ function parseDetailTab(value: string | null): StationDetailTab {
 
 export function Stations() {
   const { can, csrfToken } = useAuth();
+  const { connected } = useRealtime();
   const { push } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -198,7 +200,8 @@ export function Stations() {
   }, [page, pageSize, q, region, sourceType, enabled, owner]);
   const list = useQuery({
     queryKey: ['stations', listQuery],
-    queryFn: () => apiFetch<StationList>(`/api/stations?${listQuery}`)
+    queryFn: () => apiFetch<StationList>(`/api/stations?${listQuery}`),
+    refetchInterval: connected ? false : 10000
   });
   const owners = useQuery({
     queryKey: ['web-users', 'station-filter'],
@@ -321,12 +324,12 @@ export function Stations() {
         ...(editing ? {} : sourceBody)
       };
       const saved = editing
-        ? await apiFetch<{ item: Station }>(`/api/stations/${editing.id}`, {
+        ? await apiFetch<{ item: Station; reconcile?: { ok: boolean; errors?: string[] } }>(`/api/stations/${editing.id}`, {
             method: 'PATCH',
             body,
             csrfToken
           })
-        : await apiFetch<{ item: Station }>('/api/stations', {
+        : await apiFetch<{ item: Station; reconcile?: { ok: boolean; errors?: string[] } }>('/api/stations', {
             method: 'POST',
             body,
             csrfToken
@@ -340,11 +343,14 @@ export function Stations() {
       }
       return saved;
     },
-    onSuccess: async () => {
+    onSuccess: async (saved) => {
       setFormOpen(false);
       setDirty(false);
       setEditing(null);
       setError('');
+      if (saved.reconcile && !saved.reconcile.ok) {
+        push('Đã lưu cấu hình nhưng Go chưa áp dụng; kiểm tra log/reconcile', 'error');
+      }
       push(editing ? 'Đã cập nhật trạm' : 'Đã thêm trạm', 'success');
       await queryClient.invalidateQueries({ queryKey: ['stations'] });
     },
@@ -361,6 +367,26 @@ export function Stations() {
       await queryClient.invalidateQueries({ queryKey: ['stations'] });
     },
     onError: (err) => push(err instanceof ApiClientError ? err.message : 'Xóa thất bại', 'error')
+  });
+
+  const stationAction = useMutation({
+    mutationFn: (input: { id: number; action: 'enable' | 'disable' | 'lock' | 'unlock' }) =>
+      apiFetch(`/api/stations/${input.id}/${input.action}`, {
+        method: 'POST',
+        csrfToken
+      }),
+    onSuccess: async (_result, input) => {
+      const labels = {
+        enable: 'Đã bật trạm',
+        disable: 'Đã tắt trạm',
+        lock: 'Đã khóa trạm',
+        unlock: 'Đã mở khóa trạm'
+      };
+      push(labels[input.action], 'success');
+      await queryClient.invalidateQueries({ queryKey: ['stations'] });
+    },
+    onError: (err) =>
+      push(err instanceof ApiClientError ? err.message : 'Thao tác thất bại', 'error')
   });
 
   const bulk = useMutation({
@@ -903,6 +929,48 @@ export function Stations() {
               align: 'right',
               cell: (station) => (
                 <div className="row-actions">
+                  {can('stations', 'edit') && !isLocked(station) && (
+                    <>
+                      <IconButton
+                        label={`${station.enabled ? 'Tắt' : 'Bật'} ${station.name}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          stationAction.mutate({
+                            id: station.id,
+                            action: station.enabled ? 'disable' : 'enable'
+                          });
+                        }}
+                      >
+                        {station.enabled ? (
+                          <PowerOff size={16} aria-hidden="true" />
+                        ) : (
+                          <Power size={16} aria-hidden="true" />
+                        )}
+                      </IconButton>
+                      {!station.enabled && (
+                        <IconButton
+                          label={`Khóa ${station.name}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            stationAction.mutate({ id: station.id, action: 'lock' });
+                          }}
+                        >
+                          <Lock size={16} aria-hidden="true" />
+                        </IconButton>
+                      )}
+                    </>
+                  )}
+                  {can('stations', 'edit') && isLocked(station) && (
+                    <IconButton
+                      label={`Mở khóa ${station.name}`}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        stationAction.mutate({ id: station.id, action: 'unlock' });
+                      }}
+                    >
+                      <LockOpen size={16} aria-hidden="true" />
+                    </IconButton>
+                  )}
                   {can('stations', 'edit') && (
                     <IconButton
                       label={`Sửa ${station.name}`}

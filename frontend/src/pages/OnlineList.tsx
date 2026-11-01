@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Unplug } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { useRealtime } from '../realtime/RealtimeProvider';
 import { useListParams } from '../lib/useListParams';
 import type { CasterConnection } from '../types';
 import {
@@ -32,6 +33,7 @@ function formatLocal(value: string): string {
 
 export function OnlineList() {
   const { can, csrfToken } = useAuth();
+  const { connected } = useRealtime();
   const { push } = useToast();
   const queryClient = useQueryClient();
   const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
@@ -41,7 +43,8 @@ export function OnlineList() {
     queryFn: () =>
       apiFetch<ConnectionList>(
         `/api/connections?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
-      )
+      ),
+    refetchInterval: connected ? false : 5000
   });
 
   const disconnect = useMutation({

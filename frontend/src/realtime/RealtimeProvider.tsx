@@ -6,6 +6,7 @@ import {
   useState,
   type ReactNode
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { io, type Socket } from 'socket.io-client';
 import { useAuth } from '../auth/AuthProvider';
 import type {
@@ -45,6 +46,7 @@ function relaySummary(items: RealtimeRelay[], previous: RealtimeSnapshot['summar
 
 export function RealtimeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [socket, setSocket] = useState<Socket | null>(null);
   const [snapshot, setSnapshot] = useState<RealtimeSnapshot | null>(null);
   const [quality, setQuality] = useState<QualityLiveItem[]>([]);
@@ -88,6 +90,36 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
       setSnapshot(null);
     });
     instance.on('snapshot', (payload: RealtimeSnapshot) => setSnapshot(payload));
+    instance.on(
+      'entity.changed',
+      (payload: { entity: string; id: number | string; action: string }) => {
+        const keys: Record<string, string[]> = {
+          station: [
+            'stations',
+            'station-sources',
+            'station-detail',
+            'station-connections',
+            'station-uptime',
+            'station-metadata',
+            'station-history',
+            'online-connections'
+          ],
+          mountpoint: ['mountpoints', 'mountpoint-impact'],
+          ntrip_account: [
+            'ntrip-accounts',
+            'ntrip-acl',
+            'ntrip-listener-acl',
+            'online-connections'
+          ],
+          listener: ['caster-listeners', 'online-connections'],
+          relay_job: ['relay-jobs', 'history'],
+          probe: ['station-probes', 'station-detail', 'quality']
+        };
+        for (const key of keys[payload.entity] ?? []) {
+          void queryClient.invalidateQueries({ queryKey: [key] });
+        }
+      }
+    );
     instance.on('relay.updated', (payload: { ts: string; items: RealtimeRelay[] }) => {
       setSnapshot((previous) =>
         previous
