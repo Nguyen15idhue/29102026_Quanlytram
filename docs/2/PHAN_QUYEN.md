@@ -957,6 +957,8 @@ Các điểm này **có thật trong code hiện tại**, cần test riêng và 
    - API bắt buộc `company_id`; thao tác tạo station/relay/mountpoint/NTRIP
      trên UI super có thể trả `400 COMPANY_REQUIRED` nếu không truyền company.
    - Form user đã có chọn company.
+   - **Đã sửa cho form trạm** (kế hoạch 06, P06-4): super có ô “Công ty” khi
+     tạo trạm. Relay/mountpoint/NTRIP vẫn là gap.
 
 7. **`settings.*` là permission reserved**
    - Chưa có route/UI settings; chỉ có trong bảng quyền.

@@ -1,13 +1,24 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const password = process.env.E2E_PASSWORD ?? '';
+const TILE_PNG = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+  'base64'
+);
+
+async function stubTiles(page: Page) {
+  await page.route('**/api/map/tiles/**', (route) =>
+    route.fulfill({ status: 200, contentType: 'image/png', body: TILE_PNG })
+  );
+}
 
 test.describe('P0 Phase 3 unified map', () => {
   test.skip(!password, 'E2E_PASSWORD is required');
 
-  test('redirects, markers, panel, drawer, filters and responsive', async ({ page }) => {
+  test('redirects, markers, panel, filters and responsive', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
+    await stubTiles(page);
     await page.setViewportSize({ width: 1440, height: 900 });
 
     await page.goto('/login');
@@ -21,23 +32,26 @@ test.describe('P0 Phase 3 unified map', () => {
     await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
     await expect(page.locator('.leaflet-container')).toBeVisible();
     await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');
-    await expect(page.locator('.leaflet-interactive')).toHaveCount(3);
+    await expect(page.locator('.leaflet-interactive')).toHaveCount(2, { timeout: 15_000 });
 
     await page.goto('/online/map');
     await expect(page).toHaveURL(/\/map\?layer=online/);
     await expect(page.getByRole('row')).toHaveCount(0);
 
     await page.getByLabel('Layer bản đồ').selectOption('stations');
-    await page.getByPlaceholder('Tìm trạm, vùng, địa chỉ').fill('THA');
-    await expect(page).toHaveURL(/q=THA/);
-    await page.getByRole('button', { name: /THA Hậu Lộc/ }).first().click();
-    await expect(page).toHaveURL(/station=80/);
-    await expect(page.getByText('Mở chi tiết trạm')).toBeVisible();
+    await page
+      .getByPlaceholder('Tìm trạm, ID, vùng, địa chỉ, owner')
+      .fill('Hà Nội');
+    await expect(page).toHaveURL(/[?&]q=/);
+    await expect(page.locator('.map-list-item')).toHaveCount(2);
+    await page.locator('.map-list-item').first().click();
+    await expect(page).toHaveURL(/station=/);
+    await expect(page.getByRole('button', { name: /Mở chi tiết trạm/ })).toBeVisible();
     await page.screenshot({ path: 'test-results/unified-map-light.png', fullPage: true });
 
     await page.getByRole('button', { name: /Mở chi tiết trạm/ }).click();
-    await expect(page).toHaveURL(/\/stations\/80/);
-    await expect(page.getByText('THA_HauLoc').first()).toBeVisible();
+    await expect(page).toHaveURL(/\/stations\/\d+/);
+    await expect(page.getByText('Trạm test Hà Nội 01').first()).toBeVisible();
     await page.goBack();
     await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
 

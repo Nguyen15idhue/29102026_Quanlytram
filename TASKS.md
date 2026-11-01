@@ -105,7 +105,7 @@ Chi tiết: `docs/1/05_KE_HOACH_CONG_TY_NHIEU_ADMIN.md`.
 | P06-1 | Nền tảng tile + toạ độ | DONE (tile proxy + config GET, overview coordSource/filter/field-gate, MapCanvas, form toạ độ dự phòng; server 71/71, FE build, Playwright smoke PASS) |
 | P06-2 | Bộ lọc, tìm kiếm, tương tác | DONE (MapFilterPanel, URL state, fit/flyTo, legend, 3 mode, AddressSearch Geoapify, xoá StationMap/OnlineMap; Playwright map-upgrade 2/2) |
 | P06-3 | Cấu hình map super admin | DONE (settings map.config, GET/PUT/test, audit redacted, trang `/system/map-config`, menu theo `settings.edit`; Playwright map-config 2/2) |
-| P06-4 | Test & rollout | TODO |
+| P06-4 | Test & rollout | DONE (server 71/71, FE tsc/build, Go test/vet, Playwright 15/15, tile/geo/config/RBAC, graphify 3233 nodes) |
 
 Chi tiết: `docs/1/06_KE_HOACH_NANG_CAP_BAN_DO.md`.
 

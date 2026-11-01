@@ -1,5 +1,6 @@
 import { expect, request as api, test, type APIRequestContext } from '@playwright/test';
 
+const adminUsername = process.env.E2E_ADMIN_USERNAME ?? 'admin';
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? '';
 const userPassword = process.env.E2E_USER_PASSWORD ?? '';
 const baseURL = 'http://127.0.0.1:3000';
@@ -22,7 +23,7 @@ test.describe('P1.2 RBAC tenant và menu', () => {
   test.skip(!adminPassword, 'E2E_ADMIN_PASSWORD is required');
 
   test('admin không xem sức khỏe, phân quyền chỉ đọc', async ({ page }) => {
-    await login(page, 'admin', adminPassword);
+    await login(page, adminUsername, adminPassword);
     await expect(page.locator('a[href="/system/health"]')).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Phân quyền' })).toBeVisible();
 
@@ -147,7 +148,7 @@ test.describe('P1.2 RBAC tenant và menu', () => {
       expect(createStation.status()).toBe(201);
       stationId = (await createStation.json()).item.id;
 
-      await loginApi(adminACtx, 'admin', adminPassword);
+      await loginApi(adminACtx, adminUsername, adminPassword);
       const q = encodeURIComponent(stationName);
       const aList = await (
         await adminACtx.get(`/api/stations?page=1&pageSize=20&q=${q}`)

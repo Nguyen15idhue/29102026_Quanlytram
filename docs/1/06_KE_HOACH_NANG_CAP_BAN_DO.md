@@ -1,7 +1,7 @@
 # 06 — KẾ HOẠCH NÂNG CẤP TRANG BẢN ĐỒ
 
 > Ngày lập: 2026-11-01
-> Trạng thái: **KẾ HOẠCH — chưa sửa code**
+> Trạng thái: **HOÀN THÀNH P06-0..P06-4 (2026-11-01)**
 > Phạm vi: trang `/map`, cấu hình nền bản đồ, tile proxy, dữ liệu toạ độ,
 > marker, tìm kiếm, lọc và test.
 > Không thay đổi kiến trúc RBAC/company hiện tại.
@@ -731,13 +731,13 @@ Geoapify forward/reverse trả kết quả.
 
 ### P06-4 — Test & rollout
 
-- [ ] Unit test helper toạ độ/config/tile URL.
-- [ ] API test search/filter/coordSource/RBAC.
-- [ ] API test Geoapify forward search (mock/không key).
-- [ ] Tile proxy test allowlist/fallback/cache.
-- [ ] Test provider thật: osm-de, osm-fr, Esri, OpenTopoMap.
-- [ ] Test form trạm nhập toạ độ dự phòng.
-- [ ] Playwright map:
+- [x] Unit test helper toạ độ/config/tile URL.
+- [x] API test search/filter/coordSource/RBAC.
+- [x] API test Geoapify forward search (mock/không key).
+- [x] Tile proxy test allowlist/fallback/cache.
+- [x] Test provider thật: osm-de, osm-fr, Esri, OpenTopoMap.
+- [x] Test form trạm nhập toạ độ dự phòng.
+- [x] Playwright map:
   - tile stub/local (không phụ thuộc OSM)
   - marker count
   - search trạm + địa chỉ
@@ -745,10 +745,30 @@ Geoapify forward/reverse trả kết quả.
   - popup/detail
   - tile error banner
   - responsive/dark
-- [ ] Cập nhật test cũ `unified-map.spec.ts`, `map.spec.ts`.
-- [ ] Regression navigation/station/RBAC; không có cluster.
-- [ ] Graphify update sau khi đổi cấu trúc.
-- [ ] Cập nhật `SESSION.md`, `TASKS.md`, `docs/2` nếu cần.
+- [x] Cập nhật test cũ `unified-map.spec.ts`, `map.spec.ts`.
+- [x] Regression navigation/station/RBAC; không có cluster.
+- [x] Graphify update sau khi đổi cấu trúc.
+- [x] Cập nhật `SESSION.md`, `TASKS.md`, `docs/2` nếu cần.
+
+**Kết quả P06-4 (2026-11-01):**
+
+| Mục | Kết quả | Bằng chứng |
+|---|---|---|
+| Server tsc/test/build | PASS | `npx tsc --noEmit`; Vitest 71/71; `npm run build` |
+| Frontend tsc/build | PASS | `npx tsc --noEmit`; `npm run build` (chỉ warning chunk >500 kB có sẵn) |
+| Go test/vet | PASS | `go test ./...`; `go vet ./...` |
+| Playwright map/regression | PASS | 12/12: map-upgrade, unified-map, map, map-config, navigation, dashboard, p1-dashboard, station-detail, p1-station |
+| Playwright p1-rbac | PASS | 3/3 (admin tạm theo `E2E_ADMIN_USERNAME`, user1, company A/B; đã xoá admin tạm) |
+| Provider thật | PASS | osm-de / osm-fr / Esri / OpenTopoMap đều 200 ảnh |
+| Geoapify forward | PASS | key thật 200 1 item; không key → `items: []`, `warning: missing_key`; provider lỗi → `items: []` |
+| Tile proxy | PASS | allowlist, z/x/y, mode, 401 khi chưa login, 502 fallback PNG + header |
+| Coord source | PASS | 1005 → station → none; marker = 2 (trạm có toạ độ) |
+| Form toạ độ dự phòng | PASS | lưu `stations.lat/lon`; `lat=200` → 400 `VALIDATION_ERROR` |
+| Company/locked | PASS | company disable → map 401; user lock → map 401 |
+| Audit map config | PASS | `audit_logs` entity `map_config`, redacted |
+| Không cluster | PASS | `.marker-cluster` = 0; không có `leaflet.markercluster` |
+| Xoá code cũ | PASS | `StationMap.tsx`, `OnlineMap.tsx` đã xoá; redirect giữ |
+| Graphify | PASS | `graphify update .` → 3233 nodes / 7698 edges / 244 communities |
 
 ## 8. Test matrix bắt buộc
 
