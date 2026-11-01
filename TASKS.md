@@ -62,6 +62,29 @@ Chi tiết bằng chứng: `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
 
 Chi tiết bằng chứng: `docs/1/03_CAC_BUOC_THUC_HIEN_P1.md` mục 11.
 
+## 1d. Kế hoạch 04 — Realtime CRUD entity
+
+| Bước | Tên | Trạng thái |
+|---|---|---|
+| 1 | Baseline, backup và chốt môi trường test | DONE |
+| 2 | Chuẩn bị reset dữ liệu test | DONE |
+| 3 | Migration 023–024 | DONE |
+| 4 | Bỏ station code, mountpoint tự sinh, field bắt buộc | DONE |
+| 5 | CRUD trạm, ma trận trạng thái, xóa cascade | DONE |
+| 6 | CRUD mountpoint, immutable, pause relay | DONE |
+| 7 | CRUD NTRIP account, managed account, ngắt online | DONE |
+| 8 | Reconcile tập trung và entity.changed | DONE |
+| 9 | Go caster targeted disconnect, race, max_connections | DONE |
+| 10 | Relay pause ownership station/mountpoint | DONE |
+| 11 | Probe fingerprint, listener/source reconcile | DONE |
+| 12 | UI realtime, form, row action | DONE |
+| 13 | Flow mock end-to-end | DONE |
+| 14 | Race/load/toggle leak | PARTIAL — real streaming BLOCKED (chưa có endpoint allowlist) |
+| 15 | Regression, docs, release | DONE (Playwright 31/31, server 53/53, Go test/vet/race) |
+
+Bổ sung 2026-11-01: trạng thái streaming `online | offline | no data | —`;
+`relay_caster` lấy từ relay runtime. Chi tiết: `docs/1/04_KE_HOACH_REALTIME_CRUD.md`.
+
 ---
 
 ## 2. Phase 0 — Chuẩn bị & xác minh

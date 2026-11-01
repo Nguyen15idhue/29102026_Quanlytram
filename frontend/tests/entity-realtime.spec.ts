@@ -28,13 +28,13 @@ test.describe('Realtime entity invalidation', () => {
     await page.goto('/stations');
     const row = page.getByRole('row', { name: new RegExp(station.name) }).first();
     await expect(row).toBeVisible();
-    await expect(row.getByText('Đã tắt')).toBeVisible();
+    await expect(row.getByText('offline')).toBeVisible();
 
     await page.request.post(`/api/stations/${station.id}/enable`, { headers });
-    await expect(row.getByText('Đã tắt')).toHaveCount(0, { timeout: 2500 });
+    await expect(row.getByText('offline')).toHaveCount(0, { timeout: 2500 });
 
     await page.request.post(`/api/stations/${station.id}/disable`, { headers });
-    await expect(row.getByText('Đã tắt')).toBeVisible({ timeout: 2500 });
+    await expect(row.getByText('offline')).toBeVisible({ timeout: 2500 });
     expect(errors).toEqual([]);
   });
 });

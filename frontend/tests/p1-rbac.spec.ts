@@ -119,7 +119,7 @@ test.describe('P1.2 RBAC tenant và menu', () => {
 
       const adminBAuth = await loginApi(adminBCtx, adminBUsername, adminBPassword);
       const listeners = await (
-        await adminBCtx.get('/api/caster/listeners?page=1&pageSize=10')
+        await superCtx.get('/api/caster/listeners?page=1&pageSize=10')
       ).json();
       const listener = listeners.items[0];
       const stationName = `Trạm công ty B ${suffix}`;

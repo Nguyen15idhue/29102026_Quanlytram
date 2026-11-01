@@ -18,6 +18,7 @@
 - Kế hoạch 04: Bước 13 DONE (mock push/rover byte-exact, Flow A-G, source dừng khi tắt)
 - Kế hoạch 04: Bước 14 PARTIAL (race/load/50 toggle PASS; real streaming BLOCKED chưa có endpoint allowlist)
 - Bổ sung: trạng thái streaming online/offline/no data/—; relay_caster lấy từ relay runtime; regression fixtures 1/79/80
+- Kế hoạch 04: Bước 15 DONE (Playwright 31/31, server 53/53, Go test/vet/race, graphify 2705 nodes); real streaming vẫn BLOCKED chờ endpoint allowlist
 - Phase hiện tại: P1.10.1 — Khắc phục trạm/kết nối/tọa độ/geo DONE; P1.11 map defer
 - Trạng thái P1.0: DONE (backup/restore PASS, graphify 2364 nodes, Playwright 15/15)
 - Trạng thái P1.1: DONE (migration 014–017, station_sources 39, tenant scope)
