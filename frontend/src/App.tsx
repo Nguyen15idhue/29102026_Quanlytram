@@ -12,6 +12,7 @@ import { NtripAccounts } from './pages/NtripAccounts';
 import { RelayJobs } from './pages/RelayJobs';
 import { Caster } from './pages/Caster';
 import { WebUsers } from './pages/WebUsers';
+import { Companies } from './pages/Companies';
 import { Alerts } from './pages/Alerts';
 import { History } from './pages/History';
 import { Profile } from './pages/Profile';
@@ -52,6 +53,7 @@ export function App() {
           <Route path="/caster" element={<Caster />} />
           <Route path="/ntrip-accounts" element={<NtripAccounts />} />
           <Route path="/web-users" element={<WebUsers />} />
+          <Route path="/companies" element={<Companies />} />
           <Route path="/roles" element={<Roles />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/system/health" element={<SystemHealth />} />

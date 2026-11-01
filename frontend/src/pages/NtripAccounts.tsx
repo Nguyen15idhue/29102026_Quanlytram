@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
-import type { CasterListener, Mountpoint, NtripAccount } from '../types';
+import type { CasterListener, Company, Mountpoint, NtripAccount } from '../types';
 import {
   BulkActionBar,
   Button,
@@ -43,13 +43,15 @@ const emptyForm = {
 };
 
 export function NtripAccounts() {
-  const { can, csrfToken } = useAuth();
+  const { can, csrfToken, user } = useAuth();
+  const isSuper = user?.role.code === 'super_admin';
   const { push } = useToast();
   const queryClient = useQueryClient();
   const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
     useListParams();
   const enabled = getParam('enabled');
-  const activeFilterCount = [enabled].filter(Boolean).length;
+  const companyId = getParam('companyId');
+  const activeFilterCount = [enabled, isSuper ? companyId : null].filter(Boolean).length;
   const listQuery = useMemo(() => {
     const params = new URLSearchParams({
       page: String(page),
@@ -57,8 +59,9 @@ export function NtripAccounts() {
       q
     });
     if (enabled) params.set('enabled', enabled);
+    if (isSuper && companyId) params.set('companyId', companyId);
     return params.toString();
-  }, [page, pageSize, q, enabled]);
+  }, [page, pageSize, q, enabled, companyId, isSuper]);
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<NtripAccount | null>(null);
@@ -76,6 +79,11 @@ export function NtripAccounts() {
     queryKey: ['ntrip-accounts', listQuery],
     queryFn: () => apiFetch<AccountList>(`/api/ntrip-accounts?${listQuery}`),
     refetchInterval: 10000
+  });
+  const companies = useQuery({
+    queryKey: ['companies', 'options'],
+    queryFn: () => apiFetch<{ items: Company[] }>('/api/companies?pageSize=100'),
+    enabled: isSuper
   });
   const mountpoints = useQuery({
     queryKey: ['mountpoints', 'options'],
@@ -282,6 +290,21 @@ export function NtripAccounts() {
               <option value="0">Đã khóa</option>
             </Select>
           </Field>
+          {isSuper && (
+            <Field label="Công ty">
+              <Select
+                value={companyId}
+                onChange={(event) => setParam('companyId', event.target.value || null)}
+              >
+                <option value="">Tất cả công ty</option>
+                {(companies.data?.items ?? []).map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
         </TableToolbar>
         <BulkActionBar
           count={selected.size}
@@ -352,7 +375,7 @@ export function NtripAccounts() {
             },
             {
               key: 'company',
-              header: 'Công ty',
+              header: 'Đơn vị',
               hideOnMobile: true,
               cell: (account) => (
                 <div>
@@ -361,6 +384,16 @@ export function NtripAccounts() {
                     {account.contactName || account.email || account.phone || '—'}
                   </div>
                 </div>
+              )
+            },
+            {
+              key: 'tenantCompany',
+              header: 'Công ty',
+              hideOnMobile: true,
+              cell: (account) => (
+                <span className="muted">
+                  {account.companyName ?? (account.companyId ? `#${account.companyId}` : '—')}
+                </span>
               )
             },
             {
@@ -378,7 +411,7 @@ export function NtripAccounts() {
               key: 'owner',
               header: 'Owner',
               hideOnMobile: true,
-              cell: (account) => <span className="muted">{account.ownerWebUserId ?? '—'}</span>
+              cell: (account) => <span className="muted">{account.ownerName || account.ownerWebUserId || '—'}</span>
             },
             {
               key: 'actions',
@@ -561,10 +594,14 @@ export function NtripAccounts() {
               </div>
               <div>
                 <dt>Owner</dt>
-                <dd>{detail.ownerWebUserId ?? '—'}</dd>
+                <dd>{detail.ownerName || detail.ownerWebUserId || '—'}</dd>
               </div>
               <div>
                 <dt>Công ty</dt>
+                <dd>{detail.companyName ?? (detail.companyId ? `#${detail.companyId}` : '—')}</dd>
+              </div>
+              <div>
+                <dt>Đơn vị</dt>
                 <dd>{detail.company || '—'}</dd>
               </div>
               <div>

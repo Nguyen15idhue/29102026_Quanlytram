@@ -113,6 +113,10 @@ function OverviewTab({ station }: { station: StationDetail }) {
           <dd>{station.owner_name || station.owner_web_user_id || '—'}</dd>
         </div>
         <div>
+          <dt>Công ty</dt>
+          <dd>{station.company_name ?? (station.company_id ? `#${station.company_id}` : '—')}</dd>
+        </div>
+        <div>
           <dt>Receiver</dt>
           <dd>
             {station.receiver_type || '—'} · {station.receiver_sn || '—'}

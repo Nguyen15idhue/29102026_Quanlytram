@@ -21,6 +21,9 @@ export interface User {
   displayName: string;
   email: string;
   parentUserId: number | null;
+  companyId?: number | null;
+  companyName?: string | null;
+  companyStatus?: string | null;
   role: {
     id: number;
     code: string;
@@ -61,6 +64,8 @@ export interface Station {
   notes: string;
   owner_web_user_id: number | null;
   owner_name?: string;
+  company_id?: number | null;
+  company_name?: string | null;
   station_type?: string;
   status?: 'active' | 'disabled' | 'locked';
   station_source_role?: 'ntrip_client' | 'ntrip_caster' | null;
@@ -365,6 +370,9 @@ export interface Mountpoint {
   station_id: number | null;
   enabled: number;
   owner_web_user_id: number | null;
+  owner_name?: string | null;
+  company_id?: number | null;
+  company_name?: string | null;
   station_name?: string | null;
   service_type?: string;
   position_mode?: string;
@@ -382,6 +390,9 @@ export interface WebUser {
   email: string;
   status: string;
   parentUserId: number | null;
+  companyId?: number | null;
+  companyName?: string | null;
+  companyStatus?: string | null;
   role: {
     id: number;
     code: string;
@@ -407,6 +418,9 @@ export interface NtripAccount {
   authMethod?: string;
   notes?: string;
   ownerWebUserId: number | null;
+  ownerName?: string | null;
+  companyId?: number | null;
+  companyName?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -489,6 +503,9 @@ export interface RelayJob {
   origin?: string;
   originRef?: string;
   ownerWebUserId?: number | null;
+  ownerName?: string | null;
+  companyId?: number | null;
+  companyName?: string | null;
   state: RelayJobState | null;
 }
 
@@ -540,7 +557,21 @@ export interface CasterListener {
   enabled: boolean;
   role: 'both' | 'source' | 'rover';
   description: string;
+  global?: boolean;
+  ownerWebUserId?: number | null;
+  ownerName?: string | null;
   mountpointCount: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface Company {
+  id: number;
+  code: string;
+  name: string;
+  status: 'active' | 'disabled';
+  notes: string;
+  userCount: number;
   createdAt?: string;
   updatedAt?: string;
 }

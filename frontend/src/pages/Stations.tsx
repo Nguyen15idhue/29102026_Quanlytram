@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
-import type { CasterListener, Station, StationSource } from '../types';
+import type { CasterListener, Company, Station, StationSource } from '../types';
 import {
   BulkActionBar,
   Button,
@@ -137,7 +137,8 @@ function parseDetailTab(value: string | null): StationDetailTab {
 }
 
 export function Stations() {
-  const { can, csrfToken } = useAuth();
+  const { can, csrfToken, user } = useAuth();
+  const isSuper = user?.role.code === 'super_admin';
   const { push } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -149,7 +150,8 @@ export function Stations() {
   const sourceType = getParam('sourceType');
   const enabled = getParam('enabled');
   const owner = getParam('owner');
-  const activeFilterCount = [region, sourceType, enabled, owner].filter(Boolean).length;
+  const companyId = getParam('companyId');
+  const activeFilterCount = [region, sourceType, enabled, owner, isSuper ? companyId : null].filter(Boolean).length;
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<Station | null>(null);
@@ -187,8 +189,9 @@ export function Stations() {
     if (sourceType) params.set('sourceType', sourceType);
     if (enabled) params.set('enabled', enabled);
     if (owner) params.set('owner', owner);
+    if (isSuper && companyId) params.set('companyId', companyId);
     return params.toString();
-  }, [page, pageSize, q, region, sourceType, enabled, owner]);
+  }, [page, pageSize, q, region, sourceType, enabled, owner, companyId, isSuper]);
   const list = useQuery({
     queryKey: ['stations', listQuery],
     queryFn: () => apiFetch<StationList>(`/api/stations?${listQuery}`),
@@ -201,6 +204,11 @@ export function Stations() {
         items: Array<{ id: number; username: string; displayName?: string; display_name?: string }>;
       }>('/api/web-users?pageSize=50'),
     enabled: can('web_users', 'view')
+  });
+  const companies = useQuery({
+    queryKey: ['companies', 'options'],
+    queryFn: () => apiFetch<{ items: Company[] }>('/api/companies?pageSize=100'),
+    enabled: isSuper
   });
 
   const sources = useQuery({
@@ -404,7 +412,7 @@ export function Stations() {
 
   useEffect(() => {
     setSelected(new Set());
-  }, [page, pageSize, q, region, sourceType, enabled, owner]);
+  }, [page, pageSize, q, region, sourceType, enabled, owner, companyId]);
 
   const importMutation = useMutation({
     mutationFn: (dryRun: boolean) =>
@@ -701,6 +709,21 @@ export function Stations() {
               </Select>
             </Field>
           )}
+          {isSuper && (
+            <Field label="Công ty">
+              <Select
+                value={companyId}
+                onChange={(event) => setParam('companyId', event.target.value || null)}
+              >
+                <option value="">Tất cả công ty</option>
+                {(companies.data?.items ?? []).map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
         </TableToolbar>
         <BulkActionBar
           count={selected.size}
@@ -789,6 +812,16 @@ export function Stations() {
                     {station.owner_name || station.owner_web_user_id || '—'}
                   </div>
                 </div>
+              )
+            },
+            {
+              key: 'company',
+              header: 'Công ty',
+              hideOnMobile: true,
+              cell: (station) => (
+                <span className="muted">
+                  {station.company_name ?? (station.company_id ? `#${station.company_id}` : '—')}
+                </span>
               )
             },
             {

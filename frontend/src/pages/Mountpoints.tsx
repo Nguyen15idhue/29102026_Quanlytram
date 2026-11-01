@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
-import type { Mountpoint, Station } from '../types';
+import type { Company, Mountpoint, Station } from '../types';
 import {
   BulkActionBar,
   Button,
@@ -49,14 +49,16 @@ const emptyForm = {
 };
 
 export function Mountpoints() {
-  const { can, csrfToken } = useAuth();
+  const { can, csrfToken, user } = useAuth();
+  const isSuper = user?.role.code === 'super_admin';
   const { push } = useToast();
   const queryClient = useQueryClient();
   const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
     useListParams();
   const stationId = getParam('stationId');
   const enabled = getParam('enabled');
-  const activeFilterCount = [stationId, enabled].filter(Boolean).length;
+  const companyId = getParam('companyId');
+  const activeFilterCount = [stationId, enabled, isSuper ? companyId : null].filter(Boolean).length;
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<Mountpoint | null>(null);
@@ -73,6 +75,11 @@ export function Mountpoints() {
     queryFn: () => apiFetch<StationList>('/api/stations?pageSize=50'),
     enabled: can('stations', 'view')
   });
+  const companies = useQuery({
+    queryKey: ['companies', 'options'],
+    queryFn: () => apiFetch<{ items: Company[] }>('/api/companies?pageSize=100'),
+    enabled: isSuper
+  });
   const listQuery = useMemo(() => {
     const params = new URLSearchParams({
       page: String(page),
@@ -81,8 +88,9 @@ export function Mountpoints() {
     });
     if (stationId) params.set('stationId', stationId);
     if (enabled) params.set('enabled', enabled);
+    if (isSuper && companyId) params.set('companyId', companyId);
     return params.toString();
-  }, [page, pageSize, q, stationId, enabled]);
+  }, [page, pageSize, q, stationId, enabled, companyId, isSuper]);
   const list = useQuery({
     queryKey: ['mountpoints', listQuery],
     queryFn: () => apiFetch<MountpointList>(`/api/mountpoints?${listQuery}`),
@@ -242,6 +250,21 @@ export function Mountpoints() {
               <option value="0">Đã tắt</option>
             </Select>
           </Field>
+          {isSuper && (
+            <Field label="Công ty">
+              <Select
+                value={companyId}
+                onChange={(event) => setParam('companyId', event.target.value || null)}
+              >
+                <option value="">Tất cả công ty</option>
+                {(companies.data?.items ?? []).map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
         </TableToolbar>
         <BulkActionBar
           count={selected.size}
@@ -288,6 +311,16 @@ export function Mountpoints() {
               key: 'station',
               header: 'Trạm',
               cell: (item) => item.station_name ?? '—'
+            },
+            {
+              key: 'company',
+              header: 'Công ty',
+              hideOnMobile: true,
+              cell: (item) => (
+                <span className="muted">
+                  {item.company_name ?? (item.company_id ? `#${item.company_id}` : '—')}
+                </span>
+              )
             },
             {
               key: 'enabled',

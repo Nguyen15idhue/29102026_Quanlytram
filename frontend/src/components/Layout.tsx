@@ -4,6 +4,7 @@ import {
   Activity,
   Antenna,
   Bell,
+  Building2,
   History,
   KeyRound,
   LayoutDashboard,
@@ -34,6 +35,7 @@ const titles: Record<string, string> = {
   '/caster': 'Caster',
   '/ntrip-accounts': 'Tài khoản NTRIP',
   '/web-users': 'Người dùng web',
+  '/companies': 'Công ty',
   '/roles': 'Vai trò & quyền',
   '/system/health': 'System Health',
   '/profile': 'Trang cá nhân'
@@ -107,6 +109,7 @@ export function Layout() {
         { to: '/alerts', label: 'Cảnh báo', icon: Bell, show: can('alerts', 'view') },
         { to: '/history', label: 'Lịch sử', icon: History, show: can('relay', 'view') || can('audit', 'view') },
         { to: '/web-users', label: 'Người dùng', icon: Users, show: can('web_users', 'view') },
+        { to: '/companies', label: 'Công ty', icon: Building2, show: can('companies', 'view') },
         { to: '/roles', label: 'Phân quyền', icon: ShieldCheck, show: can('roles', 'view') }
       ]
     }

@@ -3346,3 +3346,30 @@ label.check input {
   justify-self: start;
   margin-top: 4px;
 }
+
+.fact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.fact-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fact-list li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.fact-list svg {
+  color: var(--muted);
+  margin-top: 2px;
+  flex-shrink: 0;
+}

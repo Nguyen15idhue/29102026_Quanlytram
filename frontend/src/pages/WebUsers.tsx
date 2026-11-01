@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
-import type { Role, WebUser } from '../types';
+import type { Company, Role, WebUser } from '../types';
 import {
   BulkActionBar,
   Button,
@@ -34,23 +34,30 @@ interface RoleList {
   items: Role[];
 }
 
+interface CompanyList {
+  items: Company[];
+}
+
 const emptyForm = {
   username: '',
   password: '',
   display_name: '',
   email: '',
-  role_id: '' as string | number
+  role_id: '' as string | number,
+  company_id: '' as string | number
 };
 
 export function WebUsers() {
-  const { can, csrfToken } = useAuth();
+  const { can, csrfToken, user } = useAuth();
+  const isSuper = user?.role.code === 'super_admin';
   const { push } = useToast();
   const queryClient = useQueryClient();
   const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
     useListParams();
   const roleId = getParam('roleId');
   const status = getParam('status');
-  const activeFilterCount = [roleId, status].filter(Boolean).length;
+  const companyId = getParam('companyId');
+  const activeFilterCount = [roleId, status, isSuper ? companyId : null].filter(Boolean).length;
   const listQuery = useMemo(() => {
     const params = new URLSearchParams({
       page: String(page),
@@ -59,8 +66,9 @@ export function WebUsers() {
     });
     if (roleId) params.set('roleId', roleId);
     if (status) params.set('status', status);
+    if (isSuper && companyId) params.set('companyId', companyId);
     return params.toString();
-  }, [page, pageSize, q, roleId, status]);
+  }, [page, pageSize, q, roleId, status, companyId, isSuper]);
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<WebUser | null>(null);
@@ -82,6 +90,11 @@ export function WebUsers() {
     queryKey: ['roles', 'options'],
     queryFn: () => apiFetch<RoleList>('/api/roles')
   });
+  const companies = useQuery({
+    queryKey: ['companies', 'options'],
+    queryFn: () => apiFetch<CompanyList>('/api/companies?pageSize=100'),
+    enabled: isSuper
+  });
 
   const save = useMutation({
     mutationFn: async () => {
@@ -102,7 +115,10 @@ export function WebUsers() {
           password: form.password,
           display_name: form.display_name,
           email: form.email,
-          role_id: Number(form.role_id)
+          role_id: Number(form.role_id),
+          ...(isSuper && form.company_id
+            ? { company_id: Number(form.company_id) }
+            : {})
         }
       });
     },
@@ -149,7 +165,7 @@ export function WebUsers() {
 
   useEffect(() => {
     setSelected(new Set());
-  }, [page, pageSize, q, roleId, status]);
+  }, [page, pageSize, q, roleId, status, companyId]);
 
   const importUsers = useMutation({
     mutationFn: () =>
@@ -209,7 +225,8 @@ export function WebUsers() {
       password: '',
       display_name: user.displayName,
       email: user.email,
-      role_id: user.role.id
+      role_id: user.role.id,
+      company_id: user.companyId ?? ''
     });
     setError('');
     setDirty(false);
@@ -303,6 +320,21 @@ export function WebUsers() {
               <option value="locked">Đã khóa</option>
             </Select>
           </Field>
+          {isSuper && (
+            <Field label="Công ty">
+              <Select
+                value={companyId}
+                onChange={(event) => setParam('companyId', event.target.value || null)}
+              >
+                <option value="">Tất cả công ty</option>
+                {(companies.data?.items ?? []).map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
         </TableToolbar>
         <BulkActionBar
           count={selected.size}
@@ -363,6 +395,16 @@ export function WebUsers() {
                 <>
                   {user.role.name} <span className="muted">({user.role.code})</span>
                 </>
+              )
+            },
+            {
+              key: 'company',
+              header: 'Công ty',
+              hideOnMobile: true,
+              cell: (user) => (
+                <span className="muted">
+                  {user.companyName ?? (user.companyId ? `#${user.companyId}` : '—')}
+                </span>
               )
             },
             {
@@ -516,6 +558,22 @@ export function WebUsers() {
               ))}
             </Select>
           </Field>
+          {isSuper && (
+            <Field label="Công ty">
+              <Select
+                value={form.company_id}
+                onChange={(event) => setForm({ ...form, company_id: event.target.value })}
+                disabled={Boolean(editing)}
+              >
+                <option value="">Chọn công ty</option>
+                {(companies.data?.items ?? []).map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
         </form>
       </Modal>
 
@@ -555,6 +613,10 @@ export function WebUsers() {
               <dd>
                 {detail.role.name} ({detail.role.code})
               </dd>
+            </div>
+            <div>
+              <dt>Công ty</dt>
+              <dd>{detail.companyName ?? (detail.companyId ? `#${detail.companyId}` : '—')}</dd>
             </div>
             <div>
               <dt>Trạng thái</dt>

@@ -427,11 +427,29 @@ Ghi chú P05-3 (2026-11-01):
 
 ### P05-4 — UI
 
-- [ ] Menu/trang Công ty.
-- [ ] Cột/filter Công ty.
-- [ ] Drawer hiển thị company/owner tên.
-- [ ] Form user chọn company (super).
-- [ ] Responsive/dark mode/a11y.
+- [x] Menu/trang Công ty.
+- [x] Cột/filter Công ty.
+- [x] Drawer hiển thị company/owner tên.
+- [x] Form user chọn company (super).
+- [x] Responsive/dark mode/a11y.
+
+Ghi chú P05-4 (2026-11-01):
+
+- Trang `/companies` (super): danh sách, tạo/sửa, disable/enable, xóa có kiểm
+  tra `COMPANY_IN_USE`, drawer user thuộc công ty.
+- Cột + filter Công ty (super) trên Trạm, Mountpoint, Relay, NTRIP account,
+  Người dùng; filter lưu URL qua `useListParams`.
+- Drawer trạm/relay/NTRIP hiển thị tên công ty + owner; listener hiển thị
+  phạm vi toàn hệ thống + owner.
+- Form user: super thấy chọn Công ty (không sửa khi edit); admin không thấy.
+- Listener: admin xem toàn bộ nhưng không có nút thêm/sửa/xóa (permission
+  `caster.add/edit/delete = none`).
+- Playwright `tests/company.spec.ts`: 2/2 PASS (super CRUD công ty, dark mode,
+  390px không tràn; admin không thấy menu Công ty và nút thêm listener).
+- `npx tsc --noEmit` + `npm run build` frontend PASS.
+- Chưa bổ sung chọn Công ty trong form tạo trạm/relay/mountpoint/NTRIP của
+  super; API đã bắt buộc `company_id` nên UI sẽ báo lỗi nếu thiếu. Ghi nhận
+  làm follow-up.
 
 ### P05-5 — Test & rollout
 

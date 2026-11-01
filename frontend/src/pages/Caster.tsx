@@ -445,6 +445,14 @@ function ListenerPanel() {
                 <dt>Mountpoint</dt>
                 <dd>{detail.mountpointCount}</dd>
               </div>
+              <div>
+                <dt>Phạm vi</dt>
+                <dd>Toàn hệ thống</dd>
+              </div>
+              <div>
+                <dt>Owner</dt>
+                <dd>{detail.ownerName || detail.ownerWebUserId || '—'}</dd>
+              </div>
             </dl>
             <div className="panel">
               <div className="table-head">

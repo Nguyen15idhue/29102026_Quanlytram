@@ -7,7 +7,7 @@ import { useAuth } from '../auth/AuthProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
-import type { RelayJob, RelayJobStatusResponse, RelayStreamStatus } from '../types';
+import type { Company, RelayJob, RelayJobStatusResponse, RelayStreamStatus } from '../types';
 import {
   BulkActionBar,
   Button,
@@ -94,14 +94,16 @@ function formatLocal(value: string | null | undefined): string {
 }
 
 export function RelayJobs() {
-  const { can, csrfToken } = useAuth();
+  const { can, csrfToken, user } = useAuth();
+  const isSuper = user?.role.code === 'super_admin';
   const { push } = useToast();
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
     useListParams();
   const enabled = getParam('enabled');
-  const activeFilterCount = [enabled].filter(Boolean).length;
+  const companyId = getParam('companyId');
+  const activeFilterCount = [enabled, isSuper ? companyId : null].filter(Boolean).length;
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<RelayJob | null>(null);
@@ -130,12 +132,18 @@ export function RelayJobs() {
       q
     });
     if (enabled) params.set('enabled', enabled);
+    if (isSuper && companyId) params.set('companyId', companyId);
     return params.toString();
-  }, [page, pageSize, q, enabled]);
+  }, [page, pageSize, q, enabled, companyId, isSuper]);
   const list = useQuery({
     queryKey: ['relay-jobs', listQuery],
     queryFn: () => apiFetch<RelayJobList>(`/api/relay-jobs?${listQuery}`),
     refetchInterval: 10_000
+  });
+  const companies = useQuery({
+    queryKey: ['companies', 'options'],
+    queryFn: () => apiFetch<{ items: Company[] }>('/api/companies?pageSize=100'),
+    enabled: isSuper
   });
   const detailStatus = useQuery({
     queryKey: ['relay-job-status', detail?.id],
@@ -400,6 +408,21 @@ export function RelayJobs() {
               <option value="0">Đã tắt</option>
             </Select>
           </Field>
+          {isSuper && (
+            <Field label="Công ty">
+              <Select
+                value={companyId}
+                onChange={(event) => setParam('companyId', event.target.value || null)}
+              >
+                <option value="">Tất cả công ty</option>
+                {(companies.data?.items ?? []).map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
         </TableToolbar>
         <BulkActionBar
           count={selected.size}
@@ -448,6 +471,16 @@ export function RelayJobs() {
                     {job.locked ? 'locked' : job.enabled ? 'enabled' : 'disabled'}
                   </div>
                 </div>
+              )
+            },
+            {
+              key: 'company',
+              header: 'Công ty',
+              hideOnMobile: true,
+              cell: (job) => (
+                <span className="muted">
+                  {job.companyName ?? (job.companyId ? `#${job.companyId}` : '—')}
+                </span>
               )
             },
             {
@@ -997,7 +1030,14 @@ export function RelayJobs() {
                     </div>
                     <div>
                       <dt>Owner</dt>
-                      <dd>{detailItem.ownerWebUserId ?? '—'}</dd>
+                      <dd>{detailItem.ownerName || detailItem.ownerWebUserId || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Công ty</dt>
+                      <dd>
+                        {detailItem.companyName ??
+                          (detailItem.companyId ? `#${detailItem.companyId}` : '—')}
+                      </dd>
                     </div>
                     <div>
                       <dt>Origin</dt>
