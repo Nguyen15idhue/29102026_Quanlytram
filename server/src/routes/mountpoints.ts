@@ -24,6 +24,90 @@ export const mountpointsRouter = Router();
 mountpointsRouter.use(requireAuth);
 mountpointsRouter.use(csrfProtection);
 
+function duplicateMountpointGuard(err: unknown): never {
+  if (err && typeof err === 'object' && (err as any).code === 'ER_DUP_ENTRY') {
+    throw new ApiError(409, 'DUPLICATE_NAME', 'Tên mountpoint đã tồn tại');
+  }
+  throw err;
+}
+
+async function reconcileAfterMountpointChange(relayJobIds: number[]): Promise<void> {
+  try {
+    await callGoInternal('/internal/caster/reconcile', {});
+  } catch (err) {
+    console.warn(
+      '[mountpoints] caster reconcile failed',
+      err instanceof Error ? err.message : 'unknown'
+    );
+  }
+  const ids = [...new Set(relayJobIds)].filter((id) => id > 0);
+  if (ids.length > 0) {
+    try {
+      await callGoInternal('/internal/reconcile', { jobIds: ids });
+    } catch (err) {
+      console.warn(
+        '[mountpoints] relay reconcile failed',
+        err instanceof Error ? err.message : 'unknown'
+      );
+    }
+  }
+}
+
+async function setRelayPauseForMountpoint(
+  conn: any,
+  mountpointId: number,
+  names: string[],
+  action: 'pause' | 'resume' | 'delete'
+): Promise<number[]> {
+  if (action !== 'resume' && names.length === 0) return [];
+  if (action === 'resume') {
+    const [rows] = (await conn.query(
+      'SELECT id FROM relay_jobs WHERE deleted_at IS NULL AND paused_by_mountpoint_id = ?',
+      [mountpointId]
+    )) as [any[], any];
+    await conn.query(
+      `UPDATE relay_jobs
+          SET paused_by_mountpoint_id = NULL,
+              enabled = IF(paused_by_station_id IS NULL, 1, 0),
+              desired_revision = desired_revision + 1
+        WHERE deleted_at IS NULL AND paused_by_mountpoint_id = ?`,
+      [mountpointId]
+    );
+    return rows.map((row: any) => Number(row.id));
+  }
+
+  const placeholders = names.map(() => '?').join(',');
+  const [rows] = (await conn.query(
+    `SELECT id FROM relay_jobs
+      WHERE deleted_at IS NULL
+        AND (upstream_mount IN (${placeholders}) OR downstream_mount IN (${placeholders}))`,
+    [...names, ...names]
+  )) as [any[], any];
+  if (action === 'pause') {
+    await conn.query(
+      `UPDATE relay_jobs
+          SET enabled = 0,
+              paused_by_mountpoint_id = ?,
+              desired_revision = desired_revision + 1
+        WHERE deleted_at IS NULL
+          AND enabled = 1
+          AND (upstream_mount IN (${placeholders}) OR downstream_mount IN (${placeholders}))`,
+      [mountpointId, ...names, ...names]
+    );
+  } else {
+    await conn.query(
+      `UPDATE relay_jobs
+          SET enabled = 0,
+              paused_by_mountpoint_id = NULL,
+              desired_revision = desired_revision + 1
+        WHERE deleted_at IS NULL
+          AND (upstream_mount IN (${placeholders}) OR downstream_mount IN (${placeholders}))`,
+      [...names, ...names]
+    );
+  }
+  return rows.map((row: any) => Number(row.id));
+}
+
 const createSchema = z.object({
   name: z.string().min(1).max(128),
   station_id: z.number().int().positive().nullable().optional(),
@@ -523,21 +607,40 @@ mountpointsRouter.post(
     const body = createSchema.parse(req.body);
     await assertStationScope(req, body.station_id);
     const ownerId = await resolveOwner(req, body.owner_web_user_id);
-    const [result] = await adminPool.query<any>(
-      `INSERT INTO mountpoints
-         (name, station_id, enabled,
-          service_type, position_mode, satellite_systems, caster_interval,
-          code_protocol, code_type, description, owner_web_user_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        body.name, body.station_id ?? null, body.enabled,
-        body.service_type ?? 'rtcm', body.position_mode ?? 'normal',
-        body.satellite_systems ?? '', body.caster_interval ?? 0,
-        body.code_protocol ?? '', body.code_type ?? '', body.description ?? '',
-        ownerId, req.auth!.id
-      ]
-    );
+    let enabled = body.enabled;
+    let pausedBy: number | null = null;
+    if (body.station_id) {
+      const [stationRows] = await query<RowDataPacket[]>(
+        'SELECT enabled, status FROM stations WHERE id = ? LIMIT 1',
+        [body.station_id]
+      );
+      const station = stationRows[0];
+      if (station && (!station.enabled || station.status === 'locked')) {
+        enabled = false;
+        pausedBy = body.station_id;
+      }
+    }
+    let result: any;
+    try {
+      [result] = await adminPool.query<any>(
+        `INSERT INTO mountpoints
+           (name, station_id, enabled, paused_by_station_id,
+            service_type, position_mode, satellite_systems, caster_interval,
+            code_protocol, code_type, description, owner_web_user_id, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          body.name, body.station_id ?? null, enabled, pausedBy,
+          body.service_type ?? 'rtcm', body.position_mode ?? 'normal',
+          body.satellite_systems ?? '', body.caster_interval ?? 0,
+          body.code_protocol ?? '', body.code_type ?? '', body.description ?? '',
+          ownerId, req.auth!.id
+        ]
+      );
+    } catch (err) {
+      duplicateMountpointGuard(err);
+    }
     const item = await getMountpoint(Number(result.insertId));
+    await reconcileAfterMountpointChange([]);
     await writeAudit(adminPool, req.auth!.id, 'create', 'mountpoint', result.insertId, null, item, ipFrom(req));
     res.status(201).json({ item: publicMountpoint(item) });
   })
@@ -552,30 +655,63 @@ mountpointsRouter.patch(
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
     await assertRecordScope(req, before.owner_web_user_id);
     const body = updateSchema.parse(req.body);
+    if (body.name !== undefined && body.name !== before.name) {
+      throw new ApiError(409, 'IMMUTABLE_FIELD', 'Tên mountpoint không thể sửa sau khi tạo');
+    }
     if (body.station_id !== undefined) await assertStationScope(req, body.station_id);
     const ownerId =
       body.owner_web_user_id === undefined
         ? Number(before.owner_web_user_id)
         : await resolveOwner(req, body.owner_web_user_id);
-    await adminPool.query(
-      `UPDATE mountpoints SET name=?, station_id=?, enabled=?, paused_by_station_id=NULL,
-         service_type=?, position_mode=?, satellite_systems=?, caster_interval=?,
-         code_protocol=?, code_type=?, description=?, owner_web_user_id=? WHERE id=?`,
-      [
-        body.name ?? before.name,
-        body.station_id === undefined ? before.station_id : body.station_id,
-        body.enabled === undefined ? before.enabled : body.enabled,
-        body.service_type ?? before.service_type,
-        body.position_mode ?? before.position_mode,
-        body.satellite_systems ?? before.satellite_systems,
-        body.caster_interval ?? before.caster_interval,
-        body.code_protocol ?? before.code_protocol,
-        body.code_type ?? before.code_type,
-        body.description ?? before.description,
-        ownerId,
-        id
-      ]
-    );
+    const stationId = body.station_id === undefined ? before.station_id : body.station_id;
+    let nextEnabled = body.enabled === undefined ? Boolean(before.enabled) : body.enabled;
+    let pausedBy = before.paused_by_station_id;
+    if (stationId) {
+      const [stationRows] = await query<RowDataPacket[]>(
+        'SELECT enabled, status FROM stations WHERE id = ? LIMIT 1',
+        [stationId]
+      );
+      const station = stationRows[0];
+      if (station && (!station.enabled || station.status === 'locked')) {
+        nextEnabled = false;
+        pausedBy = pausedBy ?? Number(stationId);
+      } else if (nextEnabled) {
+        pausedBy = null;
+      }
+    }
+    const relayJobIds: number[] = [];
+    await withTransaction(async (conn) => {
+      await conn.query(
+        `UPDATE mountpoints SET station_id=?, enabled=?, paused_by_station_id=?,
+           service_type=?, position_mode=?, satellite_systems=?, caster_interval=?,
+           code_protocol=?, code_type=?, description=?, owner_web_user_id=? WHERE id=?`,
+        [
+          stationId,
+          nextEnabled,
+          pausedBy,
+          body.service_type ?? before.service_type,
+          body.position_mode ?? before.position_mode,
+          body.satellite_systems ?? before.satellite_systems,
+          body.caster_interval ?? before.caster_interval,
+          body.code_protocol ?? before.code_protocol,
+          body.code_type ?? before.code_type,
+          body.description ?? before.description,
+          ownerId,
+          id
+        ]
+      );
+      if (nextEnabled !== Boolean(before.enabled)) {
+        relayJobIds.push(
+          ...(await setRelayPauseForMountpoint(
+            conn,
+            id,
+            [String(before.name)],
+            nextEnabled ? 'resume' : 'pause'
+          ))
+        );
+      }
+    });
+    await reconcileAfterMountpointChange(relayJobIds);
     const after = await getMountpoint(id);
     await writeAudit(adminPool, req.auth!.id, 'update', 'mountpoint', id, before, after, ipFrom(req));
     res.json({ item: publicMountpoint(after) });
@@ -593,7 +729,7 @@ mountpointsRouter.post(
     const body = bulkBodySchema.parse(req.body);
     const ids = uniqueIds(body.ids);
     const rows = await query<RowDataPacket[]>(
-      `SELECT id, name, enabled, owner_web_user_id FROM mountpoints
+      `SELECT id, name, enabled, station_id, owner_web_user_id FROM mountpoints
         WHERE id IN (${ids.map(() => '?').join(',')})`,
       ids
     );
@@ -613,19 +749,45 @@ mountpointsRouter.post(
         result.forbidden += 1;
       }
     }
+    const relayJobIds: number[] = [];
     await withTransaction(async (conn) => {
       for (const row of allowed) {
         if (body.action === 'delete') {
-          await conn.query('DELETE FROM mountpoints WHERE id = ?', [row.id]);
-        } else {
-          await conn.query(
-            'UPDATE mountpoints SET enabled = ?, paused_by_station_id = NULL WHERE id = ?',
-            [body.action === 'enable' ? 1 : 0, row.id]
+          relayJobIds.push(
+            ...(await setRelayPauseForMountpoint(conn, Number(row.id), [String(row.name)], 'delete'))
           );
+          await conn.query('DELETE FROM mountpoints WHERE id = ?', [row.id]);
+          continue;
         }
+        let nextEnabled = body.action === 'enable';
+        let pausedBy: number | null = null;
+        if (nextEnabled && row.station_id) {
+          const [stationRows] = (await conn.query(
+            'SELECT enabled, status FROM stations WHERE id = ? LIMIT 1',
+            [row.station_id]
+          )) as [any[], any];
+          const station = stationRows[0];
+          if (station && (!station.enabled || station.status === 'locked')) {
+            nextEnabled = false;
+            pausedBy = Number(row.station_id);
+          }
+        }
+        await conn.query(
+          'UPDATE mountpoints SET enabled = ?, paused_by_station_id = ? WHERE id = ?',
+          [nextEnabled ? 1 : 0, pausedBy, row.id]
+        );
+        relayJobIds.push(
+          ...(await setRelayPauseForMountpoint(
+            conn,
+            Number(row.id),
+            [String(row.name)],
+            nextEnabled ? 'resume' : 'pause'
+          ))
+        );
       }
     });
     result.updated = allowed.length;
+    await reconcileAfterMountpointChange(relayJobIds);
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -648,7 +810,17 @@ mountpointsRouter.delete(
     const before = await getMountpoint(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
     await assertRecordScope(req, before.owner_web_user_id);
-    await adminPool.query('DELETE FROM mountpoints WHERE id = ?', [id]);
+    const relayJobIds = await withTransaction(async (conn) => {
+      const ids = await setRelayPauseForMountpoint(
+        conn,
+        id,
+        [String(before.name)],
+        'delete'
+      );
+      await conn.query('DELETE FROM mountpoints WHERE id = ?', [id]);
+      return ids;
+    });
+    await reconcileAfterMountpointChange(relayJobIds);
     await writeAudit(adminPool, req.auth!.id, 'delete', 'mountpoint', id, before, null, ipFrom(req));
     res.status(204).send();
   })

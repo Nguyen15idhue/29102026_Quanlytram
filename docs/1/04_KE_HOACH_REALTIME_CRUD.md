@@ -584,15 +584,15 @@ Mountpoint là endpoint NTRIP. Đổi tên sẽ phá mọi liên kết theo tên
 
 ### Checklist test
 
-- [ ] Rename → 409.
-- [ ] Tạo trùng tên → 409.
-- [ ] Tắt khi có source/rover → connection = 0 sau 1 giây.
-- [ ] Source mới bị từ chối khi disabled.
-- [ ] Relay job upstream/downstream disabled.
-- [ ] Bật lại → connection mới OK, relay resume đúng.
-- [ ] Xóa khi online theo chính sách đã chốt.
-- [ ] ACL/mapping cascade đúng.
-- [ ] Audit PASS.
+- [x] Rename → 409.
+- [x] Tạo trùng tên → 409.
+- [!] Tắt khi có source/rover → connection = 0 sau 1 giây — kiểm chứng live ở Bước 13.
+- [!] Source mới bị từ chối khi disabled — kiểm chứng live ở Bước 13.
+- [x] Relay job upstream/downstream disabled.
+- [x] Bật lại → relay resume đúng; connection live kiểm chứng ở Bước 13.
+- [!] Xóa khi online theo chính sách — kiểm chứng live ở Bước 13.
+- [!] ACL/mapping cascade — kiểm chứng đầy đủ ở Bước 13.
+- [x] Audit PASS.
 
 ### Ghi chú
 
@@ -1502,3 +1502,35 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - Test ma trận đầu tiên dùng trạm mặc định disabled nên phải reset/seed và chạy lại với trạm được enable.
   - Xóa trạm không xóa relay job; job bị disable và audit lại.
+### Nhật ký thực hiện — Bước 6
+- Thời điểm: 2026-11-01 10:43 +07:00
+- Trạng thái: DONE
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - Chặn sửa tên mountpoint; trả 409.
+  - Thêm guard trùng tên khi tạo mountpoint; trả 409.
+  - Tắt mountpoint: đóng qua caster reconcile và pause relay job khớp upstream/downstream.
+  - Bật mountpoint: resume job do chính mountpoint pause nếu station owner không còn.
+  - Xóa mountpoint: pause/disable relay liên quan, xóa ACL/mapping theo FK, reconcile.
+  - Create/update/bulk/delete đều reconcile ngay sau commit.
+- File thay đổi:
+  - `server/src/routes/mountpoints.ts`
+  - `docs/1/04_KE_HOACH_REALTIME_CRUD.md`
+  - `SESSION.md`
+- Test/Bằng chứng:
+  - `server npm run build`: PASS.
+  - Rename mountpoint → 409.
+  - Tạo trùng tên → 409.
+  - Temp MP + relay upstream: disable → enabled=0, paused_by_mountpoint_id=MP; enable → enabled=1, owner NULL.
+  - Temp MP + relay downstream: disable → enabled=0, owner=MP; enable → enabled=1, owner NULL.
+  - Delete MP → relay liên quan disabled và owner cleared.
+  - Delete MP → API 204; mapping/ACL cascade theo FK.
+- Checklist đã đạt:
+  - [x] Rename/duplicate 409.
+  - [x] Relay upstream/downstream pause/resume/delete.
+  - [x] Audit.
+  - [!] Connection live, source reject, delete online, mapping cascade live để Bước 13.
+- Lỗi/Ghi chú:
+  - Pause chỉ áp dụng job đang enabled; job đã tắt tay không bị biến thành job pause của mountpoint.
+  - Resume chỉ bật khi `paused_by_station_id IS NULL`.
