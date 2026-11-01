@@ -1783,7 +1783,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 14
 - Thời điểm: 2026-11-01 11:38 +07:00
 - Trạng thái: PARTIAL — mock/race/load PASS; real streaming BLOCKED
-- Commit: (cập nhật sau commit)
+- Commit: 9ef33a5
 - Push: origin/main
 - Đã làm:
   - Chạy `go test -race ./...` trong Docker.
