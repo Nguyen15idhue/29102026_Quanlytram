@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../lib/http';
 import { getSystemHealth } from '../lib/systemHealth';
+import { getSystemOptimize } from '../lib/systemOptimize';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 
@@ -13,5 +14,13 @@ systemRouter.get(
   requirePermission('system_health', 'view'),
   asyncHandler(async (_req, res) => {
     res.json(await getSystemHealth());
+  })
+);
+
+systemRouter.get(
+  '/optimize',
+  requirePermission('system_ops', 'view'),
+  asyncHandler(async (_req, res) => {
+    res.json(await getSystemOptimize());
   })
 );

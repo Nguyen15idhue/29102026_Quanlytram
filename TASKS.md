@@ -718,7 +718,7 @@ phase sau khi phase trước còn FAIL; không làm các mục ngoài phạm vi 
       `/system/health` redirect; menu 1 mục Hệ thống; Playwright 2/2 PASS.
 - [x] P07-1 DB, quyền, cấu hình: 3 bảng `maintenance_*`, 11 job, `system_ops.*`;
       migrate 034, server build, vitest 74/74 PASS.
-- [ ] P07-2 API Tối ưu: `GET /api/system/optimize`.
+- [x] P07-2 API Tối ưu: `GET /api/system/optimize`; vitest 80/80 PASS.
 - [ ] P07-3 API Tự động hóa admin: jobs/settings/runs/run + scheduler.
 - [ ] P07-4 Go đọc cấu hình DB + retention + internal API.
 - [ ] P07-5 Frontend Tối ưu & Tự động hóa.

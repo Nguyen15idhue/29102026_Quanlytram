@@ -832,7 +832,7 @@ F:\3.Laptrinh\1. Project\1. GNSS\relayrtcm\backup
 |---|---|---|---|---|
 | P07-0 | DONE | `feat(system): P07-0 menu Hệ thống và tab mặc định Sức khỏe` | server build PASS; frontend build PASS; Playwright `system-health` + `navigation` 2/2 PASS | `/system` + 3 tab; `/system/health` redirect; menu còn 1 mục Hệ thống; HealthTab tách khỏi `SystemHealth.tsx` (đã xóa) |
 | P07-1 | DONE | `feat(system): P07-1 bảng cấu hình bảo trì và quyền system_ops` | migrate 034 PASS; server build PASS; vitest 74/74 PASS | 11 job + 1 settings + 2 permission; super_admin 2 grant, admin/user 0; bỏ retention khỏi `.env.example` |
-| P07-2 | PENDING | | | |
+| P07-2 | DONE | `feat(system): P07-2 API tối ưu chỉ số hệ thống` | server build PASS; vitest 80/80 PASS; API superadmin 200, 11 retention job | `GET /api/system/optimize`; fallback performance_schema; cache 20s; API admin 403 BLOCKED do thiếu mật khẩu admin local khớp (matrix test PASS) |
 | P07-3 | PENDING | | | |
 | P07-4 | PENDING | | | |
 | P07-5 | PENDING | | | |
@@ -852,3 +852,12 @@ Bằng chứng P07-1:
   `grants(super_admin)=2`, `denied(admin/user)=0`.
 - `docker exec -w /app cors-mvp-server-1 npm run build` → PASS.
 - `docker exec -w /app cors-mvp-server-1 npm test` → 12 files / 74 tests PASS.
+
+Bằng chứng P07-2:
+- `docker exec -w /app cors-mvp-server-1 npm run build` → PASS.
+- `docker exec -w /app cors-mvp-server-1 npm test` → 13 files / 80 tests PASS
+  (thêm `systemOptimize.test.ts` 6 test).
+- `GET /api/system/optimize` với superadmin → 200; `database.status=ok`,
+  `retention.jobs=11`; response không chứa DSN/secret.
+- `GET /api/system/optimize` với admin → BLOCKED: không có mật khẩu admin
+  local khớp; thay thế bằng `matrix.test.ts` (admin/user = none).

@@ -1070,3 +1070,8 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   2 quyền `system_ops.*`); seed.ts + matrix.ts; bỏ retention khỏi `.env.example`.
   Kiểm tra DB: jobs=11, settings=1, perms=2, super_admin=2 grant, admin/user=0.
   Server build PASS, vitest 74/74 PASS.
+- P07-2 DONE: `server/src/lib/systemOptimize.ts` + `GET /api/system/optimize`
+  (quyền `system_ops.view`); bảng admin/runtime, pool, đĩa, Go quality/relay,
+  backlog retention, gợi ý rule-based; cache 20s; performance_schema tắt →
+  `available:false`. Test: build PASS, vitest 80/80; API superadmin 200
+  (11 job). Admin API 403 BLOCKED do thiếu mật khẩu local khớp; matrix test PASS.
