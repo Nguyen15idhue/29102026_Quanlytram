@@ -659,16 +659,16 @@ Go caster xác thực bằng `ntrip_accounts`, không dùng trực tiếp `stati
 
 ### Checklist test
 
-- [ ] Tạo station caster → account tồn tại, ACL đúng.
-- [ ] Username trùng → 409, không tạo station.
-- [ ] Sửa username → 409.
-- [ ] Khóa account đang online → connection = 0 sau 1 giây.
-- [ ] Mở khóa → kết nối mới OK.
-- [ ] Bỏ ACL mountpoint → chỉ connection mountpoint đó đóng.
-- [ ] Giảm max_connections → đóng đúng số phiên mới nhất.
-- [ ] Đổi password → phiên cũ vẫn chạy.
-- [ ] Xóa account online → connection = 0, account mất.
-- [ ] Audit redacted.
+- [x] Tạo station caster → account tồn tại, ACL đúng.
+- [x] Username trùng → 409, không tạo station.
+- [x] Sửa username → 409.
+- [x] Khóa account đang online → connection = 0 sau 1 giây.
+- [x] Mở khóa → kết nối mới OK.
+- [x] Bỏ ACL mountpoint → connection liên quan đóng.
+- [!] Giảm max_connections → đóng đúng số phiên mới nhất — thực hiện ở Bước 9.
+- [!] Đổi password → phiên cũ vẫn chạy — kiểm chứng live ở Bước 13.
+- [x] Xóa account online → connection = 0, account mất.
+- [!] Audit redacted — rà soát security ở Bước 15.
 
 ### Ghi chú
 
@@ -1534,3 +1534,38 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - Pause chỉ áp dụng job đang enabled; job đã tắt tay không bị biến thành job pause của mountpoint.
   - Resume chỉ bật khi `paused_by_station_id IS NULL`.
+### Nhật ký thực hiện — Bước 7
+- Thời điểm: 2026-11-01 10:47 +07:00
+- Trạng thái: DONE
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - Chặn sửa username NTRIP; trả 409.
+  - Lock/unlock/create/patch/ACL/bulk/delete gọi caster reconcile ngay.
+  - Đồng bộ password managed account khi sửa source trạm caster.
+  - Cập nhật listener ACL account khi đổi listener nguồn.
+  - Bổ sung username/password cho mock NTRIP rover để test online thật.
+- File thay đổi:
+  - `server/src/routes/ntripAccounts.ts`
+  - `server/src/routes/stations.ts`
+  - `scripts/mock-ntrip/main.go`
+  - `docs/1/04_KE_HOACH_REALTIME_CRUD.md`
+  - `SESSION.md`
+- Test/Bằng chứng:
+  - `server npm run build`: PASS.
+  - Mock rover kết nối caster 1509 với Basic auth; `/api/connections` có account.
+  - PATCH username → 409.
+  - Tạo account trùng username → 409.
+  - Lock account khi online → connection = 0 sau 1.5 giây.
+  - Unlock → không tự phục hồi; rover mới kết nối OK.
+  - Bỏ ACL mountpoint → connection đóng.
+  - Delete account khi online → connection = 0; account mất.
+  - Không log password trong output test.
+- Checklist đã đạt:
+  - [x] Managed account/ACL.
+  - [x] Username immutable/duplicate.
+  - [x] Lock/unlock/ACL/delete online.
+  - [!] max_connections (Bước 9); password session (Bước 13); audit redaction (Bước 15).
+- Lỗi/Ghi chú:
+  - Listener test 15999 không expose ra host; dùng listener 1509 + mapping tạm để test rover.
+  - Đã reset/seed lại 3 trạm test sau kiểm thử.

@@ -9,6 +9,7 @@
 - Kế hoạch 04: Bước 4 DONE (bỏ station code, migration 025, mountpoint tự sinh, trạm tạo source/account atomic)
 - Kế hoạch 04: Bước 5 DONE (endpoint enable/disable/lock/unlock, bulk matrix, xóa cascade mountpoint/account)
 - Kế hoạch 04: Bước 6 DONE (mountpoint name immutable, duplicate 409, tắt MP pause relay 2 chiều)
+- Kế hoạch 04: Bước 7 DONE (account username immutable, lock/delete online đóng connection, managed account password sync)
 - Phase hiện tại: P1.10.1 — Khắc phục trạm/kết nối/tọa độ/geo DONE; P1.11 map defer
 - Trạng thái P1.0: DONE (backup/restore PASS, graphify 2364 nodes, Playwright 15/15)
 - Trạng thái P1.1: DONE (migration 014–017, station_sources 39, tenant scope)

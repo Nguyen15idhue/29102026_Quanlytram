@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -26,6 +27,8 @@ type options struct {
 	capture  string
 	timeout  time.Duration
 	mount    string
+	username string
+	password string
 }
 
 func main() {
@@ -41,6 +44,8 @@ func main() {
 	expect := flag.String("expect", "", "rover expected fixture for byte comparison")
 	timeout := flag.Duration("timeout", 30*time.Second, "connection deadline")
 	mount := flag.String("mount", "UP", "mountpoint used by rover")
+	username := flag.String("user", "", "NTRIP username")
+	password := flag.String("pass", "", "NTRIP password")
 	flag.Parse()
 
 	payload, err := loadFixture(*fixture)
@@ -64,6 +69,8 @@ func main() {
 		capture:  *capture,
 		timeout:  *timeout,
 		mount:    strings.TrimPrefix(*mount, "/"),
+		username: *username,
+		password: *password,
 	}
 
 	switch *mode {
@@ -251,7 +258,19 @@ func runRover(opts options, out, expect string) error {
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(opts.timeout))
 
-	request := fmt.Sprintf("GET /%s HTTP/1.1\r\nHost: %s\r\nNtrip-Version: Ntrip/2.0\r\nUser-Agent: cors-mock-rover\r\n\r\n", opts.mount, opts.addr)
+	auth := ""
+	if opts.username != "" || opts.password != "" {
+		auth = fmt.Sprintf(
+			"Authorization: Basic %s\r\n",
+			base64.StdEncoding.EncodeToString([]byte(opts.username+":"+opts.password)),
+		)
+	}
+	request := fmt.Sprintf(
+		"GET /%s HTTP/1.1\r\nHost: %s\r\nNtrip-Version: Ntrip/2.0\r\nUser-Agent: cors-mock-rover\r\n%s\r\n",
+		opts.mount,
+		opts.addr,
+		auth,
+	)
 	if _, err := io.WriteString(conn, request); err != nil {
 		return err
 	}

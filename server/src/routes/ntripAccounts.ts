@@ -6,6 +6,7 @@ import { writeAudit } from '../lib/audit';
 import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
 import { asyncHandler, ApiError } from '../lib/http';
 import { hashPassword } from '../lib/password';
+import { callGoInternal } from '../lib/internalApi';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import {
@@ -20,6 +21,17 @@ import {
 export const ntripAccountsRouter = Router();
 ntripAccountsRouter.use(requireAuth);
 ntripAccountsRouter.use(csrfProtection);
+
+async function requestCasterReconcile(): Promise<void> {
+  try {
+    await callGoInternal('/internal/caster/reconcile', {});
+  } catch (err) {
+    console.warn(
+      '[ntrip-accounts] caster reconcile failed',
+      err instanceof Error ? err.message : 'unknown'
+    );
+  }
+}
 
 const createSchema = z.object({
   username: z.string().min(3).max(64).regex(/^[A-Za-z0-9_.-]+$/),
@@ -270,6 +282,7 @@ ntripAccountsRouter.put(
         );
       }
     });
+    await requestCasterReconcile();
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -315,6 +328,7 @@ ntripAccountsRouter.put(
         );
       }
     });
+    await requestCasterReconcile();
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -383,6 +397,7 @@ ntripAccountsRouter.post(
       account ? publicAccount(account) : null,
       ipFrom(req)
     );
+    await requestCasterReconcile();
     res.status(201).json({ item: account ? publicAccount(account) : null });
   })
 );
@@ -394,6 +409,9 @@ ntripAccountsRouter.patch(
     const id = Number(req.params.id);
     const before = await assertAccountScope(req, id);
     const body = updateSchema.parse(req.body);
+    if (body.username !== undefined && body.username !== before.username) {
+      throw new ApiError(409, 'IMMUTABLE_FIELD', 'Username NTRIP không thể sửa sau khi tạo');
+    }
     if (body.listenerIds !== undefined) {
       await assertScopedIds(req, 'caster_listeners', [...new Set(body.listenerIds)]);
     }
@@ -465,6 +483,7 @@ ntripAccountsRouter.patch(
       after ? publicAccount(after) : null,
       ipFrom(req)
     );
+    await requestCasterReconcile();
     res.json({ item: after ? publicAccount(after) : null });
   })
 );
@@ -483,6 +502,7 @@ async function setEnabled(req: any, enabled: boolean) {
     after ? publicAccount(after) : null,
     ipFrom(req)
   );
+  await requestCasterReconcile();
   return after ? publicAccount(after) : null;
 }
 
@@ -546,6 +566,7 @@ ntripAccountsRouter.post(
       }
     });
     result.updated = allowed.length;
+    if (result.updated > 0) await requestCasterReconcile();
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -566,6 +587,7 @@ ntripAccountsRouter.delete(
   asyncHandler(async (req, res) => {
     const account = await assertAccountScope(req, Number(req.params.id));
     await adminPool.query('DELETE FROM ntrip_accounts WHERE id = ?', [account.id]);
+    await requestCasterReconcile();
     await writeAudit(
       adminPool,
       req.auth!.id,

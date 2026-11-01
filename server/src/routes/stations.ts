@@ -1,4 +1,4 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import { z } from 'zod';
 import net from 'node:net';
 import tls from 'node:tls';
@@ -13,6 +13,7 @@ import { asyncHandler, ApiError } from '../lib/http';
 import { ecefToGeodetic, geodeticToVn2000 } from '../lib/geo';
 import { decryptSecret, encryptSecret } from '../lib/crypto';
 import { callGoInternal } from '../lib/internalApi';
+import { hashPassword } from '../lib/password';
 import { createStationResources } from '../lib/stationResources';
 import {
   notifyStationStreamingChange,
@@ -2053,50 +2054,98 @@ stationsRouter.put(
       [station.id]
     );
     const before = beforeRows[0] ? publicSource(beforeRows[0]) : null;
-    await adminPool.query(
-      `INSERT INTO station_sources
-         (station_id, source_role, client_host, client_port, client_mount,
-          client_username, client_password_enc, client_tls, client_send_gga,
-          client_nmea_interval_sec, client_gga_lat, client_gga_lon,
-          caster_version, caster_username, caster_password_enc, caster_requires_auth,
-          caster_listener_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         source_role = VALUES(source_role), client_host = VALUES(client_host),
-         client_port = VALUES(client_port), client_mount = VALUES(client_mount),
-         client_username = VALUES(client_username),
-         client_password_enc = COALESCE(VALUES(client_password_enc), client_password_enc),
-         client_tls = VALUES(client_tls), client_send_gga = VALUES(client_send_gga),
-         client_nmea_interval_sec = VALUES(client_nmea_interval_sec),
-         client_gga_lat = VALUES(client_gga_lat), client_gga_lon = VALUES(client_gga_lon),
-         caster_version = VALUES(caster_version), caster_username = VALUES(caster_username),
-         caster_password_enc = COALESCE(VALUES(caster_password_enc), caster_password_enc),
-         caster_requires_auth = VALUES(caster_requires_auth),
-         caster_listener_id = VALUES(caster_listener_id)`,
-      [
-        station.id,
-        body.source_role,
-        body.client_host,
-        body.client_port,
-        body.client_mount,
-        body.client_username,
-        body.client_password ? encryptSecret(body.client_password) : null,
-        body.client_tls ? 1 : 0,
-        body.client_send_gga ? 1 : 0,
-        body.client_nmea_interval_sec,
-        body.source_role === 'ntrip_client' && body.client_send_gga
-          ? body.client_gga_lat ?? null
-          : null,
-        body.source_role === 'ntrip_client' && body.client_send_gga
-          ? body.client_gga_lon ?? null
-          : null,
-        body.caster_version,
-        body.caster_username,
-        body.caster_password ? encryptSecret(body.caster_password) : null,
-        body.caster_requires_auth ? 1 : 0,
-        body.source_role === 'ntrip_caster' ? body.caster_listener_id ?? null : null
-      ]
-    );
+    let managedAccount: any = null;
+    if (body.source_role === 'ntrip_caster') {
+      const [accountRows] = await query<RowDataPacket[]>(
+        'SELECT id, username FROM ntrip_accounts WHERE managed_by_station_id = ? LIMIT 1',
+        [station.id]
+      );
+      managedAccount = accountRows[0] ?? null;
+      if (managedAccount && body.caster_username !== managedAccount.username) {
+        throw new ApiError(
+          409,
+          'IMMUTABLE_FIELD',
+          'Username NTRIP của trạm không thể sửa sau khi tạo'
+        );
+      }
+    }
+    const passwordHash =
+      managedAccount && body.caster_password
+        ? await hashPassword(body.caster_password)
+        : null;
+    await withTransaction(async (conn) => {
+      await conn.query(
+        `INSERT INTO station_sources
+           (station_id, source_role, client_host, client_port, client_mount,
+            client_username, client_password_enc, client_tls, client_send_gga,
+            client_nmea_interval_sec, client_gga_lat, client_gga_lon,
+            caster_version, caster_username, caster_password_enc, caster_requires_auth,
+            caster_listener_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           source_role = VALUES(source_role), client_host = VALUES(client_host),
+           client_port = VALUES(client_port), client_mount = VALUES(client_mount),
+           client_username = VALUES(client_username),
+           client_password_enc = COALESCE(VALUES(client_password_enc), client_password_enc),
+           client_tls = VALUES(client_tls), client_send_gga = VALUES(client_send_gga),
+           client_nmea_interval_sec = VALUES(client_nmea_interval_sec),
+           client_gga_lat = VALUES(client_gga_lat), client_gga_lon = VALUES(client_gga_lon),
+           caster_version = VALUES(caster_version), caster_username = VALUES(caster_username),
+           caster_password_enc = COALESCE(VALUES(caster_password_enc), caster_password_enc),
+           caster_requires_auth = VALUES(caster_requires_auth),
+           caster_listener_id = VALUES(caster_listener_id)`,
+        [
+          station.id,
+          body.source_role,
+          body.client_host,
+          body.client_port,
+          body.client_mount,
+          body.client_username,
+          body.client_password ? encryptSecret(body.client_password) : null,
+          body.client_tls ? 1 : 0,
+          body.client_send_gga ? 1 : 0,
+          body.client_nmea_interval_sec,
+          body.source_role === 'ntrip_client' && body.client_send_gga
+            ? body.client_gga_lat ?? null
+            : null,
+          body.source_role === 'ntrip_client' && body.client_send_gga
+            ? body.client_gga_lon ?? null
+            : null,
+          body.caster_version,
+          body.caster_username,
+          body.caster_password ? encryptSecret(body.caster_password) : null,
+          body.caster_requires_auth ? 1 : 0,
+          body.source_role === 'ntrip_caster' ? body.caster_listener_id ?? null : null
+        ]
+      );
+      if (managedAccount) {
+        if (passwordHash) {
+          await conn.query('UPDATE ntrip_accounts SET password_hash = ? WHERE id = ?', [
+            passwordHash,
+            managedAccount.id
+          ]);
+        }
+        if (body.caster_listener_id) {
+          await conn.query('DELETE FROM account_listener_acl WHERE account_id = ?', [
+            managedAccount.id
+          ]);
+          await conn.query(
+            'INSERT INTO account_listener_acl (account_id, listener_id) VALUES (?, ?)',
+            [managedAccount.id, body.caster_listener_id]
+          );
+        }
+      }
+    });
+    if (managedAccount) {
+      try {
+        await callGoInternal('/internal/caster/reconcile', {});
+      } catch (err) {
+        console.warn(
+          '[stations] caster reconcile after source update failed',
+          err instanceof Error ? err.message : 'unknown'
+        );
+      }
+    }
     const rows = await query<RowDataPacket[]>(
       `SELECT ss.*, l.name AS caster_listener_name, l.port AS caster_port
          FROM station_sources ss
