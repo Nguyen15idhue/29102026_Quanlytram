@@ -20,6 +20,10 @@ test.describe('P1.5 trạm', () => {
     await expect(dialog.getByText('Vị trí', { exact: true })).toHaveCount(0);
     await expect(dialog.getByText('Hệ thống (chỉ đọc)', { exact: true })).toHaveCount(0);
     await dialog.getByLabel('Tên trạm').fill(name);
+    const companySelect = dialog.getByLabel('Công ty');
+    if ((await companySelect.count()) > 0) {
+      await companySelect.selectOption({ index: 1 });
+    }
     await dialog.getByLabel('Listener / port').selectOption({ index: 1 });
     await dialog.getByLabel('Caster username').fill(`p1_${Date.now()}`);
     await dialog.getByLabel('Caster password').fill('P1Station123!');

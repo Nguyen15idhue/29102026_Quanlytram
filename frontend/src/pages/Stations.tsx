@@ -56,7 +56,8 @@ const emptyForm = {
   client_nmea_interval_sec: 0, client_gga_lat: '', client_gga_lon: '',
   caster_version: 'v2' as 'v1' | 'v2',
   caster_username: '', caster_password: '', caster_requires_auth: true,
-  caster_listener_id: '' as string | number
+  caster_listener_id: '' as string | number,
+  company_id: '' as string | number
 };
 
 function formFromStation(station: Station) {
@@ -91,7 +92,8 @@ function formFromStation(station: Station) {
     device_id: station.device_id ?? '',
     network_type: station.network_type ?? '',
     network_mode: station.network_mode ?? '',
-    protocol: station.protocol ?? 'ntrip'
+    protocol: station.protocol ?? 'ntrip',
+    company_id: station.company_id ?? ''
   };
 }
 
@@ -320,6 +322,9 @@ export function Stations() {
         province: form.province,
         ward: form.ward,
         address_detail: form.address_detail,
+        ...(isSuper && !editing
+          ? { company_id: form.company_id === '' ? null : Number(form.company_id) }
+          : {}),
         ...(editing ? {} : sourceBody)
       };
       const saved = editing
@@ -1082,6 +1087,24 @@ export function Stations() {
                 required
               />
             </Field>
+            {isSuper && !editing && (
+              <Field label="Công ty">
+                <Select
+                  value={form.company_id}
+                  onChange={(event) =>
+                    setForm({ ...form, company_id: event.target.value })
+                  }
+                  required
+                >
+                  <option value="">— Chọn công ty —</option>
+                  {(companies.data?.items ?? []).map((company) => (
+                    <option key={company.id} value={company.id}>
+                      {company.name} ({company.code})
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            )}
             <Field label="Mountpoint tự sinh">
               <Input
                 readOnly
