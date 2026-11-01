@@ -523,16 +523,16 @@ Trạng thái trạm là nguồn điều khiển streaming. Nếu API cho phép 
 
 ### Checklist test
 
-- [ ] Enable khi locked → 400.
-- [ ] Lock khi enabled → 400.
-- [ ] Disable → lock → unlock đúng chuỗi.
-- [ ] Delete khi enabled → 400.
-- [ ] Delete khi locked → 400.
-- [ ] Delete sau disable → 204, mountpoint count = 0.
-- [ ] Connection của trạm = 0 sau 2 giây.
-- [ ] Relay job liên quan disabled.
-- [ ] Account managed bị xóa.
-- [ ] Bulk mixed trả đúng counts.
+- [x] Enable khi locked → 400.
+- [x] Lock khi enabled → 400.
+- [x] Disable → lock → unlock đúng chuỗi.
+- [x] Delete khi enabled → 400.
+- [x] Delete khi locked → 400.
+- [x] Delete sau disable → 204, mountpoint count = 0.
+- [!] Connection của trạm = 0 sau 2 giây — chưa có live source trong bước này; kiểm chứng đầy đủ ở Bước 13.
+- [!] Relay job liên quan disabled — kiểm chứng đầy đủ ở Bước 10 khi có job test.
+- [x] Account managed bị xóa.
+- [x] Bulk mixed trả đúng counts.
 - [ ] Audit không lộ password.
 
 ### Ghi chú
@@ -1468,3 +1468,37 @@ Toàn bộ kế hoạch chỉ DONE khi:
   - Đã xử lý lệch placeholder INSERT và default trong update schema.
   - `stations.port` bắt buộc; UI lấy port từ listener khi tạo trạm caster.
   - Import legacy giờ dùng tên trạm làm khóa, không còn code.
+### Nhật ký thực hiện — Bước 5
+- Thời điểm: 2026-11-01 10:37 +07:00
+- Trạng thái: DONE
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - Thêm endpoint từng trạm: enable/disable/lock/unlock.
+  - Áp dụng ma trận trạng thái cho single và bulk.
+  - Xóa trạm cascade: đóng/pause tài nguyên, xóa mountpoint/source/probe/account managed, rồi xóa trạm.
+  - Bulk delete dùng chung cascade; bỏ qua trạm đang bật hoặc đang khóa.
+  - Ghi audit cho từng hành động.
+- File thay đổi:
+  - `server/src/routes/stations.ts`
+  - `docs/1/04_KE_HOACH_REALTIME_CRUD.md`
+  - `SESSION.md`
+- Test/Bằng chứng:
+  - `server npm run build`: PASS.
+  - Enable trạm disabled → 200, `enabled=1/status=active`.
+  - Lock khi enabled → 400.
+  - Disable → 200; Lock → 200 `status=locked`.
+  - Enable/Disable/Delete khi locked → 400.
+  - Unlock → 200 `status=disabled`.
+  - Delete sau disable → 204; station/mountpoint/account managed = 0.
+  - Bulk: lock 2 → updated=2; delete khi locked → skipped=2; unlock 2 → updated=2; delete → updated=2; station/mountpoint = 0.
+  - Reset/seed lại 3 trạm test sau kiểm thử.
+- Checklist đã đạt:
+  - [x] Ma trận single.
+  - [x] Ma trận bulk.
+  - [x] Delete cascade.
+  - [x] Account managed bị xóa.
+  - [!] Connection live và relay job liên quan để Bước 10/13 kiểm chứng đầy đủ.
+- Lỗi/Ghi chú:
+  - Test ma trận đầu tiên dùng trạm mặc định disabled nên phải reset/seed và chạy lại với trạm được enable.
+  - Xóa trạm không xóa relay job; job bị disable và audit lại.

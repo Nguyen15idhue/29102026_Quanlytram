@@ -193,6 +193,46 @@ async function getStation(id: number): Promise<any | null> {
   return rows[0] ?? null;
 }
 
+async function deleteStationCascade(
+  conn: any,
+  stationId: number
+): Promise<{ mountpointIds: number[]; relayJobIds: number[] }> {
+  const [mountpoints] = (await conn.query(
+    'SELECT id, name FROM mountpoints WHERE station_id = ?',
+    [stationId]
+  )) as [any[], any];
+  const mountpointIds = mountpoints.map((row: any) => Number(row.id));
+  const names = mountpoints.map((row: any) => String(row.name));
+  let relayJobIds: number[] = [];
+  if (names.length > 0) {
+    const placeholders = names.map(() => '?').join(',');
+    const [relayRows] = (await conn.query(
+      `SELECT id FROM relay_jobs
+        WHERE deleted_at IS NULL
+          AND (upstream_mount IN (${placeholders}) OR downstream_mount IN (${placeholders}))`,
+      [...names, ...names]
+    )) as [any[], any];
+    relayJobIds = relayRows.map((row: any) => Number(row.id));
+    if (relayJobIds.length > 0) {
+      await conn.query(
+        `UPDATE relay_jobs
+            SET enabled = 0,
+                paused_by_station_id = NULL,
+                paused_by_mountpoint_id = NULL,
+                desired_revision = desired_revision + 1
+          WHERE deleted_at IS NULL
+            AND (upstream_mount IN (${placeholders}) OR downstream_mount IN (${placeholders}))`,
+        [...names, ...names]
+      );
+    }
+  }
+  await conn.query('DELETE FROM station_probes WHERE station_id = ?', [stationId]);
+  await conn.query('DELETE FROM station_sources WHERE station_id = ?', [stationId]);
+  await conn.query('DELETE FROM mountpoints WHERE station_id = ?', [stationId]);
+  await conn.query('DELETE FROM stations WHERE id = ?', [stationId]);
+  return { mountpointIds, relayJobIds };
+}
+
 async function qualityMap(ids: number[]): Promise<Map<number, any>> {
   const map = new Map<number, any>();
   if (ids.length === 0) return map;
@@ -1393,6 +1433,120 @@ stationsRouter.patch(
   })
 );
 
+async function setStationEnabled(req: any, enabled: boolean) {
+  const id = Number(req.params.id);
+  const before = await getStation(id);
+  if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+  await assertRecordScope(req, before.owner_web_user_id);
+  if (String(before.status) === 'locked') {
+    throw new ApiError(400, 'STATION_LOCKED', 'Trạm đang khóa, phải mở khóa trước');
+  }
+  if (Boolean(before.enabled) === enabled) return before;
+  const effect = await withTransaction(async (conn) => {
+    await conn.query('UPDATE stations SET enabled = ?, status = ? WHERE id = ?', [
+      enabled ? 1 : 0,
+      enabled ? 'active' : 'disabled',
+      id
+    ]);
+    return setStationStreamingInTransaction(conn, id, enabled);
+  });
+  await notifyStationStreamingChange(effect);
+  const after = await getStation(id);
+  await writeAudit(
+    adminPool,
+    req.auth!.id,
+    enabled ? 'enable' : 'disable',
+    'station',
+    id,
+    before,
+    after,
+    ipFrom(req)
+  );
+  return after;
+}
+
+stationsRouter.post(
+  '/:id/enable',
+  requirePermission('stations', 'edit'),
+  asyncHandler(async (req, res) => {
+    res.json({ item: await setStationEnabled(req, true) });
+  })
+);
+
+stationsRouter.post(
+  '/:id/disable',
+  requirePermission('stations', 'edit'),
+  asyncHandler(async (req, res) => {
+    res.json({ item: await setStationEnabled(req, false) });
+  })
+);
+
+stationsRouter.post(
+  '/:id/lock',
+  requirePermission('stations', 'edit'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const before = await getStation(id);
+    if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+    await assertRecordScope(req, before.owner_web_user_id);
+    if (Number(before.enabled) === 1) {
+      throw new ApiError(400, 'STATION_ENABLED', 'Phải tắt trạm trước khi khóa');
+    }
+    if (String(before.status) === 'locked') {
+      res.json({ item: before });
+      return;
+    }
+    const effect = await withTransaction(async (conn) => {
+      await conn.query("UPDATE stations SET enabled = 0, status = 'locked' WHERE id = ?", [id]);
+      return setStationStreamingInTransaction(conn, id, false);
+    });
+    await notifyStationStreamingChange(effect);
+    const after = await getStation(id);
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      'lock',
+      'station',
+      id,
+      before,
+      after,
+      ipFrom(req)
+    );
+    res.json({ item: after });
+  })
+);
+
+stationsRouter.post(
+  '/:id/unlock',
+  requirePermission('stations', 'edit'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const before = await getStation(id);
+    if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+    await assertRecordScope(req, before.owner_web_user_id);
+    if (String(before.status) !== 'locked') {
+      res.json({ item: before });
+      return;
+    }
+    await adminPool.query(
+      "UPDATE stations SET status = IF(enabled = 1, 'active', 'disabled') WHERE id = ?",
+      [id]
+    );
+    const after = await getStation(id);
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      'unlock',
+      'station',
+      id,
+      before,
+      after,
+      ipFrom(req)
+    );
+    res.json({ item: after });
+  })
+);
+
 const ACTIVITY_RANGES = {
   '24h': { hours: 24, slotSec: 60, seriesBucketSec: 300 },
   '7d': { hours: 24 * 7, slotSec: 300, seriesBucketSec: 1800 },
@@ -2004,23 +2158,15 @@ stationsRouter.post(
         const locked = String(row.status) === 'locked';
         const enabled = Number(row.enabled) === 1;
         if (body.action === 'delete') {
-          if (enabled) {
+          if (enabled || locked) {
             result.skipped += 1;
             continue;
           }
-          await conn.query(
-            'UPDATE relay_jobs SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
-            [row.id]
-          );
-          await conn.query(
-            'UPDATE station_probes SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
-            [row.id]
-          );
-          await conn.query(
-            'UPDATE mountpoints SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
-            [row.id]
-          );
-          await conn.query('DELETE FROM stations WHERE id = ?', [row.id]);
+          const deleted = await deleteStationCascade(conn, Number(row.id));
+          effects.push({
+            relayJobIds: deleted.relayJobIds,
+            mountpointIds: deleted.mountpointIds
+          });
           result.updated += 1;
         } else if (body.action === 'enable') {
           if (locked || enabled) {
@@ -2095,22 +2241,24 @@ stationsRouter.delete(
     if (Number(before.enabled) === 1) {
       throw new ApiError(400, 'STATION_ENABLED', 'Trạm đang bật, phải tắt trước khi xóa');
     }
-    await withTransaction(async (conn) => {
-      await conn.query(
-        'UPDATE relay_jobs SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
-        [id]
-      );
-      await conn.query(
-        'UPDATE station_probes SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
-        [id]
-      );
-      await conn.query(
-        'UPDATE mountpoints SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
-        [id]
-      );
-      await conn.query('DELETE FROM stations WHERE id = ?', [id]);
+    if (String(before.status) === 'locked') {
+      throw new ApiError(400, 'STATION_LOCKED', 'Trạm đang khóa, phải mở khóa trước khi xóa');
+    }
+    const result = await withTransaction((conn) => deleteStationCascade(conn, id));
+    await notifyStationStreamingChange({
+      relayJobIds: result.relayJobIds,
+      mountpointIds: result.mountpointIds
     });
-    await writeAudit(adminPool, req.auth!.id, 'delete', 'station', id, before, null, ipFrom(req));
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      'delete',
+      'station',
+      id,
+      before,
+      { mountpointIds: result.mountpointIds, relayJobIds: result.relayJobIds },
+      ipFrom(req)
+    );
     res.status(204).send();
   })
 );
