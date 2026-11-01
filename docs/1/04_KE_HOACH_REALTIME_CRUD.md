@@ -365,11 +365,11 @@ Các cột pause hiện chỉ có `paused_by_station_id`. Cần thêm owner moun
 
 ### Checklist test
 
-- [ ] Chạy migration trên DB tạm PASS.
-- [ ] Restore backup + chạy migration PASS.
-- [ ] `SHOW COLUMNS` có cột mới, không còn `stations.code` sau bước 4.
-- [ ] FK account managed `ON DELETE CASCADE` đúng.
-- [ ] Không có migration cũ bị sửa.
+- [x] Chạy migration trên DB tạm PASS.
+- [x] Restore backup + chạy migration PASS.
+- [x] `SHOW COLUMNS` có 2 cột mới; `stations.code` sẽ kiểm tra lại sau Bước 4.
+- [x] FK account managed `ON DELETE CASCADE` đúng.
+- [x] Không có migration cũ bị sửa.
 
 ### Ghi chú
 
@@ -1369,3 +1369,36 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - Script seed sẽ được đối chiếu lại với payload API sau Bước 4.
   - Không ghi password/DSN ra output.
+
+### Nhật ký thực hiện — Bước 3
+- Thời điểm: 2026-11-01 09:42 +07:00
+- Trạng thái: DONE
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - Tạo migration `023_relay_pause_mountpoint.sql`.
+  - Tạo migration `024_ntrip_account_managed.sql`.
+  - Kiểm tra migration trên schema tạm restore từ backup.
+  - Áp dụng migration lên DB hiện tại bằng migration runner của Node.
+  - Xác nhận service vẫn healthy.
+- File thay đổi:
+  - `db/migrations/admin/023_relay_pause_mountpoint.sql`
+  - `db/migrations/admin/024_ntrip_account_managed.sql`
+  - `docs/1/04_KE_HOACH_REALTIME_CRUD.md`
+  - `SESSION.md`
+- Test/Bằng chứng:
+  - Restore backup sang schema tạm + chạy 023/024: PASS.
+  - Live migration: admin 023, 024 applied; runtime 0.
+  - `relay_jobs.paused_by_mountpoint_id` tồn tại.
+  - `ntrip_accounts.managed_by_station_id` tồn tại.
+  - FK `fk_ntrip_accounts_managed_station` có `DELETE_RULE=CASCADE`.
+  - `docker compose ps`: mysql/server/gnss/web healthy.
+- Checklist đã đạt:
+  - [x] Migration trên DB tạm PASS.
+  - [x] Restore backup + migration PASS.
+  - [x] Có cột mới.
+  - [x] FK CASCADE đúng.
+  - [x] Không sửa migration cũ.
+- Lỗi/Ghi chú:
+  - `025_drop_station_code.sql` chưa tạo/chạy; để Bước 4 xử lý cùng code bỏ `stations.code`.
+  - Không cần migration runtime cho thay đổi này.

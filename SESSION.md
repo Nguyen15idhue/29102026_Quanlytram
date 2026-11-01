@@ -5,6 +5,7 @@
 - Thời điểm: 2026-11-01 09:27 (Asia/Ho_Chi_Minh, +07:00)
 - Kế hoạch 04: Bước 1 DONE (backup/restore PASS, baseline 40 trạm/39 mountpoint/2 account/2 listener/0 connection mở)
 - Kế hoạch 04: Bước 2 DONE (reset/seed script dry-run; chưa thay đổi dữ liệu)
+- Kế hoạch 04: Bước 3 DONE (migration 023–024; paused_by_mountpoint_id + managed_by_station_id)
 - Phase hiện tại: P1.10.1 — Khắc phục trạm/kết nối/tọa độ/geo DONE; P1.11 map defer
 - Trạng thái P1.0: DONE (backup/restore PASS, graphify 2364 nodes, Playwright 15/15)
 - Trạng thái P1.1: DONE (migration 014–017, station_sources 39, tenant scope)
