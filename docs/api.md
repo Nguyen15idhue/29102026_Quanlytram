@@ -36,27 +36,34 @@ Mã thường gặp: `UNAUTHENTICATED`, `SESSION_EXPIRED`, `CSRF_INVALID`, `FORB
 | GET | `/api/stations/:id/activity?range=24h\|7d\|30d` | `stations.view`; uptime, sự kiện, timeline, series chất lượng |
 | POST | `/api/stations` | `stations.add` |
 | PATCH | `/api/stations/:id` | `stations.edit` |
+| POST | `/api/stations/:id/enable\|disable\|lock\|unlock` | `stations.edit` |
 | DELETE | `/api/stations/:id` | `stations.delete` |
 
-Không xóa trạm đang bật (`enabled=1`); phải tắt trước. Bulk `delete` bỏ qua
-trạm đang bật và trả `skipped`.
+Không xóa trạm đang bật (`enabled=1`) hoặc đang khóa (`status=locked`); phải
+tắt và mở khóa trước. Bulk `delete` bỏ qua trạm đang bật/khóa và trả `skipped`.
+Xóa trạm cascade mountpoint/source/probe/account managed.
 
 Tắt trạm (`enabled=0`) sẽ tạm dừng thật sự nguồn dữ liệu: mountpoint, probe và
 relay job lấy mountpoint của trạm bị disable (`paused_by_station_id`), sau đó
 gọi Go reconcile. Bật lại chỉ khôi phục các tài nguyên do chính trạm đã tạm
 dừng; tài nguyên admin đã tắt thủ công vẫn giữ nguyên.
 
-Body tạo/sửa: `code`, `name`, `host`, `port`, `connection_type`,
+Body tạo: `name`, `port`, `host`, `connection_type`,
 `source_type` (`relay_caster|caster_ingest|probe_client|manual`),
 `ntrip_version` (`v1|v2`), `ntrip_mode`
 (`v1_noauth|v1_auth|v2_auth|ntrip_client`), `lat`, `lon`, `notes`,
-`owner_web_user_id`.
+`owner_web_user_id`, `source_role` (`ntrip_caster|ntrip_client`).
+Caster bắt buộc `caster_listener_id`, `caster_username`, `caster_password`.
+Client bắt buộc `client_host`, `client_port`, `client_mount`.
+`name` và `port` bất biến sau khi tạo; không còn `stations.code`.
+Tạo trạm tự tạo 1 mountpoint từ tên trạm và NTRIP account managed.
 
 Response trạm có thêm metadata nguồn và toạ độ 1005/1006:
 `relay_job_id`, `relay_job_name`, `relay_upstream_host`, `relay_upstream_port`,
 `relay_upstream_mount`, `reported_lat`, `reported_lon`, `reported_height`,
 `itrf_x`, `itrf_y`, `itrf_z`, `vn2000_easting`, `vn2000_northing`,
-`coordinate_source` (`none|1005/1006`), `reported_station_id`.
+`coordinate_source` (`none|1005/1006`), `reported_station_id`,
+`transportStatus` (`online|offline|no_data|error|null`), `relay_runtime_state`.
 `reported_*`/`itrf_*`/`vn2000_*` chỉ có khi quality sample đã nhận 1005/1006;
 không fallback `lat/lon` nhập tay.
 
