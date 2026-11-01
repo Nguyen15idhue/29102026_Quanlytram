@@ -1,0 +1,99 @@
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.panel-head h2 {
+  font-size: 1rem;
+}
+
+.inline-field {
+  min-width: 220px;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recommendation-list {
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.recommendation {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--raised);
+}
+
+.recommendation.critical {
+  border-color: var(--danger);
+}
+
+.recommendation.warn {
+  border-color: var(--warn);
+}
+
+.recommendation-icon {
+  color: var(--muted);
+  display: flex;
+}
+
+.recommendation p {
+  margin: 4px 0 0;
+}
+
+.recommendation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.optimize-list {
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.optimize-list li {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.optimize-digest {
+  max-width: 520px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 720px) {
+  .recommendation {
+    grid-template-columns: auto 1fr;
+  }
+
+  .recommendation-actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
+  .optimize-list li {
+    display: grid;
+    gap: 4px;
+  }
+}

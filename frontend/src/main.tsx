@@ -13,6 +13,7 @@ import '@fontsource/ibm-plex-sans/600.css';
 import '@fontsource/ibm-plex-mono/400.css';
 import 'leaflet/dist/leaflet.css';
 import './styles.css';
+import './system.css';
 
 const queryClient = new QueryClient({
   defaultOptions: {

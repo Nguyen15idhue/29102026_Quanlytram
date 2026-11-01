@@ -1086,3 +1086,8 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   tra admin schema >=34; bỏ retention khỏi `config.go`/`main.go`. Go test/vet
   PASS; rebuild gnss healthy; runtime dry-run 200, PUT reconcile 200, internal
   status 11 job, optimize backlog 11/11. Đã sửa lỗi dùng nhầm admin DB để prune.
+- P07-5 DONE: OptimizeTab (cards Database/Retention/Go/Node-Đĩa, gợi ý, bảng
+  lớn, slow query) + AutomationTab (11 job, sửa cấu hình, dry-run/chạy thật,
+  lịch chạy, lịch sử phân trang, filter). CSS tách `frontend/src/system.css`.
+  FE build PASS; Playwright `system-ops` 2/2 (superadmin + user1 403/không thấy
+  tab); `system-health` + `navigation` PASS.

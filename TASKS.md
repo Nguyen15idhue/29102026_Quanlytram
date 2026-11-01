@@ -723,7 +723,7 @@ phase sau khi phase trước còn FAIL; không làm các mục ngoài phạm vi 
       vitest 88/88 PASS; runtime prune chờ P07-4.
 - [x] P07-4 Go đọc cấu hình DB + retention + internal API; go test PASS;
       runtime dry-run/reconcile 200.
-- [ ] P07-5 Frontend Tối ưu & Tự động hóa.
+- [x] P07-5 Frontend Tối ưu & Tự động hóa; Playwright system-ops 2/2 PASS.
 - [ ] P07-6 Test, docs, graphify, rollout.
 
 ## 10. Ghi chú điều phối
