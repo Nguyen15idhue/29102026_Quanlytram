@@ -25,12 +25,6 @@ type Config struct {
 	DialTimeout     time.Duration
 	ShutdownTimeout time.Duration
 
-	SessionRetentionDays int
-	EventRetentionDays   int
-	HourlyRetentionDays  int
-	PruneBatch           int
-	PruneInterval        time.Duration
-
 	CasterBindAddr       string
 	CasterPollInterval   time.Duration
 	CasterHeaderTimeout  time.Duration
@@ -54,10 +48,6 @@ type Config struct {
 	QualityBaselineWindow  int
 	QualitySampleWindowSec int
 	QualityStoreQueueSize  int
-	QualitySampleDays      int
-	QualityAlertDays       int
-	QualityPruneBatch      int
-	QualityPruneInterval   time.Duration
 }
 
 func getenv(key, fallback string) string {
@@ -111,12 +101,6 @@ func Load() Config {
 		DialTimeout:     getenvSeconds("RELAY_DIAL_TIMEOUT_SEC", 15*time.Second),
 		ShutdownTimeout: getenvSeconds("RELAY_SHUTDOWN_TIMEOUT_SEC", 10*time.Second),
 
-		SessionRetentionDays: getenvInt("RELAY_SESSION_RETENTION_DAYS", 90),
-		EventRetentionDays:   getenvInt("RELAY_EVENT_RETENTION_DAYS", 30),
-		HourlyRetentionDays:  getenvInt("RELAY_HOURLY_RETENTION_DAYS", 90),
-		PruneBatch:           getenvInt("RELAY_PRUNE_BATCH", 1000),
-		PruneInterval:        getenvSeconds("RELAY_PRUNE_INTERVAL_SEC", time.Hour),
-
 		CasterBindAddr:       getenv("CASTER_BIND_ADDR", "0.0.0.0"),
 		CasterPollInterval:   getenvSeconds("CASTER_POLL_INTERVAL_SEC", 10*time.Second),
 		CasterHeaderTimeout:  getenvSeconds("CASTER_HEADER_TIMEOUT_SEC", 10*time.Second),
@@ -140,9 +124,5 @@ func Load() Config {
 		QualityBaselineWindow:  getenvInt("QUALITY_BASELINE_WINDOW", 120),
 		QualitySampleWindowSec: getenvInt("QUALITY_SAMPLE_WINDOW_SEC", 60),
 		QualityStoreQueueSize:  getenvInt("QUALITY_STORE_QUEUE_SIZE", 4096),
-		QualitySampleDays:      getenvInt("QUALITY_SAMPLE_RETENTION_DAYS", 35),
-		QualityAlertDays:       getenvInt("QUALITY_ALERT_RETENTION_DAYS", 90),
-		QualityPruneBatch:      getenvInt("QUALITY_PRUNE_BATCH", 1000),
-		QualityPruneInterval:   getenvSeconds("QUALITY_PRUNE_INTERVAL_SEC", 6*time.Hour),
 	}
 }

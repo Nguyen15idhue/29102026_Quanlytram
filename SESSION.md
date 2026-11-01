@@ -1080,3 +1080,9 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   reconcile Go), routes jobs/settings/runs/run; scheduler khởi động trong
   `index.ts`. Test: build PASS, vitest 88/88; API jobs=11, PUT 365→366→365,
   dry-run ok, runs.total=1, validation 400. Runtime prune 502 chờ P07-4.
+- P07-4 DONE: package `gnss/internal/maintenance` (đọc config admin, prune
+  runtime, runner interval, status/prune/reconcile internal HMAC); prune thêm
+  `caster_connections`, `station_source_sessions`, `rtcm_message_stats`; kiểm
+  tra admin schema >=34; bỏ retention khỏi `config.go`/`main.go`. Go test/vet
+  PASS; rebuild gnss healthy; runtime dry-run 200, PUT reconcile 200, internal
+  status 11 job, optimize backlog 11/11. Đã sửa lỗi dùng nhầm admin DB để prune.

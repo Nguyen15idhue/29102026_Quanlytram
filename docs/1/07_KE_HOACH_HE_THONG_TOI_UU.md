@@ -834,7 +834,7 @@ F:\3.Laptrinh\1. Project\1. GNSS\relayrtcm\backup
 | P07-1 | DONE | `feat(system): P07-1 bảng cấu hình bảo trì và quyền system_ops` | migrate 034 PASS; server build PASS; vitest 74/74 PASS | 11 job + 1 settings + 2 permission; super_admin 2 grant, admin/user 0; bỏ retention khỏi `.env.example` |
 | P07-2 | DONE | `feat(system): P07-2 API tối ưu chỉ số hệ thống` | server build PASS; vitest 80/80 PASS; API superadmin 200, 11 retention job | `GET /api/system/optimize`; fallback performance_schema; cache 20s; API admin 403 BLOCKED do thiếu mật khẩu admin local khớp (matrix test PASS) |
 | P07-3 | DONE | `feat(system): P07-3 API tự động hóa và scheduler bảo trì` | server build PASS; vitest 88/88 PASS; API jobs 11, PUT config, dry-run, runs PASS; runtime prune 502 chờ P07-4 | Admin cleanup + scheduler; validation 400; lock 409; audit; `reconcile` gọi Go (P07-4 hoàn tất endpoint) |
-| P07-4 | PENDING | | | |
+| P07-4 | DONE | `feat(system): P07-4 Go đọc cấu hình bảo trì và mở rộng retention` | go build/vet/test PASS; gnss rebuild PASS; runtime dry-run 200; reconcile 200; internal status 11 job | Go đọc admin DB, prune runtime DB; thêm 3 bảng; kiểm tra admin schema ≥34; bỏ retention ENV |
 | P07-5 | PENDING | | | |
 | P07-6 | PENDING | | | |
 
@@ -871,3 +871,16 @@ Bằng chứng P07-3:
   `POST /run` dry-run `status=ok`, `runs.total=1`.
 - Validation sai (`retentionDays=0`) → 400.
 - Runtime dry-run → 502 (đúng dự kiến, chờ P07-4 thêm endpoint Go).
+
+Bằng chứng P07-4:
+- `cd gnss; go build ./...; go vet ./...; go test ./...` → PASS
+  (`internal/maintenance` 4 test: validate range, guard unknown/admin/running,
+  guard `end_ts IS NOT NULL`/`resolved_at IS NOT NULL`, Status).
+- `docker compose up -d --build gnss` → healthy; log không còn lỗi DELETE;
+  admin schema 34 + runtime schema 6.
+- Node → Go: runtime dry-run `relay-sessions` 200 `rows=0`;
+  PUT `caster-connections` 200 (gọi reconcile); internal status trả 11 job,
+  timezone `Asia/Ho_Chi_Minh`.
+- `GET /api/system/optimize` có backlog 11/11 job.
+- Sự cố đã sửa: Runner ban đầu dùng nhầm admin DB để prune → DELETE bị từ chối;
+  tách `admin` (đọc cấu hình) và `db` (runtime prune).

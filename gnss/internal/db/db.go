@@ -60,3 +60,13 @@ func SchemaVersion(ctx context.Context, database *sql.DB, adminDB string) (int, 
 	}
 	return version, nil
 }
+
+func AdminSchemaVersion(ctx context.Context, database *sql.DB) (int, error) {
+	var version int
+	if err := database.QueryRowContext(ctx,
+		"SELECT COALESCE(MAX(version), 0) FROM schema_migrations WHERE scope = 'admin'",
+	).Scan(&version); err != nil {
+		return 0, err
+	}
+	return version, nil
+}

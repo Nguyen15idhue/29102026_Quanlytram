@@ -41,7 +41,8 @@ giám sát realtime và cấu hình hệ thống.
 
 - Node ghi `cors_admin`; Go ghi `cors_runtime`.
 - Go chỉ đọc cấu hình (`relay_jobs`, `relay_credentials`, `stations`,
-  `mountpoints`, `ntrip_accounts`), không sửa cấu hình.
+  `mountpoints`, `ntrip_accounts`, `maintenance_jobs`, `maintenance_settings`),
+  không sửa cấu hình.
 - Node không ghi trạng thái runtime; trạng thái job nằm ở
   `cors_runtime.relay_job_state`.
 - Node không nằm trên đường byte RTCM.
@@ -91,7 +92,8 @@ giám sát realtime và cấu hình hệ thống.
 - `relay_jobs` chỉ chứa cấu hình; trạng thái chạy ở `relay_job_state`.
 - Xóa relay job là soft-delete (`deleted_at`); giữ history theo retention.
 - Hai version schema riêng: `schema_migrations(scope, version)`.
-- Migration chỉ chạy bởi Node/CI; Go kiểm tra version runtime và fail-fast.
+- Migration chỉ chạy bởi Node/CI; Go kiểm tra version runtime và admin
+  (maintenance cần admin schema >= 34) rồi fail-fast.
 
 ## 9. Relay, NTRIP, RTCM
 

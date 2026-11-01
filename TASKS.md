@@ -721,7 +721,8 @@ phase sau khi phase trước còn FAIL; không làm các mục ngoài phạm vi 
 - [x] P07-2 API Tối ưu: `GET /api/system/optimize`; vitest 80/80 PASS.
 - [x] P07-3 API Tự động hóa admin: jobs/settings/runs/run + scheduler;
       vitest 88/88 PASS; runtime prune chờ P07-4.
-- [ ] P07-4 Go đọc cấu hình DB + retention + internal API.
+- [x] P07-4 Go đọc cấu hình DB + retention + internal API; go test PASS;
+      runtime dry-run/reconcile 200.
 - [ ] P07-5 Frontend Tối ưu & Tự động hóa.
 - [ ] P07-6 Test, docs, graphify, rollout.
 

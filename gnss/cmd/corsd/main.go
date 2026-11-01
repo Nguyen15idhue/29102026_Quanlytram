@@ -13,6 +13,7 @@ import (
 	"cors/gnss/internal/caster"
 	"cors/gnss/internal/config"
 	"cors/gnss/internal/db"
+	"cors/gnss/internal/maintenance"
 	"cors/gnss/internal/probe"
 	"cors/gnss/internal/quality"
 	"cors/gnss/internal/relay"
@@ -40,6 +41,21 @@ func main() {
 	}
 	if version < 4 {
 		log.Fatalf("runtime schema version %d is not compatible (need >= 4)", version)
+	}
+	adminVersion, err := db.AdminSchemaVersion(ctx, adminDB)
+	if err != nil {
+		log.Fatalf("check admin schema: %v", err)
+	}
+	if adminVersion < maintenance.MinAdminSchemaVersion {
+		log.Fatalf(
+			"admin schema version %d is not compatible (need >= %d)",
+			adminVersion,
+			maintenance.MinAdminSchemaVersion,
+		)
+	}
+	maintenanceRunner, err := maintenance.NewRunner(ctx, adminDB, runtimeDB)
+	if err != nil {
+		log.Fatalf("load maintenance config: %v", err)
 	}
 	if cfg.AppEncKey == "" {
 		log.Printf("warning: APP_ENC_KEY is empty; relay credentials cannot be decrypted")
@@ -106,14 +122,6 @@ func main() {
 		probeOptions,
 	)
 
-	retentionOptions := relay.RetentionOptions{
-		SessionDays: cfg.SessionRetentionDays,
-		EventDays:   cfg.EventRetentionDays,
-		HourlyDays:  cfg.HourlyRetentionDays,
-		Batch:       cfg.PruneBatch,
-		Interval:    cfg.PruneInterval,
-	}
-
 	runCtx, runCancel := context.WithCancel(context.Background())
 	go writer.Run(runCtx)
 	go qualityAsync.Run(runCtx)
@@ -122,12 +130,11 @@ func main() {
 	go stationSourceManager.Run(runCtx)
 	go casterManager.Run(runCtx)
 	go probeManager.Run(runCtx)
-	go relay.RunRetention(runCtx, runtimeDB, retentionOptions)
-	go runQualityRetention(runCtx, qualityStore, cfg)
+	go maintenanceRunner.Run(runCtx)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           api.New(runtimeDB, cfg.AdminDB, manager, casterManager, analyzer, probeManager, stationSourceManager, cfg.InternalHMACSecret).Handler(),
+		Handler:           api.New(runtimeDB, cfg.AdminDB, manager, casterManager, analyzer, probeManager, stationSourceManager, maintenanceRunner, cfg.InternalHMACSecret).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -164,28 +171,5 @@ func main() {
 	case <-qualityAsync.Done():
 	case <-shutdownCtx.Done():
 		log.Printf("quality writer did not flush before shutdown timeout")
-	}
-}
-
-func runQualityRetention(ctx context.Context, store *quality.MySQLStore, cfg config.Config) {
-	prune := func() {
-		pruneCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		sampleBefore := time.Now().UTC().AddDate(0, 0, -cfg.QualitySampleDays)
-		alertBefore := time.Now().UTC().AddDate(0, 0, -cfg.QualityAlertDays)
-		if err := store.Prune(pruneCtx, sampleBefore, alertBefore, cfg.QualityPruneBatch); err != nil {
-			log.Printf("[quality] prune failed: %v", err)
-		}
-	}
-	prune()
-	ticker := time.NewTicker(cfg.QualityPruneInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			prune()
-		}
 	}
 }

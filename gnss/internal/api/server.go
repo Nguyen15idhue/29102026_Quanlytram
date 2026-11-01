@@ -17,6 +17,7 @@ import (
 
 	"cors/gnss/internal/caster"
 	"cors/gnss/internal/db"
+	"cors/gnss/internal/maintenance"
 	"cors/gnss/internal/quality"
 	"cors/gnss/internal/relay"
 )
@@ -50,6 +51,12 @@ type StationSourceManager interface {
 	Reconcile(ctx context.Context)
 }
 
+type MaintenanceManager interface {
+	Status() maintenance.Status
+	Prune(ctx context.Context, jobKey string, dryRun bool) (int64, error)
+	Reload(ctx context.Context) error
+}
+
 type Server struct {
 	db            *sql.DB
 	adminDB       string
@@ -58,6 +65,7 @@ type Server struct {
 	quality       QualityAnalyzer
 	probe         ProbeManager
 	stationSource StationSourceManager
+	maintenance   MaintenanceManager
 	hmacSecret    string
 
 	nonceMu sync.Mutex
@@ -72,6 +80,7 @@ func New(
 	analyzer QualityAnalyzer,
 	probeManager ProbeManager,
 	stationSourceManager StationSourceManager,
+	maintenanceManager MaintenanceManager,
 	hmacSecret string,
 ) *Server {
 	return &Server{
@@ -82,6 +91,7 @@ func New(
 		quality:       analyzer,
 		probe:         probeManager,
 		stationSource: stationSourceManager,
+		maintenance:   maintenanceManager,
 		hmacSecret:    hmacSecret,
 		nonces:        make(map[string]time.Time),
 	}
@@ -104,6 +114,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/internal/caster/listeners", s.requireSignature(s.handleCasterListeners, http.MethodGet))
 	mux.HandleFunc("/internal/rtcm/snapshot", s.requireSignature(s.handleQualitySnapshot, http.MethodGet))
 	mux.HandleFunc("/internal/rtcm/health", s.requireSignature(s.handleQualityHealth, http.MethodGet))
+	mux.HandleFunc("/internal/maintenance/status", s.requireSignature(s.handleMaintenanceStatus, http.MethodGet))
+	mux.HandleFunc("/internal/maintenance/prune", s.requireSignature(s.handleMaintenancePrune, http.MethodPost))
+	mux.HandleFunc("/internal/maintenance/reconcile", s.requireSignature(s.handleMaintenanceReconcile, http.MethodPost))
 	return mux
 }
 
@@ -401,6 +414,68 @@ func (s *Server) handleQualityHealth(w http.ResponseWriter, _ *http.Request, _ [
 		return
 	}
 	writeJSON(w, http.StatusOK, s.quality.Health())
+}
+
+func (s *Server) handleMaintenanceStatus(w http.ResponseWriter, _ *http.Request, _ []byte) {
+	if s.maintenance == nil {
+		writeError(w, http.StatusServiceUnavailable, "maintenance is not configured")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.maintenance.Status())
+}
+
+func (s *Server) handleMaintenancePrune(w http.ResponseWriter, r *http.Request, body []byte) {
+	if s.maintenance == nil {
+		writeError(w, http.StatusServiceUnavailable, "maintenance is not configured")
+		return
+	}
+	var request struct {
+		JobKey string `json:"jobKey"`
+		DryRun bool   `json:"dryRun"`
+	}
+	if err := json.Unmarshal(body, &request); err != nil || request.JobKey == "" {
+		writeError(w, http.StatusBadRequest, "jobKey is required")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 70*time.Second)
+	defer cancel()
+	rows, err := s.maintenance.Prune(ctx, request.JobKey, request.DryRun)
+	if err != nil {
+		switch {
+		case errors.Is(err, maintenance.ErrUnknownJob):
+			writeError(w, http.StatusBadRequest, "unknown maintenance job")
+		case errors.Is(err, maintenance.ErrNotRuntime):
+			writeError(w, http.StatusBadRequest, "job is not runtime")
+		case errors.Is(err, maintenance.ErrRunning):
+			writeError(w, http.StatusConflict, "job is already running")
+		default:
+			writeError(w, http.StatusInternalServerError, "maintenance prune failed")
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"jobKey": request.JobKey,
+		"dryRun": request.DryRun,
+		"rows":   rows,
+	})
+}
+
+func (s *Server) handleMaintenanceReconcile(w http.ResponseWriter, r *http.Request, _ []byte) {
+	if s.maintenance == nil {
+		writeError(w, http.StatusServiceUnavailable, "maintenance is not configured")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	if err := s.maintenance.Reload(ctx); err != nil {
+		writeError(w, http.StatusInternalServerError, "maintenance reload failed")
+		return
+	}
+	status := s.maintenance.Status()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"reloaded": true,
+		"jobs":     len(status.Jobs),
+	})
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {
