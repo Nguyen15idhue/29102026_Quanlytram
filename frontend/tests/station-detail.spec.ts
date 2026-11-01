@@ -1,4 +1,4 @@
-﻿import { expect, test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
 const password = process.env.E2E_PASSWORD ?? '';
 
@@ -17,7 +17,7 @@ test.describe('Phase 1 station detail', () => {
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
     await page.goto('/stations/80?tab=connection');
-    await expect(page.getByText('THA_HauLoc').first()).toBeVisible();
+    await expect(page.getByText('THA Hậu Lộc').first()).toBeVisible();
     await expect(page.getByRole('tab', { name: 'Kết nối' })).toHaveAttribute(
       'aria-selected',
       'true'
@@ -66,7 +66,7 @@ test.describe('Phase 1 station detail', () => {
       .click();
     await expect(page).toHaveURL(/\/stations\/80/);
     await page.reload();
-    await expect(page.getByText('THA_HauLoc').first()).toBeVisible();
+    await expect(page.getByText('THA Hậu Lộc').first()).toBeVisible();
     await expect(page).toHaveURL(/q=THA/);
     await page.getByRole('button', { name: 'Đóng', exact: true }).last().click();
     await expect(page).toHaveURL(/\/stations\?/);
@@ -74,7 +74,7 @@ test.describe('Phase 1 station detail', () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/stations/80?tab=overview');
-    await expect(page.getByText('THA_HauLoc').first()).toBeVisible();
+    await expect(page.getByText('THA Hậu Lộc').first()).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
     );

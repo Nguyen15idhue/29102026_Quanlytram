@@ -60,9 +60,17 @@ function formatLocal(value: string | null | undefined): string {
 
 function transportKind(value: StationTransportStatus): 'ok' | 'warn' | 'error' | 'neutral' {
   if (value === 'online') return 'ok';
-  if (value === 'stale') return 'warn';
+  if (value === 'no_data') return 'warn';
   if (value === 'offline' || value === 'error') return 'error';
   return 'neutral';
+}
+
+function transportLabel(value: StationTransportStatus): string {
+  if (value === 'online') return 'online';
+  if (value === 'offline') return 'offline';
+  if (value === 'no_data') return 'no data';
+  if (value === 'error') return 'error';
+  return '—';
 }
 
 function qualityKind(value: StationQualityStatus): 'ok' | 'warn' | 'error' | 'neutral' {
@@ -127,7 +135,7 @@ function StatusGrid({ station }: { station: StationDetail }) {
       <div>
         <span className="muted">Transport</span>
         <StatusBadge
-          label={station.transportStatus}
+          label={transportLabel(station.transportStatus)}
           kind={transportKind(station.transportStatus)}
         />
       </div>

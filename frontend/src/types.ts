@@ -98,6 +98,7 @@ export interface Station {
   account_username?: string | null;
   quality_score?: number | null;
   quality_state?: string;
+  transportStatus?: StationTransportStatus;
   last_data_at?: string | null;
 }
 
@@ -125,7 +126,7 @@ export interface StationSource {
   updated_at?: string;
 }
 
-export type StationTransportStatus = 'online' | 'stale' | 'offline' | 'error' | 'unknown';
+export type StationTransportStatus = 'online' | 'offline' | 'no_data' | 'error' | 'unknown' | null;
 export type StationQualityStatus = 'good' | 'warning' | 'critical' | 'unknown';
 export type StationMetadataStatus = 'ok' | 'warning' | 'critical' | 'unknown';
 

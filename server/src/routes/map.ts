@@ -1,4 +1,4 @@
-﻿import { Router } from 'express';
+import { Router } from 'express';
 import { RowDataPacket } from 'mysql2/promise';
 import { query } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
@@ -188,7 +188,7 @@ mapRouter.get(
       all: items.length,
       online: items.filter((item) => item.transport === 'online').length,
       issues: items.filter(
-        (item) => item.transport === 'stale' || item.transport === 'offline' || item.transport === 'error'
+        (item) => item.transport === 'no_data' || item.transport === 'offline' || item.transport === 'error'
       ).length,
       online_accounts: items.filter((item) => item.onlineAccounts > 0).length,
       missing_1005: items.filter((item) => !item.has1005).length
@@ -197,7 +197,7 @@ mapRouter.get(
     const filtered = items.filter((item) => {
       if (layer === 'online') return item.transport === 'online';
       if (layer === 'issues') {
-        return item.transport === 'stale' || item.transport === 'offline' || item.transport === 'error';
+        return item.transport === 'no_data' || item.transport === 'offline' || item.transport === 'error';
       }
       if (layer === 'online_accounts') return item.onlineAccounts > 0;
       if (layer === 'missing_1005') return !item.has1005;

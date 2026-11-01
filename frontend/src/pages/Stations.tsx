@@ -804,19 +804,25 @@ export function Stations() {
               key: 'streaming',
               header: 'Trạng thái streaming',
               cell: (station) => {
-                if (!station.enabled || isLocked(station)) {
-                  return <StatusBadge label="Đã tắt" kind="neutral" />;
+                if (isLocked(station)) {
+                  return <StatusBadge label="—" kind="neutral" />;
                 }
-                const state = station.quality_state ?? 'unknown';
+                const transport = station.transportStatus ?? 'offline';
                 const label =
-                  state === 'streaming'
-                    ? 'Đang streaming'
-                    : state === 'stale'
-                      ? 'Trễ dữ liệu'
-                      : state === 'error'
-                        ? 'Lỗi'
-                        : 'Không có dữ liệu';
-                return <StatusBadge label={label} kind={stateKind(state)} />;
+                  transport === 'online'
+                    ? 'online'
+                    : transport === 'no_data'
+                      ? 'no data'
+                      : transport === 'error'
+                        ? 'offline'
+                        : 'offline';
+                const kind =
+                  transport === 'online'
+                    ? 'ok'
+                    : transport === 'no_data'
+                      ? 'warn'
+                      : 'error';
+                return <StatusBadge label={label} kind={kind} />;
               }
             },
             {

@@ -16,7 +16,7 @@ test.describe('Phase 7 station source and 1005 coordinates', () => {
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
     await page.goto('/stations');
-    await page.getByPlaceholder('Tìm mã, tên, địa chỉ').fill('THA_HauLoc');
+    await page.getByPlaceholder('Tìm mã, tên, địa chỉ').fill('THA Hậu Lộc');
     const row = page.getByRole('row', { name: /THA Hậu Lộc/ }).first();
     await expect(row).toBeVisible();
     await row.locator('.link-btn').click();
@@ -60,7 +60,7 @@ test.describe('Phase 7 station source and 1005 coordinates', () => {
     await page.goto('/ntrip-accounts');
     const accountRow = page.locator('tbody tr').first();
     if (await accountRow.count()) {
-      await accountRow.click();
+      await accountRow.locator('.link-btn').click();
       const accountDetail = page.getByRole('dialog');
       await expect(accountDetail.getByText('Công ty', { exact: true })).toBeVisible();
       await expect(accountDetail.getByText('Hiệu lực', { exact: true })).toBeVisible();
@@ -71,7 +71,7 @@ test.describe('Phase 7 station source and 1005 coordinates', () => {
     await page.goto('/mountpoints');
     const mountpointRow = page.locator('tbody tr').first();
     if (await mountpointRow.count()) {
-      await mountpointRow.click();
+      await mountpointRow.locator('.link-btn').click();
       const mountpointDetail = page.getByRole('dialog');
       await expect(mountpointDetail.getByText('Online', { exact: true })).toBeVisible();
       await expect(mountpointDetail.getByText('Relay lấy mountpoint')).toBeVisible();

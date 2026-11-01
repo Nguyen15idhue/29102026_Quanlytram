@@ -35,7 +35,7 @@ test.describe('P1.3 bulk action và shared table', () => {
     await expect(bar).toHaveCount(0);
 
     await page.goto('/ntrip-accounts');
-    await page.locator('table tbody tr').first().click();
+    await page.locator('table tbody tr .link-btn').first().click();
     const aclSearch = page.getByRole('textbox', { name: 'Mountpoint được phép tìm kiếm' });
     await expect(aclSearch).toBeVisible();
     await aclSearch.focus();
@@ -88,11 +88,23 @@ test.describe('P1.3 bulk action và shared table', () => {
     try {
       const auth = await loginApi(superCtx, 'superadmin', password);
       const headers = { 'X-CSRF-Token': auth.csrfToken };
+      const listeners = await (
+        await superCtx.get('/api/caster/listeners?page=1&pageSize=10')
+      ).json();
+      const listener = listeners.items[0];
+      const prefix = `Bulk ${Date.now()}`;
       for (let index = 1; index <= 2; index += 1) {
-        const code = `E2E_BULK_${Date.now()}_${index}`;
         const response = await superCtx.post('/api/stations', {
           headers,
-          data: { code, name: `Bulk ${index}`, host: '' }
+          data: {
+            name: `${prefix} ${index}`,
+            port: listener.port,
+            source_role: 'ntrip_caster',
+            caster_listener_id: listener.id,
+            caster_username: `bulk_${Date.now()}_${index}`,
+            caster_password: 'BulkPass123!',
+            enabled: true
+          }
         });
         expect(response.status()).toBe(201);
         ids.push((await response.json()).item.id);
@@ -106,7 +118,9 @@ test.describe('P1.3 bulk action và shared table', () => {
       expect((await disabled.json()).result.updated).toBe(2);
 
       const listed = await (
-        await superCtx.get('/api/stations?page=1&pageSize=20&q=E2E_BULK_')
+        await superCtx.get(
+          `/api/stations?page=1&pageSize=20&q=${encodeURIComponent(prefix)}`
+        )
       ).json();
       for (const id of ids) {
         expect(

@@ -30,7 +30,7 @@ test.describe('P0 Phase 3 unified map', () => {
     await page.getByLabel('Layer bản đồ').selectOption('stations');
     await page.getByPlaceholder('Tìm trạm, vùng, địa chỉ').fill('THA');
     await expect(page).toHaveURL(/q=THA/);
-    await page.getByRole('button', { name: /THA_HauLoc/ }).first().click();
+    await page.getByRole('button', { name: /THA Hậu Lộc/ }).first().click();
     await expect(page).toHaveURL(/station=80/);
     await expect(page.getByText('Mở chi tiết trạm')).toBeVisible();
     await page.screenshot({ path: 'test-results/unified-map-light.png', fullPage: true });

@@ -212,6 +212,29 @@ Mục tiêu thời gian:
 | Fallback polling | 5–10 s |
 | Goroutine sau 50 vòng | baseline ±5 |
 
+### 4.9 Quy ước trạng thái streaming
+
+Áp dụng cho danh sách trạm và chi tiết trạm:
+
+| Trạng thái | Màu | Điều kiện |
+|---|---|---|
+| `online` | xanh lá | Trạm đang mở khóa/bật và nhận được message mới, hoặc relay job ở `streaming`. |
+| `offline` | đỏ | Trạm bị tắt, không có kết nối, relay job lỗi/disabled, hoặc mất dữ liệu quá ngưỡng. |
+| `no data` | vàng cam | Đã có kết nối nhưng chưa nhận message hoặc message quá ít/không đủ tiêu chuẩn. |
+| `—` | trung tính | Trạm bị khóa; mọi kết nối bị ngưng và không cho kết nối vào. |
+
+Quy tắc tính:
+
+- `status='locked'` → `transportStatus=null`, UI hiển thị `—`.
+- `enabled=0` → `offline`.
+- `source_type='relay_caster'`:
+  - relay job runtime `streaming` → `online`.
+  - còn lại (`pending/connecting/backoff/error/disabled`) → `offline`.
+- `caster_ingest`/`probe_client`/`manual`:
+  - sample mới ≤ 5 giây và state `streaming` → `online`.
+  - có connection source hoặc sample ≤ 30 giây → `no_data`.
+  - còn lại → `offline`.
+
 ## 5. Các bước thực hiện
 
 ---
@@ -1809,3 +1832,17 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - Không có endpoint/thiết bị thật được phép trong phiên này; không test mountpoint công cộng.
   - Cần người dùng cung cấp endpoint allowlist để chạy real và ghi biên bản.
+### Bổ sung — Quy ước trạng thái streaming (2026-11-01)
+- Lý do: trạm `relay_caster` đang streaming bên ngoài nhưng UI báo `offline`; trạng thái cũ dựa hoàn toàn vào sample chất lượng trạm.
+- Đã sửa:
+  - `relay_caster` lấy trạng thái từ relay job runtime; job `streaming` → `online`.
+  - `locked` → `transportStatus = null`, UI hiển thị `—`.
+  - `enabled=0` hoặc không kết nối → `offline`.
+  - Có kết nối nhưng chưa đủ message → `no data`.
+  - Danh sách trạm dùng cùng quy ước thay vì `quality_state`.
+- Bằng chứng:
+  - Mock relay job upstream `THA_HauLoc` streaming → `/api/stations/80` trả `transportStatus=online`.
+  - Khóa trạm 80 → API trả `transportStatus=null`, UI `—`.
+  - `frontend tsc --noEmit`: PASS.
+- Ghi chú:
+  - Job relay 93 của dữ liệu fixture đang `disabled`; vì vậy trạm 80 offline cho tới khi job được bật hoặc có job streaming thay thế.

@@ -269,13 +269,50 @@ async function relayMap(ids: number[]): Promise<Map<number, any>> {
        FROM relay_jobs r
        JOIN mountpoints m ON m.name = r.upstream_mount
       WHERE r.deleted_at IS NULL AND m.station_id IN (${placeholders})
-      ORDER BY r.id`,
+      ORDER BY r.enabled DESC, r.id DESC`,
     ids
   );
   for (const row of rows as any[]) {
     if (!map.has(Number(row.station_id))) map.set(Number(row.station_id), row);
   }
+  try {
+    const response = await callGoInternal<{
+      items: Array<{ jobId: number; state: string }>;
+    }>('/internal/snapshot', undefined, { method: 'GET', timeoutMs: 1200 });
+    const stateById = new Map(
+      (response?.items ?? []).map((item) => [Number(item.jobId), String(item.state)])
+    );
+    for (const row of map.values()) {
+      row.runtime_state = stateById.get(Number(row.relay_job_id)) ?? 'unknown';
+    }
+  } catch {
+    for (const row of map.values()) {
+      row.runtime_state = row.runtime_state ?? 'unknown';
+    }
+  }
   return map;
+}
+
+async function stationConnectionSet(stationIds: number[]): Promise<Set<number>> {
+  const connected = new Set<number>();
+  if (stationIds.length === 0) return connected;
+  const placeholders = stationIds.map(() => '?').join(',');
+  const rows = await query<RowDataPacket[]>(
+    `SELECT id, station_id FROM mountpoints WHERE station_id IN (${placeholders})`,
+    stationIds
+  );
+  const stationByMountpoint = new Map(
+    rows.map((row) => [Number(row.id), Number(row.station_id)])
+  );
+  if (stationByMountpoint.size === 0) return connected;
+  const connections = await casterConnectionsFor([...stationByMountpoint.keys()]);
+  if (!connections.available) return connected;
+  for (const item of connections.items) {
+    if (item.direction !== 'source') continue;
+    const stationId = stationByMountpoint.get(Number(item.mountpointId));
+    if (stationId) connected.add(stationId);
+  }
+  return connected;
 }
 
 async function probeMap(ids: number[]): Promise<Map<number, any>> {
@@ -295,7 +332,8 @@ function withQuality(
   row: any,
   quality: Map<number, any>,
   relays: Map<number, any>,
-  probes: Map<number, any>
+  probes: Map<number, any>,
+  connectedStations: Set<number>
 ) {
   const item = quality.get(Number(row.id));
   const relay = relays.get(Number(row.id));
@@ -340,10 +378,30 @@ function withQuality(
   }
   const sampleAgeMs = item?.ts ? Math.max(0, Date.now() - new Date(item.ts).getTime()) : null;
   const hasMsm = Number(item?.cells ?? 0) > 0 || Number(item?.msm_epochs ?? 0) > 0;
-  const stationOff = Number(row.enabled) === 0 || String(row.status) === 'locked';
+  const locked = String(row.status) === 'locked';
+  const stationOff = Number(row.enabled) === 0 || locked;
+  const state = String(item?.state ?? '').toLowerCase();
+  const relayState = String(relay?.runtime_state ?? '');
+  const connected = connectedStations.has(Number(row.id));
+  let transportStatus: 'online' | 'offline' | 'no_data' | 'error' | 'unknown' | null;
+  if (locked) {
+    transportStatus = null;
+  } else if (Number(row.enabled) === 0) {
+    transportStatus = 'offline';
+  } else if (sourceType === 'relay_caster') {
+    transportStatus = relayState === 'streaming' ? 'online' : 'offline';
+  } else if (state === 'error') {
+    transportStatus = 'offline';
+  } else if (state === 'streaming' && sampleAgeMs !== null && sampleAgeMs <= 5_000) {
+    transportStatus = 'online';
+  } else if (connected || (sampleAgeMs !== null && sampleAgeMs <= 30_000)) {
+    transportStatus = 'no_data';
+  } else {
+    transportStatus = 'offline';
+  }
   return {
     ...row,
-    transportStatus: stationOff ? 'offline' : transportStatusFor(item?.state, sampleAgeMs),
+    transportStatus,
     qualityStatus: stationOff
       ? 'unknown'
       : qualityStatusFor({
@@ -367,6 +425,7 @@ function withQuality(
     ntrip_version: ntripVersion,
     ntrip_mode: ntripMode,
     relay_job_id: relay?.relay_job_id ?? null,
+    relay_runtime_state: relay?.runtime_state ?? null,
     relay_job_name: relay?.relay_job_name ?? null,
     relay_upstream_host: relay?.upstream_host ?? null,
     relay_upstream_port: relay?.upstream_port ?? null,
@@ -546,13 +605,14 @@ stationsRouter.get(
       params
     );
     const idsForMeta = rows.map((row) => Number(row.id));
-    const [quality, relays, probes] = await Promise.all([
+    const [quality, relays, probes, connectedStations] = await Promise.all([
       qualityMap(idsForMeta),
       relayMap(idsForMeta),
-      probeMap(idsForMeta)
+      probeMap(idsForMeta),
+      stationConnectionSet(idsForMeta)
     ]);
     res.json({
-      items: rows.map((row) => withQuality(row, quality, relays, probes)),
+      items: rows.map((row) => withQuality(row, quality, relays, probes, connectedStations)),
       total: Number(countRows[0].total),
       pageSize,
       offset
@@ -771,15 +831,16 @@ stationsRouter.get(
   asyncHandler(async (req, res) => {
     const station = await scopedStation(req, Number(req.params.id));
     const id = Number(station.id);
-    const [quality, relays, probes, samples, live] = await Promise.all([
+    const [quality, relays, probes, samples, live, connectedStations] = await Promise.all([
       qualityMap([id]),
       relayMap([id]),
       probeMap([id]),
       stationSampleRows(id),
-      latestLiveStation(id)
+      latestLiveStation(id),
+      stationConnectionSet([id])
     ]);
     const reliability = buildReliability(samples, { windowSec: 900 });
-    const item = withQuality(station, quality, relays, probes);
+    const item = withQuality(station, quality, relays, probes, connectedStations);
     res.json({
       item: {
         ...item,

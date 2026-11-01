@@ -1,4 +1,4 @@
-export type TransportStatus = 'online' | 'stale' | 'offline' | 'error' | 'unknown';
+export type TransportStatus = 'online' | 'offline' | 'no_data' | 'error' | 'unknown' | null;
 export type QualityStatus = 'good' | 'warning' | 'critical' | 'unknown';
 export type MetadataStatus = 'ok' | 'warning' | 'critical' | 'unknown';
 
@@ -27,12 +27,12 @@ export function transportStatusFor(
   ageMs: number | null | undefined
 ): TransportStatus {
   const normalized = String(state ?? '').toLowerCase();
-  if (normalized === 'error') return 'error';
+  if (normalized === 'error') return 'offline';
   if (ageMs === null || ageMs === undefined || !Number.isFinite(ageMs) || ageMs < 0) {
-    return 'unknown';
+    return 'offline';
   }
   if (ageMs <= ONLINE_AGE_MS && normalized === 'streaming') return 'online';
-  if (ageMs <= STALE_AGE_MS) return 'stale';
+  if (ageMs <= STALE_AGE_MS) return 'no_data';
   return 'offline';
 }
 

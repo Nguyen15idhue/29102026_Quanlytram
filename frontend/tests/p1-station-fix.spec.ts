@@ -24,7 +24,16 @@ test.describe('P1 station connection/coordinate/geo fixes', () => {
       const listener = listeners.items[0];
       const created = await context.post('/api/stations', {
         headers,
-        data: { name: `P1 Source ${Date.now()}`, lat: 21.0285, lon: 105.8542 }
+        data: {
+          name: `P1 Source ${Date.now()}`,
+          port: listener.port,
+          lat: 21.0285,
+          lon: 105.8542,
+          source_role: 'ntrip_caster',
+          caster_listener_id: listener.id,
+          caster_username: `p1_source_${Date.now()}`,
+          caster_password: 'P1Source123!'
+        }
       });
       expect(created.status()).toBe(201);
       stationId = (await created.json()).item.id;

@@ -118,22 +118,34 @@ test.describe('P1.2 RBAC tenant và menu', () => {
       adminBId = (await createUser.json()).item.id;
 
       const adminBAuth = await loginApi(adminBCtx, adminBUsername, adminBPassword);
-      const stationCode = `E2E_TB_${suffix}`;
+      const listeners = await (
+        await adminBCtx.get('/api/caster/listeners?page=1&pageSize=10')
+      ).json();
+      const listener = listeners.items[0];
+      const stationName = `Trạm công ty B ${suffix}`;
       const createStation = await adminBCtx.post('/api/stations', {
         headers: { 'X-CSRF-Token': adminBAuth.csrfToken },
-        data: { code: stationCode, name: 'Trạm công ty B', host: '' }
+        data: {
+          name: stationName,
+          port: listener.port,
+          source_role: 'ntrip_caster',
+          caster_listener_id: listener.id,
+          caster_username: `tenant_b_${suffix}`,
+          caster_password: 'TenantB!2026'
+        }
       });
       expect(createStation.status()).toBe(201);
       stationId = (await createStation.json()).item.id;
 
       await loginApi(adminACtx, 'admin', adminPassword);
+      const q = encodeURIComponent(stationName);
       const aList = await (
-        await adminACtx.get(`/api/stations?page=1&pageSize=20&q=${stationCode}`)
+        await adminACtx.get(`/api/stations?page=1&pageSize=20&q=${q}`)
       ).json();
       expect(aList.total).toBe(0);
 
       const bList = await (
-        await adminBCtx.get(`/api/stations?page=1&pageSize=20&q=${stationCode}`)
+        await adminBCtx.get(`/api/stations?page=1&pageSize=20&q=${q}`)
       ).json();
       expect(bList.total).toBe(1);
     } finally {
