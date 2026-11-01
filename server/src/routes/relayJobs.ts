@@ -9,6 +9,14 @@ import { encryptSecret } from '../lib/crypto';
 import { endpointKey } from '../lib/endpointKey';
 import { asyncHandler, ApiError } from '../lib/http';
 import { callGoInternal } from '../lib/internalApi';
+import { dataUptime } from '../lib/dataUptime';
+import {
+  buildStatusTimeline,
+  combinedRelayStatus,
+  statusForLiveAge,
+  TIMELINE_RANGES,
+  timelineRange
+} from '../lib/statusTimeline';
 import { findCycle, RelayEdge } from '../lib/loopGuard';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
@@ -106,6 +114,7 @@ function publicJob(row: any, state: any) {
     externalKey: row.external_key,
     name: row.name,
     enabled: Boolean(row.enabled),
+    locked: Boolean(row.locked),
     desiredRevision: Number(row.desired_revision),
     upstream: {
       host: row.upstream_host,
@@ -201,6 +210,98 @@ async function statesFor(ids: number[]): Promise<Map<number, any>> {
     ids
   );
   return new Map(rows.map((row: any) => [Number(row.relay_job_id), row]));
+}
+
+interface GoRelayMetrics {
+  jobId: number;
+  state: string;
+  appliedRevision: number;
+  bytesUp: number;
+  bytesDown: number;
+  frames: number;
+  crcErrors: number;
+  lastDataAt?: string;
+  lastUpAt?: string;
+  lastDownAt?: string;
+  lastError?: string;
+}
+
+async function metricsFor(ids: number[]): Promise<Map<number, GoRelayMetrics>> {
+  if (ids.length === 0) return new Map();
+  try {
+    const response = await callGoInternal<{ items: GoRelayMetrics[] }>(
+      '/internal/snapshot',
+      undefined,
+      { method: 'GET', timeoutMs: 1500 }
+    );
+    const wanted = new Set(ids.map(Number));
+    return new Map(
+      (response?.items ?? [])
+        .filter((item) => wanted.has(Number(item.jobId)))
+        .map((item) => [Number(item.jobId), item])
+    );
+  } catch {
+    return new Map();
+  }
+}
+
+function dataAgeMs(value: string | undefined | null): number | null {
+  if (!value) return null;
+  const ts = new Date(value).getTime();
+  if (!Number.isFinite(ts)) return null;
+  return Math.max(0, Date.now() - ts);
+}
+
+function relayDirectionStatus(
+  row: any,
+  metrics: GoRelayMetrics | undefined,
+  direction: 'upstream' | 'downstream'
+): 'online' | 'offline' | 'no_data' {
+  if (row.locked || !row.enabled) return 'offline';
+  const value =
+    direction === 'upstream'
+      ? metrics?.lastUpAt ?? metrics?.lastDataAt
+      : metrics?.lastDownAt;
+  return statusForLiveAge(dataAgeMs(value));
+}
+
+function relayStreamStatus(
+  row: any,
+  state: any,
+  metrics: GoRelayMetrics | undefined
+): 'online' | 'offline' | 'no_data' | null {
+  if (row.locked) return null;
+  if (!row.enabled) return 'offline';
+  const runtime = String(metrics?.state ?? state?.runtime_state ?? '');
+  if (runtime !== 'streaming') return 'offline';
+  return combinedRelayStatus(
+    relayDirectionStatus(row, metrics, 'upstream'),
+    relayDirectionStatus(row, metrics, 'downstream')
+  );
+}
+
+function attachRuntime(row: any, state: any, metrics: GoRelayMetrics | undefined) {
+  return {
+    ...publicJob(row, state),
+    streamStatus: relayStreamStatus(row, state, metrics),
+    directionStatus: {
+      upstream: relayDirectionStatus(row, metrics, 'upstream'),
+      downstream: relayDirectionStatus(row, metrics, 'downstream')
+    },
+    metrics: metrics
+      ? {
+          state: metrics.state,
+          bytesUp: Number(metrics.bytesUp ?? 0),
+          bytesDown: Number(metrics.bytesDown ?? 0),
+          frames: Number(metrics.frames ?? 0),
+          crcErrors: Number(metrics.crcErrors ?? 0),
+          lastDataAt: metrics.lastDataAt ?? null,
+          lastUpAt: metrics.lastUpAt ?? null,
+          lastDownAt: metrics.lastDownAt ?? null,
+          lastError: metrics.lastError ?? null
+        }
+      : null
+  };
 }
 
 async function upsertCredential(
@@ -319,9 +420,19 @@ relayJobsRouter.get(
       `SELECT COUNT(*) AS total FROM relay_jobs j WHERE ${where}`,
       params
     );
-    const stateMap = await statesFor(rows.map((row) => Number(row.id)));
+    const idsForRuntime = rows.map((row) => Number(row.id));
+    const [stateMap, metricMap] = await Promise.all([
+      statesFor(idsForRuntime),
+      metricsFor(idsForRuntime)
+    ]);
     res.json({
-      items: rows.map((row) => publicJob(row, stateMap.get(Number(row.id)))),
+      items: rows.map((row) =>
+        attachRuntime(
+          row,
+          stateMap.get(Number(row.id)),
+          metricMap.get(Number(row.id))
+        )
+      ),
       total: Number(countRows[0].total),
       pageSize,
       offset
@@ -338,7 +449,676 @@ relayJobsRouter.get(
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
     await assertRecordScope(req, row.owner_web_user_id);
-    res.json({ item: publicJob(row, await getState(Number(row.id))) });
+    const state = await getState(Number(row.id));
+    const metrics = await metricsFor([Number(row.id)]);
+    res.json({ item: attachRuntime(row, state, metrics.get(Number(row.id))) });
+  })
+);
+
+relayJobsRouter.get(
+  '/:id/status',
+  requirePermission('relay', 'view'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const row = await getJobRow(id);
+    if (!row || row.deleted_at !== null) {
+      throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
+    }
+    await assertRecordScope(req, row.owner_web_user_id);
+    const state = await getState(id);
+    const metrics = (await metricsFor([id])).get(id);
+    const [sessions, hourly] = await Promise.all([
+      runtimeQuery<RowDataPacket[]>(
+        `SELECT id, start_ts, end_ts, duration_sec, result, close_reason, message
+           FROM relay_sessions
+          WHERE relay_job_id = ?
+          ORDER BY id DESC
+          LIMIT 20`,
+        [id]
+      ),
+      runtimeQuery<RowDataPacket[]>(
+        `SELECT hour_start_utc, online_sec, sessions, errors, timeouts,
+                auth_errors, proxy_errors, nmea_errors, retries
+           FROM relay_hourly
+          WHERE relay_job_id = ?
+            AND hour_start_utc >= UTC_TIMESTAMP(3) - INTERVAL 24 HOUR
+          ORDER BY hour_start_utc`,
+        [id]
+      )
+    ]);
+    const onlineSec = hourly.reduce((sum, item) => sum + Number(item.online_sec ?? 0), 0);
+    const totalSec = 24 * 3600;
+    const sampleUptime = await dataUptime({
+      targetType: 'relay_job',
+      targetId: id,
+      hours: 24
+    });
+    const errorSessions = sessions.filter((item) =>
+      ['auth_failed', 'timeout', 'network', 'proxy'].includes(String(item.close_reason))
+    );
+    const errorSummary = {
+      authFailed: sessions.filter((item) => item.close_reason === 'auth_failed').length,
+      timeout: sessions.filter((item) => item.close_reason === 'timeout').length,
+      network: sessions.filter((item) => item.close_reason === 'network').length,
+      proxy: sessions.filter((item) =>
+        String(item.message ?? '').toLowerCase().includes('proxy')
+      ).length
+    };
+    res.json({
+      item: attachRuntime(row, state, metrics),
+      uptime: {
+        windowSec: totalSec,
+        onlineSec,
+        uptimePct: Math.min(100, (onlineSec / totalSec) * 100),
+        buckets: hourly.map((item) => ({
+          hourStartUtc: item.hour_start_utc,
+          onlineSec: Number(item.online_sec ?? 0),
+          sessions: Number(item.sessions ?? 0),
+          errors: Number(item.errors ?? 0),
+          timeouts: Number(item.timeouts ?? 0),
+          authErrors: Number(item.auth_errors ?? 0),
+          proxyErrors: Number(item.proxy_errors ?? 0),
+          retries: Number(item.retries ?? 0)
+        }))
+      },
+      sessions: sessions.map((item) => ({
+        id: Number(item.id),
+        startTs: item.start_ts,
+        endTs: item.end_ts,
+        durationSec: item.duration_sec === null ? null : Number(item.duration_sec),
+        result: String(item.result ?? ''),
+        closeReason: String(item.close_reason ?? ''),
+        message: String(item.message ?? '')
+      })),
+      errorSummary,
+      dataUptime: sampleUptime,
+      recentErrors: errorSessions.map((item) => ({
+        id: Number(item.id),
+        at: item.start_ts,
+        closeReason: String(item.close_reason ?? ''),
+        message: String(item.message ?? '')
+      }))
+    });
+  })
+);
+
+const ACTIVITY_RANGES = {
+  '24h': { hours: 24, slotSec: 60, seriesBucketSec: 300 },
+  '7d': { hours: 24 * 7, slotSec: 300, seriesBucketSec: 1800 },
+  '30d': { hours: 24 * 30, slotSec: 1800, seriesBucketSec: 7200 }
+} as const;
+
+type ActivityRange = keyof typeof ACTIVITY_RANGES;
+
+function activityRange(value: string): ActivityRange {
+  return value === '7d' || value === '30d' ? value : '24h';
+}
+
+function isOutageReason(value: string): boolean {
+  const reason = value.trim().toLowerCase();
+  if (!reason) return false;
+  return ![
+    'manual',
+    'normal',
+    'source_disconnected',
+    'service_restart',
+    'rover_disconnected'
+  ].includes(reason);
+}
+
+function historyLevelForReason(value: string): 'critical' | 'warning' | 'info' {
+  const reason = value.trim().toLowerCase();
+  if (['auth_failed', 'timeout', 'network', 'proxy'].includes(reason)) return 'critical';
+  return isOutageReason(reason) ? 'warning' : 'info';
+}
+
+async function buildRelayActivity(
+  jobId: number,
+  requestedRange: string,
+  requestedDirection: string
+) {
+  const range = activityRange(requestedRange);
+  const direction = requestedDirection === 'downstream' ? 'downstream' : 'upstream';
+  const { hours } = ACTIVITY_RANGES[range];
+  const end = new Date();
+  const start = new Date(end.getTime() - hours * 3600_000);
+
+  const [sessionRows, minuteRows] = await Promise.all([
+    runtimeQuery<RowDataPacket[]>(
+      `SELECT id, start_ts, end_ts, close_reason, result
+         FROM relay_sessions
+        WHERE relay_job_id = ?
+          AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
+        ORDER BY start_ts`,
+      [jobId, start, end]
+    ),
+    runtimeQuery<RowDataPacket[]>(
+      `SELECT UNIX_TIMESTAMP(ts) DIV 60 AS minute
+         FROM quality_samples
+        WHERE target_type = 'relay_job' AND target_id = ? AND direction = ?
+          AND ts >= ? AND ts <= ? AND state = 'streaming'
+        GROUP BY minute`,
+      [jobId, direction, start, end]
+    )
+  ]);
+
+  const sessions = sessionRows.map((row) => ({
+    id: Number(row.id),
+    startedAt: new Date(row.start_ts),
+    endedAt: row.end_ts ? new Date(row.end_ts) : null,
+    reason: String(row.close_reason ?? row.result ?? '')
+  }));
+
+  const observed = [
+    ...(direction === 'upstream'
+      ? sessions.map((session) => Math.max(session.startedAt.getTime(), start.getTime()))
+      : []),
+    ...minuteRows.map((row) => Number(row.minute) * 60_000)
+  ].filter((value) => Number.isFinite(value));
+  const firstObserved = observed.length > 0 ? Math.min(...observed) : start.getTime();
+  const analysisStart = new Date(Math.max(start.getTime(), Math.min(firstObserved, end.getTime())));
+  const totalSec = Math.round((end.getTime() - analysisStart.getTime()) / 1000);
+  const startMs = Math.floor(analysisStart.getTime() / 60_000) * 60_000;
+  const endMs = Math.ceil(end.getTime() / 60_000) * 60_000;
+  const totalMinutes = Math.max(0, Math.round((endMs - startMs) / 60_000));
+  const onlineMinutes = new Uint8Array(totalMinutes);
+  const markOnline = (from: number, to: number) => {
+    const first = Math.max(0, Math.floor((from - startMs) / 60_000));
+    const last = Math.min(totalMinutes, Math.ceil((to - startMs) / 60_000));
+    for (let index = first; index < last; index += 1) onlineMinutes[index] = 1;
+  };
+  if (direction === 'upstream') {
+    for (const session of sessions) {
+      const from = Math.max(session.startedAt.getTime(), analysisStart.getTime());
+      const to = Math.min((session.endedAt ?? end).getTime(), end.getTime());
+      if (to > from) markOnline(from, to);
+    }
+  }
+  for (const row of minuteRows) {
+    const index = Number(row.minute) - Math.floor(startMs / 60_000);
+    if (index >= 0 && index < totalMinutes) onlineMinutes[index] = 1;
+  }
+  const onlineMinuteCount = onlineMinutes.reduce((sum, value) => sum + value, 0);
+  const onlineSec = Math.min(totalSec, onlineMinuteCount * 60);
+
+  const slotMs = ACTIVITY_RANGES[range].slotSec * 1000;
+  const slotCount = Math.max(1, Math.ceil((end.getTime() - analysisStart.getTime()) / slotMs));
+  const segments: Array<{ from: string; to: string; status: 'up' | 'down' }> = [];
+  for (let index = 0; index < slotCount; index += 1) {
+    const from = analysisStart.getTime() + index * slotMs;
+    const to = Math.min(end.getTime(), from + slotMs);
+    const first = Math.max(0, Math.floor((from - startMs) / 60_000));
+    const last = Math.min(totalMinutes, Math.ceil((to - startMs) / 60_000));
+    let online = 0;
+    let total = 0;
+    for (let minute = first; minute < last; minute += 1) {
+      total += 1;
+      online += onlineMinutes[minute];
+    }
+    const status = total > 0 && online / total >= 0.75 ? 'up' : 'down';
+    const previous = segments[segments.length - 1];
+    if (previous && previous.status === status) {
+      previous.to = new Date(to).toISOString();
+    } else {
+      segments.push({
+        from: new Date(from).toISOString(),
+        to: new Date(to).toISOString(),
+        status
+      });
+    }
+  }
+
+  const events = segments
+    .filter((segment) => segment.status === 'down')
+    .map((segment) => {
+      const from = new Date(segment.from).getTime();
+      const to = new Date(segment.to).getTime();
+      const nearby = sessions.find(
+        (session) =>
+          session.endedAt &&
+          isOutageReason(session.reason) &&
+          Math.abs(session.endedAt.getTime() - from) < 5 * 60_000
+      );
+      return {
+        id: `${segment.from}-${segment.to}`,
+        at: segment.from,
+        source: 'relay' as const,
+        reason: nearby?.reason || 'Không có dữ liệu',
+        durationSec: Math.max(0, Math.round((to - from) / 1000))
+      };
+    })
+    .slice(0, 50);
+
+  const qualityRows = await runtimeQuery<RowDataPacket[]>(
+    `SELECT MIN(ts) AS ts,
+            AVG(satellites) AS satellites,
+            AVG(avg_cnr) AS avg_cnr,
+            AVG(msm_epochs) AS msm_epochs,
+            AVG(gaps) AS gaps,
+            AVG(age_ms) AS age_ms
+       FROM quality_samples
+      WHERE target_type = 'relay_job' AND target_id = ? AND direction = ?
+        AND state = 'streaming' AND ts >= ? AND ts <= ?
+      GROUP BY FLOOR(UNIX_TIMESTAMP(ts) / ?)
+      ORDER BY ts ASC`,
+    [jobId, direction, analysisStart, end, ACTIVITY_RANGES[range].seriesBucketSec]
+  );
+  const series = qualityRows.map((row) => ({
+    at: new Date(row.ts).toISOString(),
+    satellites: row.satellites === null ? null : Math.round(Number(row.satellites)),
+    avgCnr: row.avg_cnr === null ? null : Math.round(Number(row.avg_cnr) * 10) / 10,
+    msmEpochs: row.msm_epochs === null ? null : Math.round(Number(row.msm_epochs)),
+    gaps: row.gaps === null ? null : Math.round(Number(row.gaps) * 10) / 10,
+    ageMs: row.age_ms === null ? null : Math.round(Number(row.age_ms))
+  }));
+
+  return {
+    relayJobId: jobId,
+    direction,
+    range,
+    from: analysisStart.toISOString(),
+    to: end.toISOString(),
+    totalSec,
+    onlineSec,
+    uptimePct: totalSec > 0 ? Math.min(100, (onlineSec / totalSec) * 100) : 0,
+    events,
+    segments,
+    series
+  };
+}
+
+relayJobsRouter.get(
+  '/:id/activity',
+  requirePermission('relay', 'view'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const row = await getJobRow(id);
+    if (!row || row.deleted_at !== null) {
+      throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
+    }
+    await assertRecordScope(req, row.owner_web_user_id);
+    res.json(
+      await buildRelayActivity(
+        id,
+        String(req.query.range ?? '24h'),
+        String(req.query.direction ?? 'upstream')
+      )
+    );
+  })
+);
+
+async function relayConnectionIntervals(
+  jobId: number,
+  from: Date,
+  to: Date
+): Promise<Array<{ from: Date; to: Date | null }>> {
+  const rows = await runtimeQuery<RowDataPacket[]>(
+    `SELECT start_ts, end_ts FROM relay_sessions
+      WHERE relay_job_id = ? AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
+      ORDER BY start_ts`,
+    [jobId, from, to]
+  );
+  return rows.map((row) => ({
+    from: new Date(row.start_ts),
+    to: row.end_ts ? new Date(row.end_ts) : null
+  }));
+}
+
+function relayLiveStatus(
+  ageMs: number | null,
+  connections: Array<{ from: Date; to: Date | null }>,
+  now: Date
+): 'online' | 'offline' | 'no_data' {
+  const nowMs = now.getTime();
+  const connected = connections.some(
+    (item) => item.from.getTime() <= nowMs && (item.to === null || nowMs < item.to.getTime())
+  );
+  if (connected) return statusForLiveAge(ageMs, { connected: true });
+  if (connections.length === 0) return statusForLiveAge(ageMs, { everConnected: false });
+  const lastEnd = Math.max(
+    ...connections
+      .filter((item) => item.to !== null)
+      .map((item) => (item.to as Date).getTime())
+  );
+  if (!Number.isFinite(lastEnd)) return statusForLiveAge(ageMs, { everConnected: false });
+  return statusForLiveAge(ageMs, {
+    connected: false,
+    disconnectAgeMs: Math.max(0, nowMs - lastEnd)
+  });
+}
+
+relayJobsRouter.get(
+  '/:id/timeline',
+  requirePermission('relay', 'view'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const row = await getJobRow(id);
+    if (!row || row.deleted_at !== null) {
+      throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
+    }
+    await assertRecordScope(req, row.owner_web_user_id);
+    const direction = String(req.query.direction) === 'downstream' ? 'downstream' : 'upstream';
+    const range = timelineRange(req.query.range);
+    const { hours, bucketSec, resolutionSec, seriesBucketSec } = TIMELINE_RANGES[range];
+    const now = new Date();
+    const from = new Date(now.getTime() - hours * 3600_000);
+    const rows = await runtimeQuery<RowDataPacket[]>(
+      `SELECT ts, state, age_ms, satellites, avg_cnr, msm_epochs, gaps
+         FROM quality_samples
+        WHERE target_type = 'relay_job' AND target_id = ? AND direction = ?
+          AND ts >= ? AND ts <= ?
+        ORDER BY ts ASC`,
+      [id, direction, from, now]
+    );
+    const samples = rows.map((sample) => ({
+      ts: new Date(sample.ts),
+      state: String(sample.state ?? ''),
+      ageMs: Number(sample.age_ms ?? 0)
+    }));
+    const rawConnections = await relayConnectionIntervals(id, from, now);
+    const hasConnectionInfo = rawConnections.length > 0 || samples.length === 0;
+    const connections = hasConnectionInfo ? rawConnections : [];
+    const metrics = (await metricsFor([id])).get(id);
+    let liveAge: number | null =
+      direction === 'upstream'
+        ? dataAgeMs(metrics?.lastUpAt ?? metrics?.lastDataAt)
+        : dataAgeMs(metrics?.lastDownAt);
+    if (liveAge === null && samples.length > 0) {
+      const last = samples[samples.length - 1];
+      liveAge = now.getTime() - (last.ts.getTime() - last.ageMs);
+    }
+    const currentStatus: 'online' | 'offline' | 'no_data' =
+      row.locked || !row.enabled
+        ? 'offline'
+        : hasConnectionInfo
+          ? relayLiveStatus(liveAge, connections, now)
+          : statusForLiveAge(liveAge);
+    const timeline = buildStatusTimeline({
+      createdAt: row.created_at ? new Date(row.created_at) : null,
+      deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,
+      rangeFrom: from,
+      now,
+      bucketSec,
+      resolutionSec,
+      samples,
+      connections,
+      hasConnectionInfo,
+      currentStatus
+    });
+    const seriesBucketMs = seriesBucketSec * 1000;
+    const series = [];
+    for (
+      let seriesStart = from.getTime();
+      seriesStart < now.getTime();
+      seriesStart += seriesBucketMs
+    ) {
+      const seriesEnd = Math.min(seriesStart + seriesBucketMs, now.getTime());
+      const bucketRows = rows.filter((sample) => {
+        const ts = new Date(sample.ts).getTime();
+        return (
+          ts >= seriesStart &&
+          ts < seriesEnd &&
+          String(sample.state ?? '') === 'streaming'
+        );
+      });
+      const average = (key: string) => {
+        const values = bucketRows
+          .map((sample) => Number(sample[key]))
+          .filter((value) => Number.isFinite(value));
+        if (values.length === 0) return null;
+        return (
+          Math.round(
+            (values.reduce((sum, value) => sum + value, 0) / values.length) * 10
+          ) / 10
+        );
+      };
+      const averageInt = (key: string) => {
+        const value = average(key);
+        return value === null ? null : Math.round(value);
+      };
+      series.push({
+        at: new Date(seriesStart).toISOString(),
+        satellites: averageInt('satellites'),
+        avgCnr: average('avg_cnr'),
+        msmEpochs: averageInt('msm_epochs'),
+        gaps: averageInt('gaps'),
+        ageMs: averageInt('age_ms')
+      });
+    }
+    res.json({ ...timeline, series, direction, bucketSec, seriesBucketSec, range });
+  })
+);
+
+relayJobsRouter.get(
+  '/:id/history',
+  requirePermission('relay', 'view'),
+  asyncHandler(async (req, res) => {
+    const id = Number(req.params.id);
+    const row = await getJobRow(id);
+    if (!row || row.deleted_at !== null) {
+      throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
+    }
+    await assertRecordScope(req, row.owner_web_user_id);
+    const { pageSize, offset } = pageFrom(req);
+    const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const from = req.query.from
+      ? new Date(String(req.query.from))
+      : new Date(to.getTime() - 24 * 3600_000);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'from/to không hợp lệ');
+    }
+    if (from.getTime() > to.getTime()) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Từ ngày phải trước đến ngày');
+    }
+
+    const events: Array<{
+      id: string;
+      source: 'quality' | 'relay' | 'audit';
+      type: string;
+      at: string;
+      title: string;
+      detail: string;
+      level: string;
+    }> = [];
+
+    const [sessionRows, eventRows, qualityRows, auditRows] = await Promise.all([
+      runtimeQuery<RowDataPacket[]>(
+        `SELECT id, start_ts, end_ts, duration_sec, result, close_reason, message
+           FROM relay_sessions
+          WHERE relay_job_id = ?
+            AND start_ts <= ? AND (end_ts IS NULL OR end_ts >= ?)
+          ORDER BY start_ts DESC
+          LIMIT 1000`,
+        [id, to, from]
+      ),
+      runtimeQuery<RowDataPacket[]>(
+        `SELECT id, ts, type, message, duration_sec
+           FROM relay_events
+          WHERE relay_job_id = ? AND ts >= ? AND ts <= ?
+          ORDER BY ts DESC
+          LIMIT 1000`,
+        [id, from, to]
+      ),
+      runtimeQuery<RowDataPacket[]>(
+        `SELECT ts, score, state
+           FROM quality_samples
+          WHERE target_type = 'relay_job' AND target_id = ?
+            AND ts >= ? AND ts <= ?
+          ORDER BY ts ASC
+          LIMIT 5000`,
+        [id, from, to]
+      ),
+      query<RowDataPacket[]>(
+        `SELECT a.id, a.action, a.created_at, u.username AS actor_name
+           FROM audit_logs a
+           LEFT JOIN web_users u ON u.id = a.actor_web_user_id
+          WHERE a.entity_type = 'relay_job' AND a.entity_id = ?
+            AND a.created_at >= ? AND a.created_at <= ?
+          ORDER BY a.created_at DESC
+          LIMIT 500`,
+        [String(id), from, to]
+      )
+    ]);
+
+    for (const session of sessionRows) {
+      const startAt = session.start_ts ? new Date(session.start_ts).toISOString() : null;
+      if (startAt && new Date(startAt) >= from && new Date(startAt) <= to) {
+        events.push({
+          id: `relay:${Number(session.id)}:start`,
+          source: 'relay',
+          type: 'relay_start',
+          at: startAt,
+          title: 'Relay bắt đầu kết nối',
+          detail: `${String(session.result || 'streaming')}${
+            session.message ? ` · ${String(session.message)}` : ''
+          }`,
+          level: 'info'
+        });
+      }
+      const endAt = session.end_ts ? new Date(session.end_ts).toISOString() : null;
+      if (endAt && new Date(endAt) >= from && new Date(endAt) <= to) {
+        const reason = String(session.close_reason || session.result || 'unknown');
+        events.push({
+          id: `relay:${Number(session.id)}:end`,
+          source: 'relay',
+          type: 'relay_end',
+          at: endAt,
+          title: `Relay kết thúc · ${reason}`,
+          detail: `${Number(session.duration_sec ?? 0)} giây${
+            session.message ? ` · ${String(session.message)}` : ''
+          }`,
+          level: historyLevelForReason(reason)
+        });
+      }
+    }
+
+    for (const item of eventRows) {
+      const at = item.ts ? new Date(item.ts).toISOString() : null;
+      if (!at) continue;
+      events.push({
+        id: `relay-event:${Number(item.id)}`,
+        source: 'relay',
+        type: String(item.type ?? 'relay_event'),
+        at,
+        title: `Relay ${String(item.type ?? 'event')}`,
+        detail: `${String(item.message ?? '')}${
+          item.duration_sec === null ? '' : ` · ${Number(item.duration_sec)} giây`
+        }`,
+        level: isOutageReason(String(item.message ?? '')) ? 'warning' : 'info'
+      });
+    }
+
+    let previous: RowDataPacket | null = null;
+    qualityRows.forEach((sample, index) => {
+      const at = sample.ts ? new Date(sample.ts).toISOString() : null;
+      if (!at) return;
+      const state = String(sample.state ?? 'unknown');
+      const score = Number(sample.score ?? 0);
+      if (!previous) {
+        events.push({
+          id: `quality:${index}:${at}`,
+          source: 'quality',
+          type: 'quality_start',
+          at,
+          title: 'Bắt đầu có dữ liệu chất lượng',
+          detail: `Score ${score} · ${state}`,
+          level: state === 'error' ? 'critical' : state === 'stale' ? 'warning' : 'info'
+        });
+      } else if (state !== String(previous.state ?? 'unknown')) {
+        events.push({
+          id: `quality:${index}:${at}`,
+          source: 'quality',
+          type: 'quality_state',
+          at,
+          title: `Chất lượng đổi trạng thái: ${String(previous.state)} → ${state}`,
+          detail: `Score ${score}`,
+          level: state === 'error' ? 'critical' : state === 'stale' ? 'warning' : 'info'
+        });
+      }
+      previous = sample;
+    });
+
+    const scoreAlertRows = await runtimeQuery<RowDataPacket[]>(
+      `SELECT id, code, level, first_seen, resolved_at
+         FROM quality_alerts
+        WHERE target_type = 'relay_job' AND target_id = ?
+          AND code IN ('quality.score_low', 'quality.score_zero')
+          AND (first_seen >= ? OR resolved_at >= ?)
+        ORDER BY last_seen DESC
+        LIMIT 500`,
+      [id, from, to, from]
+    );
+    for (const alert of scoreAlertRows) {
+      const firstAt = alert.first_seen ? new Date(alert.first_seen).toISOString() : null;
+      if (firstAt && new Date(firstAt) >= from && new Date(firstAt) <= to) {
+        events.push({
+          id: `alert:${Number(alert.id)}:open`,
+          source: 'quality',
+          type: 'quality_score_alert',
+          at: firstAt,
+          title:
+            alert.code === 'quality.score_zero'
+              ? 'Điểm chất lượng về 0'
+              : 'Điểm chất lượng dưới 30',
+          detail: `Mức ${String(alert.level)}`,
+          level: alert.code === 'quality.score_zero' ? 'critical' : 'warning'
+        });
+      }
+      const resolvedAt = alert.resolved_at
+        ? new Date(alert.resolved_at).toISOString()
+        : null;
+      if (resolvedAt && new Date(resolvedAt) >= from && new Date(resolvedAt) <= to) {
+        events.push({
+          id: `alert:${Number(alert.id)}:resolved`,
+          source: 'quality',
+          type: 'quality_score_recovered',
+          at: resolvedAt,
+          title: 'Chất lượng phục hồi',
+          detail: 'Điểm trở lại từ 30 trở lên',
+          level: 'info'
+        });
+      }
+    }
+
+    for (const audit of auditRows) {
+      const at = audit.created_at ? new Date(audit.created_at).toISOString() : null;
+      if (!at) continue;
+      events.push({
+        id: `audit:${Number(audit.id)}`,
+        source: 'audit',
+        type: 'audit',
+        at,
+        title: `Cấu hình relay · ${String(audit.action)}`,
+        detail: `Bởi ${String(audit.actor_name || 'hệ thống')}`,
+        level: 'info'
+      });
+    }
+
+    events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+    const levelFilter = String(req.query.level ?? '').trim();
+    const levels =
+      levelFilter === 'error'
+        ? ['critical', 'error']
+        : levelFilter === 'warning'
+          ? ['warning', 'warn']
+          : levelFilter === 'info'
+            ? ['info']
+            : null;
+    const filtered = levels ? events.filter((event) => levels.includes(event.level)) : events;
+    res.json({
+      items: filtered.slice(offset, offset + pageSize),
+      total: filtered.length,
+      pageSize,
+      offset,
+      from: from.toISOString(),
+      to: to.toISOString(),
+      sources: {
+        quality: filtered.filter((event) => event.source === 'quality').length,
+        caster: 0,
+        relay: filtered.filter((event) => event.source === 'relay').length,
+        audit: filtered.filter((event) => event.source === 'audit').length
+      }
+    });
   })
 );
 
@@ -586,6 +1366,8 @@ relayJobsRouter.post(
   requireBulkPermission('relay', {
     enable: 'edit',
     disable: 'edit',
+    lock: 'edit',
+    unlock: 'edit',
     restart: 'edit',
     delete: 'delete'
   }),
@@ -602,6 +1384,15 @@ relayJobsRouter.post(
       }
       try {
         await assertRecordScope(req, row.owner_web_user_id);
+        if ((body.action === 'enable' || body.action === 'disable') && row.locked) {
+          throw new ApiError(409, 'RELAY_LOCKED', 'Relay job đang khóa');
+        }
+        if (body.action === 'lock' && row.enabled) {
+          throw new ApiError(409, 'RELAY_ENABLED', 'Phải tắt relay job trước khi khóa');
+        }
+        if (body.action === 'unlock' && !row.locked) {
+          throw new ApiError(409, 'RELAY_UNLOCKED', 'Relay job không ở trạng thái khóa');
+        }
         if (
           body.action === 'enable' &&
           (row.paused_by_station_id !== null || row.paused_by_mountpoint_id !== null)
@@ -639,6 +1430,17 @@ relayJobsRouter.post(
                 SET desired_revision = desired_revision + 1
               WHERE id = ?`,
             [row.id]
+          );
+        } else if (body.action === 'lock' || body.action === 'unlock') {
+          await conn.query(
+            `UPDATE relay_jobs
+                SET locked = ?,
+                    enabled = 0,
+                    paused_by_station_id = NULL,
+                    paused_by_mountpoint_id = NULL,
+                    desired_revision = desired_revision + 1
+              WHERE id = ?`,
+            [body.action === 'lock' ? 1 : 0, row.id]
           );
         } else {
           await conn.query(
@@ -890,6 +1692,9 @@ async function setEnabled(req: any, enabled: boolean) {
     throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
   }
   await assertRecordScope(req, before.owner_web_user_id);
+  if (before.locked) {
+    throw new ApiError(409, 'RELAY_LOCKED', 'Relay job đang khóa, phải mở khóa trước');
+  }
   if (
     enabled &&
     (before.paused_by_station_id !== null || before.paused_by_mountpoint_id !== null)
@@ -945,6 +1750,57 @@ relayJobsRouter.post(
   requirePermission('relay', 'edit'),
   asyncHandler(async (req, res) => {
     res.json({ item: await setEnabled(req, false) });
+  })
+);
+
+async function setLocked(req: any, locked: boolean) {
+  const id = Number(req.params.id);
+  const before = await getJobRow(id);
+  if (!before || before.deleted_at !== null) {
+    throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
+  }
+  await assertRecordScope(req, before.owner_web_user_id);
+  if (locked && before.enabled) {
+    throw new ApiError(400, 'RELAY_ENABLED', 'Phải tắt relay job trước khi khóa');
+  }
+  await adminPool.query(
+    `UPDATE relay_jobs
+        SET locked = ?,
+            enabled = 0,
+            paused_by_station_id = NULL,
+            paused_by_mountpoint_id = NULL,
+            desired_revision = desired_revision + 1
+      WHERE id = ?`,
+    [locked ? 1 : 0, id]
+  );
+  const after = await getJobRow(id);
+  await writeAudit(
+    adminPool,
+    req.auth!.id,
+    locked ? 'lock' : 'unlock',
+    'relay_job',
+    id,
+    publicJob(before, null),
+    publicJob(after, null),
+    ipFrom(req)
+  );
+  await requestReconcile(id);
+  return publicJob(after, await getState(id));
+}
+
+relayJobsRouter.post(
+  '/:id/lock',
+  requirePermission('relay', 'edit'),
+  asyncHandler(async (req, res) => {
+    res.json({ item: await setLocked(req, true) });
+  })
+);
+
+relayJobsRouter.post(
+  '/:id/unlock',
+  requirePermission('relay', 'edit'),
+  asyncHandler(async (req, res) => {
+    res.json({ item: await setLocked(req, false) });
   })
 );
 

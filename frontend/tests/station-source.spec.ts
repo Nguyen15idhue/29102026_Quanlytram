@@ -33,12 +33,12 @@ test.describe('Phase 7 station source and 1005 coordinates', () => {
     await expect(detail.getByText(/19\.\d{6}, 105\.\d{6}/)).toBeVisible();
 
     await detail.getByRole('tab', { name: 'Chất lượng' }).click();
-    await expect(detail.getByRole('heading', { name: 'Latency' })).toBeVisible();
-    await expect(detail.getByRole('heading', { name: 'Cycle slip' })).toBeVisible();
-    await expect(detail.getByRole('heading', { name: 'Code & Phase RMS' })).toBeVisible();
-    await expect(detail.getByRole('heading', { name: 'Sky Plot' })).toBeVisible();
+    await expect(detail.getByRole('heading', { name: 'Sky plot' })).toBeVisible();
+    await expect(detail.getByRole('heading', { name: 'CNR theo vệ tinh và băng' })).toBeVisible();
+    await expect(detail.getByText('Transport', { exact: true })).toBeVisible();
+    await expect(detail.getByText('Metadata', { exact: true })).toBeVisible();
     await expect(detail.getByText('đang để Phase 8–9')).toHaveCount(0);
-    await detail.getByRole('heading', { name: 'Latency' }).scrollIntoViewIfNeeded();
+    await detail.getByRole('heading', { name: 'Sky plot' }).scrollIntoViewIfNeeded();
     await page.screenshot({
       path: 'test-results/quality-advanced-metrics.png',
       fullPage: true

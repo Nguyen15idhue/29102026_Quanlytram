@@ -381,3 +381,11 @@ Mở khi bấm avatar/tên người dùng.
 - Ghi nhận khảo sát CGBAS, menu/field spec và quyết định `exceljs`/online map/import user/caster live.
 - Đã nối probe runner Go, sửa aggregate satellite theo chòm, thêm audit API/tab Audit,
   load 50 job PASS; giữ 2 relay + 2 station + 2 probe đang bật.
+- Drawer trạm/relay thống nhất 4 tab (Tổng quan / Dữ liệu / Chất lượng /
+  Lịch sử), header chỉ timestamp + trạng thái.
+- Timeline trạng thái 1h/24h/7d/1m, 10 giây no-data sau mất kết nối, số liệu
+  tính ở độ phân giải mịn; danh sách thay đổi mới nhất trước, 10 bản ghi/lần.
+- Sky plot/CNR theo băng từ ephemeris + MSM; score realtime 5 giây, log
+  warning `<30`, error `=0`, recovery `>=30`.
+- Relay đọc upstream/ghi downstream bất đồng bộ; NTRIP client trạm có session
+  start/end và reconcile tức thời khi tắt/bật.

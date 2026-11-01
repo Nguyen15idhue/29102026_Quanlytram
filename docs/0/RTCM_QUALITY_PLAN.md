@@ -288,3 +288,20 @@ quality_alert_acks(
 - Migration đã dùng: `runtime/004_rtcm_quality.sql`,
   `admin/006_quality_permissions.sql`; migration Phase 7 bắt đầu từ admin 008.
 - Cập nhật `docs/api.md`, `TASKS.md`, `SESSION.md` khi triển khai.
+
+## 13. Cập nhật 2026-11-01
+
+- Retention `quality_samples` nâng lên **35 ngày** để phủ khoảng 1 tháng.
+- Sky plot thật: parse ephemeris `1019/1020/1042/1044/1045/1046`, tính quỹ
+  đạo, azimuth/elevation từ ARP `1005/1006`; trả `skyPlot` và `signalsCnr`
+  theo epoch trong snapshot nội bộ.
+- CNR theo vệ tinh/băng lấy từ MSM4/MSM7; UI hiển thị sky plot, SNR và danh
+  sách vệ tinh đang quan sát.
+- Điểm chất lượng realtime mỗi **5 giây** trong RAM; không ghi chuỗi 5 giây
+  vào DB. Chỉ ghi cảnh báo `<30`, lỗi `=0` và phục hồi `>=30` vào
+  `quality_alerts` + lịch sử.
+- Timeline chất lượng/trạng thái dùng connection interval + sample, 10 giây
+  no-data sau mất kết nối; không đánh offline khi kết nối còn nhưng không có
+  dữ liệu.
+- Relay đọc upstream và ghi downstream bất đồng bộ để downstream chậm không
+  chặn nguồn; báo lỗi NTRIP rõ hơn khi caster trả dòng `Error:`.

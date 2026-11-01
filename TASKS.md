@@ -601,8 +601,9 @@ import/export `.xlsx`; trạm đủ trường; test PASS.
 ### Phase 8 — Bản đồ & chi tiết trạm
 - [x] P8-01 Bản đồ trạm Leaflet/OSM (D46), marker trạng thái, panel danh sách;
       không hiện relay.
-- [x] P8-02 Popup chi tiết trạm rộng **1080px**: Tổng quan / Kết nối /
-      Mountpoint / Chất lượng / Lịch sử; nút Sửa mở popup riêng.
+- [x] P8-02 Popup chi tiết trạm rộng **1080px**: Tổng quan / Dữ liệu /
+      Chất lượng / Lịch sử; header chỉ timestamp + trạng thái; nút Sửa mở
+      popup riêng.
 - [x] P8-05 Quality UI kiểu onocoy/CGBAS; cycle slip/RMS/latency từ MSM;
       Sky Plot hiện chẩn đoán nếu nguồn không phát ephemeris; neighboring stations Phase 9.
 - [x] P8-03 Bản đồ online: marker chỉ tài khoản NTRIP **có gửi toạ độ**;
@@ -622,7 +623,8 @@ import/export `.xlsx`; trạm đủ trường; test PASS.
 - [x] P9-05 Test G9: CRUD/ACL/listener/live/force disconnect/RBAC.
 
 ### Phase 10 — Relay & Hệ thống
-- [x] P10-01 Relay: CRUD, quality/parity, detail tab, test/restart, import/export.
+- [x] P10-01 Relay: CRUD, quality/parity, detail 4 tab (Tổng quan / Dữ liệu /
+      Chất lượng / Lịch sử), test/restart, import/export.
 - [x] P10-02 Phân quyền: role CRUD, permission matrix module×action×scope,
       import/export; role hệ thống khóa.
 - [x] P10-03 Người dùng: CRUD, role/parent/status/locked; import Excel **không
@@ -655,6 +657,24 @@ import/export `.xlsx`; trạm đủ trường; test PASS.
 phase sau khi phase trước còn FAIL; không làm các mục ngoài phạm vi ở trên.
 
 ---
+
+## 9.1. Cập nhật 2026-11-01 — drawer thống nhất, timeline, quality
+
+- [x] Drawer trạm/relay dùng chung `EntityDetail`: header timestamp + trạng
+      thái, 4 tab Tổng quan / Dữ liệu / Chất lượng / Lịch sử.
+- [x] Timeline trạng thái: 1h/24h/7d/1m; online/offline/no-data; 10 giây
+      no-data sau mất kết nối; kết nối còn nhưng không dữ liệu giữ no-data;
+      chưa từng kết nối → offline; số liệu tính ở độ phân giải mịn.
+- [x] Danh sách thay đổi trạng thái mới nhất trước, 10 bản ghi/lần + Xem thêm.
+- [x] Chart vệ tinh/độ trễ/C/N0 không đứt đoạn, tooltip theo con trỏ; số vệ
+      tinh luôn là số nguyên.
+- [x] Bảng trạng thái streaming tự refetch 5–10 giây, không phụ thuộc socket.
+- [x] Quality: sky plot từ ephemeris, CNR theo băng, điểm 6 thành phần;
+      score realtime 5 giây; log warning `<30`, error `=0`, recovery `>=30`.
+- [x] Relay: session/timeline, direction status, async downstream writer để
+      downstream chậm không chặn đọc upstream; báo lỗi NTRIP rõ hơn.
+- [x] NTRIP client trạm: session start/end, GGA an toàn, reconcile tức thời
+      khi tắt/bật trạm.
 
 ## 10. Ghi chú điều phối
 

@@ -16,6 +16,7 @@ import { callGoInternal } from '../lib/internalApi';
 import { reconcileAffected } from '../lib/reconcile';
 import { hashPassword } from '../lib/password';
 import { createStationResources } from '../lib/stationResources';
+import { dataUptime } from '../lib/dataUptime';
 import { publishEntityChange } from '../lib/entityChange';
 import {
   notifyStationStreamingChange,
@@ -36,6 +37,13 @@ import {
   sampleMetadataOk,
   transportStatusFor
 } from '../lib/stationDetail';
+import {
+  buildStatusTimeline,
+  combinedRelayStatus,
+  statusForLiveAge,
+  TIMELINE_RANGES,
+  timelineRange
+} from '../lib/statusTimeline';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import {
@@ -177,11 +185,11 @@ async function resolveOwner(req: any, requested?: number | null): Promise<number
   if (req.permissionScope === 'subtree') {
     const ids = await scopeIdsFor(req);
     if (!ids.includes(Number(requested))) {
-      throw new ApiError(403, 'FORBIDDEN', 'Chá»§ sá»Ÿ há»¯u ngoĂ i pháº¡m vi quáº£n lĂ½');
+      throw new ApiError(403, 'FORBIDDEN', 'Chủ sở hữu ngoài phạm vi quản lý');
     }
   }
   const exists = await query<RowDataPacket[]>('SELECT id FROM web_users WHERE id = ?', [requested]);
-  if (exists.length === 0) throw new ApiError(400, 'INVALID_OWNER', 'Chá»§ sá»Ÿ há»¯u khĂ´ng tá»“n táº¡i');
+  if (exists.length === 0) throw new ApiError(400, 'INVALID_OWNER', 'Chủ sở hữu không tồn tại');
   return Number(requested);
 }
 
@@ -279,15 +287,22 @@ async function relayMap(ids: number[]): Promise<Map<number, any>> {
     const response = await callGoInternal<{
       items: Array<{ jobId: number; state: string }>;
     }>('/internal/snapshot', undefined, { method: 'GET', timeoutMs: 1200 });
-    const stateById = new Map(
-      (response?.items ?? []).map((item) => [Number(item.jobId), String(item.state)])
+    const metricById = new Map(
+      (response?.items ?? []).map((item) => [Number(item.jobId), item])
     );
     for (const row of map.values()) {
-      row.runtime_state = stateById.get(Number(row.relay_job_id)) ?? 'unknown';
+      const metric = metricById.get(Number(row.relay_job_id));
+      row.runtime_state = metric ? String(metric.state) : 'unknown';
+      row.relay_last_up_at = (metric as any)?.lastUpAt ?? null;
+      row.relay_last_down_at = (metric as any)?.lastDownAt ?? null;
+      row.relay_bytes_up = Number((metric as any)?.bytesUp ?? 0);
+      row.relay_bytes_down = Number((metric as any)?.bytesDown ?? 0);
     }
   } catch {
     for (const row of map.values()) {
       row.runtime_state = row.runtime_state ?? 'unknown';
+      row.relay_last_up_at = null;
+      row.relay_last_down_at = null;
     }
   }
   return map;
@@ -304,15 +319,169 @@ async function stationConnectionSet(stationIds: number[]): Promise<Set<number>> 
   const stationByMountpoint = new Map(
     rows.map((row) => [Number(row.id), Number(row.station_id)])
   );
-  if (stationByMountpoint.size === 0) return connected;
-  const connections = await casterConnectionsFor([...stationByMountpoint.keys()]);
-  if (!connections.available) return connected;
-  for (const item of connections.items) {
-    if (item.direction !== 'source') continue;
-    const stationId = stationByMountpoint.get(Number(item.mountpointId));
-    if (stationId) connected.add(stationId);
+  if (stationByMountpoint.size > 0) {
+    const connections = await casterConnectionsFor([...stationByMountpoint.keys()]);
+    if (connections.available) {
+      for (const item of connections.items) {
+        if (item.direction !== 'source') continue;
+        const stationId = stationByMountpoint.get(Number(item.mountpointId));
+        if (stationId) connected.add(stationId);
+      }
+    }
+  }
+
+  try {
+    const sourceRows = await runtimeQuery<RowDataPacket[]>(
+      `SELECT DISTINCT station_id FROM station_source_sessions
+        WHERE end_ts IS NULL AND station_id IN (${placeholders})`,
+      stationIds
+    );
+    for (const row of sourceRows) connected.add(Number(row.station_id));
+  } catch {
+    // Bảng session có thể chưa được migrate; bỏ qua.
+  }
+
+  const relayRows = await query<RowDataPacket[]>(
+    `SELECT m.station_id, r.id AS relay_job_id
+       FROM mountpoints m
+       JOIN relay_jobs r ON r.upstream_mount = m.name AND r.deleted_at IS NULL
+      WHERE m.station_id IN (${placeholders})`,
+    stationIds
+  );
+  const stationByJob = new Map<number, number>();
+  for (const row of relayRows) {
+    stationByJob.set(Number(row.relay_job_id), Number(row.station_id));
+  }
+  if (stationByJob.size > 0) {
+    const jobIds = [...stationByJob.keys()];
+    const jobPlaceholders = jobIds.map(() => '?').join(',');
+    const openSessions = await runtimeQuery<RowDataPacket[]>(
+      `SELECT DISTINCT relay_job_id FROM relay_sessions
+        WHERE end_ts IS NULL AND relay_job_id IN (${jobPlaceholders})`,
+      jobIds
+    );
+    for (const row of openSessions) {
+      const stationId = stationByJob.get(Number(row.relay_job_id));
+      if (stationId) connected.add(stationId);
+    }
   }
   return connected;
+}
+
+async function stationConnectionIntervals(
+  station: any,
+  from: Date,
+  to: Date
+): Promise<{
+  connections: Array<{ from: Date; to: Date | null }>;
+  hasConnectionInfo: boolean;
+}> {
+  const stationId = Number(station.id);
+  const sourceRole = String(station.station_source_role ?? '');
+  const sourceType = String(station.source_type ?? '');
+  const hasConnectionInfo =
+    sourceRole === 'ntrip_client' ||
+    sourceRole === 'ntrip_caster' ||
+    sourceType === 'caster_ingest' ||
+    sourceType === 'relay_caster';
+  if (!hasConnectionInfo) {
+    return { connections: [], hasConnectionInfo: false };
+  }
+
+  const connections: Array<{ from: Date; to: Date | null }> = [];
+  try {
+    const sourceRows = await runtimeQuery<RowDataPacket[]>(
+      `SELECT start_ts, end_ts FROM station_source_sessions
+        WHERE station_id = ? AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
+        ORDER BY start_ts`,
+      [stationId, from, to]
+    );
+    for (const row of sourceRows) {
+      connections.push({
+        from: new Date(row.start_ts),
+        to: row.end_ts ? new Date(row.end_ts) : null
+      });
+    }
+  } catch {
+    // Bảng session có thể chưa được migrate.
+  }
+
+  const mountpointRows = await query<RowDataPacket[]>(
+    'SELECT id, name FROM mountpoints WHERE station_id = ?',
+    [stationId]
+  );
+  const mountpointIds = mountpointRows.map((row) => Number(row.id));
+  if (mountpointIds.length > 0) {
+    const placeholders = mountpointIds.map(() => '?').join(',');
+    const casterRows = await runtimeQuery<RowDataPacket[]>(
+      `SELECT start_ts, end_ts FROM caster_connections
+        WHERE mountpoint_id IN (${placeholders}) AND direction = 'source'
+          AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
+        ORDER BY start_ts`,
+      [...mountpointIds, from, to]
+    );
+    for (const row of casterRows) {
+      connections.push({
+        from: new Date(row.start_ts),
+        to: row.end_ts ? new Date(row.end_ts) : null
+      });
+    }
+  }
+
+  const mountpointNames = mountpointRows.map((row) => String(row.name));
+  if (mountpointNames.length > 0) {
+    const placeholders = mountpointNames.map(() => '?').join(',');
+    const relayRows = await query<RowDataPacket[]>(
+      `SELECT id FROM relay_jobs
+        WHERE deleted_at IS NULL AND upstream_mount IN (${placeholders})`,
+      mountpointNames
+    );
+    const relayIds = relayRows.map((row) => Number(row.id));
+    if (relayIds.length > 0) {
+      const relayPlaceholders = relayIds.map(() => '?').join(',');
+      const sessionRows = await runtimeQuery<RowDataPacket[]>(
+        `SELECT start_ts, end_ts FROM relay_sessions
+          WHERE relay_job_id IN (${relayPlaceholders})
+            AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
+          ORDER BY start_ts`,
+        [...relayIds, from, to]
+      );
+      for (const row of sessionRows) {
+        connections.push({
+          from: new Date(row.start_ts),
+          to: row.end_ts ? new Date(row.end_ts) : null
+        });
+      }
+    }
+  }
+
+  connections.sort((a, b) => a.from.getTime() - b.from.getTime());
+  return { connections, hasConnectionInfo };
+}
+
+function liveStatusFromConnections(
+  ageMs: number | null,
+  connections: Array<{ from: Date; to: Date | null }>,
+  hasConnectionInfo: boolean,
+  now: Date
+): 'online' | 'offline' | 'no_data' {
+  if (!hasConnectionInfo) return statusForLiveAge(ageMs);
+  const nowMs = now.getTime();
+  const connected = connections.some(
+    (item) => item.from.getTime() <= nowMs && (item.to === null || nowMs < item.to.getTime())
+  );
+  if (connected) return statusForLiveAge(ageMs, { connected: true });
+  if (connections.length === 0) return statusForLiveAge(ageMs, { everConnected: false });
+  const lastEnd = Math.max(
+    ...connections
+      .filter((item) => item.to !== null)
+      .map((item) => (item.to as Date).getTime())
+  );
+  if (!Number.isFinite(lastEnd)) return statusForLiveAge(ageMs, { everConnected: false });
+  return statusForLiveAge(ageMs, {
+    connected: false,
+    disconnectAgeMs: Math.max(0, nowMs - lastEnd)
+  });
 }
 
 async function probeMap(ids: number[]): Promise<Map<number, any>> {
@@ -389,15 +558,22 @@ function withQuality(
   } else if (Number(row.enabled) === 0) {
     transportStatus = 'offline';
   } else if (sourceType === 'relay_caster') {
-    transportStatus = relayState === 'streaming' ? 'online' : 'offline';
-  } else if (state === 'error') {
-    transportStatus = 'offline';
-  } else if (state === 'streaming' && sampleAgeMs !== null && sampleAgeMs <= 5_000) {
-    transportStatus = 'online';
-  } else if (connected || (sampleAgeMs !== null && sampleAgeMs <= 30_000)) {
-    transportStatus = 'no_data';
+    const relayUpAge = relay?.relay_last_up_at
+      ? Math.max(0, Date.now() - new Date(String(relay.relay_last_up_at)).getTime())
+      : null;
+    const relayDownAge = relay?.relay_last_down_at
+      ? Math.max(0, Date.now() - new Date(String(relay.relay_last_down_at)).getTime())
+      : null;
+    if (relayState !== 'streaming') {
+      transportStatus = 'offline';
+    } else {
+      transportStatus = combinedRelayStatus(
+        statusForLiveAge(relayUpAge),
+        statusForLiveAge(relayDownAge)
+      );
+    }
   } else {
-    transportStatus = 'offline';
+    transportStatus = transportStatusFor(state, sampleAgeMs, { connected });
   }
   return {
     ...row,
@@ -472,7 +648,7 @@ async function scopedStation(req: any, id: number): Promise<any> {
   return station;
 }
 
-function statusesForLive(live: QualityLive) {
+function statusesForLive(live: QualityLive, connected = false) {
   const hasArp =
     live.arpX !== null &&
     live.arpX !== undefined &&
@@ -481,7 +657,7 @@ function statusesForLive(live: QualityLive) {
     live.arpZ !== null &&
     live.arpZ !== undefined;
   return {
-    transportStatus: transportStatusFor(live.state, live.ageMs),
+    transportStatus: transportStatusFor(live.state, live.ageMs, { connected }),
     qualityStatus: qualityStatusFor({
       score: live.score,
       state: live.state,
@@ -512,6 +688,44 @@ async function latestLiveStation(id: number): Promise<QualityLive | null> {
   }
 }
 
+async function liveStationMap(): Promise<Map<number, QualityLive>> {
+  const map = new Map<number, QualityLive>();
+  try {
+    const live = await fetchLiveQuality(1200);
+    for (const item of live.items) {
+      if (item.targetType !== 'station' || item.direction !== 'ingest') continue;
+      const id = Number(item.targetId);
+      const existing = map.get(id);
+      if (!existing || new Date(item.ts).getTime() > new Date(existing.ts).getTime()) {
+        map.set(id, item);
+      }
+    }
+  } catch {
+    // Go internal không sẵn sàng: giữ trạng thái suy ra từ mẫu DB.
+  }
+  return map;
+}
+
+function isStationOff(row: any): boolean {
+  return Number(row.enabled) === 0 || String(row.status) === 'locked';
+}
+
+// Live snapshot chỉ được dùng khi trạm đang bật. Trạm tắt/khóa phải giữ
+// trạng thái offline/unknown do withQuality() tính, không để snapshot cũ
+// trong RAM Go đè lên (nguyên nhân list hiện "no data" khi vừa tắt trạm).
+function applyLiveStatus(item: any, live: QualityLive | null | undefined, connected = false): any {
+  if (!live || isStationOff(item)) return item;
+  const ageMs = Math.max(0, Number(live.ageMs ?? 0));
+  const lastDataAt = new Date(new Date(live.ts).getTime() - ageMs).toISOString();
+  return {
+    ...item,
+    ...statusesForLive(live, connected),
+    quality_score: live.score,
+    quality_state: live.state,
+    last_data_at: lastDataAt
+  };
+}
+
 async function casterConnectionsFor(mountpointIds: number[]): Promise<{
   available: boolean;
   items: GoConnection[];
@@ -537,7 +751,7 @@ function parseHistoryBoundary(raw: unknown, label: string): Date | null {
   if (raw === undefined || raw === null || raw === '') return null;
   const date = new Date(String(raw));
   if (Number.isNaN(date.getTime())) {
-    throw new ApiError(400, 'VALIDATION_ERROR', `${label} khĂ´ng há»£p lá»‡`);
+    throw new ApiError(400, 'VALIDATION_ERROR', `${label} không hợp lệ`);
   }
   return date;
 }
@@ -605,14 +819,18 @@ stationsRouter.get(
       params
     );
     const idsForMeta = rows.map((row) => Number(row.id));
-    const [quality, relays, probes, connectedStations] = await Promise.all([
+    const [quality, relays, probes, connectedStations, live] = await Promise.all([
       qualityMap(idsForMeta),
       relayMap(idsForMeta),
       probeMap(idsForMeta),
-      stationConnectionSet(idsForMeta)
+      stationConnectionSet(idsForMeta),
+      liveStationMap()
     ]);
     res.json({
-      items: rows.map((row) => withQuality(row, quality, relays, probes, connectedStations)),
+      items: rows.map((row) => {
+        const item = withQuality(row, quality, relays, probes, connectedStations);
+        return applyLiveStatus(item, live.get(Number(row.id)), connectedStations.has(Number(row.id)));
+      }),
       total: Number(countRows[0].total),
       pageSize,
       offset
@@ -840,11 +1058,14 @@ stationsRouter.get(
       stationConnectionSet([id])
     ]);
     const reliability = buildReliability(samples, { windowSec: 900 });
-    const item = withQuality(station, quality, relays, probes, connectedStations);
+    const item = applyLiveStatus(
+      withQuality(station, quality, relays, probes, connectedStations),
+      live,
+      connectedStations.has(Number(station.id))
+    );
     res.json({
       item: {
         ...item,
-        ...(live ? statusesForLive(live) : {}),
         reliability
       }
     });
@@ -1081,9 +1302,9 @@ stationsRouter.get(
     const station = await scopedStation(req, Number(req.params.id));
     const stationId = Number(station.id);
     const { pageSize, offset } = pageFrom(req);
-    const to = parseHistoryBoundary(req.query.to, 'Äáº¿n ngĂ y') ?? new Date();
+    const to = parseHistoryBoundary(req.query.to, 'Đến ngày') ?? new Date();
     const from =
-      parseHistoryBoundary(req.query.from, 'Tá»« ngĂ y') ??
+      parseHistoryBoundary(req.query.from, 'Từ ngày') ??
       new Date(to.getTime() - 24 * 3600_000);
     if (from.getTime() > to.getTime()) {
       throw new ApiError(400, 'VALIDATION_ERROR', 'Từ ngày phải trước đến ngày');
@@ -1135,16 +1356,6 @@ stationsRouter.get(
           title: `Chất lượng đổi trạng thái: ${previous.state} → ${state}`,
           detail: `Score ${score} · frame ${Number(row.frames ?? 0)} · CRC ${Number(row.crc_errors ?? 0)}`,
           level: state === 'error' ? 'critical' : state === 'stale' ? 'warning' : 'info'
-        });
-      } else if (Math.abs(score - Number(previous.score ?? 0)) >= 5) {
-        events.push({
-          id: `quality:${index}:${at}`,
-          source: 'quality',
-          type: 'quality_score',
-          at,
-          title: `Điểm chất lượng đổi ${Number(previous.score ?? 0)} → ${score}`,
-          detail: `Frame ${Number(row.frames ?? 0)} · age ${Number(row.age_ms ?? 0)} ms · gap ${Number(row.gaps ?? 0)}`,
-          level: score < 60 ? 'critical' : score < 85 ? 'warning' : 'info'
         });
       }
       previous = row;
@@ -1253,6 +1464,46 @@ stationsRouter.get(
       }
     }
 
+    const scoreAlertRows = await runtimeQuery<RowDataPacket[]>(
+      `SELECT id, code, level, first_seen, resolved_at
+         FROM quality_alerts
+        WHERE target_type = 'station' AND target_id = ?
+          AND code IN ('quality.score_low', 'quality.score_zero')
+          AND (first_seen >= ? OR resolved_at >= ?)
+        ORDER BY last_seen DESC
+        LIMIT 500`,
+      [stationId, from, to, from]
+    );
+    for (const row of scoreAlertRows) {
+      const firstAt = iso(row.first_seen);
+      if (firstAt && new Date(firstAt) >= from && new Date(firstAt) <= to) {
+        events.push({
+          id: `alert:${Number(row.id)}:open`,
+          source: 'quality',
+          type: 'quality_score_alert',
+          at: firstAt,
+          title:
+            row.code === 'quality.score_zero'
+              ? 'Điểm chất lượng về 0'
+              : 'Điểm chất lượng dưới 30',
+          detail: `Mức ${String(row.level)}`,
+          level: row.code === 'quality.score_zero' ? 'critical' : 'warning'
+        });
+      }
+      const resolvedAt = iso(row.resolved_at);
+      if (resolvedAt && new Date(resolvedAt) >= from && new Date(resolvedAt) <= to) {
+        events.push({
+          id: `alert:${Number(row.id)}:resolved`,
+          source: 'quality',
+          type: 'quality_score_recovered',
+          at: resolvedAt,
+          title: 'Chất lượng phục hồi',
+          detail: 'Điểm trở lại từ 30 trở lên',
+          level: 'info'
+        });
+      }
+    }
+
     const auditRows = await query<RowDataPacket[]>(
       `SELECT a.id, a.action, a.created_at, u.username AS actor_name
          FROM audit_logs a
@@ -1272,21 +1523,31 @@ stationsRouter.get(
         type: 'audit',
         at,
         title: `Cấu hình trạm · ${String(row.action)}`,
-        detail: `Bá»Ÿi ${String(row.actor_name || 'há»‡ thá»‘ng')}`,
+        detail: `Bởi ${String(row.actor_name || 'hệ thống')}`,
         level: 'info'
       });
     }
 
     events.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+    const levelFilter = String(req.query.level ?? '').trim();
+    const levels =
+      levelFilter === 'error'
+        ? ['critical', 'error']
+        : levelFilter === 'warning'
+          ? ['warning', 'warn']
+          : levelFilter === 'info'
+            ? ['info']
+            : null;
+    const filtered = levels ? events.filter((event) => levels.includes(event.level)) : events;
     const sourceCounts = {
-      quality: events.filter((event) => event.source === 'quality').length,
-      caster: events.filter((event) => event.source === 'caster').length,
-      relay: events.filter((event) => event.source === 'relay').length,
-      audit: events.filter((event) => event.source === 'audit').length
+      quality: filtered.filter((event) => event.source === 'quality').length,
+      caster: filtered.filter((event) => event.source === 'caster').length,
+      relay: filtered.filter((event) => event.source === 'relay').length,
+      audit: filtered.filter((event) => event.source === 'audit').length
     };
     res.json({
-      items: events.slice(offset, offset + pageSize),
-      total: events.length,
+      items: filtered.slice(offset, offset + pageSize),
+      total: filtered.length,
       pageSize,
       offset,
       from: from.toISOString(),
@@ -1840,6 +2101,119 @@ stationsRouter.get(
 );
 
 stationsRouter.get(
+  '/:id/timeline',
+  requirePermission('stations', 'view'),
+  asyncHandler(async (req, res) => {
+    const station = await scopedStation(req, Number(req.params.id));
+    const range = timelineRange(req.query.range);
+    const { hours, bucketSec, resolutionSec, seriesBucketSec } = TIMELINE_RANGES[range];
+    const now = new Date();
+    const from = new Date(now.getTime() - hours * 3600_000);
+    const rows = await runtimeQuery<RowDataPacket[]>(
+      `SELECT ts, state, age_ms, satellites, avg_cnr, msm_epochs, gaps
+         FROM quality_samples
+        WHERE target_type = 'station' AND target_id = ? AND direction = 'ingest'
+          AND ts >= ? AND ts <= ?
+        ORDER BY ts ASC`,
+      [station.id, from, now]
+    );
+    const samples = rows.map((row) => ({
+      ts: new Date(row.ts),
+      state: String(row.state ?? ''),
+      ageMs: Number(row.age_ms ?? 0)
+    }));
+    const rawConnectionInfo = await stationConnectionIntervals(station, from, now);
+    const connectionInfo =
+      rawConnectionInfo.connections.length === 0 && samples.length > 0
+        ? { connections: [], hasConnectionInfo: false }
+        : rawConnectionInfo;
+    let liveAge: number | null = null;
+    if (Number(station.enabled) !== 0 && String(station.status) !== 'locked') {
+      try {
+        const live = (await fetchLiveQuality()).items.find(
+          (item) =>
+            item.targetType === 'station' &&
+            item.targetId === Number(station.id) &&
+            item.direction === 'ingest'
+        );
+        if (live) {
+          liveAge = Number(live.ageMs ?? 0);
+        } else if (samples.length > 0) {
+          const last = samples[samples.length - 1];
+          liveAge = now.getTime() - (last.ts.getTime() - last.ageMs);
+        }
+      } catch {
+        if (samples.length > 0) {
+          const last = samples[samples.length - 1];
+          liveAge = now.getTime() - (last.ts.getTime() - last.ageMs);
+        }
+      }
+    }
+    const currentStatus: 'online' | 'offline' | 'no_data' =
+      Number(station.enabled) === 0 || String(station.status) === 'locked'
+        ? 'offline'
+        : liveStatusFromConnections(
+            liveAge,
+            connectionInfo.connections,
+            connectionInfo.hasConnectionInfo,
+            now
+          );
+    const timeline = buildStatusTimeline({
+      createdAt: station.created_at ? new Date(station.created_at) : null,
+      rangeFrom: from,
+      now,
+      bucketSec,
+      resolutionSec,
+      samples,
+      connections: connectionInfo.connections,
+      hasConnectionInfo: connectionInfo.hasConnectionInfo,
+      currentStatus
+    });
+    const seriesBucketMs = seriesBucketSec * 1000;
+    const series = [];
+    for (
+      let seriesStart = from.getTime();
+      seriesStart < now.getTime();
+      seriesStart += seriesBucketMs
+    ) {
+      const seriesEnd = Math.min(seriesStart + seriesBucketMs, now.getTime());
+      const bucketRows = rows.filter((row) => {
+        const ts = new Date(row.ts).getTime();
+        return (
+          ts >= seriesStart &&
+          ts < seriesEnd &&
+          String(row.state ?? '') === 'streaming'
+        );
+      });
+      const average = (key: string) => {
+        const values = bucketRows
+          .map((row) => Number(row[key]))
+          .filter((value) => Number.isFinite(value));
+        if (values.length === 0) return null;
+        return (
+          Math.round(
+            (values.reduce((sum, value) => sum + value, 0) / values.length) * 10
+          ) / 10
+        );
+      };
+      const averageInt = (key: string) => {
+        const value = average(key);
+        return value === null ? null : Math.round(value);
+      };
+      series.push({
+        at: new Date(seriesStart).toISOString(),
+        satellites: averageInt('satellites'),
+        avgCnr: average('avg_cnr'),
+        msmEpochs: averageInt('msm_epochs'),
+        gaps: averageInt('gaps'),
+        ageMs: averageInt('age_ms')
+      });
+    }
+    res.json({ ...timeline, series, bucketSec, seriesBucketSec, range });
+  })
+);
+
+stationsRouter.get(
   '/:id/uptime',
   requirePermission('stations', 'view'),
   asyncHandler(async (req, res) => {
@@ -1936,6 +2310,11 @@ stationsRouter.get(
     }
     const totalSec = Math.round((end.getTime() - start.getTime()) / 1000);
     const onlineSec = Object.values(buckets).reduce((sum: number, item: any) => sum + item.onlineSec, 0);
+    const sampleUptime = await dataUptime({
+      targetType: 'station',
+      targetId: Number(station.id),
+      hours
+    });
     res.json({
       range,
       from: start.toISOString(),
@@ -1943,7 +2322,8 @@ stationsRouter.get(
       totalSec,
       onlineSec,
       uptimePct: totalSec > 0 ? Math.min(100, (onlineSec / totalSec) * 100) : 0,
-      buckets: Object.values(buckets).sort((a: any, b: any) => a.bucket.localeCompare(b.bucket))
+      buckets: Object.values(buckets).sort((a: any, b: any) => a.bucket.localeCompare(b.bucket)),
+      dataUptime: sampleUptime
     });
   })
 );

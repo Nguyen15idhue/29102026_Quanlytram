@@ -1,3 +1,5 @@
+import { DISCONNECT_GRACE_MS, ONLINE_TOLERANCE_MS } from './statusTimeline';
+
 export type TransportStatus = 'online' | 'offline' | 'no_data' | 'error' | 'unknown' | null;
 export type QualityStatus = 'good' | 'warning' | 'critical' | 'unknown';
 export type MetadataStatus = 'ok' | 'warning' | 'critical' | 'unknown';
@@ -19,20 +21,35 @@ export interface ReliabilitySample {
 }
 
 const SAMPLE_INTERVAL_SEC = 60;
-const ONLINE_AGE_MS = 5_000;
-const STALE_AGE_MS = 30_000;
+const ONLINE_AGE_MS = ONLINE_TOLERANCE_MS;
 
 export function transportStatusFor(
   state: string | null | undefined,
-  ageMs: number | null | undefined
+  ageMs: number | null | undefined,
+  options: {
+    connected?: boolean;
+    everConnected?: boolean;
+    disconnectAgeMs?: number | null;
+  } = {}
 ): TransportStatus {
   const normalized = String(state ?? '').toLowerCase();
   if (normalized === 'error') return 'offline';
-  if (ageMs === null || ageMs === undefined || !Number.isFinite(ageMs) || ageMs < 0) {
-    return 'offline';
+  const age =
+    ageMs === null || ageMs === undefined || !Number.isFinite(ageMs) || ageMs < 0
+      ? null
+      : Number(ageMs);
+  if (options.connected) {
+    return age !== null && age <= ONLINE_AGE_MS && normalized === 'streaming'
+      ? 'online'
+      : 'no_data';
   }
-  if (ageMs <= ONLINE_AGE_MS && normalized === 'streaming') return 'online';
-  if (ageMs <= STALE_AGE_MS) return 'no_data';
+  if (options.everConnected === false) return 'offline';
+  if (options.disconnectAgeMs !== null && options.disconnectAgeMs !== undefined) {
+    return Number(options.disconnectAgeMs) <= DISCONNECT_GRACE_MS ? 'no_data' : 'offline';
+  }
+  if (age === null) return 'offline';
+  if (age <= ONLINE_AGE_MS && normalized === 'streaming') return 'online';
+  if (age <= DISCONNECT_GRACE_MS) return 'no_data';
   return 'offline';
 }
 

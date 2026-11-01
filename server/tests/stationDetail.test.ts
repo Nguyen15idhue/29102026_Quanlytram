@@ -11,10 +11,21 @@ import {
 describe('station transport status', () => {
   it('keeps transport independent from quality score', () => {
     expect(transportStatusFor('streaming', 1_200)).toBe('online');
-    expect(transportStatusFor('streaming', 12_000)).toBe('stale');
+    expect(transportStatusFor('streaming', 5_000)).toBe('online');
+    expect(transportStatusFor('streaming', 12_000)).toBe('offline');
     expect(transportStatusFor('streaming', 45_000)).toBe('offline');
-    expect(transportStatusFor('error', 1_000)).toBe('error');
-    expect(transportStatusFor('streaming', null)).toBe('unknown');
+    expect(transportStatusFor('error', 1_000)).toBe('offline');
+    expect(transportStatusFor('streaming', null)).toBe('offline');
+    expect(transportStatusFor('streaming', 60_000, { connected: true })).toBe('no_data');
+    expect(transportStatusFor('streaming', 1_000, { everConnected: false })).toBe(
+      'offline'
+    );
+    expect(
+      transportStatusFor('streaming', 60_000, { disconnectAgeMs: 5_000 })
+    ).toBe('no_data');
+    expect(
+      transportStatusFor('streaming', 60_000, { disconnectAgeMs: 11_000 })
+    ).toBe('offline');
   });
 });
 

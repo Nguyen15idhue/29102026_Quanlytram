@@ -515,3 +515,39 @@ func Test6T3ByteExactWithAnalyzer(t *testing.T) {
 		t.Fatalf("analyzer did not observe relay upstream/downstream")
 	}
 }
+
+func TestUpstreamReadIsNotBlockedBySlowDownstream(t *testing.T) {
+	payload := deterministicPayload(1024 * 1024)
+	upstream := newMockServer(t, upstreamHandler(upstreamOptions{payload: payload, fragment: 8 * 1024}))
+	downstream := newMockServer(t, downstreamHandler(downstreamOptions{
+		readSize: 4096,
+		delay:    20 * time.Millisecond,
+	}))
+	cfg := testConfig(upstream, downstream, "source")
+	metrics := &Metrics{}
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- RunSession(ctx, cfg, Options{
+			DialTimeout:      2 * time.Second,
+			MonitorBuffer:    16,
+			ReadBuffer:       8 * 1024,
+			DownstreamBuffer: 256,
+			NMEAInterval:     time.Hour,
+		}, rtcm.NewMonitor(1<<20), metrics)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if metrics.Snapshot(0).BytesUp >= uint64(len(payload)) {
+			cancel()
+			<-done
+			return
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	cancel()
+	<-done
+	t.Fatalf("upstream read stalled behind slow downstream: bytesUp=%d want=%d",
+		metrics.Snapshot(0).BytesUp, len(payload))
+}

@@ -15,6 +15,8 @@ type Metrics struct {
 	sessions        uint64
 	retries         uint64
 	lastDataAt      time.Time
+	lastUpAt        time.Time
+	lastDownAt      time.Time
 	state           string
 	appliedRevision int64
 	lastError       string
@@ -32,19 +34,24 @@ type MetricsSnapshot struct {
 	Sessions        uint64 `json:"sessions"`
 	Retries         uint64 `json:"retries"`
 	LastDataAt      string `json:"lastDataAt,omitempty"`
+	LastUpAt        string `json:"lastUpAt,omitempty"`
+	LastDownAt      string `json:"lastDownAt,omitempty"`
 	LastError       string `json:"lastError,omitempty"`
 }
 
 func (m *Metrics) AddUp(n int) {
 	m.mu.Lock()
 	m.bytesUp += uint64(n)
-	m.lastDataAt = time.Now().UTC()
+	now := time.Now().UTC()
+	m.lastDataAt = now
+	m.lastUpAt = now
 	m.mu.Unlock()
 }
 
 func (m *Metrics) AddDown(n int) {
 	m.mu.Lock()
 	m.bytesDown += uint64(n)
+	m.lastDownAt = time.Now().UTC()
 	m.mu.Unlock()
 }
 
@@ -99,6 +106,12 @@ func (m *Metrics) Snapshot(jobID int64) MetricsSnapshot {
 	}
 	if !m.lastDataAt.IsZero() {
 		snapshot.LastDataAt = m.lastDataAt.Format(time.RFC3339Nano)
+	}
+	if !m.lastUpAt.IsZero() {
+		snapshot.LastUpAt = m.lastUpAt.Format(time.RFC3339Nano)
+	}
+	if !m.lastDownAt.IsZero() {
+		snapshot.LastDownAt = m.lastDownAt.Format(time.RFC3339Nano)
 	}
 	return snapshot
 }

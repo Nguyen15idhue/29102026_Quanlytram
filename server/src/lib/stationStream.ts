@@ -1,5 +1,6 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { withTransaction } from '../db/pool';
+import { callGoInternal } from './internalApi';
 import { reconcileAffected, type ReconcileResult } from './reconcile';
 
 export interface StationStreamEffect {
@@ -109,12 +110,21 @@ export async function setStationStreamingInTransaction(
 export async function notifyStationStreamingChange(
   effect: StationStreamEffect
 ): Promise<ReconcileResult> {
+  const stationSourceReconcile = callGoInternal('/internal/station-source/reconcile', {}).catch(
+    (error) => {
+      console.warn(
+        '[stations] station source reconcile failed',
+        error instanceof Error ? error.message : 'unknown'
+      );
+    }
+  );
   const result = await reconcileAffected({
     relayJobIds: effect.relayJobIds,
     mountpointIds: effect.mountpointIds,
     caster: true,
     probe: true
   });
+  await stationSourceReconcile;
   if (!result.ok) {
     console.warn('[stations] reconcile failed', result.errors.join('; '));
   }

@@ -377,3 +377,18 @@ func generateTLSMaterial(t *testing.T) (tls.Certificate, *x509.CertPool) {
 	}
 	return tls.Certificate{Certificate: [][]byte{serverDER}, PrivateKey: serverKey}, roots
 }
+
+func TestGetReportsCasterErrorLine(t *testing.T) {
+	server := newTestServer(t, func(conn net.Conn, _ int) {
+		defer conn.Close()
+		_, _, _ = readTestHeaders(conn)
+		_, _ = io.WriteString(conn, "\r\nError: User password error!\r\n\r\nHTTP/1.1 401 Unauthorized\r\n\r\n")
+	})
+	_, err := Get(context.Background(), server.endpoint("MOUNT", "v1"), 2*time.Second)
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if !strings.Contains(err.Error(), "User password error") {
+		t.Fatalf("error = %q", err.Error())
+	}
+}

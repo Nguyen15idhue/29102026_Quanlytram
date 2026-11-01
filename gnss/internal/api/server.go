@@ -46,14 +46,19 @@ type ProbeManager interface {
 	Reconcile(ctx context.Context)
 }
 
+type StationSourceManager interface {
+	Reconcile(ctx context.Context)
+}
+
 type Server struct {
-	db         *sql.DB
-	adminDB    string
-	manager    RelayManager
-	caster     CasterManager
-	quality    QualityAnalyzer
-	probe      ProbeManager
-	hmacSecret string
+	db            *sql.DB
+	adminDB       string
+	manager       RelayManager
+	caster        CasterManager
+	quality       QualityAnalyzer
+	probe         ProbeManager
+	stationSource StationSourceManager
+	hmacSecret    string
 
 	nonceMu sync.Mutex
 	nonces  map[string]time.Time
@@ -66,17 +71,19 @@ func New(
 	casterManager CasterManager,
 	analyzer QualityAnalyzer,
 	probeManager ProbeManager,
+	stationSourceManager StationSourceManager,
 	hmacSecret string,
 ) *Server {
 	return &Server{
-		db:         database,
-		adminDB:    adminDB,
-		manager:    manager,
-		caster:     casterManager,
-		quality:    analyzer,
-		probe:      probeManager,
-		hmacSecret: hmacSecret,
-		nonces:     make(map[string]time.Time),
+		db:            database,
+		adminDB:       adminDB,
+		manager:       manager,
+		caster:        casterManager,
+		quality:       analyzer,
+		probe:         probeManager,
+		stationSource: stationSourceManager,
+		hmacSecret:    hmacSecret,
+		nonces:        make(map[string]time.Time),
 	}
 }
 
@@ -93,6 +100,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/internal/caster/disconnect-listener", s.requireSignature(s.handleCasterDisconnectListener, http.MethodPost))
 	mux.HandleFunc("/internal/caster/reconcile", s.requireSignature(s.handleCasterReconcile, http.MethodPost))
 	mux.HandleFunc("/internal/probe/reconcile", s.requireSignature(s.handleProbeReconcile, http.MethodPost))
+	mux.HandleFunc("/internal/station-source/reconcile", s.requireSignature(s.handleStationSourceReconcile, http.MethodPost))
 	mux.HandleFunc("/internal/caster/listeners", s.requireSignature(s.handleCasterListeners, http.MethodGet))
 	mux.HandleFunc("/internal/rtcm/snapshot", s.requireSignature(s.handleQualitySnapshot, http.MethodGet))
 	mux.HandleFunc("/internal/rtcm/health", s.requireSignature(s.handleQualityHealth, http.MethodGet))
@@ -343,6 +351,17 @@ func (s *Server) handleCasterReconcile(w http.ResponseWriter, r *http.Request, _
 		writeError(w, http.StatusInternalServerError, "caster reconcile failed")
 		return
 	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleStationSourceReconcile(w http.ResponseWriter, r *http.Request, _ []byte) {
+	if s.stationSource == nil {
+		writeError(w, http.StatusServiceUnavailable, "station source manager is not running")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+	defer cancel()
+	s.stationSource.Reconcile(ctx)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 

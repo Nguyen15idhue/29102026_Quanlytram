@@ -34,10 +34,16 @@ Mã thường gặp: `UNAUTHENTICATED`, `SESSION_EXPIRED`, `CSRF_INVALID`, `FORB
 | GET | `/api/stations?q=&page=&pageSize=` | `stations.view` |
 | GET | `/api/stations/:id` | `stations.view` |
 | GET | `/api/stations/:id/activity?range=24h\|7d\|30d` | `stations.view`; uptime, sự kiện, timeline, series chất lượng |
+| GET | `/api/stations/:id/timeline?range=1h\|24h\|7d\|1m` | `stations.view`; đoạn online/offline/no-data theo `created_at`, uptime và series |
+| GET | `/api/stations/:id/history?from=&to=&page=&pageSize=&level=` | `stations.view`; log hợp nhất, lọc `level=error\|warning\|info` |
 | POST | `/api/stations` | `stations.add` |
 | PATCH | `/api/stations/:id` | `stations.edit` |
 | POST | `/api/stations/:id/enable\|disable\|lock\|unlock` | `stations.edit` |
 | DELETE | `/api/stations/:id` | `stations.delete` |
+
+Timeline trả `onlineSec`, `offlineSec`, `noDataSec`; tỷ lệ online =
+`onlineSec / (onlineSec + offlineSec + noDataSec)`. Khoảng trước `created_at`
+là `none`, không tính vào tổng.
 
 Không xóa trạm đang bật (`enabled=1`) hoặc đang khóa (`status=locked`); phải
 tắt và mở khóa trước. Bulk `delete` bỏ qua trạm đang bật/khóa và trả `skipped`.
@@ -150,6 +156,10 @@ Role custom: level 1–99; không xóa nếu đang được gán.
 |---|---|---|
 | GET | `/api/relay-jobs?q=&page=&pageSize=` | `relay.view` |
 | GET | `/api/relay-jobs/:id` | `relay.view` |
+| GET | `/api/relay-jobs/:id/status` | `relay.view`; trạng thái + uptime + session gần đây |
+| GET | `/api/relay-jobs/:id/activity?range=24h\|7d\|30d&direction=upstream\|downstream` | `relay.view`; timeline online/offline/no-data theo luồng |
+| GET | `/api/relay-jobs/:id/timeline?range=1h\|24h\|7d\|1m&direction=upstream\|downstream` | `relay.view`; đoạn trạng thái theo `created_at`, uptime và series |
+| GET | `/api/relay-jobs/:id/history?from=&to=&page=&pageSize=&level=` | `relay.view`; log hợp nhất, lọc `level=error\|warning\|info` |
 | POST | `/api/relay-jobs` | `relay.add` |
 | PATCH | `/api/relay-jobs/:id` | `relay.edit` |
 | DELETE | `/api/relay-jobs/:id` | `relay.delete` |
@@ -296,8 +306,27 @@ Response quality (rút gọn):
     "codePhaseRmsM": 0.048,
     "codePhaseSamples": 2916,
     "observations": 3024,
-    "skyPlotAvailable": false,
-    "skyPlotReason": "Nguồn RTCM chưa phát ephemeris 1019/1020/1045/1046 để tính azimuth/elevation",
+    "skyPlotAvailable": true,
+    "skyPlotReason": "",
+    "skyPlot": [
+      {
+        "system": "GPS",
+        "satellite": 12,
+        "azimuth": 145.2,
+        "elevation": 38.4,
+        "band": "L1",
+        "cnr": 42.5
+      }
+    ],
+    "signalsCnr": [
+      {
+        "system": "GPS",
+        "satellite": 12,
+        "signal": 1,
+        "band": "L1",
+        "cnr": 42.5
+      }
+    ],
     "gaps": 0
   }
 }
@@ -305,6 +334,12 @@ Response quality (rút gọn):
 
 - `targetType`: `station | relay_job`.
 - `direction`: `ingest | upstream | downstream`.
+- `skyPlot` chỉ có khi nguồn phát ephemeris `1019/1020/1042/1044/1045/1046`
+  và có ARP `1005/1006`; nếu thiếu, `skyPlotAvailable=false` kèm lý do.
+- `signalsCnr` là snapshot epoch hiện tại theo vệ tinh/băng; không lưu raw.
+- Điểm chất lượng tính realtime mỗi 5 giây trong RAM. Chỉ cảnh báo `<30`
+  (`quality.score_low`) và lỗi `=0` (`quality.score_zero`) được ghi
+  `quality_alerts`; phục hồi `>=30` resolve alert và ghi lịch sử.
 - Không trả raw RTCM/payload, credential, DSN.
 - Export CSV có giới hạn dòng + audit.
 - Socket.IO: `quality.snapshot`, `quality.updated`, `quality.alert`,

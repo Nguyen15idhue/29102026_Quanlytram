@@ -96,7 +96,7 @@ test.describe('P1.6 mountpoint và listener', () => {
     expect(headers).toContain('Ghi chú');
     expect(headers).not.toContain('Auth');
 
-    await page.locator('.data-table tbody tr').first().click();
+    await page.locator('.data-table tbody tr .link-btn').first().click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByRole('dialog')).toContainText('Online');
   });

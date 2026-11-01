@@ -61,6 +61,7 @@ func main() {
 		AlertWindows:    cfg.QualityAlertWindows,
 		GapThreshold:    cfg.QualityGapThreshold,
 		StaleAfter:      cfg.QualityStaleAfter,
+		ScoreInterval:   cfg.QualityScoreInterval,
 		BaselineWindow:  cfg.QualityBaselineWindow,
 		SampleWindowSec: cfg.QualitySampleWindowSec,
 	}, qualityAsync)
@@ -73,6 +74,11 @@ func main() {
 	options.Quality = analyzer
 
 	manager := relay.NewManager(store, writer, options)
+	stationSourceManager := relay.NewStationSourceManager(
+		relay.NewStationSourceStore(adminDB, cfg.AppEncKey),
+		relay.NewStationSourceSessionStore(runtimeDB),
+		relay.StationSourceOptions{Options: options},
+	)
 
 	casterOptions := caster.DefaultOptions()
 	casterOptions.BindAddr = cfg.CasterBindAddr
@@ -113,6 +119,7 @@ func main() {
 	go qualityAsync.Run(runCtx)
 	go analyzer.Run(runCtx)
 	go manager.Run(runCtx)
+	go stationSourceManager.Run(runCtx)
 	go casterManager.Run(runCtx)
 	go probeManager.Run(runCtx)
 	go relay.RunRetention(runCtx, runtimeDB, retentionOptions)
@@ -120,7 +127,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           api.New(runtimeDB, cfg.AdminDB, manager, casterManager, analyzer, probeManager, cfg.InternalHMACSecret).Handler(),
+		Handler:           api.New(runtimeDB, cfg.AdminDB, manager, casterManager, analyzer, probeManager, stationSourceManager, cfg.InternalHMACSecret).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -142,6 +149,7 @@ func main() {
 		log.Printf("http shutdown: %v", err)
 	}
 	manager.Shutdown(shutdownCtx)
+	stationSourceManager.Shutdown(shutdownCtx)
 	casterManager.Shutdown(shutdownCtx)
 	probeManager.Shutdown(shutdownCtx)
 	analyzer.Flush()

@@ -101,6 +101,17 @@
   hot reload 1s. Playwright 15/15, server test 48/48. Chi tiết:
   `docs/1/02_CAC_BUOC_THUC_HIEN_P0.md` mục 6.
 
+- Unicode audit 2026-11-01: quét toàn bộ `cors_admin`/`cors_runtime` (35.532 dòng,
+  148.901 chuỗi text + JSON) bằng mysql2 UTF-8; phát hiện 24 chuỗi lỗi trong 12
+  `audit_logs` (`?`/U+FFFD: web_user display_name, station name/notes,
+  region/address). Đã sửa theo ngữ cảnh đối chiếu (web_users, before/after,
+  province/ward), verify hex UTF-8 và quét lại 0 lỗi; backup tại
+  `Temp/opencode/backup_before_unicode_fix_20261101_143357.sql`. Lưu ý
+  `TR_M_H_U_L_C` là mã định danh ASCII sinh từ tên lỗi, không phải lỗi Unicode,
+  không đổi để tránh ảnh hưởng client.
+- Unicode source 2026-11-01: sửa 2 nhãn UI U+FFFD + 6 dòng CP1258 trong
+  `server/src/routes/stations.ts`; build server/frontend PASS; xem mục 12.
+
 ### Đang làm
 - Không có.
 
@@ -787,6 +798,133 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   `go vet ./...` PASS; Playwright `station-detail.spec.ts` PASS + screenshot
   `test-results/station-activity-light.png`.
 
+### 8.25. Mở chi tiết bằng cột tên (2026-11-01)
+
+- Bỏ `onRowClick` khỏi `DataTable`; chỉ bấm vào tên bản ghi mới mở bảng thông
+  tin. Áp dụng cho trạm, mountpoint, Mountpoint Explorer, listener caster,
+  tài khoản NTRIP, relay job và web user.
+- `.link-btn`: màu link, bỏ gạch chân; hover/focus đậm (600) + nền
+  `--accent-soft` để nổi bật; bỏ `.data-table tbody tr.clickable`.
+- Cập nhật Playwright: các spec mở chi tiết qua `.link-btn` thay vì click dòng
+  (`auth-password-only`, `mountpoint-explorer`, `phase7-11`, `station-source`,
+  `p1-mountpoint`, `p1-bulk`).
+- Kiểm tra: frontend `tsc --noEmit` PASS; Playwright
+  `mountpoint-explorer` + `phase7-11` + `p1-bulk` + `p1-rbac` + `quality` +
+  `ui` PASS. `station-source` fail ở assert dữ liệu chất lượng (trạm #80
+  không có sample, “Chưa có dữ liệu chất lượng trạm”), không liên quan thay đổi.
+
+### 8.26. Chuẩn hóa drawer chi tiết trạm và relay (2026-11-01)
+
+- Tạo component dùng chung `EntityDetail` (health block + 4 tab) và tách
+  `EntityActivityPanel`, `EntityHistoryPanel`; trạm và relay dùng cùng bố cục:
+  **Tổng quan / Dữ liệu / Chất lượng / Lịch sử**.
+- Header giữ nguyên `EntityHealthPanel`: timestamp dữ liệu cuối + trạng thái
+  hiện tại; tab Tổng quan chứa facts cơ bản, tab Dữ liệu có thanh
+  online/offline/no-data + sự kiện + uptime, tab Chất lượng có biểu đồ số vệ
+  tinh đặt đầu và phân tích RTCM, tab Lịch sử phân trang 100 dòng với lọc
+  Lỗi/Cảnh báo/Thông tin.
+- Relay có thêm bộ lọc luồng Nguồn (upstream) / Đích (downstream) ở tab
+  Dữ liệu và Chất lượng.
+- Thêm API `GET /api/relay-jobs/:id/activity` và
+  `GET /api/relay-jobs/:id/history`; thêm `level` cho history trạm.
+- Cập nhật `docs/api.md`, test Playwright `station-detail`; `tsc` frontend +
+  build PASS; server Vitest 52/53 (1 fail có sẵn ở `transportStatusFor`,
+  không liên quan thay đổi này).
+
+### 8.27. Timeline trạng thái + sky plot/SNR (2026-11-01)
+
+- Thêm `server/src/lib/statusTimeline.ts`: online ≤5 giây, không có dữ liệu
+  ≤10 phút, sau đó offline; cắt theo `created_at`/`deleted_at`; trả bucket,
+  uptime, online, offline, current. Có 5 test đơn vị.
+- Thêm `GET /api/stations/:id/timeline` và
+  `GET /api/relay-jobs/:id/timeline` (lọc `direction`), kèm series vệ tinh,
+  độ trễ, C/N0. Áp dụng cùng ngưỡng cho danh sách trạm, bản đồ và relay.
+- Frontend: header chỉ còn timestamp hiện tại + badge trạng thái (relay có
+  Nguồn/Đích); tab Dữ liệu dùng thanh 1h/24h/7d/1m, màu online/offline/no-data,
+  uptime/online/offline và biểu đồ theo thời gian; bỏ khối kết nối.
+- Tab Chất lượng còn sky plot, CNR theo vệ tinh/băng và điểm 6 thành phần.
+- Go: retention mẫu chất lượng 35 ngày; parse ephemeris
+  1019/1020/1042/1044/1045/1046; tính quỹ đạo, azimuth/elevation từ ARP;
+  lưu CNR theo epoch/vệ tinh/băng trong snapshot.
+- Đã kiểm tra luồng thực tế: chưa thấy ephemeris trong `rtcm_message_stats`,
+  nên sky plot sẽ trống cho tới khi nguồn phát 1019/1020/1042/1044/1045/1046.
+- Kiểm tra: server `tsc` + build PASS; frontend `tsc` + build PASS;
+  `go test ./...` + `go vet ./...` PASS; Vitest 58/58 PASS; Playwright
+  `quality`, `station-detail`, `metrics-health` relay PASS.
+
+### 8.28. Tỷ lệ online, tooltip, score 10 phút và sky plot thật (2026-11-01)
+
+- Tab Dữ liệu: đổi “Uptime” thành **Tỷ lệ online** = online / (online +
+  offline + no_data), hiện `—` khi tổng bằng 0; thêm thời lượng **Không có dữ
+  liệu**; gộp bucket thành đoạn, hover tô sáng đoạn và hiện thời gian/trạng
+  thái/thời lượng; thêm danh sách toàn bộ đoạn.
+- Biểu đồ: offline/no-data/trước khi tạo đều vẽ `0`, không còn đứt đoạn; mỗi
+  biểu đồ có crosshair + tooltip theo con trỏ (vệ tinh, độ trễ, C/N0).
+- Go: điểm chất lượng tính lại mỗi 10 phút (`QUALITY_SCORE_INTERVAL_SEC=600`; đã đổi thành 5 giây ở 8.29);
+  chỉ ghi lịch sử khi điểm đổi, không toast. Lịch sử trạm và relay đều ghi
+  `quality_score`.
+- Sky plot: thử trực tiếp nguồn NTRIP do người dùng cung cấp; luồng có
+  ephemeris 1019/1020/1042/1044/1046. Sau 90 giây analyzer nhận 30 vệ tinh,
+  87 tín hiệu CNR và 23 điểm sky plot. Đã tạo trạm test 484 để kiểm tra
+  end-to-end rồi xóa.
+- Thêm danh sách “Vệ tinh đang quan sát” trong tab Chất lượng: hiện mọi vệ
+  tinh có CNR, kèm băng và trạng thái có/chưa có ephemeris.
+- Rebuild container `gnss` để áp dụng ephemeris/orbit/score interval.
+- Kiểm tra: Playwright `station-detail`, `quality`, `metrics-health` relay PASS.
+
+### 8.29. Sửa trạng thái online/no-data/offline và score realtime (2026-11-01)
+
+- Nguyên nhân lỗi: trạng thái được tính ở nhiều nơi (live Go, mẫu 60s,
+  connection interval); bảng `station_source_sessions` chưa migrate; container
+  `gnss` chưa ghi session; timeline bật `hasConnectionInfo` nhưng connections
+  rỗng nên đánh all offline; bucket 10s/60s che mất đoạn ngắn.
+- Thêm session NTRIP client: bảng `cors_runtime.station_source_sessions`, Go
+  ghi start/end, đóng session cũ khi service restart.
+- Thêm API nội bộ `/internal/station-source/reconcile`; Node gọi ngay khi
+  enable/disable/lock/unlock để đóng/mở session tức thời.
+- Timeline: 10 giây no-data tính từ lúc mất kết nối; kết nối còn nhưng không có
+  dữ liệu thì giữ no-data; chưa từng kết nối thì offline; bucket dùng mốc giữa
+  để phản ánh session bắt đầu/kết thúc trong bucket; series vẫn 0 khi offline.
+- Đồng bộ trạng thái list/detail/timeline qua cùng helper connection-aware.
+- Score realtime mỗi 5 giây (`QUALITY_SCORE_INTERVAL_SEC=5`), chỉ giữ trong RAM;
+  log warning khi <30, error khi =0, recovery khi >=30; ghi
+  `quality_alerts` và tab Lịch sử, không toast.
+- Kiểm tra: Go test/vet PASS; Vitest 58/58; frontend build PASS; Playwright `station-detail`, `quality`, `metrics-health` relay PASS.
+
+### 8.30. Polling bảng, danh sách trạng thái và số liệu timeline (2026-11-01)
+
+- Các bảng trạng thái streaming (trạm, relay, mountpoint, NTRIP account,
+  online list) luôn refetch định kỳ 5–10 giây, không phụ thuộc Socket.IO để
+  tránh phải tải lại trang.
+- Danh sách thay đổi trạng thái trong tab Dữ liệu đảo thứ tự mới nhất trước,
+  hiển thị 10 đoạn/lần và nút “Xem thêm 10 đoạn”; không phân trang.
+- Số liệu timeline được tính ở độ phân giải mịn (10 giây cho 1h/24h, 60 giây
+  cho 7d/1m) tách khỏi bucket hiển thị, nên `online + offline + no_data` khớp
+  nhau giữa các khoảng. Đã đối chiếu 7d và 1m cho cùng kết quả.
+- Kiểm tra: Vitest 58/58; frontend build PASS; Playwright `station-detail`,
+  `quality`, `metrics-health` relay PASS.
+
+### 8.31. Tổng hợp thay đổi trước commit (2026-11-01)
+
+- Nguồn trạm NTRIP client: `station_source.go`, `station_position.go`,
+  migration `runtime/006_station_source_sessions.sql`, session start/end và
+  reconcile tức thời khi tắt/bật/lock/unlock trạm.
+- Migration bổ sung: `admin/026_relay_job_lock.sql`,
+  `admin/027_entity_enabled_at.sql`; helper `server/src/lib/dataUptime.ts`.
+- Drawer dùng chung `EntityDetail`; timeline `statusTimeline.ts`; history
+  phân trang 100; activity/history/timeline API cho trạm và relay.
+- Quality Go: ephemeris `1019/1020/1042/1044/1045/1046`, orbit/az-el,
+  `skyPlot`/`signalsCnr`; retention 35 ngày; score realtime 5 giây; alert
+  `quality.score_low`/`quality.score_zero` + recovery.
+- Relay: direction status, timeline/history/activity, async downstream writer,
+  NTRIP error line rõ hơn; job #227 được cập nhật credential theo NTRIP client
+  của trạm và hiện streaming.
+- Frontend: bảng trạng thái refetch 5–10 giây; chart tooltip, số vệ tinh
+  nguyên; danh sách thay đổi mới nhất trước, 10 bản ghi/lần.
+- Kiểm tra: `go test ./...` + `go vet ./...` PASS; Vitest 58/58 PASS;
+  frontend `tsc` + build PASS; Playwright `station-detail`, `quality`,
+  `metrics-health` relay PASS.
+
 ## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |
@@ -831,3 +969,75 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 ## 10. Cập nhật lần cuối
 
 - 2026-11-01 (Asia/Ho_Chi_Minh, +07:00)
+
+## 11. Station source `ntrip_client` — runner, GGA, trạng thái
+
+- `gnss/internal/relay/station_source.go`: runner đọc `station_sources`
+  (`source_role='ntrip_client'`), tái dùng `toNtripEndpoint`, `ntrip.Get`,
+  `NewBackoff`, `classify` và NMEA của relay. Idle timeout 30s, tự kết nối lại,
+  reset backoff khi phiên nhận dữ liệu ≥10s, reload khi đổi cấu hình.
+- `gnss/internal/relay/station_position.go`: bóc frame RTCM3, lấy toạ độ
+  1005/1006 để gửi GGA. Ưu tiên `client_gga_lat/lon`, rồi `stations.lat/lon`,
+  cuối cùng là 1005/1006 trong luồng.
+- `server/src/routes/stations.ts`: list + detail dùng chung `applyLiveStatus`.
+  Live chỉ áp dụng khi trạm đang bật; trạm tắt/khóa luôn `offline`/`disabled`
+  và bỏ qua snapshot cũ trong RAM Go. Khi dùng live thì điểm/trạng thái/dữ liệu
+  cuối lấy cùng nguồn, không trộn mẫu DB 60s.
+- `server/src/routes/quality.ts`: `/stations/:id/quality` trả `live=[]`,
+  `latest=null` khi trạm tắt; `/quality/overview` loại trạm tắt khỏi cả mẫu cũ
+  và live.
+- Test: `station_source_test.go`, `station_position_test.go` (mock caster,
+  reconnect, stall, đổi cấu hình, GGA từ cấu hình và từ 1006).
+- Kiểm chứng thật 2026-11-01: station 480 TestHauLoc (rtktk.online/THA_HauLoc)
+  `streaming`, GGA gửi với `19.999947,105.969244`; không có lần đứt trong thời
+  gian theo dõi.
+- Kiểm chứng tắt/bật qua API superadmin:
+  - Trước: LIST=online, DETAIL=online, quality live=1, overview có trạm.
+  - Tắt: LIST=offline, DETAIL=offline, quality live=0/latest=null, overview=0.
+  - Bật lại: LIST=online, DETAIL=online, quality live=1, overview có trạm.
+- `npm test` server: 58/58 PASS; `go test ./...` + `go vet ./...` PASS.
+- Còn lại: nhãn "Nguồn dữ liệu" trong drawer dùng `stations.source_type`
+  (`manual`) nên hiện "Thủ công" dù bảng hiện "NTRIP client"; chưa phát lại
+  luồng ra mountpoint caster của trạm.
+
+## 12. Sửa Unicode tầng source + lỗi cú pháp chặn build (2026-11-01)
+
+- Triệu chứng: UI vẫn hiện nhãn no_data lỗi dù DB đã sạch sau mục 2.
+- Nguyên nhân source:
+  - `frontend/src/components/StationDetailDrawer.tsx` dòng 36 và
+    `frontend/src/pages/RelayJobs.tsx` dòng 81: ký tự U+FFFD trong nhãn
+    `no_data`.
+  - `server/src/routes/stations.ts` 6 dòng mojibake CP1258 (UTF-8 bị decode
+    Windows-1258): owner ngoài phạm vi/không tồn tại, `${label}` không hợp lệ,
+    `Đến ngày`, `Từ ngày`, `Bởi ... hệ thống`.
+- Đã sửa bằng script Node UTF-8, chỉ thay đúng literal:
+  `'không có dữ liệu'`, `'Chủ sở hữu ngoài phạm vi quản lý'`,
+  `'Chủ sở hữu không tồn tại'`, `` `${label} không hợp lệ` ``, `'Đến ngày'`,
+  `'Từ ngày'`, `` `Bởi ${String(row.actor_name || 'hệ thống')}` ``.
+- Kiểm tra:
+  - Quét 3 file: 0 U+FFFD / 0 mojibake.
+  - Quét toàn repo (frontend/server/gnss/scripts/db/docs): 0 lỗi runtime;
+    các hit còn lại chỉ là mẫu test cố ý `frontend/tests/p1-unicode.spec.ts`
+    và ví dụ lịch sử trong `docs/1/03_CAC_BUOC_THUC_HIEN_P1.md`; giữ nguyên.
+  - Vite phục vụ module frontend đã đúng; `npm run build` frontend PASS.
+  - Server: watch không nhận thay đổi bind mount Windows; build thủ công.
+    Build lộ lỗi cú pháp có sẵn trong working tree: `stations.ts` lặp body
+    `probeMap` (dòng 499–509) → TS1128. Đã xóa đúng khối lặp 12 dòng, build lại
+    `Found 0 errors`, container healthy, `dist/routes/stations.js` chứa đủ 6
+    chuỗi đúng.
+- Test hiện tại:
+  - `docker exec -w /app cors-mvp-server-1 npm test`: 56/58 PASS; 2 FAIL ở
+    `server/tests/statusTimeline.test.ts` (file mới/untracked, logic timeline
+    hiện tại, không liên quan Unicode):
+    - "uses 10 seconds from disconnect before offline": bucket[0] trả `no_data`,
+      test mong `online`.
+    - "falls back to data age when connection tracking is unavailable":
+      bucket[1] trả `offline`, test mong `no_data`.
+  - `docker exec -w /app cors-mvp-web-1 npm run build`: PASS.
+- Ghi chú: working tree đang có CRLF khác HEAD (LF) và nhiều thay đổi chưa
+  commit; diff lớn không phải do sửa Unicode. Không sửa `docs`/test marker cố ý.
+- Lệnh kiểm tra nhanh:
+  - `node C:\Users\ADMIN\AppData\Local\Temp\opencode\inspect_source_unicode.js`
+  - `node C:\Users\ADMIN\AppData\Local\Temp\opencode\scan_repo_unicode.js`
+  - `docker exec -w /app cors-mvp-server-1 npm run build`
+  - `docker exec -w /app cors-mvp-web-1 npm run build`

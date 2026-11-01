@@ -25,7 +25,7 @@ test.describe('P1 mountpoint tối giản', () => {
     const row = page.getByRole('row', { name: new RegExp(name) }).first();
     await expect(row).toBeVisible();
     await expect(row).toContainText('enabled');
-    await row.click();
+    await row.locator('.link-btn').click();
     await expect(page.getByRole('dialog')).toBeVisible();
     await expect(page.getByRole('dialog')).toContainText('Online');
     await page.getByRole('dialog').getByRole('button', { name: 'Đóng' }).last().click();

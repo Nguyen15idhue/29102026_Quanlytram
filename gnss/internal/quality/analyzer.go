@@ -2,6 +2,7 @@ package quality
 
 import (
 	"context"
+	"log"
 	"math"
 	"math/bits"
 	"sort"
@@ -20,6 +21,8 @@ type Options struct {
 	AlertWindows    int
 	GapThreshold    time.Duration
 	StaleAfter      time.Duration
+	ResetAfter      time.Duration
+	ScoreInterval   time.Duration
 	BaselineWindow  int
 	SampleWindowSec int
 }
@@ -33,6 +36,8 @@ func DefaultOptions() Options {
 		AlertWindows:    3,
 		GapThreshold:    2 * time.Second,
 		StaleAfter:      5 * time.Second,
+		ResetAfter:      30 * time.Second,
+		ScoreInterval:   5 * time.Second,
 		BaselineWindow:  120,
 		SampleWindowSec: 60,
 	}
@@ -60,6 +65,12 @@ func (o Options) withDefaults() Options {
 	}
 	if o.StaleAfter <= 0 {
 		o.StaleAfter = defaults.StaleAfter
+	}
+	if o.ResetAfter <= 0 {
+		o.ResetAfter = defaults.ResetAfter
+	}
+	if o.ScoreInterval <= 0 {
+		o.ScoreInterval = defaults.ScoreInterval
 	}
 	if o.BaselineWindow <= 0 {
 		o.BaselineWindow = defaults.BaselineWindow
@@ -141,6 +152,15 @@ type targetState struct {
 	rmsWindowSum     float64
 	observationCount uint64
 
+	ephemerides map[string]*ephemeris
+	satSignals  map[int]map[string]SignalObservation
+
+	score      int
+	scoreParts ScoreParts
+	scoreAt    time.Time
+	hasScore   bool
+	scoreAlert string
+
 	has1005 bool
 	has1006 bool
 	has1007 bool
@@ -185,6 +205,8 @@ func newTargetState(target Target) *targetState {
 		sigMasks:     make(map[int]uint32),
 		cellMasks:    make(map[int]uint64),
 		cellHistory:  make(map[string]cellHistory),
+		ephemerides:  make(map[string]*ephemeris),
+		satSignals:   make(map[int]map[string]SignalObservation),
 		alerts:       make(map[string]*alertState),
 	}
 }
@@ -303,15 +325,60 @@ func (a *Analyzer) consume(ctx context.Context) {
 				state = newTargetState(item.target)
 				a.targets[item.target.Key()] = state
 			}
-			state.ingest(item.data, item.at, a.opts.GapThreshold)
+			state.ingest(item.data, item.at, a.opts.GapThreshold, a.opts.ResetAfter)
 			a.mu.Unlock()
 		}
 	}
 }
 
-func (s *targetState) ingest(data []byte, now time.Time, gapThreshold time.Duration) {
-	if !s.lastFeedAt.IsZero() && now.Sub(s.lastFeedAt) > gapThreshold {
-		s.gaps++
+func (s *targetState) resetSession() {
+	s.buf = nil
+	s.frames = 0
+	s.bytes = 0
+	s.crc = 0
+	s.parse = 0
+	s.length = 0
+	s.unknown = 0
+	s.msm = 0
+	s.messageTypes = make(map[int]uint64)
+	s.dirtyTypes = make(map[int]uint64)
+	s.dirtyBytes = make(map[int]uint64)
+	s.satellites = 0
+	s.signals = 0
+	s.cells = 0
+	s.satMasks = make(map[int]uint64)
+	s.sigMasks = make(map[int]uint32)
+	s.cellMasks = make(map[int]uint64)
+	s.satSignals = make(map[int]map[string]SignalObservation)
+	s.cnrSum = 0
+	s.cnrCount = 0
+	s.cellHistory = make(map[string]cellHistory)
+	s.cycleSlips = 0
+	s.codePhaseSamples = 0
+	s.rmsWindow = nil
+	s.rmsWindowSum = 0
+	s.observationCount = 0
+	s.gaps = 0
+	s.recent = nil
+	s.base = nil
+	s.mark = sampleMark{}
+	s.evalFrames = 0
+	s.evalCRC = 0
+	s.evalParse = 0
+	s.score = 0
+	s.scoreParts = ScoreParts{}
+	s.scoreAt = time.Time{}
+	s.hasScore = false
+}
+
+func (s *targetState) ingest(data []byte, now time.Time, gapThreshold, resetAfter time.Duration) {
+	if !s.lastFeedAt.IsZero() {
+		gap := now.Sub(s.lastFeedAt)
+		if gap > resetAfter {
+			s.resetSession()
+		} else if gap > gapThreshold {
+			s.gaps++
+		}
 	}
 	s.lastFeedAt = now
 	s.lastDataAt = now
@@ -383,6 +450,9 @@ func (s *targetState) applyMessage(info messageInfo, frameBytes uint64) {
 	if info.Unknown {
 		s.unknown++
 	}
+	if info.Ephemeris != nil {
+		s.ephemerides[info.Ephemeris.key()] = info.Ephemeris
+	}
 	if info.MSM {
 		s.msm++
 		system := info.Number / 10
@@ -403,7 +473,18 @@ func (s *targetState) applyMessage(info messageInfo, frameBytes uint64) {
 		}
 		s.cnrSum += info.CNRSum
 		s.cnrCount += info.CNRCount
+		s.satSignals[system] = make(map[string]SignalObservation)
 		for _, observation := range info.Observations {
+			if observation.CNR > 0 {
+				key := strconv.Itoa(observation.Satellite) + ":" + strconv.Itoa(observation.Signal)
+				s.satSignals[system][key] = SignalObservation{
+					System:    systemName(system),
+					Satellite: observation.Satellite,
+					Signal:    observation.Signal,
+					Band:      signalBand(system, observation.Signal),
+					Cnr:       observation.CNR,
+				}
+			}
 			if observation.Pseudorange == 0 || observation.Phase == 0 {
 				continue
 			}
@@ -536,27 +617,67 @@ func (s *targetState) snapshot(now time.Time, opts Options) Snapshot {
 		}
 	}
 	baselineSat, baselineCells := s.baselineMedian()
-	input := scoreInput{
-		State:         state,
-		AgeMs:         ageMs,
-		Gaps:          s.gaps,
-		Frames:        s.frames,
-		CRCErrors:     s.crc,
-		ParseErrors:   s.parse,
-		MSMEpochs:     s.msm,
-		Satellites:    s.satellites,
-		Signals:       s.signals,
-		Cells:         s.cells,
-		BaselineSat:   baselineSat,
-		BaselineCells: baselineCells,
-		AvgCnr:        s.averageCNR(),
-		CNRAvailable:  s.cnrCount > 0,
-		MetadataOK:    s.has1005 || s.has1006,
-		HasAntenna:    s.antenna != "",
-		ARPDeltaM:     s.arpDeltaM,
-		HasARPDelta:   s.hasARPDelta,
+	streaming := state == "streaming"
+	satellites := s.satellites
+	signals := s.signals
+	cells := s.cells
+	msmEpochs := s.msm
+	avgCnr := s.averageCNR()
+	cnrAvailable := s.cnrCount > 0
+	if !streaming {
+		satellites = 0
+		signals = 0
+		cells = 0
+		msmEpochs = 0
+		avgCnr = 0
+		cnrAvailable = false
 	}
-	score, parts := scoreFor(input)
+	recentFrames := uint64(0)
+	recentCRC := uint64(0)
+	recentParse := uint64(0)
+	for _, bucket := range s.recent {
+		recentFrames += bucket.frames
+		recentCRC += bucket.crc
+		recentParse += bucket.parse
+	}
+	if recentFrames == 0 {
+		recentFrames = s.frames
+		recentCRC = s.crc
+		recentParse = s.parse
+	}
+	score := s.score
+	parts := s.scoreParts
+	if !s.hasScore || now.Sub(s.scoreAt) >= opts.ScoreInterval {
+		if streaming {
+			score, parts = scoreFor(scoreInput{
+				State:         state,
+				AgeMs:         ageMs,
+				Gaps:          s.gaps,
+				Frames:        recentFrames,
+				CRCErrors:     recentCRC,
+				ParseErrors:   recentParse,
+				MSMEpochs:     msmEpochs,
+				Satellites:    satellites,
+				Signals:       signals,
+				Cells:         cells,
+				BaselineSat:   baselineSat,
+				BaselineCells: baselineCells,
+				AvgCnr:        avgCnr,
+				CNRAvailable:  cnrAvailable,
+				MetadataOK:    s.has1005 || s.has1006,
+				HasAntenna:    s.antenna != "",
+				ARPDeltaM:     s.arpDeltaM,
+				HasARPDelta:   s.hasARPDelta,
+			})
+		} else {
+			score = 0
+			parts = ScoreParts{}
+		}
+		s.score = score
+		s.scoreParts = parts
+		s.scoreAt = now
+		s.hasScore = true
+	}
 	types := make(map[int]uint64, len(s.messageTypes))
 	for key, value := range s.messageTypes {
 		types[key] = value
@@ -569,28 +690,60 @@ func (s *targetState) snapshot(now time.Time, opts Options) Snapshot {
 	if s.codePhaseSamples > 0 {
 		codePhaseRms = math.Sqrt(s.rmsWindowSum / float64(s.codePhaseSamples))
 	}
+	var signalsCNR []SignalObservation
+	var skyPlot []SkyPlotPoint
+	skyPlotReason := "Chưa có dữ liệu trực tiếp"
+	if streaming {
+		for _, bySatellite := range s.satSignals {
+			for _, item := range bySatellite {
+				signalsCNR = append(signalsCNR, item)
+			}
+		}
+		sort.Slice(signalsCNR, func(i, j int) bool {
+			if signalsCNR[i].System != signalsCNR[j].System {
+				return signalsCNR[i].System < signalsCNR[j].System
+			}
+			if signalsCNR[i].Satellite != signalsCNR[j].Satellite {
+				return signalsCNR[i].Satellite < signalsCNR[j].Satellite
+			}
+			return signalsCNR[i].Signal < signalsCNR[j].Signal
+		})
+		skyPlot, skyPlotReason = skyPlotFor(
+			s.ephemerides,
+			signalsCNR,
+			s.arpX,
+			s.arpY,
+			s.arpZ,
+			now,
+		)
+	}
 	snapshot := Snapshot{
-		TargetType:       s.target.Type,
-		TargetID:         s.target.ID,
-		MountpointID:     s.target.MountpointID,
-		Direction:        s.target.Direction,
-		Ts:               now.Format(time.RFC3339Nano),
-		Score:            score,
-		ScoreParts:       parts,
-		State:            state,
-		Frames:           s.frames,
-		Bytes:            s.bytes,
-		CRCErrors:        s.crc,
-		ParseErrors:      s.parse,
-		LengthErrors:     s.length,
-		UnknownMessages:  s.unknown,
-		MSMEpochs:        s.msm,
-		Satellites:       s.satellites,
-		Signals:          s.signals,
-		Cells:            s.cells,
-		Constellations:   s.constellations(),
-		AvgCnr:           s.averageCNR(),
-		CNRAvailable:     s.cnrCount > 0,
+		TargetType:      s.target.Type,
+		TargetID:        s.target.ID,
+		MountpointID:    s.target.MountpointID,
+		Direction:       s.target.Direction,
+		Ts:              now.Format(time.RFC3339Nano),
+		Score:           score,
+		ScoreParts:      parts,
+		State:           state,
+		Frames:          s.frames,
+		Bytes:           s.bytes,
+		CRCErrors:       s.crc,
+		ParseErrors:     s.parse,
+		LengthErrors:    s.length,
+		UnknownMessages: s.unknown,
+		MSMEpochs:       msmEpochs,
+		Satellites:      satellites,
+		Signals:         signals,
+		Cells:           cells,
+		Constellations: func() []Constellation {
+			if streaming {
+				return s.constellations()
+			}
+			return nil
+		}(),
+		AvgCnr:           avgCnr,
+		CNRAvailable:     cnrAvailable,
 		Antenna:          s.antenna,
 		AgeMs:            ageMs,
 		LatencyMs:        ageMs,
@@ -599,8 +752,10 @@ func (s *targetState) snapshot(now time.Time, opts Options) Snapshot {
 		CodePhaseRmsM:    codePhaseRms,
 		CodePhaseSamples: s.codePhaseSamples,
 		Observations:     s.observationCount,
-		SkyPlotAvailable: false,
-		SkyPlotReason:    "Nguồn RTCM chưa phát ephemeris 1019/1020/1045/1046 để tính azimuth/elevation",
+		SkyPlotAvailable: len(skyPlot) > 0,
+		SkyPlotReason:    skyPlotReason,
+		SkyPlot:          skyPlot,
+		SignalsCNR:       signalsCNR,
 		Gaps:             s.gaps,
 		MetadataOK:       s.has1005 || s.has1006,
 		BaselineSat:      baselineSat,
@@ -706,6 +861,13 @@ func (a *Analyzer) evaluate(now time.Time) {
 		if len(state.recent) > 60 {
 			state.recent = state.recent[len(state.recent)-60:]
 		}
+		if state.lastDataAt.IsZero() || now.Sub(state.lastDataAt) > a.opts.StaleAfter {
+			state.satellites = 0
+			state.signals = 0
+			state.cells = 0
+			state.cnrSum = 0
+			state.cnrCount = 0
+		}
 		if state.satellites > 0 || state.cells > 0 {
 			state.base = append(state.base, baselineObs{
 				satellites: state.satellites,
@@ -724,6 +886,7 @@ func (a *Analyzer) evaluate(now time.Time) {
 
 	for key, state := range a.targets {
 		snapshot := snapshots[key]
+		a.applyScoreAlerts(state, now, snapshot)
 		var frames, crc, parse uint64
 		for _, bucket := range state.recent {
 			frames += bucket.frames
@@ -786,6 +949,59 @@ func (a *Analyzer) evaluate(now time.Time) {
 	_ = identities
 }
 
+func (a *Analyzer) applyScoreAlerts(state *targetState, now time.Time, snapshot Snapshot) {
+	desired := ""
+	code := ""
+	level := ""
+	if snapshot.State == "streaming" {
+		if snapshot.Score == 0 {
+			desired = "error"
+			code = "quality.score_zero"
+			level = LevelCritical
+		} else if snapshot.Score < 30 {
+			desired = "warning"
+			code = "quality.score_low"
+			level = LevelMajor
+		}
+	}
+	if desired == state.scoreAlert {
+		return
+	}
+	previous := state.scoreAlert
+	state.scoreAlert = desired
+	if previous != "" {
+		previousCode := "quality.score_low"
+		if previous == "error" {
+			previousCode = "quality.score_zero"
+		}
+		if a.store != nil {
+			a.store.ResolveAlert(context.Background(), state.target, previousCode, now)
+		}
+	}
+	if desired == "" {
+		if previous != "" {
+			log.Printf("[quality] score recovered target=%s:%d score=%d",
+				state.target.Type, state.target.ID, snapshot.Score)
+		}
+		return
+	}
+	if a.store != nil {
+		a.store.UpsertAlert(context.Background(), AlertRecord{
+			Target:    state.target,
+			EventType: "station_alert",
+			Code:      code,
+			Level:     level,
+			FirstSeen: now,
+			LastSeen:  now,
+			Details: map[string]any{
+				"score": snapshot.Score,
+				"state": snapshot.State,
+			},
+		})
+	}
+	log.Printf("[quality] score %s target=%s:%d score=%d",
+		desired, state.target.Type, state.target.ID, snapshot.Score)
+}
 func (a *Analyzer) applyAlert(state *targetState, now time.Time, code, eventType, level string, condition bool, details map[string]any) {
 	alert := state.alerts[code]
 	if alert == nil {
@@ -898,9 +1114,9 @@ func (a *Analyzer) emitSamples(now time.Time) {
 			ParseErrors:  state.parse - state.mark.parse,
 			Unknown:      state.unknown - state.mark.unknown,
 			MSMEpochs:    state.msm - state.mark.msm,
-			Satellites:   state.satellites,
-			Signals:      state.signals,
-			Cells:        state.cells,
+			Satellites:   snapshot.Satellites,
+			Signals:      snapshot.Signals,
+			Cells:        snapshot.Cells,
 			AvgCnr:       snapshot.AvgCnr,
 			StationID:    snapshot.ReportedStation,
 			ARPX:         snapshot.ARPX,

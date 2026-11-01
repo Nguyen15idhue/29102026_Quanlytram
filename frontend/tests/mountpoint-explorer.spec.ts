@@ -20,7 +20,7 @@ test.describe('P1.6 mountpoint drawer gộp Explorer', () => {
     await page.goto('/mountpoints');
     const row = page.locator('.data-table tbody tr').first();
     await expect(row).toBeVisible();
-    await row.click();
+    await row.locator('.link-btn').click();
     const drawer = page.getByRole('dialog');
     await expect(drawer).toBeVisible();
     await expect(drawer).toContainText('Online');

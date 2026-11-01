@@ -5,7 +5,7 @@ const password = process.env.E2E_PASSWORD ?? '';
 test.describe('Phase 1 station detail', () => {
   test.skip(!password, 'E2E_PASSWORD is required');
 
-  test('deep link tabs, separate statuses, connections, metadata and history', async ({ page }) => {
+  test('deep link tabs, status, timeline and history', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -16,65 +16,69 @@ test.describe('Phase 1 station detail', () => {
     await page.getByRole('button', { name: 'Đăng nhập' }).click();
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
-    await page.goto('/stations/80?tab=connection');
-    await expect(page.getByText('THA Hậu Lộc').first()).toBeVisible();
-    await expect(page.getByRole('tab', { name: 'Kết nối' })).toHaveAttribute(
+    const list = await (
+      await page.request.get(
+        `/api/stations?page=1&pageSize=1&q=${encodeURIComponent('Trạm test Hà Nội 01')}`
+      )
+    ).json();
+    const station = list.items?.[0];
+    expect(station).toBeTruthy();
+
+    await page.goto(`/stations/${station.id}?tab=data`);
+    await expect(page.getByText(station.name).first()).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Dữ liệu' })).toHaveAttribute(
       'aria-selected',
       'true'
     );
-    await expect(page.getByText('Mountpoint & relay')).toBeVisible();
-    await expect(page.getByText('import THA_HauLoc').first()).toBeVisible();
+    const timeline = page.locator('.entity-timeline');
+    await expect(timeline).toBeVisible();
+    await expect(timeline).toContainText('online');
+    await expect(timeline).toContainText('offline');
+    await expect(timeline).toContainText('không có dữ liệu');
+    await expect(timeline).toContainText('Tỷ lệ online');
+    await expect(timeline).toContainText('Không có dữ liệu');
+    await expect(page).toHaveURL(/tab=data/);
     await page.screenshot({
-      path: 'test-results/station-detail-connections-light.png',
+      path: 'test-results/station-data-light.png',
       fullPage: true
     });
 
-    await page.getByRole('tab', { name: 'Hoạt động' }).click();
-    const activity = page.locator('.activity-panel');
-    await expect(activity).toBeVisible();
-    await expect(activity).toContainText('Sự kiện');
-    await expect(activity).toContainText('Kết nối');
-    await expect(activity).toContainText('Uptime');
-    await expect(page).toHaveURL(/tab=activity/);
-    await page.screenshot({
-      path: 'test-results/station-activity-light.png',
-      fullPage: true
-    });
-
-    await page.getByRole('tab', { name: 'Metadata' }).click();
-    await expect(page.getByText('1005 Station ID')).toBeVisible();
-    await expect(page.getByText('Message type')).toBeVisible();
-    await expect(page).toHaveURL(/tab=metadata/);
+    await page.getByRole('tab', { name: 'Chất lượng' }).click();
+    await expect(page.getByRole('heading', { name: 'Chất lượng RTCM' })).toBeVisible();
+    await expect(
+      page
+        .getByText('Chưa có dữ liệu chất lượng trạm')
+        .or(page.getByRole('heading', { name: 'Sky plot' }))
+        .first()
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page).toHaveURL(/tab=quality/);
 
     await page.getByRole('tab', { name: 'Lịch sử' }).click();
-    await expect(page.locator('.timeline')).toBeVisible();
-    await expect(page.locator('.source-summary')).toContainText('quality');
+    await expect(page.locator('.timeline, .table-state').first()).toBeVisible();
     await expect(page).toHaveURL(/tab=history/);
 
     await page.getByRole('tab', { name: 'Tổng quan' }).click();
-    const statusGrid = page.locator('.detail-status-grid').last();
-    await expect(statusGrid).toContainText('Transport');
-    await expect(statusGrid).toContainText('Quality');
-    await expect(statusGrid).toContainText('Metadata');
-    await expect(page).toHaveURL(/\/stations\/80$/);
+    await expect(page.locator('.entity-status')).toContainText('Hiện tại');
+    await expect(page.locator('.entity-status')).toContainText('Trạng thái');
+    await expect(page.getByText('ID trạm')).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`/stations/${station.id}$`));
 
-    await page.goto('/stations?page=1&pageSize=10&q=THA');
+    await page.goto(`/stations?page=1&pageSize=10&q=${encodeURIComponent(station.name)}`);
     await page
-      .getByRole('row', { name: /THA Hậu Lộc/ })
+      .getByRole('row')
+      .filter({ hasText: station.name })
       .first()
       .locator('.link-btn')
       .click();
-    await expect(page).toHaveURL(/\/stations\/80/);
+    await expect(page).toHaveURL(new RegExp(`/stations/${station.id}`));
     await page.reload();
-    await expect(page.getByText('THA Hậu Lộc').first()).toBeVisible();
-    await expect(page).toHaveURL(/q=THA/);
+    await expect(page.getByText(station.name).first()).toBeVisible();
     await page.getByRole('button', { name: 'Đóng', exact: true }).last().click();
     await expect(page).toHaveURL(/\/stations\?/);
-    await expect(page).toHaveURL(/q=THA/);
 
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/stations/80?tab=overview');
-    await expect(page.getByText('THA Hậu Lộc').first()).toBeVisible();
+    await page.goto(`/stations/${station.id}?tab=overview`);
+    await expect(page.getByText(station.name).first()).toBeVisible();
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
     );

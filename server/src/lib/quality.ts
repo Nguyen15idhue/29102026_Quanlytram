@@ -6,6 +6,23 @@ import { callGoInternal } from './internalApi';
 export type TargetType = 'station' | 'relay_job';
 export type Direction = 'ingest' | 'upstream' | 'downstream';
 
+export interface QualitySkyPlotPoint {
+  system: string;
+  satellite: number;
+  azimuth: number;
+  elevation: number;
+  band?: string;
+  cnr?: number;
+}
+
+export interface QualitySignalCnr {
+  system: string;
+  satellite: number;
+  signal: number;
+  band: string;
+  cnr: number;
+}
+
 export interface QualityLive {
   targetType: TargetType;
   targetId: number;
@@ -49,6 +66,8 @@ export interface QualityLive {
   observations: number;
   skyPlotAvailable: boolean;
   skyPlotReason?: string;
+  skyPlot?: QualitySkyPlotPoint[];
+  signalsCnr?: QualitySignalCnr[];
   gaps: number;
   metadataOk: boolean;
   baselineSatellites: number;

@@ -335,12 +335,15 @@ export function WebUsers() {
           loading={users.isLoading}
           error={users.isError ? 'Không tải được danh sách.' : undefined}
           empty="Chưa có tài khoản."
-          onRowClick={setDetail}
           columns={[
             {
               key: 'username',
               header: 'Username',
-              cell: (user) => <span className="mono">{user.username}</span>
+              cell: (user) => (
+                <button type="button" className="link-btn mono" onClick={() => setDetail(user)}>
+                  {user.username}
+                </button>
+              )
             },
             {
               key: 'name',

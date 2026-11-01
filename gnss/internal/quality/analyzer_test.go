@@ -47,7 +47,7 @@ func addState(analyzer *Analyzer, target Target) *targetState {
 
 func ingestState(state *targetState, now time.Time, chunks ...[]byte) {
 	for _, chunk := range chunks {
-		state.ingest(chunk, now, DefaultOptions().GapThreshold)
+		state.ingest(chunk, now, DefaultOptions().GapThreshold, DefaultOptions().ResetAfter)
 	}
 }
 
@@ -438,5 +438,82 @@ func Test6T8MsmObservationMetrics(t *testing.T) {
 	}
 	if snapshot.LatencyMs < 0 {
 		t.Fatalf("latency = %d", snapshot.LatencyMs)
+	}
+}
+
+func TestOfflineZeroesLiveMetricsAndReconnectResetsSession(t *testing.T) {
+	analyzer := NewAnalyzer(DefaultOptions(), nil)
+	target := Target{Type: TargetStation, ID: 1, MountpointID: 1, Direction: DirectionIngest}
+	state := addState(analyzer, target)
+	frame := readFrame(t, "1077")
+	start := time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC)
+
+	state.ingest(frame, start, DefaultOptions().GapThreshold, DefaultOptions().ResetAfter)
+	live := state.snapshot(start, DefaultOptions())
+	if live.State != "streaming" {
+		t.Fatalf("state = %q, want streaming", live.State)
+	}
+	if live.Satellites == 0 || live.Score == 0 {
+		t.Fatalf("live metrics missing: satellites=%d score=%d", live.Satellites, live.Score)
+	}
+	firstFrames := live.Frames
+
+	offline := state.snapshot(start.Add(10*time.Second), DefaultOptions())
+	if offline.State == "streaming" {
+		t.Fatalf("state = %q after no data, want stale", offline.State)
+	}
+	if offline.Satellites != 0 || offline.Signals != 0 || offline.Cells != 0 {
+		t.Fatalf("offline live metrics not zeroed: sat=%d sig=%d cells=%d", offline.Satellites, offline.Signals, offline.Cells)
+	}
+	if offline.Score != 0 {
+		t.Fatalf("offline score = %d, want 0", offline.Score)
+	}
+
+	state.ingest(frame, start.Add(40*time.Second), DefaultOptions().GapThreshold, DefaultOptions().ResetAfter)
+	reconnected := state.snapshot(start.Add(40*time.Second), DefaultOptions())
+	if reconnected.State != "streaming" {
+		t.Fatalf("state = %q after reconnect, want streaming", reconnected.State)
+	}
+	if reconnected.Frames != firstFrames {
+		t.Fatalf("frames after reconnect = %d, want %d", reconnected.Frames, firstFrames)
+	}
+	if reconnected.Satellites == 0 || reconnected.Score == 0 {
+		t.Fatalf("reconnected metrics missing: satellites=%d score=%d", reconnected.Satellites, reconnected.Score)
+	}
+}
+
+func TestScoreAlertsThresholdsAndRecovery(t *testing.T) {
+	store := &fakeStore{}
+	analyzer := NewAnalyzer(DefaultOptions(), store)
+	state := addState(analyzer, Target{Type: TargetStation, ID: 9, Direction: DirectionIngest})
+	now := time.Now().UTC()
+
+	analyzer.applyScoreAlerts(state, now, Snapshot{State: "streaming", Score: 25})
+	if state.scoreAlert != "warning" {
+		t.Fatalf("scoreAlert = %q, want warning", state.scoreAlert)
+	}
+	if store.alertCount("quality.score_low") != 1 {
+		t.Fatalf("score_low alerts = %d, want 1", store.alertCount("quality.score_low"))
+	}
+
+	analyzer.applyScoreAlerts(state, now.Add(time.Second), Snapshot{State: "streaming", Score: 20})
+	if store.alertCount("quality.score_low") != 1 {
+		t.Fatalf("score_low alerts repeated: %d", store.alertCount("quality.score_low"))
+	}
+
+	analyzer.applyScoreAlerts(state, now.Add(2*time.Second), Snapshot{State: "streaming", Score: 0})
+	if state.scoreAlert != "error" {
+		t.Fatalf("scoreAlert = %q, want error", state.scoreAlert)
+	}
+	if store.alertCount("quality.score_zero") != 1 {
+		t.Fatalf("score_zero alerts = %d, want 1", store.alertCount("quality.score_zero"))
+	}
+	if len(store.resolved) == 0 {
+		t.Fatal("warning alert was not resolved on error transition")
+	}
+
+	analyzer.applyScoreAlerts(state, now.Add(3*time.Second), Snapshot{State: "streaming", Score: 40})
+	if state.scoreAlert != "" {
+		t.Fatalf("scoreAlert = %q, want recovered", state.scoreAlert)
 	}
 }

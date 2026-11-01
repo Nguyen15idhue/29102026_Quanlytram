@@ -50,6 +50,7 @@ type Config struct {
 	QualityAlertWindows    int
 	QualityGapThreshold    time.Duration
 	QualityStaleAfter      time.Duration
+	QualityScoreInterval   time.Duration
 	QualityBaselineWindow  int
 	QualitySampleWindowSec int
 	QualityStoreQueueSize  int
@@ -135,10 +136,11 @@ func Load() Config {
 		QualityAlertWindows:    getenvInt("QUALITY_ALERT_WINDOWS", 3),
 		QualityGapThreshold:    time.Duration(getenvInt("QUALITY_GAP_MS", 2000)) * time.Millisecond,
 		QualityStaleAfter:      getenvSeconds("QUALITY_STALE_AFTER_SEC", 5*time.Second),
+		QualityScoreInterval:   getenvSeconds("QUALITY_SCORE_INTERVAL_SEC", 5*time.Second),
 		QualityBaselineWindow:  getenvInt("QUALITY_BASELINE_WINDOW", 120),
 		QualitySampleWindowSec: getenvInt("QUALITY_SAMPLE_WINDOW_SEC", 60),
 		QualityStoreQueueSize:  getenvInt("QUALITY_STORE_QUEUE_SIZE", 4096),
-		QualitySampleDays:      getenvInt("QUALITY_SAMPLE_RETENTION_DAYS", 30),
+		QualitySampleDays:      getenvInt("QUALITY_SAMPLE_RETENTION_DAYS", 35),
 		QualityAlertDays:       getenvInt("QUALITY_ALERT_RETENTION_DAYS", 90),
 		QualityPruneBatch:      getenvInt("QUALITY_PRUNE_BATCH", 1000),
 		QualityPruneInterval:   getenvSeconds("QUALITY_PRUNE_INTERVAL_SEC", 6*time.Hour),

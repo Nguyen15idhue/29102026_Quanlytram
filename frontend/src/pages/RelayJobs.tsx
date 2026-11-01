@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { FlaskConical, Pencil, Play, Plus, RotateCw, Square, Trash2 } from 'lucide-react';
+import { FlaskConical, Lock, LockOpen, Pencil, Play, Plus, RotateCw, Square, Trash2 } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
-import type { RelayJob } from '../types';
+import type { RelayJob, RelayJobStatusResponse, RelayStreamStatus } from '../types';
 import {
   BulkActionBar,
   Button,
   ConfirmDialog,
   DataTable,
+  EmptyState,
   Field,
   IconButton,
   Input,
@@ -25,6 +26,14 @@ import {
   TableToolbar
 } from '../components/ui';
 import { QualityPanel } from '../components/QualityPanel';
+import {
+  EntityDetail,
+  parseEntityDetailTab,
+  type EntityDetailTab
+} from '../components/EntityDetail';
+import { EntityTimelinePanel } from '../components/EntityTimeline';
+import { EntityHistoryPanel } from '../components/EntityHistory';
+import { EntityStatusHeader } from '../components/EntityStatusHeader';
 import { useToast } from '../components/ToastProvider';
 
 interface RelayJobList {
@@ -59,11 +68,29 @@ const emptyForm = {
   nmeaIntervalSec: 0
 };
 
-function stateKind(state: string): 'ok' | 'warn' | 'error' | 'neutral' {
-  if (state === 'streaming') return 'ok';
-  if (state === 'error') return 'error';
-  if (state === 'backoff' || state === 'connecting') return 'warn';
+function streamKind(value: RelayStreamStatus): 'ok' | 'warn' | 'error' | 'neutral' {
+  if (value === 'online') return 'ok';
+  if (value === 'no_data') return 'warn';
+  if (value === 'offline') return 'error';
   return 'neutral';
+}
+
+function streamLabel(value: RelayStreamStatus): string {
+  if (value === 'online') return 'online';
+  if (value === 'no_data') return 'không có dữ liệu';
+  if (value === 'offline') return 'offline';
+  return '—';
+}
+
+function formatLocal(value: string | null | undefined): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('vi-VN', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    dateStyle: 'short',
+    timeStyle: 'medium'
+  }).format(date);
 }
 
 export function RelayJobs() {
@@ -80,6 +107,7 @@ export function RelayJobs() {
   const [editing, setEditing] = useState<RelayJob | null>(null);
   useDirtyGuard(dirty && formOpen);
   const [detail, setDetail] = useState<RelayJob | null>(null);
+  const detailTab = parseEntityDetailTab(searchParams.get('tab'));
   const [deleteTarget, setDeleteTarget] = useState<RelayJob | null>(null);
   const [selected, setSelected] = useState<Set<string | number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -106,8 +134,17 @@ export function RelayJobs() {
   }, [page, pageSize, q, enabled]);
   const list = useQuery({
     queryKey: ['relay-jobs', listQuery],
-    queryFn: () => apiFetch<RelayJobList>(`/api/relay-jobs?${listQuery}`)
+    queryFn: () => apiFetch<RelayJobList>(`/api/relay-jobs?${listQuery}`),
+    refetchInterval: 10_000
   });
+  const detailStatus = useQuery({
+    queryKey: ['relay-job-status', detail?.id],
+    queryFn: () =>
+      apiFetch<RelayJobStatusResponse>(`/api/relay-jobs/${detail?.id}/status`),
+    enabled: Boolean(detail?.id),
+    refetchInterval: 15_000
+  });
+  const detailItem = detailStatus.data?.item ?? detail;
 
   useEffect(() => {
     const jobId = Number(searchParams.get('job'));
@@ -118,11 +155,20 @@ export function RelayJobs() {
 
   function closeDetail() {
     setDetail(null);
-    if (searchParams.has('job')) {
+    if (searchParams.has('job') || searchParams.has('tab')) {
       const next = new URLSearchParams(searchParams);
       next.delete('job');
+      next.delete('tab');
       setSearchParams(next, { replace: true });
     }
+  }
+
+  function changeDetailTab(tab: EntityDetailTab) {
+    const next = new URLSearchParams(searchParams);
+    if (detail && !next.has('job')) next.set('job', String(detail.id));
+    if (tab === 'overview') next.delete('tab');
+    else next.set('tab', tab);
+    setSearchParams(next, { replace: true });
   }
 
   const save = useMutation({
@@ -243,7 +289,7 @@ export function RelayJobs() {
       action
     }: {
       job: RelayJob;
-      action: 'enable' | 'disable' | 'restart' | 'test' | 'delete';
+      action: 'enable' | 'disable' | 'lock' | 'unlock' | 'restart' | 'test' | 'delete';
     }) =>
       apiFetch(`/api/relay-jobs/${job.id}${action === 'delete' ? '' : `/${action}`}`, {
         method: action === 'delete' ? 'DELETE' : 'POST',
@@ -363,6 +409,8 @@ export function RelayJobs() {
               ? [
                   { label: 'Bật', onClick: () => bulk.mutate('enable') },
                   { label: 'Tắt', onClick: () => bulk.mutate('disable') },
+                  { label: 'Khóa', onClick: () => bulk.mutate('lock') },
+                  { label: 'Mở khóa', onClick: () => bulk.mutate('unlock') },
                   { label: 'Restart', onClick: () => bulk.mutate('restart') }
                 ]
               : []),
@@ -387,21 +435,24 @@ export function RelayJobs() {
           loading={list.isLoading}
           error={list.isError ? 'Không tải được relay job.' : undefined}
           empty="Chưa có relay job nào."
-          onRowClick={setDetail}
           columns={[
             {
               key: 'name',
               header: 'Tên',
               cell: (job) => (
                 <div>
-                  <strong>{job.name}</strong>
-                  <div className="muted">{job.enabled ? 'enabled' : 'disabled'}</div>
+                  <button type="button" className="link-btn" onClick={() => setDetail(job)}>
+                    {job.name}
+                  </button>
+                  <div className="muted">
+                    {job.locked ? 'locked' : job.enabled ? 'enabled' : 'disabled'}
+                  </div>
                 </div>
               )
             },
             {
               key: 'upstream',
-              header: 'Upstream',
+              header: 'Nguồn',
               hideOnMobile: true,
               cell: (job) => (
                 <div>
@@ -418,7 +469,7 @@ export function RelayJobs() {
             },
             {
               key: 'downstream',
-              header: 'Downstream',
+              header: 'Đích',
               hideOnMobile: true,
               cell: (job) => (
                 <div>
@@ -436,17 +487,22 @@ export function RelayJobs() {
             {
               key: 'state',
               header: 'Trạng thái',
-              cell: (job) => {
-                const state = job.state?.runtimeState ?? 'pending';
-                return (
-                  <div>
-                    <StatusBadge label={state} kind={stateKind(state)} />
-                    {job.state?.lastError && (
-                      <div className="muted table-subline">{job.state.lastError}</div>
-                    )}
+              cell: (job) => (
+                <div>
+                  <StatusBadge
+                    label={streamLabel(job.streamStatus)}
+                    kind={streamKind(job.streamStatus)}
+                  />
+                  <div className="muted table-subline">
+                    {job.locked
+                      ? 'locked'
+                      : job.metrics?.state ?? job.state?.runtimeState ?? 'pending'}
                   </div>
-                );
-              }
+                  {job.metrics?.lastError && (
+                    <div className="muted table-subline">{job.metrics.lastError}</div>
+                  )}
+                </div>
+              )
             },
             {
               key: 'revision',
@@ -547,7 +603,7 @@ export function RelayJobs() {
           }
         }}
         title={editing ? 'Sửa relay job' : 'Thêm relay job'}
-        description="Cấu hình bridge upstream → downstream."
+        description="Cấu hình bridge nguồn → đích."
         size="lg"
         footer={
           <>
@@ -579,7 +635,7 @@ export function RelayJobs() {
               required
             />
           </Field>
-          <Field label="Downstream mode">
+          <Field label="Đích mode">
             <Select
               value={form.downstreamMode}
               onChange={(event) => setForm({ ...form, downstreamMode: event.target.value })}
@@ -589,14 +645,14 @@ export function RelayJobs() {
               <option value="source">source</option>
             </Select>
           </Field>
-          <Field label="Upstream host">
+          <Field label="Nguồn host">
             <Input
               value={form.upstreamHost}
               onChange={(event) => setForm({ ...form, upstreamHost: event.target.value })}
               required
             />
           </Field>
-          <Field label="Upstream port">
+          <Field label="Nguồn port">
             <Input
               type="number"
               min={1}
@@ -605,20 +661,20 @@ export function RelayJobs() {
               onChange={(event) => setForm({ ...form, upstreamPort: Number(event.target.value) })}
             />
           </Field>
-          <Field label="Upstream mount">
+          <Field label="Nguồn mount">
             <Input
               value={form.upstreamMount}
               onChange={(event) => setForm({ ...form, upstreamMount: event.target.value })}
               required
             />
           </Field>
-          <Field label="Upstream proxy">
+          <Field label="Nguồn proxy">
             <Input
               value={form.upstreamProxy}
               onChange={(event) => setForm({ ...form, upstreamProxy: event.target.value })}
             />
           </Field>
-          <Field label="Upstream SSL">
+          <Field label="Nguồn SSL">
             <Select
               value={form.upstreamSsl ? '1' : '0'}
               onChange={(event) => setForm({ ...form, upstreamSsl: event.target.value === '1' })}
@@ -627,7 +683,7 @@ export function RelayJobs() {
               <option value="1">Có</option>
             </Select>
           </Field>
-          <Field label="Upstream NTRIP version">
+          <Field label="Nguồn NTRIP version">
             <Select
               value={form.upstreamVersion}
               onChange={(event) =>
@@ -638,13 +694,13 @@ export function RelayJobs() {
               <option value="v1">v1</option>
             </Select>
           </Field>
-          <Field label="Upstream username">
+          <Field label="Nguồn username">
             <Input
               value={form.upstreamUser}
               onChange={(event) => setForm({ ...form, upstreamUser: event.target.value })}
             />
           </Field>
-          <Field label="Upstream password">
+          <Field label="Nguồn password">
             <Input
               type="password"
               value={form.upstreamPass}
@@ -652,14 +708,14 @@ export function RelayJobs() {
               onChange={(event) => setForm({ ...form, upstreamPass: event.target.value })}
             />
           </Field>
-          <Field label="Downstream host">
+          <Field label="Đích host">
             <Input
               value={form.downstreamHost}
               onChange={(event) => setForm({ ...form, downstreamHost: event.target.value })}
               required
             />
           </Field>
-          <Field label="Downstream port">
+          <Field label="Đích port">
             <Input
               type="number"
               min={1}
@@ -668,20 +724,20 @@ export function RelayJobs() {
               onChange={(event) => setForm({ ...form, downstreamPort: Number(event.target.value) })}
             />
           </Field>
-          <Field label="Downstream mount">
+          <Field label="Đích mount">
             <Input
               value={form.downstreamMount}
               onChange={(event) => setForm({ ...form, downstreamMount: event.target.value })}
               required
             />
           </Field>
-          <Field label="Downstream proxy">
+          <Field label="Đích proxy">
             <Input
               value={form.downstreamProxy}
               onChange={(event) => setForm({ ...form, downstreamProxy: event.target.value })}
             />
           </Field>
-          <Field label="Downstream SSL">
+          <Field label="Đích SSL">
             <Select
               value={form.downstreamSsl ? '1' : '0'}
               onChange={(event) => setForm({ ...form, downstreamSsl: event.target.value === '1' })}
@@ -690,7 +746,7 @@ export function RelayJobs() {
               <option value="1">Có</option>
             </Select>
           </Field>
-          <Field label="Downstream NTRIP version">
+          <Field label="Đích NTRIP version">
             <Select
               value={form.downstreamVersion}
               onChange={(event) =>
@@ -701,13 +757,13 @@ export function RelayJobs() {
               <option value="v1">v1</option>
             </Select>
           </Field>
-          <Field label="Downstream username">
+          <Field label="Đích username">
             <Input
               value={form.downstreamUser}
               onChange={(event) => setForm({ ...form, downstreamUser: event.target.value })}
             />
           </Field>
-          <Field label="Downstream password">
+          <Field label="Đích password">
             <Input
               type="password"
               value={form.downstreamPass}
@@ -819,8 +875,12 @@ export function RelayJobs() {
       <Modal
         open={Boolean(detail)}
         onOpenChange={(open) => !open && closeDetail()}
-        title={detail?.name ?? 'Chi tiết relay job'}
-        description={detail ? `${detail.upstream.mount} → ${detail.downstream.mount}` : undefined}
+        title={detailItem?.name ?? detail?.name ?? 'Chi tiết relay job'}
+        description={
+          detailItem
+            ? `${detailItem.upstream.mount} → ${detailItem.downstream.mount}`
+            : undefined
+        }
         side="right"
         size="lg"
         footer={
@@ -838,46 +898,130 @@ export function RelayJobs() {
           )
         }
       >
-        {detail && (
-          <>
-            <dl className="facts">
-              <div>
-                <dt>Trạng thái</dt>
-                <dd>
-                  <StatusBadge
-                    label={detail.state?.runtimeState ?? 'pending'}
-                    kind={stateKind(detail.state?.runtimeState ?? 'pending')}
-                  />
-                </dd>
-              </div>
-              <div>
-                <dt>Revision</dt>
-                <dd className="mono">
-                  {detail.state?.appliedRevision ?? 0}/{detail.desiredRevision}
-                </dd>
-              </div>
-              <div>
-                <dt>Upstream</dt>
-                <dd className="mono">
-                  {detail.upstream.host}:{detail.upstream.port}/{detail.upstream.mount}
-                </dd>
-              </div>
-              <div>
-                <dt>Downstream</dt>
-                <dd className="mono">
-                  {detail.downstream.host}:{detail.downstream.port}/{detail.downstream.mount}
-                </dd>
-              </div>
-            </dl>
-            {detail.state?.lastError && <div className="alert error">{detail.state.lastError}</div>}
-            {can('quality', 'view') && (
-              <QualityPanel
-                key={detail.id}
-                targetType="relay_job"
-                targetId={detail.id}
+        {detail && detailItem && (
+          <EntityDetail
+            tab={detailTab}
+            onTabChange={changeDetailTab}
+            health={
+              <EntityStatusHeader
+                badges={[
+                  {
+                    label: 'Nguồn',
+                    value: streamLabel(detailItem.directionStatus?.upstream ?? 'no_data'),
+                    kind: streamKind(detailItem.directionStatus?.upstream ?? 'no_data')
+                  },
+                  {
+                    label: 'Đích',
+                    value: streamLabel(detailItem.directionStatus?.downstream ?? 'no_data'),
+                    kind: streamKind(detailItem.directionStatus?.downstream ?? 'no_data')
+                  }
+                ]}
               />
-            )}
-          </>
+            }
+            sections={{
+              overview: (
+                <>
+                  {detailItem.metrics?.lastError && (
+                    <div className="alert error">{detailItem.metrics.lastError}</div>
+                  )}
+                  <dl className="facts">
+                    <div>
+                      <dt>ID relay job</dt>
+                      <dd className="mono">#{detailItem.id}</dd>
+                    </div>
+                    <div>
+                      <dt>Tên</dt>
+                      <dd>{detailItem.name}</dd>
+                    </div>
+                    <div>
+                      <dt>External key</dt>
+                      <dd className="mono">{detailItem.externalKey || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Trạng thái</dt>
+                      <dd>
+                        {detailItem.locked
+                          ? 'Đã khóa'
+                          : detailItem.enabled
+                            ? 'Đang bật'
+                            : 'Đã tắt'}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Nguồn</dt>
+                      <dd className="mono">
+                        {detailItem.upstream.host}:{detailItem.upstream.port}/
+                        {detailItem.upstream.mount}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Đích</dt>
+                      <dd className="mono">
+                        {detailItem.downstream.host}:{detailItem.downstream.port}/
+                        {detailItem.downstream.mount}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Đích mode</dt>
+                      <dd>{detailItem.downstreamMode}</dd>
+                    </div>
+                    <div>
+                      <dt>Revision</dt>
+                      <dd className="mono">
+                        {detailItem.state?.appliedRevision ?? 0}/{detailItem.desiredRevision}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Áp dụng cuối</dt>
+                      <dd className="mono">{formatLocal(detailItem.state?.lastAppliedAt)}</dd>
+                    </div>
+                    <div>
+                      <dt>Dữ liệu cuối</dt>
+                      <dd className="mono">{formatLocal(detailItem.metrics?.lastDataAt)}</dd>
+                    </div>
+                    <div>
+                      <dt>Vĩ độ / Kinh độ</dt>
+                      <dd className="mono">
+                        {detailItem.lat == null || detailItem.lon == null
+                          ? '—'
+                          : `${detailItem.lat.toFixed(6)}, ${detailItem.lon.toFixed(6)}`}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>UA prefix</dt>
+                      <dd>{detailItem.uaPrefix || '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>NMEA interval</dt>
+                      <dd className="mono">{detailItem.nmeaIntervalSec ?? 0} giây</dd>
+                    </div>
+                    <div>
+                      <dt>Owner</dt>
+                      <dd>{detailItem.ownerWebUserId ?? '—'}</dd>
+                    </div>
+                    <div>
+                      <dt>Origin</dt>
+                      <dd>{detailItem.origin || '—'}</dd>
+                    </div>
+                  </dl>
+                </>
+              ),
+              data: <EntityTimelinePanel kind="relay" id={detailItem.id} />,
+              quality: can('quality', 'view') ? (
+                <QualityPanel
+                  key={detailItem.id}
+                  targetType="relay_job"
+                  targetId={detailItem.id}
+                />
+              ) : (
+                <EmptyState
+                  title="Không có quyền xem chất lượng"
+                  description="Cần quyền quality.view để xem sky plot, CNR và điểm chất lượng."
+                />
+              ),
+              history: <EntityHistoryPanel kind="relay" id={detailItem.id} />
+            }}
+          />
         )}
       </Modal>
 

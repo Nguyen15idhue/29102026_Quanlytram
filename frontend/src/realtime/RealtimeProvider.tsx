@@ -102,6 +102,8 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
             'station-uptime',
             'station-metadata',
             'station-history',
+            'quality-detail',
+            'quality-messages',
             'online-connections'
           ],
           mountpoint: ['mountpoints', 'mountpoint-impact'],

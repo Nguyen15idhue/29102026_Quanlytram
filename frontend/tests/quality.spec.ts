@@ -38,7 +38,7 @@ test.describe('Phase 6 quality', () => {
     await expect(
       page
         .getByText('Chưa có dữ liệu chất lượng trạm')
-        .or(page.getByText('Điểm chất lượng'))
+        .or(page.getByRole('heading', { name: 'Sky plot' }))
         .first()
     ).toBeVisible({ timeout: 15_000 });
 

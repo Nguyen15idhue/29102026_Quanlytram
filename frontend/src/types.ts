@@ -173,7 +173,9 @@ export interface StationActivityPoint {
 }
 
 export interface StationActivityResponse {
-  stationId: number;
+  stationId?: number;
+  relayJobId?: number;
+  direction?: 'ingest' | 'upstream' | 'downstream';
   range: StationActivityRange;
   from: string;
   to: string;
@@ -183,6 +185,42 @@ export interface StationActivityResponse {
   events: StationActivityEvent[];
   segments: StationActivitySegment[];
   series: StationActivityPoint[];
+}
+
+export type TimelineStatus = 'online' | 'offline' | 'no_data' | 'none';
+export type TimelineRange = '1h' | '24h' | '7d' | '1m';
+
+export interface TimelineBucket {
+  from: string;
+  to: string;
+  status: TimelineStatus;
+}
+
+export interface TimelineSeriesPoint {
+  at: string;
+  satellites: number | null;
+  avgCnr: number | null;
+  msmEpochs: number | null;
+  gaps: number | null;
+  ageMs: number | null;
+}
+
+export interface EntityTimelineResponse {
+  rangeFrom: string;
+  to: string;
+  createdAt: string | null;
+  range: TimelineRange;
+  bucketSec: number;
+  buckets: TimelineBucket[];
+  series: TimelineSeriesPoint[];
+  onlineSec: number;
+  offlineSec: number;
+  noDataSec: number;
+  noneSec: number;
+  totalSec: number;
+  uptimePct: number;
+  current: TimelineStatus;
+  direction?: 'upstream' | 'downstream';
 }
 
 export interface StationConnectionListener {
@@ -289,7 +327,7 @@ export interface StationHistoryResponse {
   from: string;
   to: string;
   sources: { quality: number; caster: number; relay: number; audit: number };
-  probeHistory: { available: boolean; message: string };
+  probeHistory?: { available: boolean; message: string };
 }
 
 export interface StationMetadataResponse {
@@ -392,11 +430,54 @@ export interface RelayJobState {
   updatedAt?: string | null;
 }
 
+export interface DataUptimeBucket {
+  bucket: string;
+  onlineSec: number;
+  downSec: number;
+  samples: number;
+  crcErrors: number;
+  parseErrors: number;
+}
+
+export interface DataUptimeResult {
+  from: string;
+  to: string;
+  totalSec: number;
+  onlineSec: number;
+  downSec: number;
+  uptimePct: number;
+  samples: number;
+  crcErrors: number;
+  parseErrors: number;
+  lastDataAt: string | null;
+  buckets: DataUptimeBucket[];
+}
+export type RelayStreamStatus = 'online' | 'offline' | 'no_data' | null;
+
+export interface RelayJobMetrics {
+  state: string;
+  bytesUp: number;
+  bytesDown: number;
+  frames: number;
+  crcErrors: number;
+  lastDataAt: string | null;
+  lastUpAt: string | null;
+  lastDownAt: string | null;
+  lastError: string | null;
+}
+
 export interface RelayJob {
   id: number;
   externalKey?: string | null;
   name: string;
   enabled: boolean;
+  locked: boolean;
+  streamStatus: RelayStreamStatus;
+  directionStatus?: {
+    upstream: 'online' | 'offline' | 'no_data';
+    downstream: 'online' | 'offline' | 'no_data';
+  };
+  metrics?: RelayJobMetrics | null;
   desiredRevision: number;
   upstream: RelayEndpoint;
   downstream: RelayEndpoint;
@@ -409,6 +490,47 @@ export interface RelayJob {
   originRef?: string;
   ownerWebUserId?: number | null;
   state: RelayJobState | null;
+}
+
+export interface RelayJobStatusResponse {
+  item: RelayJob;
+  uptime: {
+    windowSec: number;
+    onlineSec: number;
+    uptimePct: number;
+    buckets: Array<{
+      hourStartUtc: string;
+      onlineSec: number;
+      sessions: number;
+      errors: number;
+      timeouts: number;
+      authErrors: number;
+      proxyErrors: number;
+      retries: number;
+    }>;
+  };
+  sessions: Array<{
+    id: number;
+    startTs: string;
+    endTs: string | null;
+    durationSec: number | null;
+    result: string;
+    closeReason: string;
+    message: string;
+  }>;
+  errorSummary: {
+    authFailed: number;
+    timeout: number;
+    network: number;
+    proxy: number;
+  };
+  dataUptime?: DataUptimeResult;
+  recentErrors: Array<{
+    id: number;
+    at: string;
+    closeReason: string;
+    message: string;
+  }>;
 }
 
 export interface CasterListener {
@@ -572,6 +694,16 @@ export interface SkyPoint {
   elevation: number;
   system: string;
   satellite: number;
+  band?: string;
+  cnr?: number;
+}
+
+export interface SignalCnr {
+  system: string;
+  satellite: number;
+  signal: number;
+  band: string;
+  cnr: number;
 }
 
 export interface QualityLiveItem {
@@ -612,6 +744,7 @@ export interface QualityLiveItem {
   skyPlotAvailable?: boolean;
   skyPlotReason?: string;
   skyPlot?: SkyPoint[];
+  signalsCnr?: SignalCnr[];
   gaps: number;
   metadataOk: boolean;
   baselineSatellites: number;

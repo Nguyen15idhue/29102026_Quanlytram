@@ -240,14 +240,15 @@ function ListenerPanel() {
           loading={list.isLoading}
           error={list.isError ? 'Không tải được listener.' : undefined}
           empty="Chưa có listener nào."
-          onRowClick={setDetail}
           columns={[
             {
               key: 'name',
               header: 'Listener',
               cell: (listener) => (
                 <div>
-                  <strong>{listener.name}</strong>
+                  <button type="button" className="link-btn" onClick={() => setDetail(listener)}>
+                    {listener.name}
+                  </button>
                   <div className="muted mono">:{listener.port}</div>
                 </div>
               )

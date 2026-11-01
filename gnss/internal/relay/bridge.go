@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"sync"
 	"time"
@@ -14,26 +15,28 @@ import (
 )
 
 type Options struct {
-	DialTimeout   time.Duration
-	MonitorBuffer int
-	ReadBuffer    int
-	NMEAInterval  time.Duration
-	RetryMin      time.Duration
-	RetryMax      time.Duration
-	PollInterval  time.Duration
-	OnFirstByte   func()
-	Quality       *quality.Analyzer
+	DialTimeout      time.Duration
+	MonitorBuffer    int
+	ReadBuffer       int
+	DownstreamBuffer int
+	NMEAInterval     time.Duration
+	RetryMin         time.Duration
+	RetryMax         time.Duration
+	PollInterval     time.Duration
+	OnFirstByte      func()
+	Quality          *quality.Analyzer
 }
 
 func DefaultOptions() Options {
 	return Options{
-		DialTimeout:   15 * time.Second,
-		MonitorBuffer: 256,
-		ReadBuffer:    32 * 1024,
-		NMEAInterval:  10 * time.Second,
-		RetryMin:      time.Second,
-		RetryMax:      30 * time.Second,
-		PollInterval:  10 * time.Second,
+		DialTimeout:      15 * time.Second,
+		MonitorBuffer:    256,
+		ReadBuffer:       32 * 1024,
+		DownstreamBuffer: 256,
+		NMEAInterval:     10 * time.Second,
+		RetryMin:         time.Second,
+		RetryMax:         30 * time.Second,
+		PollInterval:     10 * time.Second,
 	}
 }
 
@@ -47,6 +50,9 @@ func (o Options) withDefaults() Options {
 	}
 	if o.ReadBuffer <= 0 {
 		o.ReadBuffer = defaults.ReadBuffer
+	}
+	if o.DownstreamBuffer <= 0 {
+		o.DownstreamBuffer = defaults.DownstreamBuffer
 	}
 	if o.NMEAInterval <= 0 {
 		o.NMEAInterval = defaults.NMEAInterval
@@ -162,19 +168,55 @@ func RunSession(
 		}()
 	}
 
+	writeCh := make(chan []byte, opts.DownstreamBuffer)
+	writerErr := make(chan error, 1)
+	writerDone := make(chan struct{})
+	go func() {
+		defer close(writerDone)
+		for data := range writeCh {
+			if downstream.Conn != nil {
+				_ = downstream.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			}
+			_, writeErr := downstream.Write(data)
+			if downstream.Conn != nil {
+				_ = downstream.Conn.SetWriteDeadline(time.Time{})
+			}
+			if writeErr != nil {
+				select {
+				case writerErr <- writeErr:
+				default:
+				}
+				return
+			}
+			metrics.AddDown(len(data))
+			if opts.Quality != nil {
+				opts.Quality.Feed(quality.Target{
+					Type:      quality.TargetRelayJob,
+					ID:        cfg.ID,
+					Direction: quality.DirectionDownstream,
+				}, data)
+			}
+		}
+	}()
+	defer func() {
+		close(writeCh)
+		<-writerDone
+	}()
+
 	buffer := make([]byte, opts.ReadBuffer)
 	var firstBytes sync.Once
 	for {
+		select {
+		case err := <-writerErr:
+			return err
+		default:
+		}
 		n, readErr := upstream.Body.Read(buffer)
 		if n > 0 {
-			if _, writeErr := downstream.Write(buffer[:n]); writeErr != nil {
-				return writeErr
-			}
+			metrics.AddUp(n)
 			if opts.OnFirstByte != nil {
 				firstBytes.Do(opts.OnFirstByte)
 			}
-			metrics.AddUp(n)
-			metrics.AddDown(n)
 			sample := append([]byte(nil), buffer[:n]...)
 			if opts.Quality != nil {
 				opts.Quality.Feed(quality.Target{
@@ -182,11 +224,12 @@ func RunSession(
 					ID:        cfg.ID,
 					Direction: quality.DirectionUpstream,
 				}, sample)
-				opts.Quality.Feed(quality.Target{
-					Type:      quality.TargetRelayJob,
-					ID:        cfg.ID,
-					Direction: quality.DirectionDownstream,
-				}, sample)
+			}
+			select {
+			case writeCh <- sample:
+			default:
+				downstream.Close()
+				return fmt.Errorf("downstream backlog")
 			}
 			select {
 			case monitorCh <- sample:

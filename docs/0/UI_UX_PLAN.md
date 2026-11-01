@@ -186,9 +186,13 @@ Quy ước mới:
   chi tiết ở menu **Danh sách online**.
 - Caster có tab **Kết nối live** và force disconnect.
 - Trang cá nhân không nằm trong menu; mở từ avatar/tên người dùng.
-- Drawer chi tiết trạm desktop rộng **1080px**; mobile `100vw`.
-- Quality UI kiểu onocoy/CGBAS; metric thiếu dữ liệu hiện disabled + chú thích.
-- Sky Plot thật/cycle slip/RMS/latency/neighboring stations: Phase 8–9.
+- Drawer chi tiết trạm/relay desktop rộng **1080px**; mobile `100vw`.
+- Header drawer chỉ timestamp hiện tại + trạng thái; 4 tab: Tổng quan /
+  Dữ liệu / Chất lượng / Lịch sử.
+- Quality UI kiểu onocoy/CGBAS: sky plot, CNR theo băng, điểm 6 thành phần;
+  metric thiếu dữ liệu hiện disabled + chú thích.
+- Timeline trạng thái có 1h/24h/7d/1m, màu online/offline/no-data; danh sách
+  thay đổi mới nhất trước, 10 bản ghi/lần + “Xem thêm 10 bản ghi”.
 - Chi tiết trường theo nhóm: `docs/0/PHASES_7_12_PLAN.md` §8.
 
 ## 10. Phụ thuộc dự kiến

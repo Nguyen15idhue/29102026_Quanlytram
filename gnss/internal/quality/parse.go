@@ -35,6 +35,7 @@ type messageInfo struct {
 	Antenna       string
 	Epoch         uint32
 	Observations  []observation
+	Ephemeris     *ephemeris
 }
 
 func normalizeText(value string) string {
@@ -43,7 +44,7 @@ func normalizeText(value string) string {
 
 func msnKnown(number int) bool {
 	switch number {
-	case 1005, 1006, 1007, 1008, 1033, 1230:
+	case 1005, 1006, 1007, 1008, 1019, 1020, 1033, 1042, 1044, 1045, 1046, 1230:
 		return true
 	}
 	return isMSM(number)
@@ -130,6 +131,42 @@ func decodeMessage(payload []byte) (info messageInfo, err error) {
 		info.HasStation = true
 		info.StationID = msg.ReferenceStationId
 		info.Antenna = normalizeText(msg.AntennaDescriptor)
+	case 1019:
+		msg, decodeErr := rtcm3.DeserializeMessage1019(payload)
+		if decodeErr != nil {
+			return info, decodeErr
+		}
+		info.Ephemeris = ephemerisFrom1019(msg)
+	case 1020:
+		msg, decodeErr := rtcm3.DeserializeMessage1020(payload)
+		if decodeErr != nil {
+			return info, decodeErr
+		}
+		info.Ephemeris = ephemerisFrom1020(msg)
+	case 1042:
+		msg, decodeErr := rtcm3.DeserializeMessage1042(payload)
+		if decodeErr != nil {
+			return info, decodeErr
+		}
+		info.Ephemeris = ephemerisFrom1042(msg)
+	case 1044:
+		msg, decodeErr := rtcm3.DeserializeMessage1044(payload)
+		if decodeErr != nil {
+			return info, decodeErr
+		}
+		info.Ephemeris = ephemerisFrom1044(msg)
+	case 1045:
+		msg, decodeErr := rtcm3.DeserializeMessage1045(payload)
+		if decodeErr != nil {
+			return info, decodeErr
+		}
+		info.Ephemeris = ephemerisFrom1045(msg)
+	case 1046:
+		msg, decodeErr := rtcm3.DeserializeMessage1046(payload)
+		if decodeErr != nil {
+			return info, decodeErr
+		}
+		info.Ephemeris = ephemerisFrom1046(msg)
 	case 1230:
 		msg, decodeErr := rtcm3.DeserializeMessage1230(payload)
 		if decodeErr != nil {

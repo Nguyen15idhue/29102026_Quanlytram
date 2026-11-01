@@ -946,3 +946,17 @@ Chỉ dùng sau khi Phase 2 mock đạt:
 - [ ] Có lệnh cleanup + xác nhận không còn socket/row.
 - [ ] Không log credential.
 - [ ] Nếu quá 3 lần thất bại liên tiếp → dừng, báo cáo.
+
+---
+
+# PHỤ LỤC G — Cập nhật 2026-11-01
+
+- Timeline trạng thái: `1h/24h/7d/1m`, 10 giây no-data sau mất kết nối, số
+  liệu tính ở độ phân giải mịn; danh sách thay đổi mới nhất trước, 10 bản
+  ghi/lần + “Xem thêm 10 bản ghi”.
+- NTRIP client trạm ghi `station_source_sessions`; Node gọi
+  `/internal/station-source/reconcile` khi tắt/bật để đóng/mở session ngay.
+- Quality: sky plot/CNR theo băng từ ephemeris + MSM; score realtime 5 giây;
+  log warning `<30`, error `=0`, recovery `>=30`.
+- Relay: async downstream writer, báo lỗi NTRIP rõ hơn, không để downstream
+  chậm chặn đọc upstream.

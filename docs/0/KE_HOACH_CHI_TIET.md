@@ -847,3 +847,13 @@ Xem mục 4.2.
 - Relay tham chiếu: `relayrtcm\backup` (chỉ đọc)
 - NTRIP v1/v2; RTCM3 preamble `0xD3` + CRC24Q
 - `go-gnss/rtcm`: Apache-2.0, parse-only (xác minh lại license phiên bản thực tế)
+
+## 17. Cập nhật triển khai 2026-11-01
+
+- Drawer trạm/relay dùng chung `EntityDetail`: timestamp + trạng thái, 4 tab.
+- Timeline trạng thái connection-aware: 10 giây no-data sau mất kết nối; kết
+  nối còn nhưng không dữ liệu giữ no-data; chưa từng kết nối → offline.
+- `station_source_sessions` + reconcile tức thời khi tắt/bật trạm.
+- Sky plot/SNR từ ephemeris + MSM; score realtime 5 giây, chỉ log cảnh báo
+  `<30`, lỗi `=0`, phục hồi `>=30`.
+- Relay async downstream writer để downstream chậm không chặn upstream.

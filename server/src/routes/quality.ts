@@ -111,8 +111,13 @@ qualityRouter.get(
     }
 
     const live = await fetchLiveQuality();
+    const disabledRows = await query<RowDataPacket[]>(
+      "SELECT id FROM stations WHERE enabled = 0 OR status = 'locked'"
+    );
+    const disabledStations = new Set(disabledRows.map((row) => Number(row.id)));
     const byKey = new Map<string, any>();
     for (const row of sampleRows as any[]) {
+      if (row.target_type === 'station' && disabledStations.has(Number(row.target_id))) continue;
       const sample = mapSample(row);
       const ownerId = targetOwner(maps, sample.targetType, sample.targetId);
       if (!inScope(scope, req.auth!.id, ids, ownerId)) continue;
@@ -122,6 +127,7 @@ qualityRouter.get(
       );
     }
     for (const item of live.items) {
+      if (item.targetType === 'station' && disabledStations.has(Number(item.targetId))) continue;
       const ownerId = targetOwner(maps, item.targetType, item.targetId);
       if (!inScope(scope, req.auth!.id, ids, ownerId)) continue;
       const key = `${item.targetType}:${item.targetId}:${item.mountpointId}:${item.direction}`;
@@ -387,15 +393,21 @@ qualityRouter.get(
       params
     );
     const items = (rows as any[]).map(mapSample);
-    const live = (await fetchLiveQuality()).items.filter(
-      (item) =>
-        item.targetType === 'station' &&
-        item.targetId === id &&
-        (mountpointId === null || item.mountpointId === mountpointId)
-    );
+    const stationOff =
+      Number(station.enabled) === 0 || String(station.status) === 'locked';
+    // Trạm tắt/khóa không có dữ liệu live hiện tại: bỏ snapshot cũ trong RAM Go
+    // để panel không hiện streaming trong khi trạm đã offline.
+    const live = stationOff
+      ? []
+      : (await fetchLiveQuality()).items.filter(
+          (item) =>
+            item.targetType === 'station' &&
+            item.targetId === id &&
+            (mountpointId === null || item.mountpointId === mountpointId)
+        );
     res.json({
       items,
-      latest: items[items.length - 1] ?? live[0] ?? null,
+      latest: stationOff ? null : items[items.length - 1] ?? live[0] ?? null,
       live,
       window: windowMinutes,
       mountpointId

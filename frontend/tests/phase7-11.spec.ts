@@ -23,7 +23,7 @@ test.describe('Phase 7-11 operational flows', () => {
     await expect(page.getByRole('heading', { name: 'Caster' })).toBeVisible();
     const listenerRow = page.locator('tbody tr').first();
     if (await listenerRow.count()) {
-      await listenerRow.click();
+      await listenerRow.locator('.link-btn').click();
       const detail = page.getByRole('dialog');
       await expect(detail.getByText('Port', { exact: true })).toBeVisible();
       await expect(detail.getByText('Vai trò', { exact: true })).toBeVisible();
@@ -34,10 +34,10 @@ test.describe('Phase 7-11 operational flows', () => {
     await page.goto('/relay-jobs');
     const relayRow = page.locator('tbody tr').first();
     if (await relayRow.count()) {
-      await relayRow.click();
+      await relayRow.locator('.link-btn').click();
       const detail = page.getByRole('dialog');
-      await expect(detail.locator('dt', { hasText: 'Upstream' })).toBeVisible();
-      await expect(detail.locator('dt', { hasText: 'Downstream' })).toBeVisible();
+      await expect(detail.locator('dt').filter({ hasText: /^Nguồn$/ })).toBeVisible();
+      await expect(detail.locator('dt').filter({ hasText: /^Đích$/ })).toBeVisible();
       await expect(detail.locator('dt', { hasText: 'Revision' })).toBeVisible();
       await detail.getByRole('button', { name: 'Đóng' }).last().click();
     }

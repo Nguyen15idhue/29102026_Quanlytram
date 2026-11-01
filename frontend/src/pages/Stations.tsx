@@ -4,7 +4,6 @@ import { Download, Lock, LockOpen, Pencil, Plus, Power, PowerOff, Trash2, Upload
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
-import { useRealtime } from '../realtime/RealtimeProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
@@ -129,14 +128,7 @@ function formatLocal(value: string | null | undefined): string {
   }).format(date);
 }
 
-const DETAIL_TABS: StationDetailTab[] = [
-  'overview',
-  'connection',
-  'quality',
-  'activity',
-  'metadata',
-  'history'
-];
+const DETAIL_TABS: StationDetailTab[] = ['overview', 'data', 'quality', 'history'];
 
 function parseDetailTab(value: string | null): StationDetailTab {
   return DETAIL_TABS.includes(value as StationDetailTab)
@@ -146,7 +138,6 @@ function parseDetailTab(value: string | null): StationDetailTab {
 
 export function Stations() {
   const { can, csrfToken } = useAuth();
-  const { connected } = useRealtime();
   const { push } = useToast();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -201,7 +192,7 @@ export function Stations() {
   const list = useQuery({
     queryKey: ['stations', listQuery],
     queryFn: () => apiFetch<StationList>(`/api/stations?${listQuery}`),
-    refetchInterval: connected ? false : 10000
+    refetchInterval: 10000
   });
   const owners = useQuery({
     queryKey: ['web-users', 'station-filter'],

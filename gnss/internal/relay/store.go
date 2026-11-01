@@ -126,7 +126,7 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 
 func (s *MySQLStore) LoadAll(ctx context.Context) ([]*JobConfig, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+jobColumns+`
-		WHERE j.deleted_at IS NULL
+		WHERE j.deleted_at IS NULL AND j.locked = 0
 		  AND (j.enabled = 0 OR s.id IS NULL OR (s.enabled = 1 AND s.status <> 'locked'))
 		ORDER BY j.id`)
 	if err != nil {
@@ -147,7 +147,7 @@ func (s *MySQLStore) LoadAll(ctx context.Context) ([]*JobConfig, error) {
 
 func (s *MySQLStore) LoadJob(ctx context.Context, id int64) (*JobConfig, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT `+jobColumns+`
-		WHERE j.deleted_at IS NULL AND j.id = ?
+		WHERE j.deleted_at IS NULL AND j.id = ? AND j.locked = 0
 		  AND (j.enabled = 0 OR s.id IS NULL OR (s.enabled = 1 AND s.status <> 'locked'))`, id)
 	job, err := s.scanJob(row)
 	if err == sql.ErrNoRows {

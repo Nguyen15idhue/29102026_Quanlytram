@@ -3,7 +3,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, Lock, Pencil, Plus, Trash2, Unlock } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
-import { useRealtime } from '../realtime/RealtimeProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
@@ -45,7 +44,6 @@ const emptyForm = {
 
 export function NtripAccounts() {
   const { can, csrfToken } = useAuth();
-  const { connected } = useRealtime();
   const { push } = useToast();
   const queryClient = useQueryClient();
   const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
@@ -77,7 +75,7 @@ export function NtripAccounts() {
   const list = useQuery({
     queryKey: ['ntrip-accounts', listQuery],
     queryFn: () => apiFetch<AccountList>(`/api/ntrip-accounts?${listQuery}`),
-    refetchInterval: connected ? false : 10000
+    refetchInterval: 10000
   });
   const mountpoints = useQuery({
     queryKey: ['mountpoints', 'options'],

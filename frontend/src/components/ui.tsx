@@ -476,7 +476,6 @@ export function DataTable<T>({
   loading = false,
   error,
   empty,
-  onRowClick,
   showIndex = true,
   selectable = false,
   selectedKeys,
@@ -489,7 +488,6 @@ export function DataTable<T>({
   loading?: boolean;
   error?: string;
   empty?: ReactNode;
-  onRowClick?: (row: T) => void;
   showIndex?: boolean;
   selectable?: boolean;
   selectedKeys?: Set<string | number>;
@@ -597,23 +595,7 @@ export function DataTable<T>({
               const key = rowKey(row);
               const label = selectionLabel?.(row) ?? String(key);
               return (
-                <tr
-                  key={key}
-                  className={`${onRowClick ? 'clickable' : ''} ${selected.has(key) ? 'row-selected' : ''}`}
-                  onClick={(event) => {
-                    if (!onRowClick) return;
-                    const target = event.target as HTMLElement;
-                    if (target.closest('button, a, select, input')) return;
-                    onRowClick(row);
-                  }}
-                  onKeyDown={(event) => {
-                    if (!onRowClick || event.key !== 'Enter') return;
-                    const target = event.target as HTMLElement;
-                    if (target.closest('button, a, select, input')) return;
-                    onRowClick(row);
-                  }}
-                  tabIndex={onRowClick ? 0 : undefined}
-                >
+                <tr key={key} className={selected.has(key) ? 'row-selected' : undefined}>
                   {selectable && (
                     <td className="select-col">
                       <input
@@ -648,12 +630,14 @@ export function Pagination({
   page,
   pageSize,
   total,
+  pageSizeOptions = [10, 20, 50],
   onPageChange,
   onPageSizeChange
 }: {
   page: number;
   pageSize: number;
   total: number;
+  pageSizeOptions?: number[];
   onPageChange: (page: number) => void;
   onPageSizeChange: (size: number) => void;
 }) {
@@ -672,9 +656,11 @@ export function Pagination({
           onChange={(event) => onPageSizeChange(Number(event.target.value))}
           aria-label="Số dòng mỗi trang"
         >
-          <option value={10}>10 / trang</option>
-          <option value={20}>20 / trang</option>
-          <option value={50}>50 / trang</option>
+          {pageSizeOptions.map((size) => (
+            <option key={size} value={size}>
+              {size} / trang
+            </option>
+          ))}
         </select>
         <IconButton
           label="Trang trước"

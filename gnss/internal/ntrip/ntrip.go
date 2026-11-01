@@ -187,14 +187,24 @@ func bodyReader(br *bufio.Reader, header textproto.MIMEHeader) io.Reader {
 }
 
 func readResponse(br *bufio.Reader) (*Response, error) {
-	line, err := br.ReadString('\n')
-	if err != nil {
-		return nil, err
+	var line string
+	for {
+		raw, err := br.ReadString('\n')
+		if err != nil {
+			return nil, err
+		}
+		line = strings.TrimRight(raw, "\r\n")
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(strings.ToLower(line), "error:") {
+			return nil, fmt.Errorf("%s", line)
+		}
+		break
 	}
-	line = strings.TrimRight(line, "\r\n")
 	fields := strings.Fields(line)
 	if len(fields) < 2 {
-		return nil, fmt.Errorf("invalid NTRIP status line")
+		return nil, fmt.Errorf("invalid NTRIP status line %q", line)
 	}
 
 	proto := fields[0]
