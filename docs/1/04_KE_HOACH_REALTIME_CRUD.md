@@ -1682,7 +1682,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 11
 - Thời điểm: 2026-11-01 11:13 +07:00
 - Trạng thái: DONE
-- Commit: (cập nhật sau commit)
+- Commit: 976bba3
 - Push: origin/main
 - Đã làm:
   - Thêm fingerprint cấu hình probe; đổi host/port/mount/user/password/interval → restart session.
