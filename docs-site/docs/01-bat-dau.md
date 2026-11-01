@@ -19,6 +19,8 @@ liên tiếp, việc đăng nhập tạm thời bị giới hạn để bảo v�
 Hệ thống không có chức năng tự đặt lại mật khẩu. Khi quên mật khẩu, hãy liên hệ
 quản trị hệ thống để được cấp lại.
 
+![Trang đăng nhập](/img/docs/auth/login-light.png)
+
 ## Phiên làm việc
 
 - Phiên gắn với trình duyệt hiện tại; đóng trình duyệt không làm mất phiên ngay.
