@@ -1373,7 +1373,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 3
 - Thời điểm: 2026-11-01 09:42 +07:00
 - Trạng thái: DONE
-- Commit: (cập nhật sau commit)
+- Commit: 705223c
 - Push: origin/main
 - Đã làm:
   - Tạo migration `023_relay_pause_mountpoint.sql`.
