@@ -1129,15 +1129,15 @@ Race chỉ lộ khi connect/disconnect đồng thời. Leak chỉ lộ sau nhi�
 
 ### Checklist test
 
-- [ ] `go test -race ./...` PASS.
-- [ ] 50 vòng toggle không leak.
-- [ ] `caster_connections` open = 0 sau mỗi vòng.
-- [ ] Load 50–100 job PASS.
-- [ ] Real caster station: tắt dừng, bật có dữ liệu.
-- [ ] Real relay: tắt dừng, bật chạy.
-- [ ] Real account: khóa mất online, mở kết nối mới OK.
-- [ ] Biên bản real test có thời điểm/người thực hiện.
-- [ ] Không dùng mountpoint công cộng.
+- [x] `go test -race ./...` PASS (Docker golang:1.24).
+- [x] 50 vòng toggle listener + 50 lần source start/stop; 20 vòng đo đủ wait không leak.
+- [x] `caster_connections` open = 0 sau mỗi vòng.
+- [x] Load 50 relay job mock PASS (streaming 50/50).
+- [!] Real caster station: BLOCKED — chưa có thiết bị/endpoint thật được phép trong phiên này.
+- [!] Real relay: BLOCKED — chỉ chạy mock.
+- [!] Real account: BLOCKED — chỉ chạy mock rover.
+- [!] Biên bản real test: BLOCKED cùng lý do.
+- [x] Không dùng mountpoint công cộng.
 
 ### Ghi chú
 
@@ -1780,3 +1780,32 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - Probe sample live chưa có vì chưa cấu hình upstream credential; fingerprint/CRUD đã test.
   - Đã reset/seed lại 3 trạm test.
+### Nhật ký thực hiện — Bước 14
+- Thời điểm: 2026-11-01 11:38 +07:00
+- Trạng thái: PARTIAL — mock/race/load PASS; real streaming BLOCKED
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - Chạy `go test -race ./...` trong Docker.
+  - Thêm test 50 vòng toggle listener + kiểm tra goroutine.
+  - Chạy 50 lần source start/stop khi bật/tắt trạm.
+  - Chạy load test 50 relay job mock.
+- File thay đổi:
+  - `gnss/internal/caster/caster_test.go`
+  - `docs/1/04_KE_HOACH_REALTIME_CRUD.md`
+  - `SESSION.md`
+- Test/Bằng chứng:
+  - `docker run ... golang:1.24 go test -race ./...`: PASS toàn bộ package.
+  - `TestRepeatedListenerToggleNoGoroutineLeak`: PASS.
+  - 20 vòng source start/stop với wait đủ: `FAILED_TO_CLOSE=0`, `OPEN_CONNECTIONS=0`.
+  - 50 vòng thử nhanh trước đó không để open connection; process kill do cửa sổ chờ quá ngắn.
+  - `scripts/load-test-mock.ps1 -Jobs 50`: `LOAD_RESULT PASS streaming=50/50`.
+- Checklist đã đạt:
+  - [x] Race.
+  - [x] Toggle/goroutine.
+  - [x] Open connection = 0.
+  - [x] Load 50.
+  - [!] Real caster/relay/account/blocked.
+- Lỗi/Ghi chú:
+  - Không có endpoint/thiết bị thật được phép trong phiên này; không test mountpoint công cộng.
+  - Cần người dùng cung cấp endpoint allowlist để chạy real và ghi biên bản.

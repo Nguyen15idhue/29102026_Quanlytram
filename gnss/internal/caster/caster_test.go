@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -668,4 +669,33 @@ func waitClosed(t *testing.T, manager *manager, want int) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatalf("connections = %d, want %d", len(manager.Connections()), want)
+}
+
+func TestRepeatedListenerToggleNoGoroutineLeak(t *testing.T) {
+	cfg := &Config{
+		Mountpoints: map[int64]*MountpointConfig{
+			1: {ID: 1, Name: "M", Enabled: true},
+		},
+		Listeners: []*ListenerConfig{
+			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: {ID: 1, Name: "M", Enabled: true}}},
+		},
+	}
+	manager, _ := newTestManager(t, cfg)
+	baseline := runtime.NumGoroutine()
+	for i := 0; i < 50; i++ {
+		cfg.Listeners[0].Enabled = i%2 == 0
+		if err := manager.Reconcile(context.Background()); err != nil {
+			t.Fatalf("Reconcile %d: %v", i, err)
+		}
+	}
+	cfg.Listeners[0].Enabled = true
+	if err := manager.Reconcile(context.Background()); err != nil {
+		t.Fatalf("final Reconcile: %v", err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	runtime.GC()
+	after := runtime.NumGoroutine()
+	if after > baseline+5 {
+		t.Fatalf("goroutines = %d, baseline = %d", after, baseline)
+	}
 }
