@@ -2,7 +2,8 @@
 
 ## 1. Thông tin phiên
 
-- Thời điểm: 2026-10-30 21:00 (Asia/Ho_Chi_Minh, +07:00)
+- Thời điểm: 2026-11-01 09:27 (Asia/Ho_Chi_Minh, +07:00)
+- Kế hoạch 04: Bước 1 DONE (backup/restore PASS, baseline 40 trạm/39 mountpoint/2 account/2 listener/0 connection mở)
 - Phase hiện tại: P1.10.1 — Khắc phục trạm/kết nối/tọa độ/geo DONE; P1.11 map defer
 - Trạng thái P1.0: DONE (backup/restore PASS, graphify 2364 nodes, Playwright 15/15)
 - Trạng thái P1.1: DONE (migration 014–017, station_sources 39, tenant scope)
