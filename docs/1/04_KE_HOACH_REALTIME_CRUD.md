@@ -1608,7 +1608,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 9
 - Thời điểm: 2026-11-01 11:00 +07:00
 - Trạng thái: DONE
-- Commit: (cập nhật sau commit)
+- Commit: 704cc9e
 - Push: origin/main
 - Đã làm:
   - Thêm `DisconnectAccount`, `DisconnectMountpoint`, `DisconnectListener`.
