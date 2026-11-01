@@ -33,9 +33,18 @@ Mã thường gặp: `UNAUTHENTICATED`, `SESSION_EXPIRED`, `CSRF_INVALID`, `FORB
 |---|---|---|
 | GET | `/api/stations?q=&page=&pageSize=` | `stations.view` |
 | GET | `/api/stations/:id` | `stations.view` |
+| GET | `/api/stations/:id/activity?range=24h\|7d\|30d` | `stations.view`; uptime, sự kiện, timeline, series chất lượng |
 | POST | `/api/stations` | `stations.add` |
 | PATCH | `/api/stations/:id` | `stations.edit` |
 | DELETE | `/api/stations/:id` | `stations.delete` |
+
+Không xóa trạm đang bật (`enabled=1`); phải tắt trước. Bulk `delete` bỏ qua
+trạm đang bật và trả `skipped`.
+
+Tắt trạm (`enabled=0`) sẽ tạm dừng thật sự nguồn dữ liệu: mountpoint, probe và
+relay job lấy mountpoint của trạm bị disable (`paused_by_station_id`), sau đó
+gọi Go reconcile. Bật lại chỉ khôi phục các tài nguyên do chính trạm đã tạm
+dừng; tài nguyên admin đã tắt thủ công vẫn giữ nguyên.
 
 Body tạo/sửa: `code`, `name`, `host`, `port`, `connection_type`,
 `source_type` (`relay_caster|caster_ingest|probe_client|manual`),
@@ -61,7 +70,9 @@ không fallback `lat/lon` nhập tay.
 | PATCH | `/api/mountpoints/:id` | `mountpoints.edit` |
 | DELETE | `/api/mountpoints/:id` | `mountpoints.delete` |
 
-Body: `name`, `station_id`, `enabled`, `requires_auth`, `owner_web_user_id`.
+Body: `name`, `station_id`, `enabled`, `owner_web_user_id`.
+Mountpoint không còn cấu hình auth riêng; caster luôn xác thực bằng
+`ntrip_accounts` + ACL mountpoint.
 
 ## 5. Web users
 

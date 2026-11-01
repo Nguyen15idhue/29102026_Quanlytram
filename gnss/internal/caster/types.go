@@ -15,13 +15,10 @@ const (
 )
 
 type MountpointConfig struct {
-	ID           int64
-	Name         string
-	StationID    int64
-	Enabled      bool
-	RequiresAuth bool
-	AuthMode     string
-	PasswordHash string
+	ID        int64
+	Name      string
+	StationID int64
+	Enabled   bool
 }
 
 type ListenerConfig struct {

@@ -29,6 +29,18 @@ test.describe('Phase 1 station detail', () => {
       fullPage: true
     });
 
+    await page.getByRole('tab', { name: 'Hoạt động' }).click();
+    const activity = page.locator('.activity-panel');
+    await expect(activity).toBeVisible();
+    await expect(activity).toContainText('Sự kiện');
+    await expect(activity).toContainText('Kết nối');
+    await expect(activity).toContainText('Uptime');
+    await expect(page).toHaveURL(/tab=activity/);
+    await page.screenshot({
+      path: 'test-results/station-activity-light.png',
+      fullPage: true
+    });
+
     await page.getByRole('tab', { name: 'Metadata' }).click();
     await expect(page.getByText('1005 Station ID')).toBeVisible();
     await expect(page.getByText('Message type')).toBeVisible();
@@ -47,7 +59,11 @@ test.describe('Phase 1 station detail', () => {
     await expect(page).toHaveURL(/\/stations\/80$/);
 
     await page.goto('/stations?page=1&pageSize=10&q=THA');
-    await page.getByRole('row', { name: /THA Hậu Lộc/ }).first().click();
+    await page
+      .getByRole('row', { name: /THA Hậu Lộc/ })
+      .first()
+      .locator('.link-btn')
+      .click();
     await expect(page).toHaveURL(/\/stations\/80/);
     await page.reload();
     await expect(page.getByText('THA_HauLoc').first()).toBeVisible();

@@ -14,6 +14,11 @@ import { ecefToGeodetic, geodeticToVn2000 } from '../lib/geo';
 import { decryptSecret, encryptSecret } from '../lib/crypto';
 import { callGoInternal } from '../lib/internalApi';
 import {
+  notifyStationStreamingChange,
+  setStationStreamingInTransaction,
+  type StationStreamEffect
+} from '../lib/stationStream';
+import {
   fetchLiveQuality,
   mapSample,
   parseWindowMinutes,
@@ -226,22 +231,27 @@ function withQuality(
   }
   const sampleAgeMs = item?.ts ? Math.max(0, Date.now() - new Date(item.ts).getTime()) : null;
   const hasMsm = Number(item?.cells ?? 0) > 0 || Number(item?.msm_epochs ?? 0) > 0;
+  const stationOff = Number(row.enabled) === 0 || String(row.status) === 'locked';
   return {
     ...row,
-    transportStatus: transportStatusFor(item?.state, sampleAgeMs),
-    qualityStatus: qualityStatusFor({
-      score: item ? Number(item.score) : null,
-      state: item?.state,
-      metadataOk: sampleMetadataOk(item),
-      hasMsm
-    }),
-    metadataStatus: metadataStatusFor({
-      present: Boolean(item),
-      streaming: String(item?.state ?? '') === 'streaming',
-      reportedStationId: item?.reported_station_id,
-      hasArp: sampleHasArp(item),
-      antenna: item?.antenna
-    }),
+    transportStatus: stationOff ? 'offline' : transportStatusFor(item?.state, sampleAgeMs),
+    qualityStatus: stationOff
+      ? 'unknown'
+      : qualityStatusFor({
+          score: item ? Number(item.score) : null,
+          state: item?.state,
+          metadataOk: sampleMetadataOk(item),
+          hasMsm
+        }),
+    metadataStatus: stationOff
+      ? 'unknown'
+      : metadataStatusFor({
+          present: Boolean(item),
+          streaming: String(item?.state ?? '') === 'streaming',
+          reportedStationId: item?.reported_station_id,
+          hasArp: sampleHasArp(item),
+          antenna: item?.antenna
+        }),
     owner_name: row.owner_name ?? '',
     mountpoint_count: Number(row.mountpoint_count ?? 0),
     source_type: sourceType,
@@ -264,9 +274,13 @@ function withQuality(
     vn2000_northing: vn2000Northing,
     coordinate_source: reportedLat === null ? 'none' : '1005/1006',
     reported_station_id: item?.reported_station_id ?? null,
-    quality_score: item ? Number(item.score) : null,
-    quality_state: item ? String(item.state) : 'unknown',
-    last_data_at: item ? item.ts : null
+    quality_score: stationOff ? null : item ? Number(item.score) : null,
+    quality_state: stationOff ? 'disabled' : item ? String(item.state) : 'unknown',
+    last_data_at: item
+      ? new Date(
+          new Date(item.ts).getTime() - Math.max(0, Number(item.age_ms ?? 0))
+        ).toISOString()
+      : null
   };
 }
 
@@ -543,6 +557,7 @@ stationsRouter.post(
 
     let created = 0;
     let updated = 0;
+    const effects: StationStreamEffect[] = [];
     await withTransaction(async (conn) => {
       for (const item of normalized) {
         const [ownerRows]: any = await conn.query(
@@ -551,7 +566,10 @@ stationsRouter.post(
         );
         const ownerId = ownerRows[0]?.id ?? req.auth!.id;
         const data = item.data;
-        const [existing]: any = await conn.query('SELECT id FROM stations WHERE code = ? LIMIT 1', [data.code]);
+        const [existing]: any = await conn.query(
+          'SELECT id, enabled, status FROM stations WHERE code = ? LIMIT 1',
+          [data.code]
+        );
         const values = [
           data.code, data.name, data.host ?? '', data.port, data.connection_type,
           data.source_type, data.ntrip_version, data.ntrip_mode, data.lat, data.lon,
@@ -573,8 +591,22 @@ stationsRouter.post(
             [...values.slice(1), Number(existing[0].id)]
           );
           updated += 1;
+          const beforeEnabled = Number(existing[0].enabled) === 1;
+          if (Boolean(data.enabled) !== beforeEnabled && String(existing[0].status) !== 'locked') {
+            await conn.query('UPDATE stations SET status = ? WHERE id = ?', [
+              data.enabled ? 'active' : 'disabled',
+              Number(existing[0].id)
+            ]);
+            effects.push(
+              await setStationStreamingInTransaction(
+                conn,
+                Number(existing[0].id),
+                Boolean(data.enabled)
+              )
+            );
+          }
         } else {
-          await conn.query(
+          const [inserted]: any = await conn.query(
             `INSERT INTO stations
               (code, name, host, port, connection_type, source_type, ntrip_version, ntrip_mode,
                lat, lon, notes, station_type, enabled,
@@ -584,10 +616,21 @@ stationsRouter.post(
              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [...values, req.auth!.id]
           );
+          if (!data.enabled) {
+            await conn.query("UPDATE stations SET status = 'disabled' WHERE id = ?", [
+              Number(inserted.insertId)
+            ]);
+          }
           created += 1;
         }
       }
     });
+    if (effects.length > 0) {
+      await notifyStationStreamingChange({
+        relayJobIds: [...new Set(effects.flatMap((effect) => effect.relayJobIds))],
+        mountpointIds: [...new Set(effects.flatMap((effect) => effect.mountpointIds))]
+      });
+    }
     await writeAudit(adminPool, req.auth!.id, 'import', 'station', '', null, { created, updated }, ipFrom(req));
     res.json({ created, updated, total: normalized.length });
   })
@@ -625,7 +668,7 @@ stationsRouter.get(
     const station = await scopedStation(req, Number(req.params.id));
     const stationId = Number(station.id);
     const mountpointRows = await query<RowDataPacket[]>(
-      `SELECT id, name, enabled, requires_auth, service_type, position_mode,
+      `SELECT id, name, enabled, service_type, position_mode,
               satellite_systems, caster_interval, code_protocol, code_type, description
          FROM mountpoints WHERE station_id = ? ORDER BY name`,
       [stationId]
@@ -751,7 +794,6 @@ stationsRouter.get(
         id,
         name,
         enabled: Boolean(row.enabled),
-        requiresAuth: Boolean(row.requires_auth),
         serviceType: String(row.service_type ?? ''),
         positionMode: String(row.position_mode ?? ''),
         satelliteSystems: String(row.satellite_systems ?? ''),
@@ -1168,6 +1210,11 @@ stationsRouter.post(
         ownerId, req.auth!.id
       ]
     );
+    if (!body.enabled) {
+      await adminPool.query("UPDATE stations SET status = 'disabled' WHERE id = ?", [
+        Number(result.insertId)
+      ]);
+    }
     const station = await getStation(Number(result.insertId));
     await writeAudit(adminPool, req.auth!.id, 'create', 'station', result.insertId, null, station, ipFrom(req));
     res.status(201).json({ item: station });
@@ -1189,30 +1236,265 @@ stationsRouter.patch(
         : await resolveOwner(req, body.owner_web_user_id);
     const value = (key: string) =>
       body[key as keyof typeof body] === undefined ? before[key] : body[key as keyof typeof body];
-    await adminPool.query(
-      `UPDATE stations SET code=?, name=?, host=?, port=?, connection_type=?,
-         source_type=?, ntrip_version=?, ntrip_mode=?, lat=?, lon=?, notes=?,
-         station_type=?, enabled=?, coordinate_type=?, province=?, ward=?, address_detail=?,
-         receiver_type=?, receiver_sn=?, receiver_firmware=?,
-         antenna_type=?, antenna_sn=?, antenna_height=?, elevation_mask=?, contractor=?,
-         region=?, address=?, device_id=?, network_type=?, network_mode=?, protocol=?,
-         custom_fields=?, owner_web_user_id=? WHERE id=?`,
-      [
-        value('code'), value('name'), value('host'), value('port'), value('connection_type'),
-        value('source_type'), value('ntrip_version'), value('ntrip_mode'),
-        value('lat'), value('lon'), value('notes'), value('station_type'), value('enabled'),
-        value('coordinate_type'), value('province'), value('ward'), value('address_detail'),
-        value('receiver_type'), value('receiver_sn'), value('receiver_firmware'),
-        value('antenna_type'), value('antenna_sn'), value('antenna_height'), value('elevation_mask'),
-        value('contractor'), value('region'), value('address'), value('device_id'),
-        value('network_type'), value('network_mode'), value('protocol'),
-        body.custom_fields === undefined ? before.custom_fields : JSON.stringify(body.custom_fields),
-        ownerId, id
-      ]
-    );
+    const enabledChanged =
+      body.enabled !== undefined && Boolean(body.enabled) !== Boolean(before.enabled);
+    if (enabledChanged && String(before.status) === 'locked') {
+      throw new ApiError(400, 'STATION_LOCKED', 'Trạm đang khóa, phải mở khóa trước');
+    }
+    const effect = await withTransaction(async (conn) => {
+      await conn.query(
+        `UPDATE stations SET code=?, name=?, host=?, port=?, connection_type=?,
+           source_type=?, ntrip_version=?, ntrip_mode=?, lat=?, lon=?, notes=?,
+           station_type=?, enabled=?, coordinate_type=?, province=?, ward=?, address_detail=?,
+           receiver_type=?, receiver_sn=?, receiver_firmware=?,
+           antenna_type=?, antenna_sn=?, antenna_height=?, elevation_mask=?, contractor=?,
+           region=?, address=?, device_id=?, network_type=?, network_mode=?, protocol=?,
+           custom_fields=?, owner_web_user_id=? WHERE id=?`,
+        [
+          value('code'), value('name'), value('host'), value('port'), value('connection_type'),
+          value('source_type'), value('ntrip_version'), value('ntrip_mode'),
+          value('lat'), value('lon'), value('notes'), value('station_type'), value('enabled'),
+          value('coordinate_type'), value('province'), value('ward'), value('address_detail'),
+          value('receiver_type'), value('receiver_sn'), value('receiver_firmware'),
+          value('antenna_type'), value('antenna_sn'), value('antenna_height'), value('elevation_mask'),
+          value('contractor'), value('region'), value('address'), value('device_id'),
+          value('network_type'), value('network_mode'), value('protocol'),
+          body.custom_fields === undefined ? before.custom_fields : JSON.stringify(body.custom_fields),
+          ownerId, id
+        ]
+      );
+      if (!enabledChanged) return null;
+      await conn.query("UPDATE stations SET status = ? WHERE id = ?", [
+        body.enabled ? 'active' : 'disabled',
+        id
+      ]);
+      return setStationStreamingInTransaction(conn, id, Boolean(body.enabled));
+    });
+    if (effect) await notifyStationStreamingChange(effect);
     const after = await getStation(id);
     await writeAudit(adminPool, req.auth!.id, 'update', 'station', id, before, after, ipFrom(req));
     res.json({ item: after });
+  })
+);
+
+const ACTIVITY_RANGES = {
+  '24h': { hours: 24, slotSec: 60, seriesBucketSec: 300 },
+  '7d': { hours: 24 * 7, slotSec: 300, seriesBucketSec: 1800 },
+  '30d': { hours: 24 * 30, slotSec: 1800, seriesBucketSec: 7200 }
+} as const;
+
+type ActivityRange = keyof typeof ACTIVITY_RANGES;
+
+function activityRange(value: string): ActivityRange {
+  return value === '7d' || value === '30d' ? value : '24h';
+}
+
+function isOutageReason(value: string): boolean {
+  const reason = value.trim().toLowerCase();
+  if (!reason) return false;
+  return ![
+    'manual',
+    'normal',
+    'source_disconnected',
+    'service_restart',
+    'rover_disconnected'
+  ].includes(reason);
+}
+
+async function buildStationActivity(station: any, requestedRange: string) {
+  const range = activityRange(requestedRange);
+  const { hours } = ACTIVITY_RANGES[range];
+  const end = new Date();
+  const start = new Date(end.getTime() - hours * 3600_000);
+  const mountpointRows = await query<RowDataPacket[]>(
+    'SELECT id, name FROM mountpoints WHERE station_id = ?',
+    [station.id]
+  );
+  const mountpointIds = mountpointRows.map((row) => Number(row.id));
+  const mountpointNames = mountpointRows.map((row) => String(row.name));
+  const connections = mountpointIds.length
+    ? await runtimeQuery<RowDataPacket[]>(
+        `SELECT id, mountpoint_id, start_ts, end_ts, disconnect_reason
+           FROM caster_connections
+          WHERE mountpoint_id IN (${mountpointIds.map(() => '?').join(',')})
+            AND direction = 'source'
+            AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
+          ORDER BY start_ts`,
+        [...mountpointIds, start, end]
+      )
+    : [];
+  const relayIds = mountpointNames.length
+    ? (
+        await query<RowDataPacket[]>(
+          `SELECT id FROM relay_jobs
+            WHERE deleted_at IS NULL
+              AND (upstream_mount IN (${mountpointNames.map(() => '?').join(',')})
+                OR downstream_mount IN (${mountpointNames.map(() => '?').join(',')}))`,
+          [...mountpointNames, ...mountpointNames]
+        )
+      ).map((row) => Number(row.id))
+    : [];
+  const relaySessions = relayIds.length
+    ? await runtimeQuery<RowDataPacket[]>(
+        `SELECT id, relay_job_id, start_ts, end_ts, close_reason
+           FROM relay_sessions
+          WHERE relay_job_id IN (${relayIds.map(() => '?').join(',')})
+            AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
+          ORDER BY start_ts`,
+        [...relayIds, start, end]
+      )
+    : [];
+
+  const sessions = [
+    ...connections.map((row) => ({
+      id: `caster:${row.id}`,
+      source: 'caster' as const,
+      startedAt: new Date(row.start_ts),
+      endedAt: row.end_ts ? new Date(row.end_ts) : null,
+      reason: String(row.disconnect_reason ?? '')
+    })),
+    ...relaySessions.map((row) => ({
+      id: `relay:${row.id}`,
+      source: 'relay' as const,
+      startedAt: new Date(row.start_ts),
+      endedAt: row.end_ts ? new Date(row.end_ts) : null,
+      reason: String(row.close_reason ?? '')
+    }))
+  ];
+
+  const minuteRows = await runtimeQuery<RowDataPacket[]>(
+    `SELECT UNIX_TIMESTAMP(ts) DIV 60 AS minute
+       FROM quality_samples
+      WHERE target_type = 'station' AND target_id = ? AND direction = 'ingest'
+        AND ts >= ? AND ts <= ? AND state = 'streaming'
+      GROUP BY minute`,
+    [station.id, start, end]
+  );
+  const observed = [
+    ...sessions.map((session) => Math.max(session.startedAt.getTime(), start.getTime())),
+    ...minuteRows.map((row) => Number(row.minute) * 60_000)
+  ].filter((value) => Number.isFinite(value));
+  const firstObserved = observed.length > 0 ? Math.min(...observed) : start.getTime();
+  const analysisStart = new Date(
+    Math.max(start.getTime(), Math.min(firstObserved, end.getTime()))
+  );
+  const totalSec = Math.round((end.getTime() - analysisStart.getTime()) / 1000);
+  const startMs = Math.floor(analysisStart.getTime() / 60_000) * 60_000;
+  const endMs = Math.ceil(end.getTime() / 60_000) * 60_000;
+  const totalMinutes = Math.max(0, Math.round((endMs - startMs) / 60_000));
+  const onlineMinutes = new Uint8Array(totalMinutes);
+  const markOnline = (from: number, to: number) => {
+    const first = Math.max(0, Math.floor((from - startMs) / 60_000));
+    const last = Math.min(totalMinutes, Math.ceil((to - startMs) / 60_000));
+    for (let index = first; index < last; index += 1) onlineMinutes[index] = 1;
+  };
+  for (const session of sessions) {
+    const from = Math.max(session.startedAt.getTime(), analysisStart.getTime());
+    const to = Math.min((session.endedAt ?? end).getTime(), end.getTime());
+    if (to > from) markOnline(from, to);
+  }
+  for (const row of minuteRows) {
+    const index = Number(row.minute) - Math.floor(startMs / 60_000);
+    if (index >= 0 && index < totalMinutes) onlineMinutes[index] = 1;
+  }
+  const onlineMinuteCount = onlineMinutes.reduce((sum, value) => sum + value, 0);
+  const onlineSec = Math.min(totalSec, onlineMinuteCount * 60);
+
+  const slotMs = ACTIVITY_RANGES[range].slotSec * 1000;
+  const slotCount = Math.max(1, Math.ceil((end.getTime() - analysisStart.getTime()) / slotMs));
+  const slotStatus: Array<'up' | 'down'> = [];
+  for (let index = 0; index < slotCount; index += 1) {
+    const from = analysisStart.getTime() + index * slotMs;
+    const to = Math.min(end.getTime(), from + slotMs);
+    const first = Math.max(0, Math.floor((from - startMs) / 60_000));
+    const last = Math.min(totalMinutes, Math.ceil((to - startMs) / 60_000));
+    let online = 0;
+    let total = 0;
+    for (let minute = first; minute < last; minute += 1) {
+      total += 1;
+      online += onlineMinutes[minute];
+    }
+    slotStatus.push(total > 0 && online / total >= 0.75 ? 'up' : 'down');
+  }
+  const segments: Array<{ from: string; to: string; status: 'up' | 'down' }> = [];
+  for (let index = 0; index < slotCount; index += 1) {
+    const from = new Date(analysisStart.getTime() + index * slotMs);
+    const to = new Date(Math.min(end.getTime(), analysisStart.getTime() + (index + 1) * slotMs));
+    const status = slotStatus[index];
+    const previous = segments[segments.length - 1];
+    if (previous && previous.status === status) {
+      previous.to = to.toISOString();
+    } else {
+      segments.push({ from: from.toISOString(), to: to.toISOString(), status });
+    }
+  }
+
+  const events = segments
+    .filter((segment) => segment.status === 'down')
+    .map((segment) => {
+      const from = new Date(segment.from).getTime();
+      const to = new Date(segment.to).getTime();
+      const nearby = sessions.find(
+        (session) =>
+          session.endedAt &&
+          isOutageReason(session.reason) &&
+          Math.abs(session.endedAt.getTime() - from) < 5 * 60_000
+      );
+      return {
+        id: `${segment.from}-${segment.to}`,
+        at: segment.from,
+        source: (nearby?.source ?? 'caster') as 'caster' | 'relay',
+        reason: nearby?.reason || 'Không có dữ liệu',
+        durationSec: Math.max(0, Math.round((to - from) / 1000))
+      };
+    })
+    .slice(0, 50);
+
+  const qualityRows = await runtimeQuery<RowDataPacket[]>(
+    `SELECT MIN(ts) AS ts,
+            AVG(satellites) AS satellites,
+            AVG(avg_cnr) AS avg_cnr,
+            AVG(msm_epochs) AS msm_epochs,
+            AVG(gaps) AS gaps,
+            AVG(age_ms) AS age_ms
+       FROM quality_samples
+      WHERE target_type = 'station' AND target_id = ? AND direction = 'ingest'
+        AND state = 'streaming' AND ts >= ? AND ts <= ?
+      GROUP BY FLOOR(UNIX_TIMESTAMP(ts) / ?)
+      ORDER BY ts ASC`,
+    [station.id, analysisStart, end, ACTIVITY_RANGES[range].seriesBucketSec]
+  );
+  const series = qualityRows.map((row) => ({
+    at: new Date(row.ts).toISOString(),
+    satellites: row.satellites === null ? null : Math.round(Number(row.satellites)),
+    avgCnr: row.avg_cnr === null ? null : Math.round(Number(row.avg_cnr) * 10) / 10,
+    msmEpochs: row.msm_epochs === null ? null : Math.round(Number(row.msm_epochs)),
+    gaps: row.gaps === null ? null : Math.round(Number(row.gaps) * 10) / 10,
+    ageMs: row.age_ms === null ? null : Math.round(Number(row.age_ms))
+  }));
+
+  return {
+    stationId: Number(station.id),
+    range,
+    from: analysisStart.toISOString(),
+    to: end.toISOString(),
+    totalSec,
+    onlineSec,
+    uptimePct: totalSec > 0 ? Math.min(100, (onlineSec / totalSec) * 100) : 0,
+    events,
+    segments,
+    series
+  };
+}
+
+stationsRouter.get(
+  '/:id/activity',
+  requirePermission('stations', 'view'),
+  asyncHandler(async (req, res) => {
+    const station = await getStation(Number(req.params.id));
+    if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
+    await assertRecordScope(req, station.owner_web_user_id);
+    res.json(await buildStationActivity(station, String(req.query.range ?? '24h')));
   })
 );
 
@@ -1600,22 +1882,78 @@ stationsRouter.post(
         result.forbidden += 1;
       }
     }
+    const effects: StationStreamEffect[] = [];
     await withTransaction(async (conn) => {
       for (const row of allowed) {
+        const locked = String(row.status) === 'locked';
+        const enabled = Number(row.enabled) === 1;
         if (body.action === 'delete') {
+          if (enabled) {
+            result.skipped += 1;
+            continue;
+          }
+          await conn.query(
+            'UPDATE relay_jobs SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
+            [row.id]
+          );
+          await conn.query(
+            'UPDATE station_probes SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
+            [row.id]
+          );
+          await conn.query(
+            'UPDATE mountpoints SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
+            [row.id]
+          );
           await conn.query('DELETE FROM stations WHERE id = ?', [row.id]);
+          result.updated += 1;
         } else if (body.action === 'enable') {
+          if (locked || enabled) {
+            result.skipped += 1;
+            continue;
+          }
           await conn.query("UPDATE stations SET enabled = 1, status = 'active' WHERE id = ?", [row.id]);
+          effects.push(await setStationStreamingInTransaction(conn, Number(row.id), true));
+          result.updated += 1;
         } else if (body.action === 'disable') {
+          if (locked || !enabled) {
+            result.skipped += 1;
+            continue;
+          }
           await conn.query("UPDATE stations SET enabled = 0, status = 'disabled' WHERE id = ?", [row.id]);
+          effects.push(await setStationStreamingInTransaction(conn, Number(row.id), false));
+          result.updated += 1;
         } else if (body.action === 'lock') {
-          await conn.query("UPDATE stations SET status = 'locked' WHERE id = ?", [row.id]);
+          if (locked || enabled) {
+            result.skipped += 1;
+            continue;
+          }
+          await conn.query(
+            "UPDATE stations SET enabled = 0, status = 'locked' WHERE id = ?",
+            [row.id]
+          );
+          effects.push(await setStationStreamingInTransaction(conn, Number(row.id), false));
+          result.updated += 1;
         } else if (body.action === 'unlock') {
-          await conn.query("UPDATE stations SET status = 'active' WHERE id = ?", [row.id]);
+          if (!locked) {
+            result.skipped += 1;
+            continue;
+          }
+          await conn.query(
+            "UPDATE stations SET status = IF(enabled = 1, 'active', 'disabled') WHERE id = ?",
+            [row.id]
+          );
+          result.updated += 1;
+        } else {
+          result.skipped += 1;
         }
       }
     });
-    result.updated = allowed.length;
+    if (effects.length > 0) {
+      await notifyStationStreamingChange({
+        relayJobIds: [...new Set(effects.flatMap((effect) => effect.relayJobIds))],
+        mountpointIds: [...new Set(effects.flatMap((effect) => effect.mountpointIds))]
+      });
+    }
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -1638,7 +1976,24 @@ stationsRouter.delete(
     const before = await getStation(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
     await assertRecordScope(req, before.owner_web_user_id);
-    await adminPool.query('DELETE FROM stations WHERE id = ?', [id]);
+    if (Number(before.enabled) === 1) {
+      throw new ApiError(400, 'STATION_ENABLED', 'Trạm đang bật, phải tắt trước khi xóa');
+    }
+    await withTransaction(async (conn) => {
+      await conn.query(
+        'UPDATE relay_jobs SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
+        [id]
+      );
+      await conn.query(
+        'UPDATE station_probes SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
+        [id]
+      );
+      await conn.query(
+        'UPDATE mountpoints SET paused_by_station_id = NULL WHERE paused_by_station_id = ?',
+        [id]
+      );
+      await conn.query('DELETE FROM stations WHERE id = ?', [id]);
+    });
     await writeAudit(adminPool, req.auth!.id, 'delete', 'station', id, before, null, ipFrom(req));
     res.status(204).send();
   })

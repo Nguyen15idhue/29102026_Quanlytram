@@ -262,6 +262,7 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel = 'Xóa',
+  tone = 'danger',
   pending = false,
   onConfirm
 }: {
@@ -270,6 +271,7 @@ export function ConfirmDialog({
   title: string;
   description: string;
   confirmLabel?: string;
+  tone?: 'danger' | 'primary';
   pending?: boolean;
   onConfirm: () => void;
 }) {
@@ -290,7 +292,7 @@ export function ConfirmDialog({
               <Button variant="ghost">Hủy</Button>
             </AlertDialogPrimitive.Cancel>
             <AlertDialogPrimitive.Action asChild>
-              <Button variant="danger" loading={pending} onClick={onConfirm}>
+              <Button variant={tone} loading={pending} onClick={onConfirm}>
                 {confirmLabel}
               </Button>
             </AlertDialogPrimitive.Action>
@@ -312,6 +314,7 @@ export interface Column<T> {
 
 export interface BulkAction {
   label: string;
+  title?: string;
   onClick: () => void;
   variant?: 'primary' | 'ghost' | 'danger';
   disabled?: boolean;
@@ -340,6 +343,7 @@ export function BulkActionBar({
             size="sm"
             variant={action.variant === 'danger' ? 'danger' : action.variant === 'primary' ? 'primary' : 'ghost'}
             disabled={action.disabled}
+            title={action.title}
             onClick={action.onClick}
           >
             {action.label}

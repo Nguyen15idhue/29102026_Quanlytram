@@ -502,7 +502,7 @@ relayJobsRouter.patch(
         );
         await conn.query(
           `UPDATE relay_jobs SET
-             external_key = ?, name = ?, enabled = ?,
+             external_key = ?, name = ?, enabled = ?, paused_by_station_id = NULL,
              upstream_host = ?, upstream_port = ?, upstream_mount = ?, upstream_credential_id = ?,
              upstream_proxy = ?, upstream_ssl = ?, upstream_ntrip_version = ?,
              downstream_host = ?, downstream_port = ?, downstream_mount = ?, downstream_credential_id = ?,
@@ -624,7 +624,8 @@ relayJobsRouter.post(
         } else {
           await conn.query(
             `UPDATE relay_jobs
-                SET enabled = ?, desired_revision = desired_revision + 1
+                SET enabled = ?, paused_by_station_id = NULL,
+                    desired_revision = desired_revision + 1
               WHERE id = ?`,
             [body.action === 'enable' ? 1 : 0, row.id]
           );
@@ -878,7 +879,8 @@ async function setEnabled(req: any, enabled: boolean) {
   }
   await adminPool.query(
     `UPDATE relay_jobs
-        SET enabled = ?, desired_revision = desired_revision + 1
+        SET enabled = ?, paused_by_station_id = NULL,
+            desired_revision = desired_revision + 1
       WHERE id = ?`,
     [enabled, id]
   );

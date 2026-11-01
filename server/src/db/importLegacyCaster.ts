@@ -219,32 +219,15 @@ async function main(): Promise<void> {
           ]);
           mountpointsBound += 1;
         }
-        if (
-          existingRow.auth_mode !== 'password_only' &&
-          (existingRow.password_hash === null || existingRow.password_hash === '')
-        ) {
-          await conn.query(
-            `UPDATE mountpoints
-                SET auth_mode = 'password_only', password_hash = NULL, requires_auth = 1
-              WHERE id = ?`,
-            [Number(existingRow.id)]
-          );
-          mountpointsUpdated += 1;
-        }
         continue;
       }
       const [inserted] = await conn.query<any>(
         `INSERT INTO mountpoints
-           (name, station_id, enabled, requires_auth, auth_mode, password_hash,
-            service_type, position_mode, satellite_systems, caster_interval,
-            code_protocol, code_type, description, owner_web_user_id, created_by)
-         VALUES (?, ?, 1, 1, 'password_only', NULL, 'rtcm', 'normal', '', 0,
-                 '', '', ?, NULL, NULL)`,
-        [
-          mountpoint.mountpoint,
-          stationId,
-          'Import hệ cũ: password-only legacy, chấp nhận mọi password không rỗng'
-        ]
+           (name, station_id, enabled, service_type, position_mode,
+            satellite_systems, caster_interval, code_protocol, code_type,
+            description, owner_web_user_id, created_by)
+         VALUES (?, ?, 1, 'rtcm', 'normal', '', 0, '', '', ?, NULL, NULL)`,
+        [mountpoint.mountpoint, stationId, 'Import hệ cũ']
       );
       mountpointIds.set(key, Number(inserted.insertId));
       mountpointsCreated += 1;
@@ -276,6 +259,30 @@ async function main(): Promise<void> {
         if (Number(result.affectedRows ?? 0) > 0) mappingsAdded += 1;
       }
     }
+
+    await conn.query(
+      "UPDATE stations SET status = 'disabled' WHERE enabled = 0 AND status = 'active'"
+    );
+    await conn.query(
+      `UPDATE mountpoints m
+         JOIN stations s ON s.id = m.station_id
+          SET m.enabled = 0, m.paused_by_station_id = s.id
+        WHERE s.enabled = 0 AND m.enabled = 1`
+    );
+    await conn.query(
+      `UPDATE station_probes p
+         JOIN stations s ON s.id = p.station_id
+          SET p.enabled = 0, p.paused_by_station_id = s.id
+        WHERE s.enabled = 0 AND p.enabled = 1`
+    );
+    await conn.query(
+      `UPDATE relay_jobs r
+         JOIN mountpoints m ON m.name = r.upstream_mount
+         JOIN stations s ON s.id = m.station_id
+          SET r.enabled = 0, r.paused_by_station_id = s.id,
+              r.desired_revision = r.desired_revision + 1
+        WHERE s.enabled = 0 AND r.enabled = 1 AND r.deleted_at IS NULL`
+    );
 
     return {
       stationsCreated,

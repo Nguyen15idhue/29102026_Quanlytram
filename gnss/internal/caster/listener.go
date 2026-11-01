@@ -267,10 +267,6 @@ func (m *manager) sourcetableMountpoints(req *request, cfg *ListenerConfig) []*M
 		if mountpoint == nil || !mountpoint.Enabled {
 			continue
 		}
-		if !mountpoint.RequiresAuth {
-			out = append(out, mountpoint)
-			continue
-		}
 		if account == nil || !account.ACL[mountpoint.ID] {
 			continue
 		}
@@ -283,21 +279,9 @@ func (m *manager) sourcetableMountpoints(req *request, cfg *ListenerConfig) []*M
 }
 
 func (m *manager) authorize(req *request, mountpoint *MountpointConfig, listenerID int64) (*AccountConfig, int, string) {
-	if !mountpoint.RequiresAuth {
-		return nil, 0, ""
-	}
 	username, password, ok := ParseBasic(req.Authorization)
 	if !ok {
 		return nil, 401, "Unauthorized"
-	}
-	if mountpoint.AuthMode == "password_only" {
-		if password == "" {
-			return nil, 401, "Unauthorized"
-		}
-		if mountpoint.PasswordHash != "" && !VerifyPassword(mountpoint.PasswordHash, password) {
-			return nil, 401, "Unauthorized"
-		}
-		return nil, 0, ""
 	}
 	account := m.accountByUsername(username)
 	if account == nil || !account.Enabled || !VerifyPassword(account.PasswordHash, password) {

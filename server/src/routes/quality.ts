@@ -638,7 +638,8 @@ qualityRouter.patch(
     const body = probeUpdateSchema.parse(req.body ?? {});
     await adminPool.query(
       `UPDATE station_probes
-          SET mountpoint_id = ?, enabled = ?, probe_interval_sec = ?, credential_id = ?
+          SET mountpoint_id = ?, enabled = ?, paused_by_station_id = NULL,
+              probe_interval_sec = ?, credential_id = ?
         WHERE id = ?`,
       [
         body.mountpointId === undefined ? before.mountpoint_id : body.mountpointId,
@@ -695,7 +696,10 @@ async function setProbeEnabled(req: any, enabled: boolean) {
   const station = await getStation(Number(before.station_id));
   if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
   await assertRecordScope(req, station.owner_web_user_id);
-  await adminPool.query('UPDATE station_probes SET enabled = ? WHERE id = ?', [enabled, id]);
+  await adminPool.query(
+    'UPDATE station_probes SET enabled = ?, paused_by_station_id = NULL WHERE id = ?',
+    [enabled, id]
+  );
   const after = await getProbe(id);
   await writeAudit(
     adminPool,

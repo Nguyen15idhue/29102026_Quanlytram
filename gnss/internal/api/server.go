@@ -39,25 +39,39 @@ type QualityAnalyzer interface {
 	Health() quality.Health
 }
 
+type ProbeManager interface {
+	Reconcile(ctx context.Context)
+}
+
 type Server struct {
 	db         *sql.DB
 	adminDB    string
 	manager    RelayManager
 	caster     CasterManager
 	quality    QualityAnalyzer
+	probe      ProbeManager
 	hmacSecret string
 
 	nonceMu sync.Mutex
 	nonces  map[string]time.Time
 }
 
-func New(database *sql.DB, adminDB string, manager RelayManager, casterManager CasterManager, analyzer QualityAnalyzer, hmacSecret string) *Server {
+func New(
+	database *sql.DB,
+	adminDB string,
+	manager RelayManager,
+	casterManager CasterManager,
+	analyzer QualityAnalyzer,
+	probeManager ProbeManager,
+	hmacSecret string,
+) *Server {
 	return &Server{
 		db:         database,
 		adminDB:    adminDB,
 		manager:    manager,
 		caster:     casterManager,
 		quality:    analyzer,
+		probe:      probeManager,
 		hmacSecret: hmacSecret,
 		nonces:     make(map[string]time.Time),
 	}
@@ -72,6 +86,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/internal/caster/connections", s.requireSignature(s.handleCasterConnections, http.MethodGet))
 	mux.HandleFunc("/internal/caster/disconnect", s.requireSignature(s.handleCasterDisconnect, http.MethodPost))
 	mux.HandleFunc("/internal/caster/reconcile", s.requireSignature(s.handleCasterReconcile, http.MethodPost))
+	mux.HandleFunc("/internal/probe/reconcile", s.requireSignature(s.handleProbeReconcile, http.MethodPost))
 	mux.HandleFunc("/internal/caster/listeners", s.requireSignature(s.handleCasterListeners, http.MethodGet))
 	mux.HandleFunc("/internal/rtcm/snapshot", s.requireSignature(s.handleQualitySnapshot, http.MethodGet))
 	mux.HandleFunc("/internal/rtcm/health", s.requireSignature(s.handleQualityHealth, http.MethodGet))
@@ -266,6 +281,17 @@ func (s *Server) handleCasterReconcile(w http.ResponseWriter, r *http.Request, _
 		writeError(w, http.StatusInternalServerError, "caster reconcile failed")
 		return
 	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (s *Server) handleProbeReconcile(w http.ResponseWriter, r *http.Request, _ []byte) {
+	if s.probe == nil {
+		writeError(w, http.StatusServiceUnavailable, "probe manager is not running")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+	defer cancel()
+	s.probe.Reconcile(ctx)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 

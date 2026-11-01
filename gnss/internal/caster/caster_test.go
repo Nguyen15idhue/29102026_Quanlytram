@@ -71,6 +71,20 @@ func newTestManager(t *testing.T, cfg *Config) (*manager, *memoryRuntime) {
 
 func newTestManagerWithOptions(t *testing.T, cfg *Config, options Options) (*manager, *memoryRuntime) {
 	t.Helper()
+	if len(cfg.Accounts) == 0 {
+		acl := make(map[int64]bool, len(cfg.Mountpoints))
+		for id := range cfg.Mountpoints {
+			acl[id] = true
+		}
+		cfg.Accounts = []*AccountConfig{{
+			ID:             9000,
+			Username:       "test",
+			PasswordHash:   passwordHash("test"),
+			Enabled:        true,
+			MaxConnections: 100,
+			ACL:            acl,
+		}}
+	}
 	runtime := &memoryRuntime{}
 	manager := NewManager(&memoryStore{cfg: cfg}, runtime, options)
 	if err := manager.Reconcile(context.Background()); err != nil {
@@ -100,6 +114,12 @@ func listenerPort(t *testing.T, manager *manager, id int64) int {
 
 func connect(t *testing.T, port int, request string) (net.Conn, *bufio.Reader, string) {
 	t.Helper()
+	if !strings.Contains(request, "Authorization:") {
+		auth := "Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte("test:test")) + "\r\n"
+		if index := strings.Index(request, "\r\n"); index >= 0 {
+			request = request[:index+2] + auth + request[index+2:]
+		}
+	}
 	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), 2*time.Second)
 	if err != nil {
 		t.Fatalf("dial: %v", err)
@@ -206,14 +226,14 @@ func TestAuthACLAndMaxConnections(t *testing.T) {
 	hash := passwordHash("secret123")
 	cfg := &Config{
 		Mountpoints: map[int64]*MountpointConfig{
-			1: {ID: 1, Name: "M", Enabled: true, RequiresAuth: true},
+			1: {ID: 1, Name: "M", Enabled: true},
 		},
 		Accounts: []*AccountConfig{
 			{ID: 1, Username: "ok", PasswordHash: hash, Enabled: true, MaxConnections: 1, ACL: map[int64]bool{1: true}},
 			{ID: 2, Username: "noacl", PasswordHash: hash, Enabled: true, MaxConnections: 2, ACL: map[int64]bool{}},
 		},
 		Listeners: []*ListenerConfig{
-			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: {ID: 1, Name: "M", Enabled: true, RequiresAuth: true}}},
+			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: {ID: 1, Name: "M", Enabled: true}}},
 		},
 	}
 	manager, _ := newTestManager(t, cfg)
@@ -245,8 +265,8 @@ func TestAuthACLAndMaxConnections(t *testing.T) {
 
 func TestListenerACLAndSourcetable(t *testing.T) {
 	hash := passwordHash("secret123")
-	m1 := &MountpointConfig{ID: 1, Name: "M1", Enabled: true, RequiresAuth: true}
-	m2 := &MountpointConfig{ID: 2, Name: "M2", Enabled: true, RequiresAuth: true}
+	m1 := &MountpointConfig{ID: 1, Name: "M1", Enabled: true}
+	m2 := &MountpointConfig{ID: 2, Name: "M2", Enabled: true}
 	cfg := &Config{
 		Mountpoints: map[int64]*MountpointConfig{1: m1, 2: m2},
 		Accounts: []*AccountConfig{{
@@ -286,16 +306,8 @@ func TestListenerACLAndSourcetable(t *testing.T) {
 	}
 }
 
-func TestPasswordOnlyMountpoint(t *testing.T) {
-	hash := passwordHash("secret123")
-	mountpoint := &MountpointConfig{
-		ID:           1,
-		Name:         "P",
-		Enabled:      true,
-		RequiresAuth: true,
-		AuthMode:     "password_only",
-		PasswordHash: hash,
-	}
+func TestAnonymousSourceRejected(t *testing.T) {
+	mountpoint := &MountpointConfig{ID: 1, Name: "M", Enabled: true}
 	cfg := &Config{
 		Mountpoints: map[int64]*MountpointConfig{1: mountpoint},
 		Listeners: []*ListenerConfig{
@@ -305,62 +317,10 @@ func TestPasswordOnlyMountpoint(t *testing.T) {
 	manager, _ := newTestManager(t, cfg)
 	port := listenerPort(t, manager, 1)
 
-	_, _, status := connect(t, port, "GET /P HTTP/1.0\r\n\r\n")
+	_, _, status := connect(t, port, "GET /M HTTP/1.0\r\nAuthorization: Basic "+
+		base64.StdEncoding.EncodeToString([]byte("unknown:secret"))+"\r\n\r\n")
 	if status != "ICY 401 Unauthorized" {
-		t.Fatalf("missing auth status = %q", status)
-	}
-	_, _, status = connect(t, port, "GET /P HTTP/1.1\r\nHost: x\r\nAuthorization: Basic "+
-		base64.StdEncoding.EncodeToString([]byte(":wrong"))+"\r\n\r\n")
-	if status != "HTTP/1.1 401 Unauthorized" {
-		t.Fatalf("wrong password status = %q", status)
-	}
-
-	auth := "Authorization: Basic " + base64.StdEncoding.EncodeToString([]byte(":secret123"))
-	source, _, status := connect(t, port, "SOURCE /P HTTP/1.0\r\n"+auth+"\r\n\r\n")
-	if status != "ICY 200 OK" {
-		t.Fatalf("password-only source v1 status = %q", status)
-	}
-	source.Close()
-
-	source, _, status = connect(t, port, "POST /P HTTP/1.1\r\nHost: x\r\n"+auth+"\r\n\r\n")
-	if status != "HTTP/1.1 200 OK" {
-		t.Fatalf("password-only source v2 status = %q", status)
-	}
-	source.Close()
-
-	rover, _, status := connect(t, port, "GET /P HTTP/1.1\r\nHost: x\r\nNtrip-Version: Ntrip/2.0\r\n"+auth+"\r\n\r\n")
-	if status != "HTTP/1.1 200 OK" {
-		t.Fatalf("password-only rover status = %q", status)
-	}
-	rover.Close()
-}
-
-func TestPasswordOnlyLegacyAcceptsAnyNonEmptyPassword(t *testing.T) {
-	mountpoint := &MountpointConfig{
-		ID:           1,
-		Name:         "LEGACY",
-		Enabled:      true,
-		RequiresAuth: true,
-		AuthMode:     "password_only",
-	}
-	cfg := &Config{
-		Mountpoints: map[int64]*MountpointConfig{1: mountpoint},
-		Listeners: []*ListenerConfig{
-			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: mountpoint}},
-		},
-	}
-	manager, _ := newTestManager(t, cfg)
-	port := listenerPort(t, manager, 1)
-
-	_, _, status := connect(t, port, "GET /LEGACY HTTP/1.0\r\nAuthorization: Basic "+
-		base64.StdEncoding.EncodeToString([]byte(":"))+"\r\n\r\n")
-	if status != "ICY 401 Unauthorized" {
-		t.Fatalf("empty password status = %q", status)
-	}
-	_, _, status = connect(t, port, "GET /LEGACY HTTP/1.0\r\nAuthorization: Basic "+
-		base64.StdEncoding.EncodeToString([]byte(":random-nonempty"))+"\r\n\r\n")
-	if status != "ICY 200 OK" {
-		t.Fatalf("legacy non-empty password status = %q", status)
+		t.Fatalf("unknown account status = %q", status)
 	}
 }
 

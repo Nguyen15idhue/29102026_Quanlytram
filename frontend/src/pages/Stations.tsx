@@ -118,6 +118,7 @@ const DETAIL_TABS: StationDetailTab[] = [
   'overview',
   'connection',
   'quality',
+  'activity',
   'metadata',
   'history'
 ];
@@ -152,6 +153,11 @@ export function Stations() {
   const [deleteTarget, setDeleteTarget] = useState<Station | null>(null);
   const [selected, setSelected] = useState<Set<string | number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkConfirm, setBulkConfirm] = useState<{
+    action: string;
+    label: string;
+    ids: number[];
+  } | null>(null);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -332,18 +338,25 @@ export function Stations() {
   });
 
   const bulk = useMutation({
-    mutationFn: (action: string) =>
-      sendBulk('/api/stations/bulk', action, [...selected], csrfToken),
-    onSuccess: async (result, action) => {
+    mutationFn: (input: { action: string; ids: number[] }) =>
+      sendBulk('/api/stations/bulk', input.action, input.ids, csrfToken),
+    onSuccess: async (result, input) => {
       setSelected(new Set());
+      setBulkConfirm(null);
       setBulkDeleteOpen(false);
       closeDetail();
-      push(bulkMessage(result), result.forbidden || result.notFound ? 'error' : 'success');
-      if (action === 'delete') push('Đã xóa các trạm đã chọn', 'success');
+      const failed =
+        result.forbidden > 0 ||
+        result.notFound > 0 ||
+        (result.updated === 0 && result.skipped > 0);
+      push(bulkMessage(result), failed ? 'error' : 'success');
+      if (input.action === 'delete') push('Đã xóa các trạm đã chọn', 'success');
       await queryClient.invalidateQueries({ queryKey: ['stations'] });
     },
-    onError: (err) =>
-      push(err instanceof ApiClientError ? err.message : 'Thao tác hàng loạt thất bại', 'error')
+    onError: (err) => {
+      setBulkConfirm(null);
+      push(err instanceof ApiClientError ? err.message : 'Thao tác hàng loạt thất bại', 'error');
+    }
   });
 
   useEffect(() => {
@@ -537,6 +550,25 @@ export function Stations() {
     URL.revokeObjectURL(link.href);
   }
 
+  const selectedStations = (list.data?.items ?? []).filter((station) =>
+    selected.has(station.id)
+  );
+  const isLocked = (station: Station) =>
+    (station.status ?? (station.enabled ? 'active' : 'disabled')) === 'locked';
+  const isOn = (station: Station) => Boolean(station.enabled) && !isLocked(station);
+  const bulkTargets = {
+    enable: selectedStations.filter((station) => !isLocked(station) && !isOn(station)),
+    disable: selectedStations.filter((station) => !isLocked(station) && isOn(station)),
+    lock: selectedStations.filter((station) => !isLocked(station) && !isOn(station)),
+    unlock: selectedStations.filter((station) => isLocked(station))
+  };
+  const deleteTargets = selectedStations.filter((station) => !station.enabled);
+
+  function askBulk(action: string, label: string, items: Station[]) {
+    if (items.length === 0) return;
+    setBulkConfirm({ action, label, ids: items.map((station) => station.id) });
+  }
+
   return (
     <section className="page">
       <PageHeader
@@ -633,10 +665,42 @@ export function Stations() {
           actions={[
             ...(can('stations', 'edit')
               ? [
-                  { label: 'Bật', onClick: () => bulk.mutate('enable') },
-                  { label: 'Tắt', onClick: () => bulk.mutate('disable') },
-                  { label: 'Khóa', onClick: () => bulk.mutate('lock') },
-                  { label: 'Mở khóa', onClick: () => bulk.mutate('unlock') }
+                  {
+                    label: 'Bật',
+                    title:
+                      bulkTargets.enable.length === 0
+                        ? 'Chỉ bật trạm đang tắt và chưa khóa'
+                        : undefined,
+                    disabled: bulkTargets.enable.length === 0,
+                    onClick: () => askBulk('enable', 'Bật streaming', bulkTargets.enable)
+                  },
+                  {
+                    label: 'Tắt',
+                    title:
+                      bulkTargets.disable.length === 0
+                        ? 'Chỉ tắt trạm đang bật và chưa khóa'
+                        : undefined,
+                    disabled: bulkTargets.disable.length === 0,
+                    onClick: () => askBulk('disable', 'Tắt streaming', bulkTargets.disable)
+                  },
+                  {
+                    label: 'Khóa',
+                    title:
+                      bulkTargets.lock.length === 0
+                        ? 'Phải tắt trạm trước khi khóa'
+                        : undefined,
+                    disabled: bulkTargets.lock.length === 0,
+                    onClick: () => askBulk('lock', 'Khóa trạm', bulkTargets.lock)
+                  },
+                  {
+                    label: 'Mở khóa',
+                    title:
+                      bulkTargets.unlock.length === 0
+                        ? 'Không có trạm đang khóa'
+                        : undefined,
+                    disabled: bulkTargets.unlock.length === 0,
+                    onClick: () => askBulk('unlock', 'Mở khóa trạm', bulkTargets.unlock)
+                  }
                 ]
               : []),
             ...(can('stations', 'delete')
@@ -644,6 +708,11 @@ export function Stations() {
                   {
                     label: 'Xóa',
                     variant: 'danger' as const,
+                    title:
+                      deleteTargets.length === 0
+                        ? 'Phải tắt trạm trước khi xóa'
+                        : undefined,
+                    disabled: deleteTargets.length === 0,
                     onClick: () => setBulkDeleteOpen(true)
                   }
                 ]
@@ -660,14 +729,19 @@ export function Stations() {
           loading={list.isLoading}
           error={list.isError ? 'Không tải được danh sách trạm.' : undefined}
           empty="Chưa có trạm nào."
-          onRowClick={(station) => openDetail(station)}
           columns={[
             {
               key: 'name',
-              header: 'Tên',
+              header: 'Tên trạm',
               cell: (station) => (
                 <div>
-                  <div>{station.name}</div>
+                  <button
+                    type="button"
+                    className="link-btn"
+                    onClick={() => openDetail(station)}
+                  >
+                    {station.name}
+                  </button>
                   <div className="muted table-subline">
                     {station.owner_name || station.owner_web_user_id || '—'}
                   </div>
@@ -675,16 +749,22 @@ export function Stations() {
               )
             },
             {
-              key: 'status',
-              header: 'Trạng thái',
+              key: 'streaming',
+              header: 'Trạng thái streaming',
               cell: (station) => {
-                const status = station.status ?? (station.enabled ? 'active' : 'disabled');
-                return (
-                  <StatusBadge
-                    label={status}
-                    kind={status === 'active' ? 'ok' : status === 'locked' ? 'warn' : 'neutral'}
-                  />
-                );
+                if (!station.enabled || isLocked(station)) {
+                  return <StatusBadge label="Đã tắt" kind="neutral" />;
+                }
+                const state = station.quality_state ?? 'unknown';
+                const label =
+                  state === 'streaming'
+                    ? 'Đang streaming'
+                    : state === 'stale'
+                      ? 'Trễ dữ liệu'
+                      : state === 'error'
+                        ? 'Lỗi'
+                        : 'Không có dữ liệu';
+                return <StatusBadge label={label} kind={stateKind(state)} />;
               }
             },
             {
@@ -782,6 +862,16 @@ export function Stations() {
                 )
             },
             {
+              key: 'status',
+              header: 'Khóa/Mở khóa',
+              cell: (station) => (
+                <StatusBadge
+                  label={isLocked(station) ? 'Đã khóa' : 'Mở khóa'}
+                  kind={isLocked(station) ? 'warn' : 'ok'}
+                />
+              )
+            },
+            {
               key: 'actions',
               header: '',
               align: 'right',
@@ -801,6 +891,12 @@ export function Stations() {
                   {can('stations', 'delete') && (
                     <IconButton
                       label={`Xóa ${station.name}`}
+                      title={
+                        station.enabled
+                          ? 'Phải tắt trạm trước khi xóa'
+                          : `Xóa ${station.name}`
+                      }
+                      disabled={Boolean(station.enabled)}
                       onClick={(event) => {
                         event.stopPropagation();
                         setDeleteTarget(station);
@@ -1426,9 +1522,47 @@ export function Stations() {
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
         title="Xóa các trạm đã chọn?"
-        description={`${selected.size} trạm sẽ bị xóa. Hành động này không thể hoàn tác.`}
+        description={`${deleteTargets.length} trạm sẽ bị xóa. Hành động này không thể hoàn tác.${
+          selectedStations.length > deleteTargets.length
+            ? ` ${selectedStations.length - deleteTargets.length} trạm đang bật sẽ bỏ qua.`
+            : ''
+        }`}
         pending={bulk.isPending}
-        onConfirm={() => bulk.mutate('delete')}
+        onConfirm={() =>
+          bulk.mutate({
+            action: 'delete',
+            ids: deleteTargets.map((station) => station.id)
+          })
+        }
+      />
+      <ConfirmDialog
+        open={Boolean(bulkConfirm)}
+        onOpenChange={(open) => !open && setBulkConfirm(null)}
+        title={`${bulkConfirm?.label ?? 'Cập nhật'}?`}
+        description={`Áp dụng cho ${bulkConfirm?.ids.length ?? 0} trạm đã chọn${
+          selectedStations.length > (bulkConfirm?.ids.length ?? 0)
+            ? `; ${selectedStations.length - (bulkConfirm?.ids.length ?? 0)} trạm không hợp lệ sẽ bỏ qua`
+            : ''
+        }.`}
+        confirmLabel={
+          bulkConfirm?.action === 'enable'
+            ? 'Bật'
+            : bulkConfirm?.action === 'disable'
+              ? 'Tắt'
+              : bulkConfirm?.action === 'lock'
+                ? 'Khóa'
+                : 'Mở khóa'
+        }
+        tone={
+          bulkConfirm?.action === 'enable' || bulkConfirm?.action === 'unlock'
+            ? 'primary'
+            : 'danger'
+        }
+        pending={bulk.isPending}
+        onConfirm={() =>
+          bulkConfirm &&
+          bulk.mutate({ action: bulkConfirm.action, ids: bulkConfirm.ids })
+        }
       />
     </section>
   );

@@ -179,17 +179,12 @@ func buildSourcetable(mountpoints []*MountpointConfig, host string) string {
 		if mountpoint == nil || !mountpoint.Enabled {
 			continue
 		}
-		auth := "B"
-		if !mountpoint.RequiresAuth {
-			auth = "N"
-		}
 		fmt.Fprintf(
 			&builder,
-			"STR;%s;%s;RTCM 3.3;1005(1),1074(1);2;GPS+GLO+GAL+BDS;%s;VNM;0.00;0.00;0;0;CORS-MVP;none;%s;N;0;\r\n",
+			"STR;%s;%s;RTCM 3.3;1005(1),1074(1);2;GPS+GLO+GAL+BDS;%s;VNM;0.00;0.00;0;0;CORS-MVP;none;B;N;0;\r\n",
 			mountpoint.Name,
 			host,
 			host,
-			auth,
 		)
 	}
 	builder.WriteString("ENDSOURCETABLE\r\n")

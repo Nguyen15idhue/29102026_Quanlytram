@@ -728,6 +728,49 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   `go test ./...` + `go vet ./...` PASS.
 - Chưa chạy Playwright trong lần cập nhật này; chưa commit/push.
 
+### 8.23. Danh sách trạm + bỏ auth mountpoint (2026-11-01)
+
+- Trang Danh sách trạm: đổi cột `Tên` thành `Tên trạm`; thêm cột
+  `Trạng thái streaming` ngay sau tên (dùng `quality_state`); đổi cột
+  `Trạng thái` thành `Khóa/Mở khóa` và chuyển xuống cuối, cạnh cột hành động.
+- Mở chi tiết trạm chỉ bằng cách bấm tên trạm (`.link-btn`), không còn
+  `onRowClick` trên dòng.
+- Bỏ hoàn toàn auth riêng của mountpoint ở UI/API/Go: mountpoint không còn
+  `requires_auth`, `auth_mode`, `password_hash`; caster luôn xác thực bằng
+  `ntrip_accounts` + ACL. Cột DB vẫn giữ (không drop) theo quyết định phiên.
+- Kiểm tra: frontend `tsc --noEmit` PASS; server `tsc --noEmit` PASS;
+  Vitest 53/53 PASS; `go test ./...` + `go vet ./...` PASS.
+- Sửa bulk action trạm: chỉ bật khi đang tắt và không khóa; chỉ tắt khi đang
+  bật và không khóa; chỉ khóa khi đang tắt/chưa khóa; mở khóa khi đang khóa.
+  UI disable nút không hợp lệ, thêm ConfirmDialog trước khi chạy và toast kết
+  quả; BE chặn lại và trả `skipped` cho hàng không hợp lệ. Cột streaming hiển
+  thị `Đã tắt` khi trạm tắt/khóa thay vì giữ trạng thái quality cũ.
+- Chặn xóa trạm đang bật: nút xóa đơn và bulk Xóa chỉ khả dụng khi trạm đã tắt;
+  BE trả `STATION_ENABLED` cho xóa đơn và `skipped` cho bulk. Cập nhật test dọn
+  dữ liệu (ui/p1-rbac/p1-station-fix) tắt trạm trước khi xóa.
+
+### 8.24. Tắt trạm dừng nguồn thật + Activity/uptime (2026-11-01)
+
+- Migration `022_station_stream_pause.sql`: thêm `paused_by_station_id` cho
+  `mountpoints`, `relay_jobs`, `station_probes`; backfill các trạm đang tắt.
+- Tắt trạm giờ disable thật mountpoint + probe + relay job có
+  `upstream_mount` thuộc trạm, tăng `desired_revision`, rồi gọi Go
+  `relay/reconcile` + `caster/reconcile`. Bật lại chỉ khôi phục tài nguyên do
+  trạm tự tạm dừng; thao tác tay trên relay/mountpoint/probe xóa marker.
+- Go caster/probe bỏ qua mountpoint/probe của trạm `enabled=0` (defense in
+  depth); probe query thêm `s.enabled = 1`.
+- Xác minh thực tế SLA Mộc Châu (trạm 79): relay 92 -> `disabled`,
+  applied_revision 3; probe 2 và mountpoint 66 -> `enabled=0`,
+  `paused_by_station_id=79`; quality sample dừng phát sinh sau ~1 phút.
+- Thêm tab **Hoạt động** trong drawer trạm + API
+  `GET /api/stations/:id/activity?range=24h|7d|30d`: uptime %, sự kiện mất kết
+  nối (gộp theo 5 phút), timeline kết nối, series vệ tinh/C/N0/MSM/gap/age và
+  chọn metric. UI theo mẫu Activity: range 24h/7d/30d, “Xem lịch sử kết nối”,
+  thanh connection, chart có trục thời gian và “now”.
+- Kiểm tra: frontend/server `tsc` PASS; Vitest 53/53; `go test ./...` +
+  `go vet ./...` PASS; Playwright `station-detail.spec.ts` PASS + screenshot
+  `test-results/station-activity-light.png`.
+
 ## 9. Nhật ký thay đổi
 
 | Giai đoạn | File/khu vực | Ghi chú |
@@ -771,4 +814,4 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 
 ## 10. Cập nhật lần cuối
 
-- 2026-10-31 18:00 +07:00
+- 2026-11-01 (Asia/Ho_Chi_Minh, +07:00)

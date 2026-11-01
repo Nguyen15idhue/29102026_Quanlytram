@@ -142,6 +142,10 @@ test.describe('P1.2 RBAC tenant và menu', () => {
         if (adminBList.ok()) {
           const me = await adminBCtx.get('/api/auth/me');
           const csrf = me.ok() ? (await me.json()).csrfToken : '';
+          await adminBCtx.post('/api/stations/bulk', {
+            headers: { 'X-CSRF-Token': csrf },
+            data: { ids: [stationId], action: 'disable' }
+          });
           await adminBCtx.delete(`/api/stations/${stationId}`, {
             headers: { 'X-CSRF-Token': csrf }
           });

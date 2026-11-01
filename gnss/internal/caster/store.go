@@ -53,32 +53,29 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 	listenerRows.Close()
 
 	mountpointRows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, COALESCE(station_id, 0), enabled, requires_auth,
-		        COALESCE(auth_mode, 'ntrip_account'), COALESCE(password_hash, '')
-		   FROM mountpoints ORDER BY id`)
+		`SELECT m.id, m.name, COALESCE(m.station_id, 0), m.enabled
+		   FROM mountpoints m
+		   LEFT JOIN stations s ON s.id = m.station_id
+		  WHERE s.id IS NULL OR (s.enabled = 1 AND s.status <> 'locked')
+		  ORDER BY m.id`)
 	if err != nil {
 		return nil, fmt.Errorf("load mountpoints: %w", err)
 	}
 	for mountpointRows.Next() {
 		var (
-			mountpoint   MountpointConfig
-			enabled      int
-			requiresAuth int
+			mountpoint MountpointConfig
+			enabled    int
 		)
 		if err := mountpointRows.Scan(
 			&mountpoint.ID,
 			&mountpoint.Name,
 			&mountpoint.StationID,
 			&enabled,
-			&requiresAuth,
-			&mountpoint.AuthMode,
-			&mountpoint.PasswordHash,
 		); err != nil {
 			mountpointRows.Close()
 			return nil, err
 		}
 		mountpoint.Enabled = enabled != 0
-		mountpoint.RequiresAuth = requiresAuth != 0
 		cfg.Mountpoints[mountpoint.ID] = &mountpoint
 	}
 	if err := mountpointRows.Err(); err != nil {

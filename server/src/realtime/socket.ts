@@ -409,17 +409,25 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
         const qualityScope = scopeOf(state.permissions, 'quality.view');
         const qualityIds =
           qualityScope === 'tenant' ? state.tenantIds : state.subtreeIds;
+        const disabledStations = new Set(
+          data.stations
+            .filter((station) => !station.enabled || station.status === 'locked')
+            .map((station) => station.id)
+        );
         const visibleQuality: QualityLive[] =
           qualityScope === 'none'
             ? []
-            : liveQuality.items.filter((item) =>
-                inScope(
+            : liveQuality.items.filter((item) => {
+                if (item.targetType === 'station' && disabledStations.has(item.targetId)) {
+                  return false;
+                }
+                return inScope(
                   qualityScope,
                   state.auth.userId,
                   qualityIds,
                   qualityOwner(data, item.targetType, item.targetId)
-                )
-              );
+                );
+              });
         socket.emit('quality.snapshot', { ts: liveQuality.ts, items: visibleQuality });
         const qualitySig = JSON.stringify(visibleQuality);
         if (qualitySig !== state.lastQualitySig) {

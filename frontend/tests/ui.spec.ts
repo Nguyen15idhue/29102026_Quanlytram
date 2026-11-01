@@ -40,6 +40,14 @@ test.describe('Phase 3.5 UI', () => {
     await expect(page.getByRole('dialog')).toBeVisible();
     await page.getByRole('dialog').getByRole('button', { name: 'Hủy' }).click();
 
+    const createdRow = page
+      .getByRole('row', { name: new RegExp(`UI test ${suffix}`) })
+      .first();
+    await createdRow.getByRole('checkbox').check();
+    await page.getByRole('button', { name: 'Tắt', exact: true }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Tắt' }).click();
+    await expect(page.getByText(`UI test ${suffix}`).first()).toBeVisible();
+
     await page.getByRole('button', { name: `Xóa UI test ${suffix}` }).click();
     await expect(page.getByRole('alertdialog')).toBeVisible();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Xóa' }).click();

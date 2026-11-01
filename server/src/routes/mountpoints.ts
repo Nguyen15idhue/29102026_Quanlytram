@@ -5,7 +5,6 @@ import { adminPool, query, withTransaction } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
 import { writeAudit } from '../lib/audit';
 import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
-import { hashPassword } from '../lib/password';
 import { asyncHandler, ApiError } from '../lib/http';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
@@ -29,9 +28,6 @@ const createSchema = z.object({
   name: z.string().min(1).max(128),
   station_id: z.number().int().positive().nullable().optional(),
   enabled: z.boolean().optional().default(true),
-  requires_auth: z.boolean().optional().default(true),
-  auth_mode: z.enum(['ntrip_account', 'password_only']).optional(),
-  password: z.string().min(6).max(200).optional(),
   service_type: z.string().max(64).optional(),
   position_mode: z.string().max(64).optional(),
   satellite_systems: z.string().max(64).optional(),
@@ -292,7 +288,6 @@ async function enrichExplorer(rows: RowDataPacket[]): Promise<{
       id,
       name: String(row.name),
       enabled: Boolean(row.enabled),
-      requiresAuth: Boolean(row.requires_auth),
       serviceType: String(row.service_type ?? ''),
       positionMode: String(row.position_mode ?? ''),
       satelliteSystems: String(row.satellite_systems ?? ''),
@@ -362,11 +357,6 @@ mountpointsRouter.get(
     if (enabled === '0' || enabled === '1') {
       where += ' AND m.enabled = ?';
       params.push(Number(enabled));
-    }
-    const authMode = String(req.query.authMode || '').trim();
-    if (authMode === 'ntrip_account' || authMode === 'password_only') {
-      where += ' AND m.auth_mode = ?';
-      params.push(authMode);
     }
     const ownerId = Number(req.query.ownerId || 0);
     if (Number.isInteger(ownerId) && ownerId > 0) {
@@ -534,24 +524,15 @@ mountpointsRouter.post(
   asyncHandler(async (req, res) => {
     const body = createSchema.parse(req.body);
     await assertStationScope(req, body.station_id);
-    const authMode = body.auth_mode ?? 'ntrip_account';
-    if (authMode === 'password_only' && !body.requires_auth) {
-      throw new ApiError(400, 'VALIDATION_ERROR', 'password_only phải bật requires_auth');
-    }
-    if (authMode === 'password_only' && !body.password) {
-      throw new ApiError(400, 'VALIDATION_ERROR', 'password_only cần mật khẩu');
-    }
-    const passwordHash = body.password ? await hashPassword(body.password) : null;
     const ownerId = await resolveOwner(req, body.owner_web_user_id);
     const [result] = await adminPool.query<any>(
       `INSERT INTO mountpoints
-         (name, station_id, enabled, requires_auth, auth_mode, password_hash,
+         (name, station_id, enabled,
           service_type, position_mode, satellite_systems, caster_interval,
           code_protocol, code_type, description, owner_web_user_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        body.name, body.station_id ?? null, body.enabled, body.requires_auth,
-        authMode, passwordHash,
+        body.name, body.station_id ?? null, body.enabled,
         body.service_type ?? 'rtcm', body.position_mode ?? 'normal',
         body.satellite_systems ?? '', body.caster_interval ?? 0,
         body.code_protocol ?? '', body.code_type ?? '', body.description ?? '',
@@ -574,31 +555,18 @@ mountpointsRouter.patch(
     await assertRecordScope(req, before.owner_web_user_id);
     const body = updateSchema.parse(req.body);
     if (body.station_id !== undefined) await assertStationScope(req, body.station_id);
-    const authMode = body.auth_mode ?? before.auth_mode ?? 'ntrip_account';
-    const requiresAuth =
-      body.requires_auth === undefined ? Boolean(before.requires_auth) : body.requires_auth;
-    if (authMode === 'password_only' && !requiresAuth) {
-      throw new ApiError(400, 'VALIDATION_ERROR', 'password_only phải bật requires_auth');
-    }
-    if (authMode === 'password_only' && !body.password && !before.password_hash) {
-      throw new ApiError(400, 'VALIDATION_ERROR', 'password_only cần mật khẩu');
-    }
-    const passwordHash = body.password ? await hashPassword(body.password) : before.password_hash;
     const ownerId =
       body.owner_web_user_id === undefined
         ? Number(before.owner_web_user_id)
         : await resolveOwner(req, body.owner_web_user_id);
     await adminPool.query(
-      `UPDATE mountpoints SET name=?, station_id=?, enabled=?, requires_auth=?,
-         auth_mode=?, password_hash=?,
+      `UPDATE mountpoints SET name=?, station_id=?, enabled=?, paused_by_station_id=NULL,
          service_type=?, position_mode=?, satellite_systems=?, caster_interval=?,
          code_protocol=?, code_type=?, description=?, owner_web_user_id=? WHERE id=?`,
       [
         body.name ?? before.name,
         body.station_id === undefined ? before.station_id : body.station_id,
         body.enabled === undefined ? before.enabled : body.enabled,
-        requiresAuth,
-        authMode, passwordHash,
         body.service_type ?? before.service_type,
         body.position_mode ?? before.position_mode,
         body.satellite_systems ?? before.satellite_systems,
@@ -652,10 +620,10 @@ mountpointsRouter.post(
         if (body.action === 'delete') {
           await conn.query('DELETE FROM mountpoints WHERE id = ?', [row.id]);
         } else {
-          await conn.query('UPDATE mountpoints SET enabled = ? WHERE id = ?', [
-            body.action === 'enable' ? 1 : 0,
-            row.id
-          ]);
+          await conn.query(
+            'UPDATE mountpoints SET enabled = ?, paused_by_station_id = NULL WHERE id = ?',
+            [body.action === 'enable' ? 1 : 0, row.id]
+          );
         }
       }
     });

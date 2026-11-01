@@ -39,9 +39,6 @@ const emptyForm = {
   name: '',
   station_id: '' as string | number,
   enabled: true,
-  requires_auth: true,
-  auth_mode: 'ntrip_account',
-  password: '',
   service_type: 'rtcm',
   position_mode: 'normal',
   satellite_systems: '',
@@ -59,8 +56,7 @@ export function Mountpoints() {
     useListParams();
   const stationId = getParam('stationId');
   const enabled = getParam('enabled');
-  const authMode = getParam('authMode');
-  const activeFilterCount = [stationId, enabled, authMode].filter(Boolean).length;
+  const activeFilterCount = [stationId, enabled].filter(Boolean).length;
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<Mountpoint | null>(null);
@@ -85,9 +81,8 @@ export function Mountpoints() {
     });
     if (stationId) params.set('stationId', stationId);
     if (enabled) params.set('enabled', enabled);
-    if (authMode) params.set('authMode', authMode);
     return params.toString();
-  }, [page, pageSize, q, stationId, enabled, authMode]);
+  }, [page, pageSize, q, stationId, enabled]);
   const list = useQuery({
     queryKey: ['mountpoints', listQuery],
     queryFn: () => apiFetch<MountpointList>(`/api/mountpoints?${listQuery}`)
@@ -158,7 +153,7 @@ export function Mountpoints() {
 
   useEffect(() => {
     setSelected(new Set());
-  }, [page, pageSize, q, stationId, enabled, authMode]);
+  }, [page, pageSize, q, stationId, enabled]);
 
   function openCreate() {
     setEditing(null);
@@ -174,9 +169,6 @@ export function Mountpoints() {
       name: item.name,
       station_id: item.station_id ?? '',
       enabled: Boolean(item.enabled),
-      requires_auth: Boolean(item.requires_auth),
-      auth_mode: item.auth_mode ?? 'ntrip_account',
-      password: '',
       service_type: item.service_type ?? 'rtcm',
       position_mode: item.position_mode ?? 'normal',
       satellite_systems: item.satellite_systems ?? '',
@@ -247,16 +239,6 @@ export function Mountpoints() {
               <option value="">Tất cả</option>
               <option value="1">Đang bật</option>
               <option value="0">Đã tắt</option>
-            </Select>
-          </Field>
-          <Field label="Cơ chế auth">
-            <Select
-              value={authMode}
-              onChange={(event) => setParam('authMode', event.target.value || null)}
-            >
-              <option value="">Mọi cơ chế</option>
-              <option value="ntrip_account">Tài khoản NTRIP</option>
-              <option value="password_only">Chỉ password</option>
             </Select>
           </Field>
         </TableToolbar>

@@ -104,6 +104,10 @@ test.describe('P1 station connection/coordinate/geo fixes', () => {
       if (stationId !== null) {
         const me = await context.get('/api/auth/me');
         const csrf = me.ok() ? (await me.json()).csrfToken : '';
+        await context.post('/api/stations/bulk', {
+          headers: { 'X-CSRF-Token': csrf },
+          data: { ids: [stationId], action: 'disable' }
+        });
         await context.delete(`/api/stations/${stationId}`, {
           headers: { 'X-CSRF-Token': csrf }
         });

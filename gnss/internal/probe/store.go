@@ -46,7 +46,7 @@ SELECT p.id, p.station_id, COALESCE(p.mountpoint_id, 0),
   JOIN stations s ON s.id = p.station_id
   LEFT JOIN mountpoints m ON m.id = p.mountpoint_id
   LEFT JOIN relay_credentials rc ON rc.id = p.credential_id
- WHERE p.enabled = 1
+ WHERE p.enabled = 1 AND s.enabled = 1 AND s.status <> 'locked'
  ORDER BY p.id`
 
 func (s *MySQLStore) LoadAll(ctx context.Context) ([]*Config, error) {

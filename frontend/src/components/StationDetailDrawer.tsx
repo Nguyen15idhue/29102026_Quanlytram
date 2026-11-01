@@ -27,14 +27,22 @@ import type {
 } from '../types';
 import { Button, EmptyState, Modal, Pagination, StatusBadge, Tabs } from './ui';
 import { QualityPanel } from './QualityPanel';
+import { StationActivityPanel } from './StationActivity';
 import { formatNumber } from './charts';
 
-export type StationDetailTab = 'overview' | 'connection' | 'quality' | 'metadata' | 'history';
+export type StationDetailTab =
+  | 'overview'
+  | 'connection'
+  | 'quality'
+  | 'activity'
+  | 'metadata'
+  | 'history';
 
 const TABS: Array<{ value: StationDetailTab; label: string }> = [
   { value: 'overview', label: 'Tổng quan' },
   { value: 'connection', label: 'Kết nối' },
   { value: 'quality', label: 'Chất lượng' },
+  { value: 'activity', label: 'Hoạt động' },
   { value: 'metadata', label: 'Metadata' },
   { value: 'history', label: 'Lịch sử' }
 ];
@@ -181,10 +189,6 @@ function MountpointConnection({ mountpoint }: { mountpoint: StationConnectionMou
           <StatusBadge
             label={mountpoint.enabled ? 'enabled' : 'disabled'}
             kind={mountpoint.enabled ? 'ok' : 'neutral'}
-          />
-          <StatusBadge
-            label={mountpoint.requiresAuth ? 'auth' : 'no-auth'}
-            kind={mountpoint.requiresAuth ? 'info' : 'warn'}
           />
         </div>
       </div>
@@ -843,6 +847,13 @@ export function StationDetailDrawer({
                 description="Cần quyền quality.view để xem score, message type và cảnh báo RTCM."
               />
             ))}
+          {tab === 'activity' && (
+            <StationActivityPanel
+              key={station.id}
+              stationId={station.id}
+              onOpenHistory={() => onTabChange('history')}
+            />
+          )}
           {tab === 'metadata' && <MetadataTab stationId={station.id} />}
           {tab === 'history' && <HistoryTab stationId={station.id} />}
         </>

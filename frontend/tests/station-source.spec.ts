@@ -19,7 +19,7 @@ test.describe('Phase 7 station source and 1005 coordinates', () => {
     await page.getByPlaceholder('Tìm mã, tên, địa chỉ').fill('THA_HauLoc');
     const row = page.getByRole('row', { name: /THA Hậu Lộc/ }).first();
     await expect(row).toBeVisible();
-    await row.click();
+    await row.locator('.link-btn').click();
     const detail = page.getByRole('dialog');
     await detail.getByRole('tab', { name: 'Tổng quan' }).click();
 

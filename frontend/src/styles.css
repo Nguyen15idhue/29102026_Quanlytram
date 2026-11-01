@@ -2559,3 +2559,185 @@ label.check input {
     grid-template-columns: 1fr;
   }
 }
+
+.activity-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.activity-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.activity-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.activity-summary .link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.activity-block {
+  display: grid;
+  gap: 8px;
+}
+
+.activity-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.activity-empty {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.activity-events {
+  display: grid;
+  gap: 6px;
+  max-height: 160px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.activity-event {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.activity-connection {
+  display: flex;
+  gap: 0;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--raised-2);
+}
+
+.activity-slot {
+  flex: 1 1 0;
+  min-width: 1px;
+  background: var(--raised-2);
+}
+
+.activity-slot.up {
+  background: var(--ok);
+}
+
+.activity-slot.degraded {
+  background: var(--warn);
+}
+
+.activity-slot.down {
+  background: var(--danger);
+  min-width: 2px;
+}
+
+.activity-slot.idle {
+  background: var(--border-strong);
+}
+
+.activity-chart {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.activity-yaxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-width: 34px;
+  height: 180px;
+  padding: 8px 0 12px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.activity-plot {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-plot svg {
+  display: block;
+  width: 100%;
+  height: 180px;
+}
+
+.activity-xaxis {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.activity-chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.activity-chart-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.activity-chart-controls .input {
+  width: auto;
+  min-width: 170px;
+  height: 30px;
+}
+
+.activity-chart-controls .muted {
+  font-size: 11px;
+}
+
+@media (max-width: 760px) {
+  .activity-yaxis {
+    height: 140px;
+  }
+
+  .activity-plot svg {
+    height: 140px;
+  }
+
+  .activity-chart-controls .input {
+    min-width: 140px;
+  }
+}

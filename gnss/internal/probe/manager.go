@@ -78,6 +78,10 @@ func NewManager(store Store, opts Options) *Manager {
 	}
 }
 
+func (m *Manager) Reconcile(ctx context.Context) {
+	m.reconcile(ctx)
+}
+
 func (m *Manager) Run(ctx context.Context) {
 	m.mu.Lock()
 	m.rootCtx = ctx
@@ -115,7 +119,9 @@ func (m *Manager) Shutdown(ctx context.Context) {
 }
 
 func (m *Manager) reconcile(ctx context.Context) {
-	configs, err := m.store.LoadAll(ctx)
+	loadCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	configs, err := m.store.LoadAll(loadCtx)
 	if err != nil {
 		log.Printf("[probe] load config failed: %v", err)
 		return
@@ -195,6 +201,13 @@ func (m *Manager) connectAndRead(ctx context.Context, cfg *Config) error {
 
 	stop := make(chan struct{})
 	defer close(stop)
+	go func() {
+		select {
+		case <-ctx.Done():
+			_ = response.Close()
+		case <-stop:
+		}
+	}()
 	if cfg.Lat != nil && cfg.Lon != nil && response.Conn != nil {
 		interval := cfg.Interval
 		if interval <= 0 {

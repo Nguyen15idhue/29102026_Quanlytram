@@ -53,6 +53,7 @@ mapRouter.get(
 
     const rows = await query<RowDataPacket[]>(
       `SELECT s.id, s.code, s.name, s.region, s.address, s.source_type, s.ntrip_mode,
+              s.enabled, s.status,
               s.owner_web_user_id, u.display_name AS owner_name
          FROM stations s
          LEFT JOIN web_users u ON u.id = s.owner_web_user_id
@@ -153,8 +154,15 @@ mapRouter.get(
         : latest?.ts
           ? Math.max(0, now - new Date(latest.ts).getTime())
           : null;
-      const state = liveItem?.state ?? latest?.state;
-      const score = liveItem ? liveItem.score : latest ? Number(latest.score) : null;
+      const stationOff = Number(row.enabled) === 0 || String(row.status) === 'locked';
+      const state = stationOff ? 'disabled' : liveItem?.state ?? latest?.state;
+      const score = stationOff
+        ? null
+        : liveItem
+          ? liveItem.score
+          : latest
+            ? Number(latest.score)
+            : null;
       const relays = relayCount.get(stationId) ?? 0;
       return {
         id: stationId,
@@ -163,7 +171,7 @@ mapRouter.get(
         lat,
         lon,
         has1005,
-        transport: transportStatusFor(state, ageMs),
+        transport: stationOff ? 'offline' : transportStatusFor(state, ageMs),
         quality: state ? String(state) : 'unknown',
         score,
         sourceType: sourceTypeOf(row, relays),

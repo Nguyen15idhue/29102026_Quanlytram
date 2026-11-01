@@ -50,10 +50,12 @@ export async function loadBaseData(): Promise<RawData> {
   }));
 
   const stationRows = await query<RowDataPacket[]>(
-    'SELECT id, owner_web_user_id FROM stations'
+    'SELECT id, enabled, status, owner_web_user_id FROM stations'
   );
   const stations: RawStation[] = stationRows.map((row) => ({
     id: Number(row.id),
+    enabled: Boolean(row.enabled),
+    status: String(row.status ?? ''),
     ownerId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id)
   }));
 

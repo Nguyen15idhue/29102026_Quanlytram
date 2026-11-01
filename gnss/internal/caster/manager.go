@@ -288,7 +288,7 @@ func (m *manager) isInvalidLocked(conn *connection, listenerByID map[int64]*List
 		return true
 	}
 	if conn.accountID == nil {
-		return mountpoint.RequiresAuth
+		return true
 	}
 	account := m.accountsByID[*conn.accountID]
 	if account == nil || !account.Enabled {

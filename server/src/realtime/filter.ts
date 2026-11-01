@@ -10,6 +10,8 @@ export interface RawJob {
 
 export interface RawStation {
   id: number;
+  enabled: boolean;
+  status: string;
   ownerId: number | null;
 }
 

@@ -120,7 +120,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
-		Handler:           api.New(runtimeDB, cfg.AdminDB, manager, casterManager, analyzer, cfg.InternalHMACSecret).Handler(),
+		Handler:           api.New(runtimeDB, cfg.AdminDB, manager, casterManager, analyzer, probeManager, cfg.InternalHMACSecret).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 

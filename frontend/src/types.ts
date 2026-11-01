@@ -145,6 +145,44 @@ export interface StationDetail extends Station {
   reliability: StationReliability;
 }
 
+export type StationActivityRange = '24h' | '7d' | '30d';
+
+export interface StationActivityEvent {
+  id: string;
+  at: string;
+  source: 'caster' | 'relay';
+  reason: string;
+  durationSec: number;
+}
+
+export interface StationActivitySegment {
+  from: string;
+  to: string;
+  status: 'up' | 'down';
+}
+
+export interface StationActivityPoint {
+  at: string;
+  satellites: number | null;
+  avgCnr: number | null;
+  msmEpochs: number | null;
+  gaps: number | null;
+  ageMs: number | null;
+}
+
+export interface StationActivityResponse {
+  stationId: number;
+  range: StationActivityRange;
+  from: string;
+  to: string;
+  totalSec: number;
+  onlineSec: number;
+  uptimePct: number;
+  events: StationActivityEvent[];
+  segments: StationActivitySegment[];
+  series: StationActivityPoint[];
+}
+
 export interface StationConnectionListener {
   id: number;
   name: string;
@@ -196,7 +234,6 @@ export interface StationConnectionMountpoint {
   id: number;
   name: string;
   enabled: boolean;
-  requiresAuth: boolean;
   serviceType: string;
   positionMode: string;
   satelliteSystems: string;
@@ -288,9 +325,6 @@ export interface Mountpoint {
   name: string;
   station_id: number | null;
   enabled: number;
-  requires_auth: number;
-  auth_mode?: 'ntrip_account' | 'password_only';
-  has_password?: boolean;
   owner_web_user_id: number | null;
   station_code?: string | null;
   station_name?: string | null;
@@ -745,7 +779,6 @@ export interface MountpointExplorerItem {
   id: number;
   name: string;
   enabled: boolean;
-  requiresAuth: boolean;
   serviceType: string;
   positionMode: string;
   satelliteSystems: string;

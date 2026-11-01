@@ -195,10 +195,6 @@ export function MountpointExplorerDrawer({ id, onClose }: { id: number; onClose:
               <dd>{item.satelliteSystems || '—'}</dd>
             </div>
             <div>
-              <dt>Auth</dt>
-              <dd>{item.requiresAuth ? 'Bắt buộc' : 'Không auth'}</dd>
-            </div>
-            <div>
               <dt>Code</dt>
               <dd>
                 {item.codeProtocol || '—'} / {item.codeType || '—'}

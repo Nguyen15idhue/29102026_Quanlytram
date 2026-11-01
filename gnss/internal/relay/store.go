@@ -33,7 +33,9 @@ const jobColumns = `
   j.upstream_key, j.downstream_key
 FROM relay_jobs j
 LEFT JOIN relay_credentials uc ON uc.id = j.upstream_credential_id
-LEFT JOIN relay_credentials dc ON dc.id = j.downstream_credential_id`
+LEFT JOIN relay_credentials dc ON dc.id = j.downstream_credential_id
+LEFT JOIN mountpoints sm ON sm.name = j.upstream_mount
+LEFT JOIN stations s ON s.id = sm.station_id`
 
 type rowScanner interface {
 	Scan(dest ...any) error
@@ -123,7 +125,10 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 }
 
 func (s *MySQLStore) LoadAll(ctx context.Context) ([]*JobConfig, error) {
-	rows, err := s.db.QueryContext(ctx, `SELECT `+jobColumns+` WHERE j.deleted_at IS NULL ORDER BY j.id`)
+	rows, err := s.db.QueryContext(ctx, `SELECT `+jobColumns+`
+		WHERE j.deleted_at IS NULL
+		  AND (j.enabled = 0 OR s.id IS NULL OR (s.enabled = 1 AND s.status <> 'locked'))
+		ORDER BY j.id`)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +146,9 @@ func (s *MySQLStore) LoadAll(ctx context.Context) ([]*JobConfig, error) {
 }
 
 func (s *MySQLStore) LoadJob(ctx context.Context, id int64) (*JobConfig, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT `+jobColumns+` WHERE j.deleted_at IS NULL AND j.id = ?`, id)
+	row := s.db.QueryRowContext(ctx, `SELECT `+jobColumns+`
+		WHERE j.deleted_at IS NULL AND j.id = ?
+		  AND (j.enabled = 0 OR s.id IS NULL OR (s.enabled = 1 AND s.status <> 'locked'))`, id)
 	job, err := s.scanJob(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
