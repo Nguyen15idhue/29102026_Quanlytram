@@ -23,6 +23,10 @@ const UnifiedMap = lazy(() =>
   import('./pages/UnifiedMap').then((module) => ({ default: module.UnifiedMap }))
 );
 
+const Guide = lazy(() =>
+  import('./pages/Guide').then((module) => ({ default: module.Guide }))
+);
+
 function Protected() {
   const { user, loading } = useAuth();
   if (loading) return <div className="page-loading">Đang tải...</div>;
@@ -60,6 +64,8 @@ export function App() {
           <Route path="/system" element={<System />} />
           <Route path="/system/health" element={<Navigate to="/system?tab=health" replace />} />
           <Route path="/system/map-config" element={<SystemMapConfig />} />
+          <Route path="/guide" element={<Guide />} />
+          <Route path="/huong-dan" element={<Navigate to="/guide" replace />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -36,6 +36,12 @@ pnpm-debug.log*
 *.sqlite3
 mysql-data/
 
+# Guide site (build output)
+frontend/public/guide/
+docs-site/.docusaurus/
+docs-site/build/
+docs-site/generated/
+
 # Coverage / test
 coverage/
 .nyc_output/

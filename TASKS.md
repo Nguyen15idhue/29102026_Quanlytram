@@ -736,7 +736,7 @@ Tài liệu: `docs/1/08_KE_HOACH_TRANG_HUONG_DAN.md`
 |---|---|---|
 | P08-0 | Baseline & quyết định (Q08-1..Q08-8) | DONE (server 88/88, FE build, nav 1/1) |
 | P08-1 | Scaffold Docusaurus `docs-site/` | DONE (build PASS, serve 200, 2 chương mẫu) |
-| P08-2 | Tích hợp app: route `/guide`, menu giữa Relay và Hệ thống | TODO |
+| P08-2 | Tích hợp app: route `/guide`, menu giữa Relay và Hệ thống | DONE (8 nhóm, nav 1/1, FE build PASS) |
 | P08-3 | Seed demo + capture ảnh + `ui-inventory.json` | TODO |
 | P08-4 | Viết nội dung 12 chương | TODO |
 | P08-5 | Test, a11y, đóng gói | TODO |

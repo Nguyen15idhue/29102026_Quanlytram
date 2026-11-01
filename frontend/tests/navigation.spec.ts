@@ -5,7 +5,7 @@ const password = process.env.E2E_PASSWORD ?? '';
 test.describe('P0 Phase 6 menu and deep links', () => {
   test.skip(!password, 'E2E_PASSWORD is required');
 
-  test('seven groups, titles, active menu, deep link, Esc/focus and responsive', async ({
+  test('eight groups, titles, active menu, deep link, Esc/focus and responsive', async ({
     page
   }) => {
     const errors: string[] = [];
@@ -18,7 +18,7 @@ test.describe('P0 Phase 6 menu and deep links', () => {
     await page.getByRole('button', { name: 'Đăng nhập' }).click();
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
-    await expect(page.locator('.nav-group')).toHaveCount(7);
+    await expect(page.locator('.nav-group')).toHaveCount(8);
     const groups = await page.locator('.nav-group-label').allTextContents();
     expect(groups).toEqual([
       'Tổng quan',
@@ -27,6 +27,7 @@ test.describe('P0 Phase 6 menu and deep links', () => {
       'CORS',
       'Tài khoản',
       'Relay',
+      'Hướng dẫn',
       'Hệ thống'
     ]);
 

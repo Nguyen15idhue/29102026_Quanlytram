@@ -1,0 +1,21 @@
+[
+  "/login",
+  "/",
+  "/stations",
+  "/stations/:stationId",
+  "/map",
+  "/online",
+  "/mountpoints",
+  "/relay-jobs",
+  "/caster",
+  "/ntrip-accounts",
+  "/web-users",
+  "/companies",
+  "/roles",
+  "/profile",
+  "/system",
+  "/system/map-config",
+  "/alerts",
+  "/history",
+  "/guide"
+]

@@ -506,3 +506,24 @@ Các bước cho mỗi trang:
 - Sai lệch: giữ **navbar thu gọn 48px** thay vì ẩn hoàn toàn (cần ô tìm kiếm và nút mở
   sidebar trên mobile); footer ẩn bằng CSS. Font nạp qua `clientModules` vì `@import`
   gói `@fontsource` không ổn định trong webpack của Docusaurus.
+
+### P08-2 — Tích hợp app (2026-11-01 23:18 +07:00)
+
+- Việc: route `/guide` (+ alias `/huong-dan`), `Guide.tsx` iframe có kiểm tra build,
+  nhóm menu **Hướng dẫn** giữa Relay và Hệ thống (class `nav-group-highlight`),
+  `scripts/build-guide.mjs` (build + copy + `--check`), `docs-site/routes.json`,
+  nginx `location /guide/`, `.gitignore`, script `build:guide`.
+- Lệnh: `node scripts/build-guide.mjs --check --allow-missing-images`;
+  `node scripts/build-guide.mjs --allow-missing-images`;
+  `frontend npx playwright test tests/navigation.spec.ts`; `frontend npm run build`;
+  kiểm tra iframe bằng Playwright (1440×900).
+- Kết quả: PASS — route 19/19 hợp lệ; 8 nhóm menu đúng thứ tự; navigation 1/1 PASS;
+  build PASS (Guide chunk 1.41 kB); iframe hiển thị "Giới thiệu hệ thống", 0 pageerror.
+- File: `frontend/src/guide.ts`, `frontend/src/pages/Guide.tsx`, `App.tsx`, `Layout.tsx`,
+  `styles.css`, `frontend/nginx.conf`, `frontend/package.json`, `scripts/build-guide.mjs`,
+  `docs-site/routes.json`, `.gitignore`, `tests/navigation.spec.ts`.
+- Sai lệch: (1) Vite dev **không** phục vụ chỉ mục thư mục `public/guide/` và cache danh
+  sách public từ lúc khởi động → iframe dùng `/guide/index.html` và phải
+  `docker compose restart web` sau khi build guide. (2) Thêm cờ
+  `--allow-missing-images` để P08-2 chạy được trước khi có ảnh; P08-5 dùng `--check`
+  nghiêm ngặt. (3) `--check` coi `/` là `<Route index>`.

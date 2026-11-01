@@ -6,6 +6,7 @@
 - Kế hoạch 08 lập xong: `docs/1/08_KE_HOACH_TRANG_HUONG_DAN.md` (Docusaurus build-time + Playwright capture + 12 chương; trang `/guide`, menu "Hướng dẫn" giữa Relay và Hệ thống).
 - P08-0 DONE: baseline server 88/88 (14 file), frontend build PASS, navigation 1/1 PASS; compose healthy; không sửa mã nguồn.
 - P08-1 DONE: `docs-site/` Docusaurus 3.10.2 (baseUrl `/guide/`, locale vi, search local), 2 chương mẫu; build PASS, serve HTTP 200.
+- P08-2 DONE: route `/guide` + iframe, nhóm menu "Hướng dẫn" giữa Relay và Hệ thống, `build-guide.mjs`, nginx `/guide/`; nav 1/1 PASS, FE build PASS.
 - Tài liệu phân quyền đầy đủ: `docs/2/PHAN_QUYEN.md` (RBAC, company, scope, UI, realtime, audit, checklist test)
 - Kế hoạch 06 P06-0 DONE: tile providers reachable từ server + browser; chốt `tileMode=proxy`; Geoapify forward/reverse OK (không in key); fixture 480 (1005), 481 (lat/lon dự phòng), 482 (không toạ độ); backup `cors-mysql-20261101-190927.sql.zip`
 - Kế hoạch 06 P06-1 DONE: tile proxy (allowlist/cache/fallback), `GET/PUT/test /api/map/config`, overview `coordSource` + filter + field-level gate + `layersAvailable`; frontend `useMapConfig`/`MapCanvas`/`TileErrorBanner`; form trạm có “Vĩ độ/Kinh độ dự phòng”; server 71/71, FE build, Playwright smoke PASS

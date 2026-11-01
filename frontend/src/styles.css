@@ -242,6 +242,27 @@ p {
   font-weight: 500;
 }
 
+.nav-group-highlight .nav-group-label {
+  color: var(--accent);
+}
+
+.nav-group-highlight .nav-item {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-group-highlight .nav-item:hover {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.nav-group-highlight .nav-item.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
 .sidebar-foot {
   margin-top: auto;
   display: flex;
@@ -316,6 +337,77 @@ p {
   border: 1px solid var(--border);
   border-radius: var(--sheet-radius);
   padding: var(--content-pad);
+}
+
+.content.content-flush {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+}
+
+.guide-frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+
+.guide-frame-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.guide-frame-bar a {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.guide-frame-body {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  border: 0;
+  background: var(--ground);
+}
+
+.guide-frame.is-checking,
+.guide-frame.is-missing {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.guide-empty {
+  max-width: 520px;
+}
+
+.guide-empty h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.guide-empty p {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.guide-empty code {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--raised);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
 }
 
 /* Page */

@@ -3,6 +3,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Antenna,
   Bell,
+  BookOpen,
   Building2,
   History,
   KeyRound,
@@ -40,7 +41,8 @@ const titles: Record<string, string> = {
   '/system': 'Hệ thống',
   '/system/health': 'System Health',
   '/system/map-config': 'Cấu hình bản đồ',
-  '/profile': 'Trang cá nhân'
+  '/profile': 'Trang cá nhân',
+  '/guide': 'Hướng dẫn sử dụng'
 };
 
 export function Layout() {
@@ -100,6 +102,10 @@ export function Layout() {
       items: [{ to: '/relay-jobs', label: 'Relay jobs', icon: Radio, show: can('relay', 'view') }]
     },
     {
+      label: 'Hướng dẫn',
+      items: [{ to: '/guide', label: 'Hướng dẫn sử dụng', icon: BookOpen, show: true }]
+    },
+    {
       label: 'Hệ thống',
       items: [
         {
@@ -138,8 +144,12 @@ export function Layout() {
           {navGroups.map((group) => {
             const items = group.items.filter((item) => item.show);
             if (items.length === 0) return null;
+            const highlight = group.label === 'Hướng dẫn';
             return (
-              <div className="nav-group" key={group.label}>
+              <div
+                className={highlight ? 'nav-group nav-group-highlight' : 'nav-group'}
+                key={group.label}
+              >
                 <div className="nav-group-label">{group.label}</div>
                 {items.map((item) => {
                   const Icon = item.icon;
@@ -182,7 +192,7 @@ export function Layout() {
             </IconButton>
           </div>
         </header>
-        <main className="content">
+        <main className={location.pathname === '/guide' ? 'content content-flush' : 'content'}>
           <Outlet />
         </main>
       </div>
