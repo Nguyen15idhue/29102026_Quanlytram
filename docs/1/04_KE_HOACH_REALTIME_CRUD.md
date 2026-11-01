@@ -1471,7 +1471,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 5
 - Thời điểm: 2026-11-01 10:37 +07:00
 - Trạng thái: DONE
-- Commit: (cập nhật sau commit)
+- Commit: 7642cce
 - Push: origin/main
 - Đã làm:
   - Thêm endpoint từng trạm: enable/disable/lock/unlock.
