@@ -1311,7 +1311,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 1
 - Thời điểm: 2026-11-01 09:27 +07:00
 - Trạng thái: DONE
-- Commit: (cập nhật sau commit)
+- Commit: 8d6512b
 - Push: origin/main
 - Đã làm:
   - Xác nhận 4 service Docker healthy.
