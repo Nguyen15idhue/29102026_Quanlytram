@@ -3,6 +3,8 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-11-01 09:27 (Asia/Ho_Chi_Minh, +07:00)
+- Kế hoạch 08 lập xong: `docs/1/08_KE_HOACH_TRANG_HUONG_DAN.md` (Docusaurus build-time + Playwright capture + 12 chương; trang `/guide`, menu "Hướng dẫn" giữa Relay và Hệ thống).
+- P08-0 DONE: baseline server 88/88 (14 file), frontend build PASS, navigation 1/1 PASS; compose healthy; không sửa mã nguồn.
 - Tài liệu phân quyền đầy đủ: `docs/2/PHAN_QUYEN.md` (RBAC, company, scope, UI, realtime, audit, checklist test)
 - Kế hoạch 06 P06-0 DONE: tile providers reachable từ server + browser; chốt `tileMode=proxy`; Geoapify forward/reverse OK (không in key); fixture 480 (1005), 481 (lat/lon dự phòng), 482 (không toạ độ); backup `cors-mysql-20261101-190927.sql.zip`
 - Kế hoạch 06 P06-1 DONE: tile proxy (allowlist/cache/fallback), `GET/PUT/test /api/map/config`, overview `coordSource` + filter + field-level gate + `layersAvailable`; frontend `useMapConfig`/`MapCanvas`/`TileErrorBanner`; form trạm có “Vĩ độ/Kinh độ dự phòng”; server 71/71, FE build, Playwright smoke PASS
@@ -1098,3 +1100,4 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   Docs `OPS.md`/`AGENTS.md`/`TASKS.md`/plan 07 đã cập nhật; không secret.
   Bổ sung: jobs API merge trạng thái Go (`running`/`lastStatus`/`lastRowsDeleted`)
   qua `/internal/maintenance/status`; UI hiển thị job runtime đang chạy.
+- Realtime header: EntityStatusHeader (card Hiện tại + Trạng thái ở drawer Trạm/Relay) đồng bộ giờ máy chủ qua snapshot.ts của Socket.IO và tick 1s thay vì 30s; tiêu đề hiển thị trạng thái kết nối socket. FE tsc PASS.

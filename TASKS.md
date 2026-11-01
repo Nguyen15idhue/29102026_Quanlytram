@@ -728,6 +728,20 @@ phase sau khi phase trước còn FAIL; không làm các mục ngoài phạm vi 
 - [x] P07-6 Test, docs, graphify, rollout; server 88/88, Go PASS, FE build,
       Playwright P07 PASS; graphify 3493 nodes.
 
+## 9.3. Kế hoạch 08 — Trang Hướng dẫn sử dụng (2026-11-01)
+
+Tài liệu: `docs/1/08_KE_HOACH_TRANG_HUONG_DAN.md`
+
+| Bước | Tên | Trạng thái |
+|---|---|---|
+| P08-0 | Baseline & quyết định (Q08-1..Q08-8) | DONE (server 88/88, FE build, nav 1/1) |
+| P08-1 | Scaffold Docusaurus `docs-site/` | TODO |
+| P08-2 | Tích hợp app: route `/guide`, menu giữa Relay và Hệ thống | TODO |
+| P08-3 | Seed demo + capture ảnh + `ui-inventory.json` | TODO |
+| P08-4 | Viết nội dung 12 chương | TODO |
+| P08-5 | Test, a11y, đóng gói | TODO |
+| P08-6 | Tài liệu hoá & bàn giao | TODO |
+
 ## 10. Ghi chú điều phối
 
 - Không chuyển phase nếu checklist chưa PASS.
