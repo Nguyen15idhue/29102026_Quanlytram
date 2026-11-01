@@ -110,7 +110,7 @@ export function UnifiedMap() {
         weight: item.id === stationId ? 3 : 2
       });
       marker.bindPopup(
-        `<strong>${escapeHtml(item.code)}</strong><br>${escapeHtml(item.name)}<br>` +
+        `<strong>${escapeHtml(item.name)}</strong><br>${escapeHtml(item.name)}<br>` +
           `Transport: ${escapeHtml(item.transport)}<br>` +
           `Quality: ${item.score ?? '—'} · ${escapeHtml(item.quality)}<br>` +
           `Mountpoint: ${item.mountpointCount} · Relay: ${item.relayJobCount}<br>` +
@@ -206,7 +206,7 @@ export function UnifiedMap() {
                 >
                   <span>
                     <strong>{item.name}</strong>
-                    <small className="mono">{item.code}</small>
+                    <small className="mono">{item.id}</small>
                   </span>
                   {item.has1005 ? (
                     <StatusBadge label={item.transport} kind={stateKind(item.transport)} />
@@ -221,7 +221,7 @@ export function UnifiedMap() {
           {selected && (
             <div className="map-detail">
               <div className="detail-subhead">
-                <h4>{selected.code}</h4>
+                <h4>{selected.name}</h4>
                 <StatusBadge label={selected.transport} kind={stateKind(selected.transport)} />
               </div>
               <dl className="facts">

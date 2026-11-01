@@ -226,7 +226,7 @@ export function Mountpoints() {
               <option value="">Mọi trạm</option>
               {(stations.data?.items ?? []).map((station) => (
                 <option key={station.id} value={station.id}>
-                  {station.code}
+                  {station.name}
                 </option>
               ))}
             </Select>
@@ -273,18 +273,20 @@ export function Mountpoints() {
           loading={list.isLoading}
           error={list.isError ? 'Không tải được mountpoint.' : undefined}
           empty="Chưa có mountpoint nào."
-          onRowClick={setDetail}
           columns={[
             {
               key: 'name',
               header: 'Tên',
-              cell: (item) => <span className="mono">{item.name}</span>
+              cell: (item) => (
+                <button type="button" className="link-btn mono" onClick={() => setDetail(item)}>
+                  {item.name}
+                </button>
+              )
             },
             {
               key: 'station',
               header: 'Trạm',
-              cell: (item) =>
-                item.station_code ? `${item.station_code} · ${item.station_name}` : '—'
+              cell: (item) => item.station_name ?? '—'
             },
             {
               key: 'enabled',
@@ -387,7 +389,7 @@ export function Mountpoints() {
               <option value="">— Không gắn trạm —</option>
               {stations.data?.items.map((station) => (
                 <option key={station.id} value={station.id}>
-                  {station.code} · {station.name}
+                  {station.name}
                 </option>
               ))}
             </Select>

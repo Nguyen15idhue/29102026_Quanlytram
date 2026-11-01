@@ -107,7 +107,7 @@ export function OnlineMap() {
         weight: 2
       });
       marker.bindPopup(
-        `<strong>${escapeHtml(station.code)}</strong><br>${escapeHtml(station.name)}<br>` +
+        `<strong>${escapeHtml(station.name)}</strong><br>${escapeHtml(station.name)}<br>` +
           `${accounts.length} tài khoản online<br>` +
           accounts
             .slice(0, 8)
@@ -139,7 +139,7 @@ export function OnlineMap() {
               <div className="map-list-item" key={station.id}>
                 <span>
                   <strong>{station.name}</strong>
-                  <small className="mono">{station.code}</small>
+                  <small className="mono">{station.id}</small>
                 </span>
                 <StatusBadge label={`${accounts.length} online`} kind="ok" />
               </div>

@@ -13,7 +13,7 @@ type Config struct {
 	ID           int64
 	StationID    int64
 	MountpointID int64
-	StationCode  string
+	StationRef   string
 	Host         string
 	Port         int
 	Mount        string
@@ -39,7 +39,7 @@ func NewMySQLStore(db *sql.DB, encKey string) *MySQLStore {
 
 const query = `
 SELECT p.id, p.station_id, COALESCE(p.mountpoint_id, 0),
-       s.code, s.host, s.port, COALESCE(m.name, ''),
+       CAST(s.id AS CHAR), s.host, s.port, COALESCE(m.name, ''),
        COALESCE(rc.username, ''), COALESCE(rc.password_enc, ''),
        p.probe_interval_sec, s.lat, s.lon
   FROM station_probes p
@@ -68,7 +68,7 @@ func (s *MySQLStore) LoadAll(ctx context.Context) ([]*Config, error) {
 			&cfg.ID,
 			&cfg.StationID,
 			&cfg.MountpointID,
-			&cfg.StationCode,
+			&cfg.StationRef,
 			&cfg.Host,
 			&cfg.Port,
 			&cfg.Mount,

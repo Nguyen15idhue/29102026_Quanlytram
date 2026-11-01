@@ -411,7 +411,7 @@ casterRouter.get(
     if (!listener) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
     await assertRecordScope(req, listener.owner_web_user_id);
     const rows = await query<RowDataPacket[]>(
-      `SELECT m.id, m.name, m.station_id, s.code AS station_code, s.name AS station_name
+      `SELECT m.id, m.name, m.station_id, s.name AS station_name
          FROM caster_listener_mountpoints lm
          JOIN mountpoints m ON m.id = lm.mountpoint_id
          LEFT JOIN stations s ON s.id = m.station_id

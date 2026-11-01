@@ -295,8 +295,8 @@ function OverviewTab({ station }: { station: StationDetail }) {
       <StatusGrid station={station} />
       <dl className="facts">
         <div>
-          <dt>Mã trạm</dt>
-          <dd className="mono">{station.code}</dd>
+          <dt>ID trạm</dt>
+          <dd className="mono">#{station.id}</dd>
         </div>
         <div>
           <dt>Loại trạm</dt>
@@ -801,7 +801,7 @@ export function StationDetailDrawer({
       open
       onOpenChange={(open) => !open && onClose()}
       title={station?.name ?? 'Chi tiết trạm'}
-      description={station ? `${station.code} · #${station.id}` : `Trạm #${stationId}`}
+      description={station ? `${station.name} · #${station.id}` : `Trạm #${stationId}`}
       side="right"
       size="lg"
       footer={

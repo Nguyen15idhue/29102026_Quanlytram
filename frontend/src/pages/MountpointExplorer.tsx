@@ -68,7 +68,7 @@ export function MountpointExplorerDrawer({ id, onClose }: { id: number; onClose:
       open
       onOpenChange={(open) => !open && onClose()}
       title={item?.name ?? 'Mountpoint Explorer'}
-      description={item ? `${item.stationCode ?? 'Chưa gắn trạm'} · #${item.id}` : `#${id}`}
+      description={item ? `${item.stationName ?? 'Chưa gắn trạm'} · #${item.id}` : `#${id}`}
       side="right"
       size="lg"
       footer={
@@ -175,9 +175,7 @@ export function MountpointExplorerDrawer({ id, onClose }: { id: number; onClose:
             <div>
               <dt>Trạm nguồn</dt>
               <dd>
-                {item.stationId
-                  ? `${item.stationCode} · ${item.stationName}`
-                  : 'Chưa gắn trạm'}
+                {item.stationId ? item.stationName : 'Chưa gắn trạm'}
               </dd>
             </div>
             <div>
@@ -410,7 +408,7 @@ export function MountpointExplorer() {
               <option value="">Mọi trạm</option>
               {(stations.data?.items ?? []).map((station) => (
                 <option key={station.id} value={station.id}>
-                  {station.code}
+                  {station.name}
                 </option>
               ))}
             </Select>
@@ -464,14 +462,19 @@ export function MountpointExplorer() {
           loading={list.isLoading}
           error={list.isError ? 'Không tải được Mountpoint Explorer.' : undefined}
           empty="Không có mountpoint phù hợp."
-          onRowClick={(item) => setSelected(item.id)}
           columns={[
             {
               key: 'name',
               header: 'Mountpoint',
               cell: (item) => (
                 <div>
-                  <span className="mono">{item.name}</span>
+                  <button
+                    type="button"
+                    className="link-btn mono"
+                    onClick={() => setSelected(item.id)}
+                  >
+                    {item.name}
+                  </button>
                   <div className="muted table-subline">
                     {item.serviceType || '—'} · {item.positionMode || '—'}
                   </div>
@@ -482,11 +485,8 @@ export function MountpointExplorer() {
               key: 'station',
               header: 'Trạm',
               cell: (item) =>
-                item.stationCode ? (
-                  <div>
-                    <span className="mono">{item.stationCode}</span>
-                    <div className="muted table-subline">{item.stationName}</div>
-                  </div>
+                item.stationName ? (
+                  <span>{item.stationName}</span>
                 ) : (
                   <span className="muted">Chưa gắn trạm</span>
                 )

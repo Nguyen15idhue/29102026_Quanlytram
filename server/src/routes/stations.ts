@@ -13,6 +13,7 @@ import { asyncHandler, ApiError } from '../lib/http';
 import { ecefToGeodetic, geodeticToVn2000 } from '../lib/geo';
 import { decryptSecret, encryptSecret } from '../lib/crypto';
 import { callGoInternal } from '../lib/internalApi';
+import { createStationResources } from '../lib/stationResources';
 import {
   notifyStationStreamingChange,
   setStationStreamingInTransaction,
@@ -51,11 +52,10 @@ const text = (max: number) => z.string().max(max).optional();
 const nullableNumber = (min: number, max: number) =>
   z.number().min(min).max(max).nullable().optional();
 
-const createSchema = z.object({
-  code: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
-  name: z.string().min(1).max(160),
+const stationBaseSchema = z.object({
+  name: z.string().trim().min(1).max(160),
   host: text(190),
-  port: z.number().int().min(1).max(65535).optional().default(1509),
+  port: z.number().int().min(1).max(65535),
   connection_type: z.string().max(32).optional().default('ntrip'),
   source_type: z.enum(['relay_caster', 'caster_ingest', 'probe_client', 'manual']).optional().default('manual'),
   ntrip_version: z.enum(['v1', 'v2']).optional().default('v1'),
@@ -87,10 +87,76 @@ const createSchema = z.object({
   owner_web_user_id: z.number().int().positive().nullable().optional()
 });
 
-const updateSchema = createSchema.partial();
+const createSchema = stationBaseSchema.extend({
+  source_role: z.enum(['ntrip_client', 'ntrip_caster']).optional().default('ntrip_caster'),
+  caster_listener_id: z.number().int().positive().nullable().optional(),
+  caster_username: z.string().max(128).optional().default(''),
+  caster_password: z.string().max(512).optional(),
+  caster_requires_auth: z.boolean().optional().default(true),
+  client_host: z.string().max(190).optional().default(''),
+  client_port: z.number().int().min(1).max(65535).optional().default(1509),
+  client_mount: z.string().max(128).optional().default(''),
+  client_username: z.string().max(128).optional().default(''),
+  client_password: z.string().max(512).optional(),
+  client_tls: z.boolean().optional().default(false),
+  client_send_gga: z.boolean().optional().default(false),
+  client_nmea_interval_sec: z.number().int().min(0).max(3600).optional().default(0),
+  client_gga_lat: z.number().min(-90).max(90).nullable().optional(),
+  client_gga_lon: z.number().min(-180).max(180).nullable().optional()
+});
+
+const updateSchema = z.object({
+  name: z.string().trim().min(1).max(160).optional(),
+  host: text(190),
+  port: z.number().int().min(1).max(65535).optional(),
+  connection_type: z.string().max(32).optional(),
+  source_type: z.enum(['relay_caster', 'caster_ingest', 'probe_client', 'manual']).optional(),
+  ntrip_version: z.enum(['v1', 'v2']).optional(),
+  ntrip_mode: z.enum(['v1_noauth', 'v1_auth', 'v2_auth', 'ntrip_client']).optional(),
+  lat: nullableNumber(-90, 90),
+  lon: nullableNumber(-180, 180),
+  notes: text(500),
+  station_type: z.string().max(32).optional(),
+  enabled: z.boolean().optional(),
+  receiver_type: text(120),
+  receiver_sn: text(80),
+  receiver_firmware: text(80),
+  antenna_type: text(120),
+  antenna_sn: text(80),
+  antenna_height: nullableNumber(-100, 100),
+  elevation_mask: nullableNumber(0, 90),
+  contractor: text(160),
+  region: text(120),
+  address: text(255),
+  coordinate_type: z.enum(['wgs84', 'vn2000', 'itrf']).optional(),
+  province: text(120),
+  ward: text(120),
+  address_detail: text(255),
+  device_id: text(120),
+  network_type: text(64),
+  network_mode: text(64),
+  protocol: z.string().max(64).optional(),
+  custom_fields: z.unknown().nullable().optional(),
+  owner_web_user_id: z.number().int().positive().nullable().optional()
+});
+
+function validateSourceFields(data: z.infer<typeof createSchema>): string | null {
+  if (data.source_role === 'ntrip_caster') {
+    if (!data.caster_listener_id) return 'Caster listener là bắt buộc';
+    if (!data.caster_username?.trim()) return 'Caster username là bắt buộc';
+    if (!data.caster_password) return 'Caster password là bắt buộc';
+    return null;
+  }
+  if (!data.client_host?.trim()) return 'Client host là bắt buộc';
+  if (!data.client_port) return 'Client port là bắt buộc';
+  if (!data.client_mount?.trim()) return 'Client mountpoint là bắt buộc';
+  return null;
+}
 
 const stationColumns = `s.*, u.display_name AS owner_name,
   (SELECT COUNT(*) FROM mountpoints m WHERE m.station_id = s.id) AS mountpoint_count,
+  (SELECT m.name FROM mountpoints m WHERE m.station_id = s.id ORDER BY m.id LIMIT 1) AS mountpoint_name,
+  (SELECT a.username FROM ntrip_accounts a WHERE a.managed_by_station_id = s.id LIMIT 1) AS account_username,
   (SELECT ss.source_role FROM station_sources ss WHERE ss.station_id = s.id) AS station_source_role,
   (SELECT ss.client_host FROM station_sources ss WHERE ss.station_id = s.id) AS station_client_host,
   (SELECT ss.client_port FROM station_sources ss WHERE ss.station_id = s.id) AS station_client_port,
@@ -389,8 +455,8 @@ function whereFrom(req: any, scope: any, params: unknown[]) {
   const enabled = String(req.query.enabled || '').trim();
   const sourceType = String(req.query.sourceType || '').trim();
   if (q) {
-    where += ' AND (s.code LIKE ? OR s.name LIKE ? OR s.address LIKE ? OR s.region LIKE ? OR s.host LIKE ?)';
-    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+    where += ' AND (s.name LIKE ? OR s.address LIKE ? OR s.region LIKE ? OR s.host LIKE ?)';
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
   }
   if (enabled === '0' || enabled === '1') {
     where += ' AND s.enabled = ?';
@@ -463,11 +529,11 @@ stationsRouter.get(
       `SELECT ${stationColumns}
          FROM stations s
          LEFT JOIN web_users u ON u.id = s.owner_web_user_id
-        WHERE ${where} ORDER BY s.code`,
+        WHERE ${where} ORDER BY s.id`,
       params
     );
     const headers = [
-      'code', 'name', 'station_type', 'enabled', 'host', 'port', 'connection_type',
+      'name', 'station_type', 'enabled', 'host', 'port', 'connection_type',
       'source_type', 'ntrip_version', 'ntrip_mode',
       'lat', 'lon', 'region', 'address', 'contractor', 'receiver_type', 'receiver_sn',
       'receiver_firmware', 'antenna_type', 'antenna_sn', 'antenna_height',
@@ -475,7 +541,7 @@ stationsRouter.get(
       'owner_username', 'notes'
     ];
     const data = rows.map((row) => [
-      row.code, row.name, row.station_type, row.enabled ? '1' : '0', row.host, row.port,
+      row.name, row.station_type, row.enabled ? '1' : '0', row.host, row.port,
       row.connection_type, row.source_type, row.ntrip_version, row.ntrip_mode,
       row.lat, row.lon, row.region, row.address, row.contractor,
       row.receiver_type, row.receiver_sn, row.receiver_firmware, row.antenna_type,
@@ -506,7 +572,6 @@ stationsRouter.post(
         return Number.isFinite(parsed) ? parsed : NaN;
       };
       const candidate = {
-        code: row.code ?? '',
         name: row.name ?? '',
         station_type: row.station_type || 'reference',
         enabled: row.enabled === undefined || row.enabled === '' || ['1', 'true', 'yes'].includes(String(row.enabled).toLowerCase()),
@@ -533,9 +598,23 @@ stationsRouter.post(
         network_type: row.network_type ?? '',
         network_mode: row.network_mode ?? '',
         protocol: row.protocol || 'ntrip',
-        owner_username: row.owner_username ?? ''
+        owner_username: row.owner_username ?? '',
+        source_role: row.source_role || 'ntrip_caster',
+        caster_listener_id: num('caster_listener_id'),
+        caster_username: row.caster_username ?? '',
+        caster_password: row.caster_password ?? '',
+        caster_requires_auth: row.caster_requires_auth === undefined
+          ? true
+          : ['1', 'true', 'yes'].includes(String(row.caster_requires_auth).toLowerCase()),
+        client_host: row.client_host ?? '',
+        client_port: num('client_port') ?? 1509,
+        client_mount: row.client_mount ?? '',
+        client_username: row.client_username ?? '',
+        client_password: row.client_password ?? '',
+        client_tls: ['1', 'true', 'yes'].includes(String(row.client_tls ?? '').toLowerCase()),
+        client_send_gga: ['1', 'true', 'yes'].includes(String(row.client_send_gga ?? '').toLowerCase())
       };
-      if ([candidate.port, candidate.lat, candidate.lon].some((value) => Number.isNaN(value))) {
+      if ([candidate.port, candidate.lat, candidate.lon, candidate.caster_listener_id, candidate.client_port].some((value) => Number.isNaN(value))) {
         errors.push(`Line ${line} column number invalid`);
         return;
       }
@@ -544,6 +623,11 @@ stationsRouter.post(
         for (const issue of parsed.error.issues) {
           errors.push(`Line ${line} column ${issue.path.join('.') || 'row'} ${issue.message}`);
         }
+        return;
+      }
+      const sourceError = validateSourceFields(parsed.data);
+      if (sourceError) {
+        errors.push(`Line ${line} ${sourceError}`);
         return;
       }
       normalized.push({ data: parsed.data, ownerUsername: candidate.owner_username });
@@ -567,11 +651,11 @@ stationsRouter.post(
         const ownerId = ownerRows[0]?.id ?? req.auth!.id;
         const data = item.data;
         const [existing]: any = await conn.query(
-          'SELECT id, enabled, status FROM stations WHERE code = ? LIMIT 1',
-          [data.code]
+          'SELECT id, enabled, status FROM stations WHERE name = ? LIMIT 1',
+          [data.name]
         );
         const values = [
-          data.code, data.name, data.host ?? '', data.port, data.connection_type,
+          data.name, data.host ?? '', data.port, data.connection_type,
           data.source_type, data.ntrip_version, data.ntrip_mode, data.lat, data.lon,
           data.notes ?? '', data.station_type, data.enabled, data.receiver_type ?? '',
           data.receiver_sn ?? '', data.receiver_firmware ?? '', data.antenna_type ?? '',
@@ -588,7 +672,7 @@ stationsRouter.post(
                antenna_type=?, antenna_sn=?, antenna_height=?, elevation_mask=?, contractor=?,
                region=?, address=?, device_id=?, network_type=?, network_mode=?, protocol=?,
                custom_fields=?, owner_web_user_id=? WHERE id=?`,
-            [...values.slice(1), Number(existing[0].id)]
+            [...values, Number(existing[0].id)]
           );
           updated += 1;
           const beforeEnabled = Number(existing[0].enabled) === 1;
@@ -608,19 +692,21 @@ stationsRouter.post(
         } else {
           const [inserted]: any = await conn.query(
             `INSERT INTO stations
-              (code, name, host, port, connection_type, source_type, ntrip_version, ntrip_mode,
+              (name, host, port, connection_type, source_type, ntrip_version, ntrip_mode,
                lat, lon, notes, station_type, enabled,
                receiver_type, receiver_sn, receiver_firmware, antenna_type, antenna_sn,
                antenna_height, elevation_mask, contractor, region, address, device_id,
                network_type, network_mode, protocol, custom_fields, owner_web_user_id, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [...values, req.auth!.id]
           );
+          const stationId = Number(inserted.insertId);
           if (!data.enabled) {
             await conn.query("UPDATE stations SET status = 'disabled' WHERE id = ?", [
-              Number(inserted.insertId)
+              stationId
             ]);
           }
+          await createStationResources(conn, stationId, data, ownerId, req.auth!.id);
           created += 1;
         }
       }
@@ -1140,7 +1226,6 @@ stationsRouter.get(
       latest?.reported_station_id !== null && latest?.reported_station_id !== undefined;
     res.json({
       stationId,
-      code: String(station.code),
       name: String(station.name),
       windowMinutes,
       metadataStatus: metadataStatusFor({
@@ -1184,40 +1269,65 @@ stationsRouter.post(
   requirePermission('stations', 'add'),
   asyncHandler(async (req, res) => {
     const body = createSchema.parse(req.body);
+    const sourceError = validateSourceFields(body);
+    if (sourceError) throw new ApiError(400, 'VALIDATION_ERROR', sourceError);
     const ownerId = await resolveOwner(req, body.owner_web_user_id);
-    const code =
-      body.code ?? `ST${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1000)}`;
-    const [result] = await adminPool.query<any>(
-      `INSERT INTO stations
-         (code, name, host, port, connection_type, source_type, ntrip_version, ntrip_mode,
-          lat, lon, notes, station_type, enabled, coordinate_type, province, ward,
-          address_detail,
-          receiver_type, receiver_sn, receiver_firmware, antenna_type, antenna_sn,
-          antenna_height, elevation_mask, contractor, region, address, device_id,
-          network_type, network_mode, protocol, custom_fields, owner_web_user_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        code, body.name, body.host ?? '', body.port, body.connection_type,
-        body.source_type, body.ntrip_version, body.ntrip_mode,
-        body.lat ?? null, body.lon ?? null, body.notes ?? '', body.station_type,
-        body.enabled, body.coordinate_type, body.province ?? '', body.ward ?? '',
-        body.address_detail ?? '', body.receiver_type ?? '', body.receiver_sn ?? '',
-        body.receiver_firmware ?? '', body.antenna_type ?? '', body.antenna_sn ?? '',
-        body.antenna_height ?? null, body.elevation_mask ?? null, body.contractor ?? '',
-        body.region ?? '', body.address ?? '', body.device_id ?? '', body.network_type ?? '',
-        body.network_mode ?? '', body.protocol,
-        body.custom_fields === undefined ? null : JSON.stringify(body.custom_fields),
-        ownerId, req.auth!.id
-      ]
-    );
-    if (!body.enabled) {
-      await adminPool.query("UPDATE stations SET status = 'disabled' WHERE id = ?", [
-        Number(result.insertId)
-      ]);
+    const created = await withTransaction(async (conn) => {
+      const [result] = await conn.query<any>(
+        `INSERT INTO stations
+           (name, host, port, connection_type, source_type, ntrip_version, ntrip_mode,
+            lat, lon, notes, station_type, enabled, coordinate_type, province, ward,
+            address_detail, receiver_type, receiver_sn, receiver_firmware, antenna_type,
+            antenna_sn, antenna_height, elevation_mask, contractor, region, address,
+            device_id, network_type, network_mode, protocol, custom_fields,
+            owner_web_user_id, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          body.name, body.host ?? '', body.port, body.connection_type,
+          body.source_type, body.ntrip_version, body.ntrip_mode,
+          body.lat ?? null, body.lon ?? null, body.notes ?? '', body.station_type,
+          body.enabled, body.coordinate_type, body.province ?? '', body.ward ?? '',
+          body.address_detail ?? '', body.receiver_type ?? '', body.receiver_sn ?? '',
+          body.receiver_firmware ?? '', body.antenna_type ?? '', body.antenna_sn ?? '',
+          body.antenna_height ?? null, body.elevation_mask ?? null, body.contractor ?? '',
+          body.region ?? '', body.address ?? '', body.device_id ?? '', body.network_type ?? '',
+          body.network_mode ?? '', body.protocol,
+          body.custom_fields === undefined ? null : JSON.stringify(body.custom_fields),
+          ownerId, req.auth!.id
+        ]
+      );
+      const id = Number(result.insertId);
+      if (!body.enabled) {
+        await conn.query("UPDATE stations SET status = 'disabled' WHERE id = ?", [id]);
+      }
+      const resources = await createStationResources(
+        conn,
+        id,
+        body,
+        ownerId,
+        req.auth!.id
+      );
+      return { id, resources };
+    });
+    if (body.enabled) {
+      await notifyStationStreamingChange({
+        relayJobIds: [],
+        mountpointIds: [created.resources.mountpointId]
+      });
     }
-    const station = await getStation(Number(result.insertId));
-    await writeAudit(adminPool, req.auth!.id, 'create', 'station', result.insertId, null, station, ipFrom(req));
-    res.status(201).json({ item: station });
+    const station = await getStation(created.id);
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      'create',
+      'station',
+      created.id,
+      null,
+      { station, resources: created.resources },
+      ipFrom(req)
+    );
+    res.status(201).json({ item: station, resources: created.resources });
   })
 );
 
@@ -1230,6 +1340,12 @@ stationsRouter.patch(
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
     await assertRecordScope(req, before.owner_web_user_id);
     const body = updateSchema.parse(req.body);
+    if (body.name !== undefined && body.name !== before.name) {
+      throw new ApiError(409, 'IMMUTABLE_FIELD', 'Tên trạm không thể sửa sau khi tạo');
+    }
+    if (body.port !== undefined && Number(body.port) !== Number(before.port)) {
+      throw new ApiError(409, 'IMMUTABLE_FIELD', 'Port trạm không thể sửa sau khi tạo');
+    }
     const ownerId =
       body.owner_web_user_id === undefined
         ? Number(before.owner_web_user_id)
@@ -1243,7 +1359,7 @@ stationsRouter.patch(
     }
     const effect = await withTransaction(async (conn) => {
       await conn.query(
-        `UPDATE stations SET code=?, name=?, host=?, port=?, connection_type=?,
+        `UPDATE stations SET host=?, connection_type=?,
            source_type=?, ntrip_version=?, ntrip_mode=?, lat=?, lon=?, notes=?,
            station_type=?, enabled=?, coordinate_type=?, province=?, ward=?, address_detail=?,
            receiver_type=?, receiver_sn=?, receiver_firmware=?,
@@ -1251,7 +1367,7 @@ stationsRouter.patch(
            region=?, address=?, device_id=?, network_type=?, network_mode=?, protocol=?,
            custom_fields=?, owner_web_user_id=? WHERE id=?`,
         [
-          value('code'), value('name'), value('host'), value('port'), value('connection_type'),
+          value('host'), value('connection_type'),
           value('source_type'), value('ntrip_version'), value('ntrip_mode'),
           value('lat'), value('lon'), value('notes'), value('station_type'), value('enabled'),
           value('coordinate_type'), value('province'), value('ward'), value('address_detail'),
@@ -1862,7 +1978,7 @@ stationsRouter.post(
     const body = bulkBodySchema.parse(req.body);
     const ids = uniqueIds(body.ids);
     const rows = await query<RowDataPacket[]>(
-      `SELECT id, code, name, enabled, status, owner_web_user_id
+      `SELECT id, name, enabled, status, owner_web_user_id
          FROM stations WHERE id IN (${ids.map(() => '?').join(',')})`,
       ids
     );

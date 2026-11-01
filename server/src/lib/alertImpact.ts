@@ -10,7 +10,7 @@ export interface ImpactDescriptor {
 }
 
 export interface AlertImpact {
-  station: { id: number; code: string; name: string } | null;
+  station: { id: number; name: string } | null;
   mountpoints: Array<{ id: number; name: string }>;
   relays: Array<{
     id: number;
@@ -33,7 +33,7 @@ export async function buildAlertImpacts(
 
   const [mountpointRows, relayRows, stateRows, connectionRows, listenerRows] = await Promise.all([
     query<RowDataPacket[]>(
-      `SELECT m.id, m.name, m.station_id, s.code AS station_code, s.name AS station_name
+      `SELECT m.id, m.name, m.station_id, s.name AS station_name
          FROM mountpoints m LEFT JOIN stations s ON s.id = m.station_id`
     ),
     query<RowDataPacket[]>(
@@ -70,10 +70,10 @@ export async function buildAlertImpacts(
   const accountNames = new Map<number, string>();
   for (const row of accountRows) accountNames.set(Number(row.id), String(row.username));
 
-  const stationById = new Map<number, { id: number; code: string; name: string }>();
+  const stationById = new Map<number, { id: number; name: string }>();
   const mountpointById = new Map<
     number,
-    { id: number; name: string; station: { id: number; code: string; name: string } | null }
+    { id: number; name: string; station: { id: number; name: string } | null }
   >();
   for (const row of mountpointRows) {
     const station =
@@ -81,7 +81,6 @@ export async function buildAlertImpacts(
         ? null
         : {
             id: Number(row.station_id),
-            code: String(row.station_code ?? ''),
             name: String(row.station_name ?? '')
           };
     if (station) stationById.set(station.id, station);

@@ -169,7 +169,7 @@ func (m *Manager) runSession(ctx context.Context, cfg *Config) {
 			return
 		}
 		if err != nil && !errors.Is(err, io.EOF) {
-			log.Printf("[probe] station %s mount %s: %v", cfg.StationCode, cfg.Mount, err)
+			log.Printf("[probe] station %s mount %s: %v", cfg.StationRef, cfg.Mount, err)
 		}
 		select {
 		case <-ctx.Done():

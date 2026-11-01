@@ -32,7 +32,6 @@ export interface User {
 
 export interface Station {
   id: number;
-  code: string;
   name: string;
   host: string;
   port: number;
@@ -95,6 +94,8 @@ export interface Station {
   updated_at?: string;
   created_by?: number | null;
   mountpoint_count?: number;
+  mountpoint_name?: string | null;
+  account_username?: string | null;
   quality_score?: number | null;
   quality_state?: string;
   last_data_at?: string | null;
@@ -292,7 +293,6 @@ export interface StationHistoryResponse {
 
 export interface StationMetadataResponse {
   stationId: number;
-  code: string;
   name: string;
   windowMinutes: number;
   metadataStatus: StationMetadataStatus;
@@ -326,7 +326,6 @@ export interface Mountpoint {
   station_id: number | null;
   enabled: number;
   owner_web_user_id: number | null;
-  station_code?: string | null;
   station_name?: string | null;
   service_type?: string;
   position_mode?: string;
@@ -787,7 +786,6 @@ export interface MountpointExplorerItem {
   codeType: string;
   description: string;
   stationId: number | null;
-  stationCode: string | null;
   stationName: string | null;
   ownerWebUserId: number | null;
   ownerName: string | null;
@@ -832,7 +830,6 @@ export interface MountpointExplorerDetailResponse {
 
 export interface MapStationItem {
   id: number;
-  code: string;
   name: string;
   lat: number | null;
   lon: number | null;

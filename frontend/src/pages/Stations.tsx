@@ -42,7 +42,7 @@ interface DictionaryItem {
 }
 
 const emptyForm = {
-  code: '', name: '', host: '', port: 1509, connection_type: 'ntrip',
+  name: '', host: '', port: 1509, connection_type: 'ntrip',
   source_type: 'manual', ntrip_version: 'v1', ntrip_mode: 'v1_noauth',
   lat: '', lon: '', notes: '', station_type: 'reference', enabled: true,
   coordinate_type: 'wgs84', province: '', ward: '', address_detail: '',
@@ -62,7 +62,6 @@ const emptyForm = {
 function formFromStation(station: Station) {
   return {
     ...emptyForm,
-    code: station.code,
     coordinate_type: station.coordinate_type ?? 'wgs84',
     province: station.province ?? '',
     ward: station.ward ?? '',
@@ -94,6 +93,21 @@ function formFromStation(station: Station) {
     network_mode: station.network_mode ?? '',
     protocol: station.protocol ?? 'ntrip'
   };
+}
+
+function previewMountpointName(name: string): string {
+  const normalized = name
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 128);
+  return normalized || 'TRAM';
 }
 
 function stateKind(state?: string): 'ok' | 'warn' | 'error' | 'neutral' {
@@ -248,9 +262,42 @@ export function Stations() {
 
   const save = useMutation({
     mutationFn: async () => {
+      const sourceBody = {
+        source_role: form.source_role,
+        client_host: form.client_host,
+        client_port: Number(form.client_port),
+        client_mount: form.client_mount,
+        client_username: form.client_username,
+        ...(form.client_password ? { client_password: form.client_password } : {}),
+        client_tls: form.client_tls,
+        client_send_gga: form.client_send_gga,
+        client_nmea_interval_sec: Number(form.client_nmea_interval_sec),
+        client_gga_lat:
+          form.client_send_gga && form.client_gga_lat !== ''
+            ? Number(form.client_gga_lat)
+            : null,
+        client_gga_lon:
+          form.client_send_gga && form.client_gga_lon !== ''
+            ? Number(form.client_gga_lon)
+            : null,
+        caster_username: form.caster_username,
+        ...(form.caster_password ? { caster_password: form.caster_password } : {}),
+        caster_requires_auth: form.caster_requires_auth,
+        caster_listener_id:
+          form.caster_listener_id === '' ? null : Number(form.caster_listener_id)
+      };
+      const selectedListener = sourceListeners.data?.items.find(
+        (listener) => String(listener.id) === String(form.caster_listener_id)
+      );
+      const primaryPort =
+        form.source_role === 'ntrip_caster'
+          ? selectedListener?.port ?? Number(form.port)
+          : Number(form.port);
       const body = {
-        ...(editing ? { code: form.code } : {}),
         name: form.name,
+        host: form.host,
+        port: primaryPort,
+        source_type: form.source_type,
         lat: form.lat === '' ? null : Number(form.lat),
         lon: form.lon === '' ? null : Number(form.lon),
         notes: form.notes,
@@ -270,7 +317,8 @@ export function Stations() {
         coordinate_type: form.coordinate_type,
         province: form.province,
         ward: form.ward,
-        address_detail: form.address_detail
+        address_detail: form.address_detail,
+        ...(editing ? {} : sourceBody)
       };
       const saved = editing
         ? await apiFetch<{ item: Station }>(`/api/stations/${editing.id}`, {
@@ -283,35 +331,13 @@ export function Stations() {
             body,
             csrfToken
           });
-      await apiFetch(`/api/stations/${saved.item.id}/sources`, {
-        method: 'PUT',
-        csrfToken,
-        body: {
-          source_role: form.source_role,
-          client_host: form.client_host,
-          client_port: Number(form.client_port),
-          client_mount: form.client_mount,
-          client_username: form.client_username,
-          ...(form.client_password ? { client_password: form.client_password } : {}),
-          client_tls: form.client_tls,
-          client_send_gga: form.client_send_gga,
-          client_nmea_interval_sec: Number(form.client_nmea_interval_sec),
-          client_gga_lat:
-            form.client_send_gga && form.client_gga_lat !== ''
-              ? Number(form.client_gga_lat)
-              : null,
-          client_gga_lon:
-            form.client_send_gga && form.client_gga_lon !== ''
-              ? Number(form.client_gga_lon)
-              : null,
-          caster_version: form.caster_version,
-          caster_username: form.caster_username,
-          ...(form.caster_password ? { caster_password: form.caster_password } : {}),
-          caster_requires_auth: form.caster_requires_auth,
-          caster_listener_id:
-            form.caster_listener_id === '' ? null : Number(form.caster_listener_id)
-        }
-      });
+      if (editing) {
+        await apiFetch(`/api/stations/${saved.item.id}/sources`, {
+          method: 'PUT',
+          csrfToken,
+          body: sourceBody
+        });
+      }
       return saved;
     },
     onSuccess: async () => {
@@ -954,7 +980,14 @@ export function Stations() {
               <Input
                 value={form.name}
                 onChange={(event) => setForm({ ...form, name: event.target.value })}
+                readOnly={Boolean(editing)}
                 required
+              />
+            </Field>
+            <Field label="Mountpoint tự sinh">
+              <Input
+                readOnly
+                value={editing?.mountpoint_name ?? previewMountpointName(form.name)}
               />
             </Field>
             <Field label="Loại trạm">
@@ -1418,9 +1451,6 @@ export function Stations() {
               <Field label="ID">
                 <Input readOnly value={editing.id} />
               </Field>
-              <Field label="Mã nội bộ">
-                <Input readOnly value={editing.code} />
-              </Field>
               <Field label="Trạng thái">
                 <Input readOnly value={editing.status ?? (editing.enabled ? 'active' : 'disabled')} />
               </Field>
@@ -1487,7 +1517,6 @@ export function Stations() {
             <thead>
               <tr>
                 <th className="index-col">STT</th>
-                <th>Mã</th>
                 <th>Tên</th>
                 <th>Host</th>
                 <th>Receiver</th>
@@ -1496,9 +1525,8 @@ export function Stations() {
             </thead>
             <tbody>
               {(importPreview?.items ?? []).slice(0, 20).map((row, index) => (
-                <tr key={`${row.code}-${index}`}>
+                <tr key={`${row.name}-${index}`}>
                   <td className="index-col">{index + 1}</td>
-                  <td className="mono">{String(row.code ?? '')}</td>
                   <td>{String(row.name ?? '')}</td>
                   <td className="mono">{String(row.host ?? '')}</td>
                   <td>{String(row.receiver_type ?? '')}</td>
@@ -1514,7 +1542,7 @@ export function Stations() {
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="Xóa trạm?"
-        description={`Trạm ${deleteTarget?.code ?? ''} sẽ bị xóa. Hành động này không thể hoàn tác.`}
+        description={`Trạm ${deleteTarget?.name ?? ''} sẽ bị xóa. Hành động này không thể hoàn tác.`}
         pending={remove.isPending}
         onConfirm={() => deleteTarget && remove.mutate(deleteTarget)}
       />

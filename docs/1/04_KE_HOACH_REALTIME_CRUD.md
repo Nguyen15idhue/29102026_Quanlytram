@@ -448,24 +448,24 @@ Tên mountpoint là định danh thiết bị dùng để đẩy dữ liệu. V�
 
 ### Checklist test
 
-- [ ] `POST /api/stations` thiếu `name` → 400.
-- [ ] Thiếu port → 400.
-- [ ] Caster thiếu username/password/listener → 400.
-- [ ] Client thiếu host/port/mount → 400.
-- [ ] Tạo hợp lệ → 201, đúng 1 station, 1 source, 1 mountpoint, 1 account.
-- [ ] Tên mountpoint `Trạm Hậu Lộc` → `TRAM_HAU_LOC`.
-- [ ] Tên trùng → tự thêm `_2`.
-- [ ] PATCH name → 409; PATCH port → 409.
-- [ ] PATCH field khác → 200.
-- [ ] Import/export không còn code.
-- [ ] Go probe test PASS.
-- [ ] Playwright trạm PASS.
-- [ ] Migration `025` chạy PASS, `information_schema` không còn cột `stations.code`.
-- [ ] Reset dữ liệu PASS, số station/mountpoint khớp kỳ vọng.
-- [ ] Không còn `station_sources` thiếu field theo vai trò.
-- [ ] Mỗi station caster có account NTRIP tương ứng và ACL đúng.
-- [ ] Không còn open connection tới mountpoint cũ.
-- [ ] Service healthy sau reset.
+- [x] `POST /api/stations` thiếu `name` → 400.
+- [x] Thiếu port → 400.
+- [x] Caster thiếu username/password/listener → 400.
+- [x] Client thiếu host/port/mount → 400.
+- [x] Tạo hợp lệ → 201, đúng 1 station, 1 source, 1 mountpoint, 1 account.
+- [x] Tên mountpoint `Trạm Hậu Lộc` → `TRAM_HAU_LOC`.
+- [x] Tên trùng → tự thêm `_2`.
+- [x] PATCH name → 409; PATCH port → 409.
+- [x] PATCH field khác → 200.
+- [x] Import/export không còn code.
+- [x] Go probe test PASS.
+- [x] Playwright trạm PASS.
+- [x] Migration `025` chạy PASS, `information_schema` không còn cột `stations.code`.
+- [x] Reset dữ liệu PASS, số station/mountpoint khớp kỳ vọng.
+- [x] Không còn `station_sources` thiếu field theo vai trò.
+- [x] Mỗi station caster có account NTRIP tương ứng và ACL đúng.
+- [x] Không còn open connection tới mountpoint cũ.
+- [x] Service healthy sau reset.
 
 ### Ghi chú
 
@@ -1402,3 +1402,69 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - `025_drop_station_code.sql` chưa tạo/chạy; để Bước 4 xử lý cùng code bỏ `stations.code`.
   - Không cần migration runtime cho thay đổi này.
+
+### Nhật ký thực hiện — Bước 4
+- Thời điểm: 2026-11-01 10:33 +07:00
+- Trạng thái: DONE
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - Bỏ `stations.code` khỏi schema, API, UI, import/export, seed và Go probe store.
+  - Thêm helper sinh mountpoint từ tên trạm, xử lý dấu tiếng Việt và trùng tên `_2`.
+  - Tạo transaction trạm → source → mountpoint → account NTRIP → listener mapping.
+  - Bắt buộc field theo vai trò; chặn sửa `name`/`port`.
+  - Áp dụng migration `025_drop_station_code.sql`.
+  - Reset và seed lại 3 trạm test chuẩn.
+  - Cập nhật test Playwright tạo trạm theo field bắt buộc; bỏ assert mã trạm.
+- File thay đổi:
+  - `server/src/routes/stations.ts`
+  - `server/src/lib/stationNaming.ts`
+  - `server/src/lib/stationResources.ts`
+  - `server/src/lib/alertImpact.ts`
+  - `server/src/routes/map.ts`
+  - `server/src/routes/mountpoints.ts`
+  - `server/src/routes/ntripAccounts.ts`
+  - `server/src/routes/caster.ts`
+  - `server/src/db/seed.ts`
+  - `server/src/db/importLegacyCaster.ts`
+  - `gnss/internal/probe/store.go`
+  - `gnss/internal/probe/manager.go`
+  - `db/migrations/admin/025_drop_station_code.sql`
+  - `frontend/src/types.ts`
+  - `frontend/src/pages/Stations.tsx`
+  - `frontend/src/pages/Mountpoints.tsx`
+  - `frontend/src/pages/MountpointExplorer.tsx`
+  - `frontend/src/pages/Dashboard.tsx`
+  - `frontend/src/pages/OnlineMap.tsx`
+  - `frontend/src/pages/StationMap.tsx`
+  - `frontend/src/pages/UnifiedMap.tsx`
+  - `frontend/src/components/StationDetailDrawer.tsx`
+  - `frontend/tests/p1-station.spec.ts`
+  - `frontend/tests/ui.spec.ts`
+  - `scripts/reset-test-stations.ps1`
+- Test/Bằng chứng:
+  - `server npm run build`: PASS.
+  - `server npm test`: 53/53 PASS.
+  - `frontend tsc --noEmit`: PASS.
+  - `gnss go test ./...`: PASS.
+  - `gnss go test ./internal/probe`: PASS.
+  - `docker compose build gnss` + recreate: healthy, runtime schema v5.
+  - API: thiếu name=400, thiếu port=400, caster thiếu field=400, client thiếu field=400.
+  - API: tạo hợp lệ=201, 1 source, 1 mountpoint, 1 account.
+  - `Trạm Hậu Lộc` → `TRAM_HAU_LOC`.
+  - Tên trùng → mountpoint `_2`.
+  - PATCH name/port → 409; PATCH notes → 200.
+  - SQL: `stations.code` column count = 0.
+  - Reset/seed: 3 stations, 3 mountpoints, 3 sources, 0 missing mountpoint, 0 missing credential, 2 caster ACL.
+  - Playwright `tests/p1-station.spec.ts`: 1/1 PASS.
+- Checklist đã đạt:
+  - [x] Required field và immutable.
+  - [x] Tạo trạm atomic với mountpoint/account.
+  - [x] Bỏ code khỏi API/UI/import/Go.
+  - [x] Migration 025 và reset dữ liệu.
+  - [x] Test server/frontend/Go/Playwright liên quan.
+- Lỗi/Ghi chú:
+  - Đã xử lý lỗi server cũ chưa restart sau build (Unknown column 'code').
+  - Đã xử lý lệch placeholder INSERT và default trong update schema.
+  - `stations.port` bắt buộc; UI lấy port từ listener khi tạo trạm caster.
+  - Import legacy giờ dùng tên trạm làm khóa, không còn code.

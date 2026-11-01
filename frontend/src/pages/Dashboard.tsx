@@ -9,7 +9,7 @@ import { Button, PageHeader, StatusBadge } from '../components/ui';
 type HealthStatus = 'ok' | 'warn' | 'error' | 'unknown';
 
 interface OpsImpact {
-  station: { id: number; code: string; name: string } | null;
+  station: { id: number; name: string } | null;
   mountpoints: Array<{ id: number; name: string }>;
   relays: Array<{
     id: number;
@@ -122,7 +122,7 @@ function impactText(incident: OpsIncident): string {
   const impact = incident.impact;
   if (!impact) return 'Chưa xác định ảnh hưởng';
   const parts: string[] = [];
-  if (impact.station) parts.push(`${impact.station.code} · ${impact.station.name}`);
+  if (impact.station) parts.push(impact.station.name);
   else if (impact.note) parts.push(impact.note);
   if (impact.mountpoints.length > 0) {
     parts.push(`MP ${impact.mountpoints.map((item) => item.name).slice(0, 3).join(', ')}`);

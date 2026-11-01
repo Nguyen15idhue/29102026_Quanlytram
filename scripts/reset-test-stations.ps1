@@ -43,6 +43,7 @@ UNION ALL SELECT 'relay_jobs_enabled', COUNT(*) FROM cors_admin.relay_jobs WHERE
   & $mysql $countSql
 
   $resetSql = @'
+USE cors_admin;
 START TRANSACTION;
 
 UPDATE relay_jobs r

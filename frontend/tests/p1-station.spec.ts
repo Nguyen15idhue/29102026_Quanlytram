@@ -20,6 +20,9 @@ test.describe('P1.5 trạm', () => {
     await expect(dialog.getByText('Vị trí', { exact: true })).toHaveCount(0);
     await expect(dialog.getByText('Hệ thống (chỉ đọc)', { exact: true })).toHaveCount(0);
     await dialog.getByLabel('Tên trạm').fill(name);
+    await dialog.getByLabel('Listener / port').selectOption({ index: 1 });
+    await dialog.getByLabel('Caster username').fill(`p1_${Date.now()}`);
+    await dialog.getByLabel('Caster password').fill('P1Station123!');
     await dialog.getByRole('button', { name: 'Thêm', exact: true }).click();
     await expect(page.getByText(name).first()).toBeVisible();
 
@@ -27,7 +30,8 @@ test.describe('P1.5 trạm', () => {
     const edit = page.getByRole('dialog');
     await expect(edit.getByText('Vị trí', { exact: true })).toBeVisible();
     await expect(edit.getByText('Hệ thống (chỉ đọc)', { exact: true })).toBeVisible();
-    await expect(edit.getByLabel('Mã nội bộ')).toHaveValue(/ST/);
+    await expect(edit.getByLabel('Tên trạm')).not.toBeEditable();
+    await expect(edit.getByLabel('Mountpoint tự sinh')).toHaveValue(/P1_STATION_/);
     await edit.getByLabel('Tỉnh/thành').fill('Hà Nội');
     await edit.getByLabel('Phường/xã').fill('Ba Đình');
     await edit.getByRole('button', { name: 'Cập nhật' }).click();
@@ -59,6 +63,11 @@ test.describe('P1.5 trạm', () => {
       expect(typeof uptime.uptimePct).toBe('number');
     }
 
+    await page.request.patch(`/api/stations/${station.id}`, {
+      headers: { 'X-CSRF-Token': me.csrfToken },
+      data: { enabled: false }
+    });
+    await page.reload();
     await page.getByRole('button', { name: `Xóa ${name}` }).click();
     await page
       .getByRole('alertdialog')

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { RowDataPacket } from 'mysql2/promise';
 import { query } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
@@ -37,8 +37,8 @@ mapRouter.get(
     let where = scope.sql;
     const q = String(req.query.q || '').trim();
     if (q) {
-      where += ' AND (s.code LIKE ? OR s.name LIKE ? OR s.region LIKE ? OR s.address LIKE ?)';
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+      where += ' AND (s.name LIKE ? OR s.region LIKE ? OR s.address LIKE ?)';
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
     }
     const region = String(req.query.region || '').trim();
     if (region) {
@@ -52,13 +52,13 @@ mapRouter.get(
     }
 
     const rows = await query<RowDataPacket[]>(
-      `SELECT s.id, s.code, s.name, s.region, s.address, s.source_type, s.ntrip_mode,
+      `SELECT s.id, s.name, s.region, s.address, s.source_type, s.ntrip_mode,
               s.enabled, s.status,
               s.owner_web_user_id, u.display_name AS owner_name
          FROM stations s
          LEFT JOIN web_users u ON u.id = s.owner_web_user_id
         WHERE ${where}
-        ORDER BY s.code
+        ORDER BY s.id
         LIMIT 1000`,
       params
     );
@@ -166,7 +166,6 @@ mapRouter.get(
       const relays = relayCount.get(stationId) ?? 0;
       return {
         id: stationId,
-        code: String(row.code),
         name: String(row.name),
         lat,
         lon,
@@ -234,3 +233,4 @@ mapRouter.get(
     });
   })
 );
+

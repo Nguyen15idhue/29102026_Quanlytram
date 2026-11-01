@@ -66,7 +66,6 @@ function publicMountpoint(row: any) {
     id: Number(row.id),
     name: String(row.name),
     station_id: row.station_id === null ? null : Number(row.station_id),
-    station_code: row.station_code ?? null,
     station_name: row.station_name ?? null,
     enabled: Boolean(row.enabled),
     description: String(row.description ?? ''),
@@ -296,7 +295,6 @@ async function enrichExplorer(rows: RowDataPacket[]): Promise<{
       codeType: String(row.code_type ?? ''),
       description: String(row.description ?? ''),
       stationId: row.station_id === null ? null : Number(row.station_id),
-      stationCode: row.station_code ?? null,
       stationName: row.station_name ?? null,
       ownerWebUserId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
       ownerName: row.owner_name ?? null,
@@ -345,8 +343,8 @@ mountpointsRouter.get(
     const params: unknown[] = [...scope.params];
     let where = scope.sql;
     if (q) {
-      where += ' AND (m.name LIKE ? OR s.code LIKE ? OR s.name LIKE ?)';
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+      where += ' AND (m.name LIKE ? OR s.name LIKE ?)';
+      params.push(`%${q}%`, `%${q}%`);
     }
     const stationId = Number(req.query.stationId || 0);
     if (Number.isInteger(stationId) && stationId > 0) {
@@ -364,7 +362,7 @@ mountpointsRouter.get(
       params.push(ownerId);
     }
     const [rows] = await adminPool.query<RowDataPacket[]>(
-      `SELECT m.*, s.code AS station_code, s.name AS station_name
+      `SELECT m.*, s.name AS station_name
          FROM mountpoints m LEFT JOIN stations s ON s.id = m.station_id
         WHERE ${where} ORDER BY m.id DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
@@ -392,8 +390,8 @@ mountpointsRouter.get(
     let where = scope.sql;
     const q = String(req.query.q || '').trim();
     if (q) {
-      where += ' AND (m.name LIKE ? OR s.code LIKE ? OR s.name LIKE ?)';
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+      where += ' AND (m.name LIKE ? OR s.name LIKE ?)';
+      params.push(`%${q}%`, `%${q}%`);
     }
     const stationId = Number(req.query.stationId || 0);
     if (Number.isInteger(stationId) && stationId > 0) {
@@ -407,7 +405,7 @@ mountpointsRouter.get(
     }
 
     const rows = await query<RowDataPacket[]>(
-      `SELECT m.*, s.code AS station_code, s.name AS station_name,
+      `SELECT m.*, s.name AS station_name,
               u.username AS owner_name
          FROM mountpoints m
          LEFT JOIN stations s ON s.id = m.station_id
@@ -448,7 +446,7 @@ mountpointsRouter.get(
   asyncHandler(async (req, res) => {
     const id = Number(req.params.id);
     const rows = await query<RowDataPacket[]>(
-      `SELECT m.*, s.code AS station_code, s.name AS station_name,
+      `SELECT m.*, s.name AS station_name,
               u.username AS owner_name
          FROM mountpoints m
          LEFT JOIN stations s ON s.id = m.station_id

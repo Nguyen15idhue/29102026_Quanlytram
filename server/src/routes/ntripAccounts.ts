@@ -77,7 +77,7 @@ async function effectiveMountpoints(accountId: number): Promise<RowDataPacket[]>
   const listeners = await listenerIdsFor(accountId);
   if (listeners.length === 0) {
     return query<RowDataPacket[]>(
-      `SELECT m.id, m.name, m.station_id, s.code AS station_code, s.name AS station_name
+      `SELECT m.id, m.name, m.station_id, s.name AS station_name
          FROM account_mountpoint_acl acl
          JOIN mountpoints m ON m.id = acl.mountpoint_id
          LEFT JOIN stations s ON s.id = m.station_id
@@ -86,7 +86,7 @@ async function effectiveMountpoints(accountId: number): Promise<RowDataPacket[]>
     );
   }
   return query<RowDataPacket[]>(
-    `SELECT DISTINCT m.id, m.name, m.station_id, s.code AS station_code, s.name AS station_name
+    `SELECT DISTINCT m.id, m.name, m.station_id, s.name AS station_name
        FROM account_mountpoint_acl acl
        JOIN mountpoints m ON m.id = acl.mountpoint_id
        JOIN caster_listener_mountpoints lm ON lm.mountpoint_id = m.id

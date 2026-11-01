@@ -55,7 +55,7 @@ export function StationMap() {
     const items = stations.data?.items ?? [];
     if (!needle) return items;
     return items.filter((station) =>
-      [station.code, station.name, station.region, station.address]
+      [station.name, station.region, station.address]
         .join(' ')
         .toLowerCase()
         .includes(needle)
@@ -92,7 +92,7 @@ export function StationMap() {
         weight: 2
       });
       marker.bindPopup(
-        `<strong>${escapeHtml(station.code)}</strong><br>${escapeHtml(station.name)}<br>` +
+        `<strong>${escapeHtml(station.name)}</strong><br>${escapeHtml(station.name)}<br>` +
           `Trạng thái: ${escapeHtml(station.quality_state || 'unknown')}<br>` +
           `Quality: ${station.quality_score ?? '—'}<br>` +
           `Mountpoint: ${station.mountpoint_count ?? 0}<br>` +
@@ -139,7 +139,7 @@ export function StationMap() {
               >
                 <span>
                   <strong>{station.name}</strong>
-                  <small className="mono">{station.code}</small>
+                  <small className="mono">{station.id}</small>
                 </span>
                 {station.reported_lat == null || station.reported_lon == null ? (
                   <StatusBadge label="Chưa có 1005" kind="warn" />

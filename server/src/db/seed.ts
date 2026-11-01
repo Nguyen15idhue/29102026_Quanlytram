@@ -1,4 +1,5 @@
 import { hashPassword } from '../lib/password';
+import { createStationResources } from '../lib/stationResources';
 import { adminPool } from './pool';
 import { config } from '../config';
 import { roleMatrix } from '../rbac/matrix';
@@ -170,46 +171,57 @@ async function main(): Promise<void> {
     adminId
   );
 
+  const [listenerRows] = await adminPool.query<any[]>(
+    'SELECT id FROM caster_listeners WHERE port = 1509 LIMIT 1'
+  );
+  const listenerId = listenerRows[0]?.id ? Number(listenerRows[0].id) : null;
+
   const seedStation = async (
-    code: string,
     name: string,
     ownerId: number,
     createdBy: number
   ): Promise<number> => {
-    await adminPool.query(
-      `INSERT INTO stations (code, name, host, port, connection_type, owner_web_user_id, created_by)
-       VALUES (?, ?, ?, 1509, 'ntrip', ?, ?)
-       ON DUPLICATE KEY UPDATE name = VALUES(name), owner_web_user_id = VALUES(owner_web_user_id)`,
-      [code, name, 'example.invalid', ownerId, createdBy]
-    );
     const [rows] = await adminPool.query<any[]>(
-      'SELECT id FROM stations WHERE code = ?',
-      [code]
+      'SELECT id FROM stations WHERE name = ? LIMIT 1',
+      [name]
     );
-    return rows[0].id;
+    if (rows[0]?.id) return Number(rows[0].id);
+    const [inserted] = await adminPool.query<any>(
+      `INSERT INTO stations
+         (name, host, port, connection_type, source_type, enabled,
+          owner_web_user_id, created_by)
+       VALUES (?, 'example.invalid', 1509, 'ntrip', 'caster_ingest', 1, ?, ?)`,
+      [name, ownerId, createdBy]
+    );
+    const stationId = Number(inserted.insertId);
+    if (listenerId) {
+      const conn = await adminPool.getConnection();
+      try {
+        await createStationResources(
+          conn,
+          stationId,
+          {
+            name,
+            enabled: true,
+            source_role: 'ntrip_caster',
+            caster_listener_id: listenerId,
+            caster_username: `seed_${stationId}`,
+            caster_password: config.seed.ntripPassword || '12345678',
+            caster_requires_auth: true
+          },
+          ownerId,
+          createdBy
+        );
+      } finally {
+        conn.release();
+      }
+    }
+    return stationId;
   };
 
-  const station1 = await seedStation('TEST_HNI_01', 'Trạm test Hà Nội 01', adminId, superId);
-  const station2 = await seedStation('TEST_HNI_02', 'Trạm test Hà Nội 02', user1Id, adminId);
-  const station3 = await seedStation('TEST_DN_01', 'Trạm test Đà Nẵng 01', user2Id, adminId);
-
-  const seedMountpoint = async (
-    name: string,
-    stationId: number,
-    ownerId: number,
-    createdBy: number
-  ): Promise<void> => {
-    await adminPool.query(
-      `INSERT INTO mountpoints (name, station_id, owner_web_user_id, created_by)
-       VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE station_id = VALUES(station_id), owner_web_user_id = VALUES(owner_web_user_id)`,
-      [name, stationId, ownerId, createdBy]
-    );
-  };
-
-  await seedMountpoint('TEST_HNI_01', station1, adminId, superId);
-  await seedMountpoint('TEST_HNI_02', station2, user1Id, adminId);
-  await seedMountpoint('TEST_DN_01', station3, user2Id, adminId);
+  await seedStation('Trạm test Hà Nội 01', adminId, superId);
+  await seedStation('Trạm test Hà Nội 02', user1Id, adminId);
+  await seedStation('Trạm test Đà Nẵng 01', user2Id, adminId);
 
   const ntripHash = await hashPassword(config.seed.ntripPassword);
   for (const [username, ownerId, createdBy] of [

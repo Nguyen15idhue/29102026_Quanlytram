@@ -110,7 +110,7 @@ async function loadExisting(): Promise<{
   const mountpointRows = await query<RowDataPacket[]>('SELECT * FROM mountpoints');
   const listenerRows = await query<RowDataPacket[]>('SELECT * FROM caster_listeners');
   return {
-    stations: new Map(stationRows.map((row) => [String(row.code).toLowerCase(), row])),
+    stations: new Map(stationRows.map((row) => [String(row.name).toLowerCase(), row])),
     mountpoints: new Map(
       mountpointRows.map((row) => [String(row.name).toLowerCase(), row])
     ),
@@ -123,10 +123,13 @@ async function main(): Promise<void> {
   const input = loadInputs();
   const existing = await loadExisting();
   const missingStations = input.stations.filter(
-    (station) => !existing.stations.has(station.code.toLowerCase())
+    (station) => !existing.stations.has(station.name.toLowerCase())
   );
   const missingMountpoints = input.mountpoints.filter(
     (mountpoint) => !existing.mountpoints.has(mountpoint.mountpoint.toLowerCase())
+  );
+  const codeToName = new Map(
+    input.stations.map((station) => [station.code.toLowerCase(), station.name])
   );
   const casterPorts = [...new Set(input.mountpoints.flatMap((item) => item.caster_ports))];
   const missingListeners = casterPorts.filter((port) => !existing.listeners.has(port));
@@ -162,18 +165,17 @@ async function main(): Promise<void> {
     let mappingsAdded = 0;
 
     for (const station of input.stations) {
-      const key = station.code.toLowerCase();
+      const key = station.name.toLowerCase();
       if (stationIds.has(key)) continue;
       const [inserted] = await conn.query<any>(
         `INSERT INTO stations
-           (code, name, station_type, enabled, host, port, connection_type, source_type,
+           (name, station_type, enabled, host, port, connection_type, source_type,
             ntrip_version, ntrip_mode, lat, lon, region, address, contractor,
             receiver_type, receiver_sn, receiver_firmware, antenna_type, antenna_sn,
             antenna_height, elevation_mask, device_id, network_type, network_mode,
             protocol, notes, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
         [
-          station.code,
           station.name,
           station.station_type || 'reference',
           Boolean(station.enabled),
@@ -208,7 +210,8 @@ async function main(): Promise<void> {
     for (const [key, row] of existing.mountpoints) mountpointIds.set(key, Number(row.id));
     for (const mountpoint of input.mountpoints) {
       const key = mountpoint.mountpoint.toLowerCase();
-      const stationId = stationIds.get(mountpoint.station_code.toLowerCase());
+      const stationName = codeToName.get(mountpoint.station_code.toLowerCase());
+      const stationId = stationName ? stationIds.get(stationName.toLowerCase()) : undefined;
       if (!stationId) continue;
       const existingRow = existing.mountpoints.get(key);
       if (existingRow) {
