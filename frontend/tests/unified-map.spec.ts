@@ -32,17 +32,21 @@ test.describe('P0 Phase 3 unified map', () => {
     await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
     await expect(page.locator('.leaflet-container')).toBeVisible();
     await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');
-    await expect(page.locator('.leaflet-interactive')).toHaveCount(2, { timeout: 15_000 });
+    await expect(page.locator('.map-pin')).toHaveCount(2, { timeout: 15_000 });
 
     await page.goto('/online/map');
     await expect(page).toHaveURL(/\/map\?layer=online/);
     await expect(page.getByRole('row')).toHaveCount(0);
 
-    await page.getByLabel('Layer bản đồ').selectOption('stations');
+    await page.getByRole('button', { name: 'Lớp bản đồ' }).click();
     await page
-      .getByPlaceholder('Tìm trạm, ID, vùng, địa chỉ, owner')
-      .fill('Hà Nội');
+      .locator('#map-layers-popover')
+      .getByRole('combobox', { name: 'Layer bản đồ' })
+      .selectOption('stations');
+    await page.keyboard.press('Escape');
+    await page.getByLabel('Tìm trạm hoặc địa chỉ').fill('Hà Nội');
     await expect(page).toHaveURL(/[?&]q=/);
+    await page.getByRole('button', { name: 'Danh sách trạm' }).click();
     await expect(page.locator('.map-list-item')).toHaveCount(2);
     await page.locator('.map-list-item').first().click();
     await expect(page).toHaveURL(/station=/);

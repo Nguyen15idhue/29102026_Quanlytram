@@ -995,6 +995,8 @@ export interface MountpointExplorerDetailResponse {
 
 export type CoordSource = '1005' | 'station' | 'none';
 
+export type AccountFixStatus = 'single' | 'fixed' | 'float' | 'rtd' | 'error';
+
 export interface MapStationItem {
   id: number;
   name: string;
@@ -1010,6 +1012,8 @@ export interface MapStationItem {
   mountpointCount: number;
   relayJobCount: number | null;
   onlineAccounts: number;
+  accountStatus: AccountFixStatus | null;
+  connectedAccounts: Array<{ id: number; username: string; fixType: AccountFixStatus }>;
   region: string;
   address: string;
   companyId: number | null;
@@ -1029,6 +1033,21 @@ export interface MapOverviewResponse {
     withCoords: number;
     missingCoords: number;
     missing_1005: number;
+    stationStatus: {
+      online: number;
+      stale: number;
+      no_data: number;
+      offline: number;
+      error: number;
+      unknown: number;
+    };
+    accountStatus: {
+      single: number;
+      fixed: number;
+      float: number;
+      rtd: number;
+      error: number;
+    };
     filtered: number;
   };
   layersAvailable: string[];

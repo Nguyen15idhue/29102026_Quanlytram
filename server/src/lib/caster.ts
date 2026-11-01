@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { callGoInternal } from './internalApi';
 
 export const FORBIDDEN_CASTER_PORTS = new Set([2101, 8081]);
 
@@ -68,6 +69,23 @@ export interface GoConnection {
   startTs: string;
   bytesIn: number;
   bytesOut: number;
+  fixType?: string;
+}
+
+export async function fetchCasterConnections(): Promise<{
+  available: boolean;
+  items: GoConnection[];
+}> {
+  try {
+    const response = await callGoInternal<{ items: GoConnection[] }>(
+      '/internal/caster/connections',
+      undefined,
+      { method: 'GET' }
+    );
+    return { available: true, items: response?.items ?? [] };
+  } catch {
+    return { available: false, items: [] };
+  }
 }
 
 export function publicConnection(

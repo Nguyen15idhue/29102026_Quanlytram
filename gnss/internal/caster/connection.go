@@ -35,6 +35,14 @@ type connection struct {
 	bytesIn  atomic.Uint64
 	bytesOut atomic.Uint64
 	closed   atomic.Bool
+	fixType  atomic.Value
+}
+
+func (c *connection) currentFixType() string {
+	if value, ok := c.fixType.Load().(string); ok && value != "" {
+		return value
+	}
+	return FixError
 }
 
 func (c *connection) snapshot() ConnectionSnapshot {
@@ -49,6 +57,7 @@ func (c *connection) snapshot() ConnectionSnapshot {
 		StartTs:      c.start.UTC().Format(time.RFC3339Nano),
 		BytesIn:      c.bytesIn.Load(),
 		BytesOut:     c.bytesOut.Load(),
+		FixType:      c.currentFixType(),
 	}
 }
 
@@ -106,12 +115,23 @@ func (c *connection) roverWriteLoop(writeTimeout time.Duration) {
 }
 
 func (c *connection) roverReadLoop() {
-	_, err := io.Copy(io.Discard, c.br)
-	reason := "client_closed"
-	if err != nil && !errors.Is(err, io.EOF) {
-		reason = "network"
+	for {
+		line, err := c.br.ReadString('\n')
+		if len(line) > 0 {
+			c.bytesIn.Add(uint64(len(line)))
+			if fixType, ok := ParseGGAFixType(line); ok {
+				c.fixType.Store(fixType)
+			}
+		}
+		if err != nil {
+			reason := "client_closed"
+			if !errors.Is(err, io.EOF) {
+				reason = "network"
+			}
+			c.closeWithReason(reason)
+			return
+		}
 	}
-	c.closeWithReason(reason)
 }
 
 func (c *connection) sourceReadLoop(reader io.Reader, readBuffer int) {

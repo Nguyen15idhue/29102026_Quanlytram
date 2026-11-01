@@ -1,5 +1,6 @@
 import { ArrowUpRight, X } from 'lucide-react';
 import type { MapStationItem } from '../../types';
+import { ACCOUNT_FIX_LABELS } from '../../lib/mapStatusLabels';
 import { Button, IconButton, StatusBadge } from '../ui';
 import type { MapPermissions } from './MapCanvas';
 
@@ -122,6 +123,25 @@ export function StationListDrawer({
                 <dt>Mountpoint</dt>
                 <dd className="mono">{selected.mountpointCount}</dd>
               </div>
+              {permissions.online && selected.accountStatus !== null && (
+                <div>
+                  <dt>Tài khoản</dt>
+                  <dd>{ACCOUNT_FIX_LABELS[selected.accountStatus]}</dd>
+                </div>
+              )}
+              {permissions.online && selected.connectedAccounts.length > 0 && (
+                <div>
+                  <dt>Tài khoản kết nối</dt>
+                  <dd>
+                    {selected.connectedAccounts
+                      .map(
+                        (account) =>
+                          `${account.username} — ${ACCOUNT_FIX_LABELS[account.fixType]}`
+                      )
+                      .join('; ')}
+                  </dd>
+                </div>
+              )}
               {permissions.relay && selected.relayJobCount !== null && (
                 <div>
                   <dt>Relay job</dt>

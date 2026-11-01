@@ -1700,7 +1700,7 @@ label.check input {
   top: 12px;
   right: 64px;
   z-index: 1100;
-  width: 220px;
+  width: 240px;
   display: grid;
   gap: 8px;
   padding: 10px 12px;
@@ -1708,11 +1708,6 @@ label.check input {
   border: 1px solid var(--border);
   border-radius: 12px;
   box-shadow: var(--shadow-float);
-}
-
-.map-legend-card .map-legend {
-  padding-top: 0;
-  border-top: 0;
 }
 
 .map-popover {
@@ -1749,10 +1744,10 @@ label.check input {
 .map-drawer {
   position: absolute;
   top: 0;
-  right: 0;
+  right: 54px;
   bottom: 0;
   z-index: 1300;
-  width: min(400px, 100%);
+  width: min(400px, calc(100% - 54px));
   display: flex;
   flex-direction: column;
   background: var(--surface);
@@ -1829,27 +1824,45 @@ label.check input {
   gap: 4px;
 }
 
-.map-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  padding-top: 4px;
-  border-top: 1px solid var(--border);
+.map-legend-groups {
+  display: grid;
+  gap: 10px;
 }
 
-.map-legend-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
+.map-legend-group {
+  display: grid;
+  gap: 4px;
+}
+
+.map-legend-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   color: var(--muted);
 }
 
+.map-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text);
+}
+
 .map-legend-dot {
+  flex: 0 0 auto;
   width: 10px;
   height: 10px;
-  border-radius: 999px;
-  display: inline-block;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.65);
+}
+
+.map-legend-count {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted);
 }
 
 .address-search {
@@ -2020,6 +2033,64 @@ label.check input {
   min-height: 0;
   background: var(--raised-2);
 }
+
+.map-pin-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+}
+
+.map-pin {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  background: var(--pin-color);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+}
+
+.map-pin.selected {
+  width: 23px;
+  height: 23px;
+  border-width: 3px;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.65), 0 3px 10px rgba(0, 0, 0, 0.45);
+}
+
+.map-account-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 0;
+}
+
+
+
+.leaflet-tooltip.map-tooltip {
+  padding: 3px 7px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 8px;
+}
+
+.leaflet-popup-content {
+  margin: 10px 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.leaflet-popup-tip {
+  background: var(--surface);
+}
+
+
 
 .leaflet-container {
   font-family: inherit;

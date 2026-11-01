@@ -9,6 +9,12 @@ import {
   parseTileCoord,
   MapMode
 } from '../lib/mapConfig';
+import { fetchCasterConnections } from '../lib/caster';
+import {
+  aggregateFixStatus,
+  AccountFixStatus,
+  normalizeFixType
+} from '../lib/mapAccountStatus';
 import { resolveStationCoords } from '../lib/mapCoords';
 import { fetchLiveQuality } from '../lib/quality';
 import { transportStatusFor } from '../lib/stationDetail';
@@ -244,18 +250,74 @@ mapRouter.get(
     }
 
     const onlineSets = new Map<number, Set<string>>();
-    if (connectionsAllowed && mountpointIds.length > 0) {
-      const connectionRows = await runtimeQuery<RowDataPacket[]>(
-        `SELECT id, mountpoint_id, account_id FROM caster_connections
-          WHERE end_ts IS NULL AND mountpoint_id IN (${placeholders(mountpointIds)})`,
-        mountpointIds
-      );
-      for (const row of connectionRows) {
-        const stationId = stationByMountpoint.get(Number(row.mountpoint_id));
-        if (!stationId) continue;
-        const set = onlineSets.get(stationId) ?? new Set<string>();
-        set.add(row.account_id === null ? `conn:${row.id}` : `account:${row.account_id}`);
-        onlineSets.set(stationId, set);
+    const openAccountIdsByStation = new Map<number, Set<number>>();
+    const fixTypeByStationAccount = new Map<number, Map<number, AccountFixStatus>>();
+
+    function addOpenConnection(
+      stationId: number,
+      connectionId: number,
+      accountId: number | null,
+      fixType: string | undefined
+    ): void {
+      const set = onlineSets.get(stationId) ?? new Set<string>();
+      set.add(accountId === null ? `conn:${connectionId}` : `account:${accountId}`);
+      onlineSets.set(stationId, set);
+      if (accountId === null) return;
+      const open = openAccountIdsByStation.get(stationId) ?? new Set<number>();
+      open.add(accountId);
+      openAccountIdsByStation.set(stationId, open);
+      const fixMap =
+        fixTypeByStationAccount.get(stationId) ?? new Map<number, AccountFixStatus>();
+      fixMap.set(accountId, normalizeFixType(fixType));
+      fixTypeByStationAccount.set(stationId, fixMap);
+    }
+
+    if (connectionsAllowed) {
+      const caster = await fetchCasterConnections();
+      if (caster.available) {
+        for (const item of caster.items) {
+          if (item.direction !== 'rover') continue;
+          const stationId = stationByMountpoint.get(Number(item.mountpointId));
+          if (!stationId) continue;
+          const accountId =
+            item.accountId === null || item.accountId === undefined
+              ? null
+              : Number(item.accountId);
+          addOpenConnection(stationId, Number(item.id), accountId, item.fixType);
+        }
+      } else if (mountpointIds.length > 0) {
+        const connectionRows = await runtimeQuery<RowDataPacket[]>(
+          `SELECT id, mountpoint_id, account_id FROM caster_connections
+            WHERE end_ts IS NULL AND mountpoint_id IN (${placeholders(mountpointIds)})`,
+          mountpointIds
+        );
+        for (const row of connectionRows) {
+          const stationId = stationByMountpoint.get(Number(row.mountpoint_id));
+          if (!stationId) continue;
+          const accountId =
+            row.account_id === null || row.account_id === undefined
+              ? null
+              : Number(row.account_id);
+          addOpenConnection(stationId, Number(row.id), accountId, undefined);
+        }
+      }
+    }
+
+    const accountUsernameById = new Map<number, string>();
+    if (connectionsAllowed) {
+      const accountIds = new Set<number>();
+      for (const ids of openAccountIdsByStation.values()) {
+        for (const id of ids) accountIds.add(id);
+      }
+      if (accountIds.size > 0) {
+        const values = [...accountIds];
+        const rows = await query<RowDataPacket[]>(
+          `SELECT id, username FROM ntrip_accounts WHERE id IN (${placeholders(values)})`,
+          values
+        );
+        for (const row of rows) {
+          accountUsernameById.set(Number(row.id), String(row.username ?? ''));
+        }
       }
     }
 
@@ -277,6 +339,27 @@ mapRouter.get(
         : latest?.ts
           ? Math.max(0, now - new Date(latest.ts).getTime())
           : null;
+      const connectedAccounts: Array<{
+        id: number;
+        username: string;
+        fixType: AccountFixStatus;
+      }> = [];
+      if (connectionsAllowed) {
+        const openIds = openAccountIdsByStation.get(stationId);
+        const fixMap = fixTypeByStationAccount.get(stationId);
+        if (openIds) {
+          for (const accountId of openIds) {
+            connectedAccounts.push({
+              id: accountId,
+              username: accountUsernameById.get(accountId) ?? '',
+              fixType: normalizeFixType(fixMap?.get(accountId))
+            });
+          }
+        }
+      }
+      const accountStatus = connectionsAllowed
+        ? aggregateFixStatus(connectedAccounts.map((item) => item.fixType))
+        : null;
       const stationOff = Number(row.enabled) === 0 || String(row.status) === 'locked';
       const state = stationOff ? 'disabled' : liveItem?.state ?? latest?.state;
       const transport = stationOff
@@ -311,6 +394,8 @@ mapRouter.get(
         mountpointCount: mountpointCount.get(stationId) ?? 0,
         relayJobCount: relayAllowed ? relays : null,
         onlineAccounts,
+        accountStatus,
+        connectedAccounts,
         region: String(row.region ?? ''),
         address: String(row.address ?? ''),
         companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
@@ -368,6 +453,46 @@ mapRouter.get(
     const layersAvailable = ['stations', 'online', 'issues', 'missing_coords'];
     if (connectionsAllowed) layersAvailable.push('online_accounts');
 
+    const stationStatus = {
+      online: 0,
+      stale: 0,
+      no_data: 0,
+      offline: 0,
+      error: 0,
+      unknown: 0
+    };
+    for (const item of items) {
+      const value = String(item.transport);
+      if (value in stationStatus) {
+        stationStatus[value as keyof typeof stationStatus] += 1;
+      } else {
+        stationStatus.unknown += 1;
+      }
+    }
+
+    const accountStatusCounts: Record<AccountFixStatus, number> = {
+      single: 0,
+      fixed: 0,
+      float: 0,
+      rtd: 0,
+      error: 0
+    };
+    if (connectionsAllowed) {
+      const uniqueAccounts = new Map<number, AccountFixStatus>();
+      for (const item of filtered) {
+        for (const account of item.connectedAccounts) {
+          const previous = uniqueAccounts.get(account.id);
+          uniqueAccounts.set(
+            account.id,
+            previous
+              ? aggregateFixStatus([previous, account.fixType]) ?? account.fixType
+              : account.fixType
+          );
+        }
+      }
+      for (const status of uniqueAccounts.values()) accountStatusCounts[status] += 1;
+    }
+
     const counts = {
       all: items.length,
       online: items.filter((item) => item.transport === 'online').length,
@@ -383,11 +508,15 @@ mapRouter.get(
       withCoords: items.filter((item) => item.hasCoords).length,
       missingCoords: items.filter((item) => !item.hasCoords).length,
       missing_1005: items.filter((item) => item.qualityVisible && !item.has1005).length,
+      stationStatus,
+      accountStatus: accountStatusCounts,
       filtered: filtered.length
     };
 
     res.json({
-      items: filtered.slice(0, 1000).map(({ qualityVisible: _qualityVisible, ...item }) => item),
+      items: filtered
+        .slice(0, 1000)
+        .map(({ qualityVisible: _qualityVisible, ...item }) => item),
       total: filtered.length,
       counts,
       layersAvailable,

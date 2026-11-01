@@ -76,6 +76,7 @@ type ConnectionSnapshot struct {
 	StartTs      string `json:"startTs"`
 	BytesIn      uint64 `json:"bytesIn"`
 	BytesOut     uint64 `json:"bytesOut"`
+	FixType      string `json:"fixType"`
 }
 
 type ListenerSnapshot struct {

@@ -1094,4 +1094,35 @@ Geoapify forward/reverse trả kết quả.
 | P06-5.1 Full-bleed + toolbar | DONE | bỏ `.map-side`; `MapToolbar` icon rail; overlay state filter/list/legend/layers/modes; map full; smoke desktop 1440 + mobile 390 PASS; tsc/build PASS |
 | P06-5.2 Filter/legend/search | DONE | filter popover/sheet đóng mặc định, Esc/click ngoài/focus trả; legend ẩn khi panel mở, desktop hiện mặc định; `MapSearchBox` gộp trạm + nhóm địa chỉ (debounce/AbortController); layer/mode popover; badge filter/list; RBAC ẩn option online-account; smoke 3/3 PASS; tsc/build PASS |
 | P06-5.3 Station list/drawer/deep link | DONE | `StationListDrawer` (drawer desktop/bottom sheet mobile, list + tóm tắt + “Mở chi tiết trạm”); marker không tự mở drawer; list sync + flyTo; `?station=` mở drawer; Fit/Về mặc định giữ mode; smoke 2/2 PASS; tsc/build PASS |
-| P06-5.4 Responsive/dark/a11y/rollout | TODO | - |
+| P06-5.4 Responsive/dark/a11y/rollout | PARTIAL | map-upgrade/unified-map/map PASS; responsive 390/768/1440 + dark PASS; còn full regression khi session Hệ thống hoàn tất |
+| P06-5.4a Trạng thái tài khoản | DONE | GGA fix type single/fixed/float/rtd/error; marker trạm = chấm tròn, tài khoản = pin hình người; legend 2 phần; popup tài khoản; test 5 fixtures PASS + screenshot |
+
+### 13.12. Bổ sung — trạng thái tài khoản kết nối (P06-5.4a)
+
+Mục tiêu: bản đồ hiển thị **trạng thái trạm** và **trạng thái tài khoản lúc kết nối**
+theo chuẩn GGA fix type: `single`, `fixed`, `float`, `rtd`, `error`.
+Không dùng các trạng thái online/offline/no_data cho tài khoản.
+
+Quyết định:
+
+| Mã | Quyết định |
+|---|---|
+| D06-30 | Trạng thái tài khoản = GGA quality của rover: 1→single, 4→fixed, 5→float, 2/3→rtd, 0/khác→error |
+| D06-31 | Go parse GGA trong `roverReadLoop`, mỗi connection giữ `fixType`; expose qua `/internal/caster/connections` |
+| D06-32 | Node map gọi internal caster snapshot, gắn `accountStatus` + `connectedAccounts` (id, username, fixType); chỉ khi có `connections.view` |
+| D06-33 | Marker trạm = chấm tròn màu theo trạng thái trạm; marker tài khoản = pin hình người màu theo fix type, đặt phía trên chấm trạm |
+| D06-34 | Click marker mở popup nhỏ: trạm, trạng thái, tài khoản đang kết nối; hover hiện tên |
+| D06-35 | Legend 2 phần: Trạm (chấm tròn) và Tài khoản (pin hình người); màu: Fixed xanh, Float vàng, RTD xanh dương, Single đỏ, Lỗi đỏ đậm |
+
+Bằng chứng:
+
+| Mục | Kết quả | Bằng chứng |
+|---|---|---|
+| Go GGA parser | PASS | `gnss/internal/caster/gga_test.go` 1 test, 6 quality + lỗi |
+| Go test/vet | PASS | `go test ./...`, `go vet ./...` |
+| Node account status | PASS | `mapAccountStatus.test.ts`; normalize + aggregate |
+| API 5 trạng thái | PASS | tạo 5 trạm/5 account, rover gửi GGA 1/4/5/2/0 → `counts.accountStatus` mỗi loại 1; `connectedAccounts` đúng username |
+| UI marker | PASS | 5 chấm tròn trạm + 5 pin hình người; màu đúng; popup tài khoản có username/fix/trạm |
+| Playwright | PASS | spec tạm 1/1; screenshot `test-results/p06-account-status-desktop.png`, `...-popup.png`, `...-mobile.png` |
+| Regression map | PASS | `map-upgrade` 2/2, `unified-map` 1/1, `map` 1/1 sau cập nhật selector |
+| Dọn fixture | PASS | đã xoá 5 trạm test và ngắt rover; không còn dữ liệu P06 Status |

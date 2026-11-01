@@ -269,8 +269,12 @@ export function UnifiedMap() {
 
         {legendOpen && panel === null && (
           <div className="map-legend-card" aria-label="Chú thích trạng thái">
-            <strong>Chú thích</strong>
-            <MapLegend />
+            <strong>Chú thích trạng thái</strong>
+            <MapLegend
+              stationCounts={counts?.stationStatus}
+              accountCounts={counts?.accountStatus}
+              showAccounts={permissions.online}
+            />
           </div>
         )}
 

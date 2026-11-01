@@ -31,9 +31,8 @@ test.describe('Phase 8 maps', () => {
     await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
     await expect(page.locator('.leaflet-container')).toBeVisible();
     await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');
-    await expect(page.getByText('2 có toạ độ')).toBeVisible();
-    await expect(page.getByText('2 thiếu toạ độ')).toBeVisible();
-    await expect(page.locator('.leaflet-interactive')).toHaveCount(2, { timeout: 10_000 });
+    await expect(page.locator('.map-legend-card')).toBeVisible();
+    await expect(page.locator('.map-pin')).toHaveCount(2, { timeout: 10_000 });
 
     await page.goto('/online');
     await expect(page.getByRole('heading', { name: 'Danh sách online' })).toBeVisible();

@@ -45,25 +45,33 @@ test.describe('P06-2 map filters, address search and interactions', () => {
 
     await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
     await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');
-    await expect(page.locator('.leaflet-interactive')).toHaveCount(2, { timeout: 15_000 });
-    await expect(page.getByText('2 có toạ độ')).toBeVisible();
+    await expect(page.locator('.map-pin')).toHaveCount(2, { timeout: 15_000 });
     await expect(page.locator('.marker-cluster')).toHaveCount(0);
 
-    await page.getByLabel('Layer bản đồ').selectOption('online');
-    await expect(page).toHaveURL(/layer=online/);
-    await expect(page.locator('.leaflet-interactive')).toHaveCount(1);
-
-    await page.getByRole('button', { name: /Xoá lọc/ }).click();
-    await expect(page).toHaveURL(/layer=stations/);
-    await expect(page.locator('.leaflet-interactive')).toHaveCount(2);
-
+    await page.getByRole('button', { name: 'Lớp bản đồ' }).click();
     await page
-      .getByPlaceholder('Tìm trạm, ID, vùng, địa chỉ, owner')
-      .fill('Hà Nội');
+      .locator('#map-layers-popover')
+      .getByRole('combobox', { name: 'Layer bản đồ' })
+      .selectOption('online');
+    await page.keyboard.press('Escape');
+    await expect(page).toHaveURL(/layer=online/);
+    await expect(page.locator('.map-pin')).toHaveCount(1);
+
+    await page.getByRole('button', { name: 'Bộ lọc' }).click();
+    await page.getByRole('button', { name: /Xoá lọc/ }).click();
+    await page.keyboard.press('Escape');
+    await expect(page).toHaveURL(/layer=stations/);
+    await expect(page.locator('.map-pin')).toHaveCount(2);
+
+    await page.getByLabel('Tìm trạm hoặc địa chỉ').fill('Hà Nội');
     await expect(page).toHaveURL(/[?&]q=/);
+    await page.getByRole('button', { name: 'Danh sách trạm' }).click();
     await expect(page.locator('.map-list-item')).toHaveCount(2);
 
+    await page.getByRole('button', { name: 'Bộ lọc' }).click();
     await page.getByRole('button', { name: /Xoá lọc/ }).click();
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Danh sách trạm' }).click();
     await expect(page.locator('.map-list-item')).toHaveCount(4);
 
     await page.locator('.map-list-item').first().click();
@@ -74,17 +82,25 @@ test.describe('P06-2 map filters, address search and interactions', () => {
     await page.goBack();
     await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
 
-    await page.getByLabel('Tìm địa chỉ').fill('Hồ Hoàn Kiếm');
-    await expect(page.locator('.address-results button')).toHaveCount(1, { timeout: 10_000 });
-    await page.locator('.address-results button').first().click();
+    await page.getByLabel('Tìm trạm hoặc địa chỉ').fill('Hồ Hoàn Kiếm');
+    await expect(page.locator('.map-search-results button')).toHaveCount(1, { timeout: 10_000 });
+    await page.locator('.map-search-results button').first().click();
     await expect(page.locator('.leaflet-tooltip')).toContainText('Hồ Hoàn Kiếm');
     await expect(page).toHaveURL(/\/map/);
 
-    await page.getByLabel('Nền bản đồ').selectOption('satellite');
+    await page.getByRole('button', { name: 'Nền bản đồ' }).click();
+    await page
+      .locator('#map-modes-popover')
+      .getByRole('combobox', { name: 'Nền bản đồ' })
+      .selectOption('satellite');
+    await page.keyboard.press('Escape');
     await expect(page).toHaveURL(/mode=satellite/);
     await expect(page.locator('.leaflet-control-attribution')).toContainText('Esri');
 
-    await page.getByRole('button', { name: /Fit kết quả/ }).click();
+    await page
+      .locator('.map-toolbar')
+      .getByRole('button', { name: 'Fit kết quả' })
+      .click();
 
     await page.getByRole('button', { name: /Chuyển giao diện/ }).click();
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
