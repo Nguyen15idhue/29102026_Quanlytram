@@ -6,6 +6,7 @@ import { runtimeQuery } from '../db/runtimePool';
 import { writeAudit } from '../lib/audit';
 import { csvBuffer } from '../lib/csv';
 import { asyncHandler, ApiError } from '../lib/http';
+import { reconcileAffected } from '../lib/reconcile';
 import {
   fetchLiveQuality,
   loadAckMap,
@@ -27,6 +28,13 @@ import { inScope } from '../rbac/scope';
 export const qualityRouter = Router();
 qualityRouter.use(requireAuth);
 qualityRouter.use(csrfProtection);
+
+async function reconcileProbe(stationId: number, probeId: number): Promise<void> {
+  const result = await reconcileAffected({ stationIds: [stationId], probeIds: [probeId] });
+  if (!result.ok) {
+    console.warn('[quality] probe reconcile failed', result.errors.join('; '));
+  }
+}
 
 function targetTypeFrom(value: unknown): 'station' | 'relay_job' | '' {
   const text = String(value ?? '');
@@ -621,6 +629,7 @@ qualityRouter.post(
       publicProbe(probe),
       ipFrom(req)
     );
+    await reconcileProbe(stationId, Number(result.insertId));
     res.status(201).json({ item: publicProbe(probe) });
   })
 );
@@ -660,6 +669,7 @@ qualityRouter.patch(
       publicProbe(after),
       ipFrom(req)
     );
+    await reconcileProbe(Number(station.id), id);
     res.json({ item: publicProbe(after) });
   })
 );

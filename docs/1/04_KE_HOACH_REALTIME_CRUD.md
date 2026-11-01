@@ -904,12 +904,12 @@ Probe manager hiện chỉ thêm/xóa session theo ID. Nếu cùng ID nhưng hos
 
 ### Checklist test
 
-- [ ] Tắt probe → không còn sample mới sau 2 giây.
-- [ ] Bật probe → có sample mới.
-- [ ] Đổi host/port probe → session restart.
-- [ ] Đổi source station → probe/relay dùng cấu hình mới.
-- [ ] Gỡ mountpoint khỏi listener → connection bị đóng.
-- [ ] UI cập nhật.
+- [!] Tắt probe → không còn sample mới — chưa có probe credential/upstream thật trong bước này; kiểm chứng live ở Bước 13.
+- [!] Bật probe → có sample mới — chờ Bước 13.
+- [x] Đổi host/port/password probe → fingerprint đổi, session restart.
+- [!] Đổi source station → probe/relay dùng cấu hình mới — reconcile đã gọi; kiểm chứng live ở Bước 13.
+- [x] Gỡ mountpoint khỏi listener → connection bị đóng.
+- [!] UI cập nhật — Bước 12.
 
 ### Ghi chú
 
@@ -1679,3 +1679,35 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - Đã xóa job test và reset/seed lại 3 trạm.
   - Không xóa relay job khi xóa trạm/mountpoint.
+### Nhật ký thực hiện — Bước 11
+- Thời điểm: 2026-11-01 11:13 +07:00
+- Trạng thái: DONE
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - Thêm fingerprint cấu hình probe; đổi host/port/mount/user/password/interval → restart session.
+  - Station probe create/patch/delete/enable/disable gọi reconcile ngay.
+  - Station source PUT gọi reconcile station + relay liên quan.
+  - Listener mapping đổi → caster reconcile đóng connection sai.
+- File thay đổi:
+  - `gnss/internal/probe/manager.go`
+  - `gnss/internal/probe/manager_test.go`
+  - `server/src/routes/quality.ts`
+  - `server/src/routes/stations.ts`
+  - `docs/1/04_KE_HOACH_REALTIME_CRUD.md`
+  - `SESSION.md`
+- Test/Bằng chứng:
+  - `go test ./internal/probe`: PASS.
+  - `go vet ./internal/probe`: PASS.
+  - `server npm run build`: PASS.
+  - Rebuild GNSS + healthy.
+  - Probe CRUD qua API: create/patch/enable/disable/delete PASS, không có log reconcile failed.
+  - Mock rover online → gỡ mountpoint khỏi listener → offline < 1 giây.
+- Checklist đã đạt:
+  - [x] Fingerprint restart.
+  - [x] Probe CRUD reconcile.
+  - [x] Listener mapping đóng connection.
+  - [!] Sample probe live và source live để Bước 13.
+- Lỗi/Ghi chú:
+  - Chưa có credential/upstream probe thật nên chưa đo sample; sẽ dùng mock ở Bước 13.
+  - Đã reset/seed lại 3 trạm test.

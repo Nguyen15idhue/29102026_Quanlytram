@@ -3,6 +3,7 @@ package probe
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"sync"
@@ -64,17 +65,19 @@ type Manager struct {
 	store Store
 	opts  Options
 
-	mu       sync.Mutex
-	rootCtx  context.Context
-	sessions map[int64]context.CancelFunc
-	wg       sync.WaitGroup
+	mu           sync.Mutex
+	rootCtx      context.Context
+	sessions     map[int64]context.CancelFunc
+	fingerprints map[int64]string
+	wg           sync.WaitGroup
 }
 
 func NewManager(store Store, opts Options) *Manager {
 	return &Manager{
-		store:    store,
-		opts:     opts.withDefaults(),
-		sessions: make(map[int64]context.CancelFunc),
+		store:        store,
+		opts:         opts.withDefaults(),
+		sessions:     make(map[int64]context.CancelFunc),
+		fingerprints: make(map[int64]string),
 	}
 }
 
@@ -105,6 +108,7 @@ func (m *Manager) Shutdown(ctx context.Context) {
 	for id, cancel := range m.sessions {
 		cancel()
 		delete(m.sessions, id)
+		delete(m.fingerprints, id)
 	}
 	m.mu.Unlock()
 	done := make(chan struct{})
@@ -141,21 +145,41 @@ func (m *Manager) reconcile(ctx context.Context) {
 		if desired[id] == nil {
 			cancel()
 			delete(m.sessions, id)
+			delete(m.fingerprints, id)
 		}
 	}
 	for id, cfg := range desired {
-		if m.sessions[id] != nil {
+		fingerprint := probeFingerprint(cfg)
+		if m.sessions[id] != nil && m.fingerprints[id] == fingerprint {
 			continue
+		}
+		if cancel := m.sessions[id]; cancel != nil {
+			cancel()
+			delete(m.sessions, id)
 		}
 		probeCtx, cancel := context.WithCancel(m.rootCtx)
 		m.sessions[id] = cancel
+		m.fingerprints[id] = fingerprint
 		m.wg.Add(1)
-		go func(cfg *Config) {
+		go func(cfg *Config, ctx context.Context) {
 			defer m.wg.Done()
-			m.runSession(probeCtx, cfg)
-		}(cfg)
+			m.runSession(ctx, cfg)
+		}(cfg, probeCtx)
 	}
 	m.mu.Unlock()
+}
+
+func probeFingerprint(cfg *Config) string {
+	lat, lon := 0.0, 0.0
+	if cfg.Lat != nil {
+		lat = *cfg.Lat
+	}
+	if cfg.Lon != nil {
+		lon = *cfg.Lon
+	}
+	return fmt.Sprintf("%d|%d|%d|%s|%d|%s|%s|%s|%d|%.10f|%.10f",
+		cfg.ID, cfg.StationID, cfg.MountpointID, cfg.Host, cfg.Port, cfg.Mount,
+		cfg.Username, cfg.Password, cfg.Interval, lat, lon)
 }
 
 func (m *Manager) runSession(ctx context.Context, cfg *Config) {

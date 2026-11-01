@@ -13,6 +13,7 @@ import { asyncHandler, ApiError } from '../lib/http';
 import { ecefToGeodetic, geodeticToVn2000 } from '../lib/geo';
 import { decryptSecret, encryptSecret } from '../lib/crypto';
 import { callGoInternal } from '../lib/internalApi';
+import { reconcileAffected } from '../lib/reconcile';
 import { hashPassword } from '../lib/password';
 import { createStationResources } from '../lib/stationResources';
 import { publishEntityChange } from '../lib/entityChange';

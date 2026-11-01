@@ -13,6 +13,7 @@
 - Kế hoạch 04: Bước 8 DONE (reconcileAffected, entity.changed Socket.IO, response reconcile)
 - Kế hoạch 04: Bước 9 DONE (targeted disconnect account/mountpoint/listener, chống race hub, max_connections)
 - Kế hoạch 04: Bước 10 DONE (relay pause ownership station/mountpoint, manual override 409)
+- Kế hoạch 04: Bước 11 DONE (probe fingerprint restart, probe/source reconcile, listener mapping đóng connection)
 - Phase hiện tại: P1.10.1 — Khắc phục trạm/kết nối/tọa độ/geo DONE; P1.11 map defer
 - Trạng thái P1.0: DONE (backup/restore PASS, graphify 2364 nodes, Playwright 15/15)
 - Trạng thái P1.1: DONE (migration 014–017, station_sources 39, tenant scope)
