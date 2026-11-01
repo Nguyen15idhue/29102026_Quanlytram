@@ -549,3 +549,17 @@ Các bước cho mỗi trang:
   `example.invalid` (không tạo traffic thật); (3) bỏ ảnh trang Công ty (admin công ty
   không có quyền xem) — chương 10 dùng ảnh Người dùng/Vai trò/Trang cá nhân;
   (4) để ảnh ổn định: đóng băng `Date`, mask cột thời gian/phiên và chụp riêng hộp thoại.
+
+### P08-4 — Nội dung 12 chương (2026-11-02 00:16 +07:00)
+
+- Việc: viết đủ 13 tệp chương (00–12) theo bảng mục 8; nhãn UI lấy từ
+  `ui-inventory.json`; chèn 22 ảnh; cross-link; nêu rõ vai trò ở chương quản trị;
+  chương 11 gồm bảng mã lỗi, checklist chẩn đoán, log, sao lưu; chương 12 gồm
+  quyền theo module, phạm vi dữ liệu, thuật ngữ.
+- Lệnh: `node scripts/build-guide.mjs --check`; `node scripts/build-guide.mjs`.
+- Kết quả: PASS — ảnh hợp lệ 13/13 chương, route 19/19; Docusaurus build PASS
+  (0 broken link/anchor), copy sang `frontend/public/guide` 7.5 MB.
+- File: `docs-site/docs/00..12-*.md`.
+- Sai lệch: (1) sửa link tương đối từ `./van-hanh-su-co/` sang `../van-hanh-su-co/`
+  (Docusaurus tính theo route, không theo tệp); (2) chương 10 không có ảnh Công ty
+  (dùng Người dùng/Vai trò/Trang cá nhân).
