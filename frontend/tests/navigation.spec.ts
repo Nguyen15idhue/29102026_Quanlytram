@@ -30,11 +30,14 @@ test.describe('P0 Phase 6 menu and deep links', () => {
       'Hệ thống'
     ]);
 
-    await page.goto('/stations/80?tab=overview');
+    const stationList = await (await page.request.get('/api/stations?pageSize=1')).json();
+    const station = stationList.items?.[0];
+    if (!station) test.skip(true, 'Cần ít nhất một trạm để kiểm tra điều hướng');
+
+    await page.goto(`/stations/${station.id}?tab=overview`);
     await expect(page.locator('.topbar-left strong')).toHaveText('Chi tiết trạm');
     await expect(page.locator('[role="dialog"]')).toBeVisible();
-    await expect(page.getByText('THA Hậu Lộc').first()).toBeVisible();
-    await expect(page.locator('a[href="/stations"]')).toHaveClass(/active/);
+    await expect(page.getByText(station.name).first()).toBeVisible();    await expect(page.locator('a[href="/stations"]')).toHaveClass(/active/);
     expect(
       await page.evaluate(() => Boolean(document.activeElement?.closest('[role="dialog"]')))
     ).toBe(true);
@@ -45,9 +48,9 @@ test.describe('P0 Phase 6 menu and deep links', () => {
     await page.keyboard.press('Escape');
     await expect(page).toHaveURL(/\/stations$/);
 
-    await page.goto('/map?station=80');
+    await page.goto(`/map?station=${station.id}`);
     await expect(page.locator('.topbar-left strong')).toHaveText('Bản đồ vận hành');
-    await expect(page.locator('.map-detail')).toContainText('THA Hậu Lộc');
+    await expect(page.locator('.map-detail')).toContainText(station.name);
     await expect(page.locator('a[href="/map"]')).toHaveClass(/active/);
 
     await page.getByRole('button', { name: /Chuyển giao diện/ }).click();
@@ -66,8 +69,8 @@ test.describe('P0 Phase 6 menu and deep links', () => {
     expect(mobileOverflow).toBe(false);
 
     await page.setViewportSize({ width: 768, height: 1024 });
-    await page.goto('/map?station=80');
-    await expect(page.locator('.map-detail')).toContainText('THA Hậu Lộc');
+    await page.goto(`/map?station=${station.id}`);
+    await expect(page.locator('.map-detail')).toContainText(station.name);
     const tabletOverflow = await page.evaluate(
       () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
     );

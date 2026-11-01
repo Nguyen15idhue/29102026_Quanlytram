@@ -93,7 +93,7 @@ Bổ sung 2026-11-01: trạng thái streaming `online | offline | no data | —`
 | P05-2 | RBAC company, peer admin, listener global | DONE |
 | P05-3 | API companies/users/resources/audit | DONE |
 | P05-4 | UI Companies, cột/filter công ty | DONE (form tạo trạm/relay/MP/NTRIP chọn company: follow-up) |
-| P05-5 | Test matrix 05-T1..T19, regression, rollout | IN PROGRESS |
+| P05-5 | Test matrix 05-T1..T19, regression, rollout | DONE (server 61/61, Playwright 6/6, Go test/vet; còn follow-up UI company trong form tạo) |
 
 Chi tiết: `docs/1/05_KE_HOACH_CONG_TY_NHIEU_ADMIN.md`.
 

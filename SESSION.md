@@ -5,8 +5,10 @@
 - Thời điểm: 2026-11-01 09:27 (Asia/Ho_Chi_Minh, +07:00)
 - Kế hoạch 05: P05-1 DONE (backup `cors-mysql-20261101-165655.sql.zip`; migration 028–030; 1 company `admin`, user admin/user1/user2 có company_id; báo cáo backfill 247 dòng cho tài nguyên owner super/null)
 - Kế hoạch 05: P05-2 DONE (tenant=company, peer admin, listener global; migration 031–032; server 61/61)
-- Kế hoạch 05: P05-3 DONE (companies API, company/owner response, filter super, audit company; API integration 29/29)
+- Kế hoạch 05: P05-3 DONE (companies API, company/owner response, filter super, audit company; API integration 37/37)
 - Kế hoạch 05: P05-4 DONE (trang Công ty, cột/filter, drawer company/owner, form user super; Playwright 2/2; frontend build PASS)
+- Kế hoạch 05: P05-5 DONE (migration 028–033; server 61/61; frontend build; Go test/vet; Playwright 6/6; graphify 2983 nodes)
+- Kế hoạch 05: follow-up UI chọn company trong form tạo trạm/relay/mountpoint/NTRIP; tài nguyên legacy super/null company chờ super xử lý
 - Phase hiện tại: P05-5 test matrix và rollout
 - Kế hoạch 04: Bước 1 DONE (backup/restore PASS, baseline 40 trạm/39 mountpoint/2 account/2 listener/0 connection mở)
 - Kế hoạch 04: Bước 2 DONE (reset/seed script dry-run; chưa thay đổi dữ liệu)

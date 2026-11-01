@@ -453,11 +453,34 @@ Ghi chú P05-4 (2026-11-01):
 
 ### P05-5 — Test & rollout
 
-- [ ] Test matrix 05-T1..T19.
-- [ ] Regression RBAC/API cũ.
-- [ ] Chạy trên dữ liệu test; backup trước migration.
-- [ ] Cập nhật SESSION/TASKS/api.
-- [ ] Graphify update sau khi đổi cấu trúc.
+- [x] Test matrix 05-T1..T19.
+- [x] Regression RBAC/API cũ.
+- [x] Chạy trên dữ liệu test; backup trước migration.
+- [x] Cập nhật SESSION/TASKS/api.
+- [x] Graphify update sau khi đổi cấu trúc.
+
+Ghi chú P05-5 (2026-11-01):
+
+- Backup trước migration: `F:\3.Laptrinh\1. Project\1. GNSS\Backup\cors-mysql-20261101-165655.sql.zip`
+  (SHA256 `1AC8AA20...3B7F70`).
+- Migration 028–033 chạy PASS; chạy lại `migrate` → `admin=0 runtime=0`.
+- Bổ sung `033_admin_roles_scope_fix.sql`: admin chỉ `roles.view=all`, còn lại
+  `roles.*=none` (phát hiện qua regression Playwright p1-rbac).
+- API integration (dữ liệu test, cleanup sau khi chạy):
+  - 29/29 check PASS cho T2–T7, T9–T13, T16–T19 (company/peer/listener/disable).
+  - 7/7 check PASS cho T7, T8, T14 (own scope user, import/export company).
+  - T2 PASS: admin A1 và peer A2 cùng thấy 3 trạm company A.
+  - T1 PASS: schema 033, 1 company, user/admin company đúng, báo cáo backfill.
+- Playwright: `navigation.spec.ts` + `company.spec.ts` + `p1-rbac.spec.ts`
+  → 6/6 PASS. `navigation.spec.ts` đã đổi sang lấy trạm đầu tiên từ API thay
+  vì hard-code station 80 (dữ liệu test đã reset).
+- Server: `npx tsc --noEmit` PASS, vitest 61/61 PASS, `npm run build` PASS.
+- Frontend: `npx tsc --noEmit` PASS, `npm run build` PASS.
+- Go: `go test ./...` PASS, `go vet ./...` PASS.
+- Graphify: `graphify update .` → 2983 nodes, 7258 edges.
+- Rủi ro còn lại: UI form tạo trạm/relay/mountpoint/NTRIP của super chưa có
+  ô chọn Công ty (API đã bắt buộc). Tài nguyên legacy thuộc super/null company
+  còn trong `company_backfill_reports` chờ super xử lý.
 
 ## 12. Rủi ro
 

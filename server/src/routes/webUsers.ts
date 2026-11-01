@@ -153,10 +153,13 @@ async function resolveParent(
     throw new ApiError(400, 'INVALID_PARENT', 'Không thể tạo chu trình parent');
   }
   const rows = await query<RowDataPacket[]>(
-    'SELECT id, company_id FROM web_users WHERE id = ?',
+    `SELECT u.id, u.company_id, r.code AS role_code
+       FROM web_users u JOIN roles r ON r.id = u.role_id
+      WHERE u.id = ?`,
     [parent]
   );
   if (rows.length === 0) throw new ApiError(400, 'INVALID_PARENT', 'Parent không tồn tại');
+  if (rows[0].role_code === 'super_admin') return parent;
   const parentCompany =
     rows[0].company_id === null || rows[0].company_id === undefined
       ? null

@@ -92,6 +92,7 @@ test.describe('P1.2 RBAC tenant và menu', () => {
     const adminBCtx = await api.newContext({ baseURL });
     const adminACtx = await api.newContext({ baseURL });
     let adminBId: number | null = null;
+    let companyBId: number | null = null;
     let stationId: number | null = null;
     try {
       const superAuth = await loginApi(
@@ -102,6 +103,14 @@ test.describe('P1.2 RBAC tenant và menu', () => {
       const roles = await (await superCtx.get('/api/roles')).json();
       const adminRole = roles.items.find((role: { code: string }) => role.code === 'admin');
 
+      const companyCode = `e2e_company_b_${suffix}`;
+      const createCompany = await superCtx.post('/api/companies', {
+        headers: { 'X-CSRF-Token': superAuth.csrfToken },
+        data: { code: companyCode, name: `Công ty B ${suffix}` }
+      });
+      expect(createCompany.status()).toBe(201);
+      companyBId = (await createCompany.json()).item.id;
+
       const adminBUsername = `e2e_admin_b_${suffix}`;
       const adminBPassword = 'TenantB!2026';
       const createUser = await superCtx.post('/api/web-users', {
@@ -111,7 +120,8 @@ test.describe('P1.2 RBAC tenant và menu', () => {
           password: adminBPassword,
           display_name: 'E2E Admin B',
           role_id: adminRole.id,
-          parent_user_id: superAuth.user.id
+          parent_user_id: superAuth.user.id,
+          company_id: companyBId
         }
       });
       expect(createUser.status()).toBe(201);
@@ -167,6 +177,13 @@ test.describe('P1.2 RBAC tenant và menu', () => {
         const me = await superCtx.get('/api/auth/me');
         const csrf = me.ok() ? (await me.json()).csrfToken : '';
         await superCtx.delete(`/api/web-users/${adminBId}`, {
+          headers: { 'X-CSRF-Token': csrf }
+        });
+      }
+      if (companyBId !== null) {
+        const me = await superCtx.get('/api/auth/me');
+        const csrf = me.ok() ? (await me.json()).csrfToken : '';
+        await superCtx.delete(`/api/companies/${companyBId}`, {
           headers: { 'X-CSRF-Token': csrf }
         });
       }
