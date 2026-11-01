@@ -16,7 +16,7 @@ import { Companies } from './pages/Companies';
 import { Alerts } from './pages/Alerts';
 import { History } from './pages/History';
 import { Profile } from './pages/Profile';
-import { SystemHealth } from './pages/SystemHealth';
+import { System } from './pages/System';
 import { SystemMapConfig } from './pages/SystemMapConfig';
 
 const UnifiedMap = lazy(() =>
@@ -57,7 +57,8 @@ export function App() {
           <Route path="/companies" element={<Companies />} />
           <Route path="/roles" element={<Roles />} />
           <Route path="/profile" element={<Profile />} />
-          <Route path="/system/health" element={<SystemHealth />} />
+          <Route path="/system" element={<System />} />
+          <Route path="/system/health" element={<Navigate to="/system?tab=health" replace />} />
           <Route path="/system/map-config" element={<SystemMapConfig />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />

@@ -1055,3 +1055,14 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   - `node C:\Users\ADMIN\AppData\Local\Temp\opencode\scan_repo_unicode.js`
   - `docker exec -w /app cors-mvp-server-1 npm run build`
   - `docker exec -w /app cors-mvp-web-1 npm run build`
+
+## Kế hoạch 07 — Menu Hệ thống & bảo trì
+
+- P07-0 DONE: `/system` với tab Sức khỏe (mặc định) / Tối ưu / Tự động hóa;
+  `/system/health` redirect `/system?tab=health`; menu đổi "Sức khỏe" →
+  "Hệ thống"; tách `HealthTab`, xóa `SystemHealth.tsx`; placeholder 2 tab mới.
+  Test: server build PASS, frontend build PASS, Playwright
+  `system-health` + `navigation` 2/2 PASS.
+- Cách chạy E2E local: đọc `SEED_SUPERADMIN_PASSWORD` từ `.env.local` gán vào
+  `E2E_PASSWORD` (không in giá trị), rồi `cd frontend; npx playwright test ...`.
+- Lưu ý: Vite trong container cần `docker compose restart web` để nạp file mới.

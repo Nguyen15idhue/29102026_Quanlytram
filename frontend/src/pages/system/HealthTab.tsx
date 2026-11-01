@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Activity, RefreshCw } from 'lucide-react';
-import { apiFetch } from '../api/client';
-import { Button, PageHeader, StatusBadge } from '../components/ui';
+import { apiFetch } from '../../api/client';
+import { Button, PageHeader, StatusBadge } from '../../components/ui';
 
 type HealthStatus = 'ok' | 'warn' | 'error' | 'unknown';
 
@@ -140,7 +140,7 @@ function Card({
   );
 }
 
-export function SystemHealth() {
+export function HealthTab() {
   const health = useQuery({
     queryKey: ['system-health'],
     queryFn: () => apiFetch<HealthResponse>('/api/system/health'),
@@ -149,7 +149,7 @@ export function SystemHealth() {
   const data = health.data;
 
   return (
-    <section className="page">
+    <>
       <PageHeader
         title="System Health"
         description="Tình trạng VPS, Node, MySQL và Go; số liệu được cache ngắn để không ảnh hưởng relay/caster."
@@ -279,6 +279,6 @@ export function SystemHealth() {
           </div>
         </>
       )}
-    </section>
+    </>
   );
 }

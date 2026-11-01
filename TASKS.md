@@ -712,6 +712,17 @@ phase sau khi phase trước còn FAIL; không làm các mục ngoài phạm vi 
 - [x] NTRIP client trạm: session start/end, GGA an toàn, reconcile tức thời
       khi tắt/bật trạm.
 
+## 9.2. Kế hoạch 07 — Menu Hệ thống & bảo trì (2026-11-01)
+
+- [x] P07-0 Baseline & shell menu/tab: `/system` + tab Sức khỏe/Tối ưu/Tự động hóa;
+      `/system/health` redirect; menu 1 mục Hệ thống; Playwright 2/2 PASS.
+- [ ] P07-1 DB, quyền, cấu hình: 3 bảng `maintenance_*`, 11 job, `system_ops.*`.
+- [ ] P07-2 API Tối ưu: `GET /api/system/optimize`.
+- [ ] P07-3 API Tự động hóa admin: jobs/settings/runs/run + scheduler.
+- [ ] P07-4 Go đọc cấu hình DB + retention + internal API.
+- [ ] P07-5 Frontend Tối ưu & Tự động hóa.
+- [ ] P07-6 Test, docs, graphify, rollout.
+
 ## 10. Ghi chú điều phối
 
 - Không chuyển phase nếu checklist chưa PASS.

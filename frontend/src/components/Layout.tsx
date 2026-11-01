@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Activity,
   Antenna,
   Bell,
   Building2,
@@ -15,6 +14,7 @@ import {
   Network,
   Radio,
   RadioTower,
+  Settings,
   ShieldCheck,
   Users,
   X
@@ -37,6 +37,7 @@ const titles: Record<string, string> = {
   '/web-users': 'Người dùng web',
   '/companies': 'Công ty',
   '/roles': 'Vai trò & quyền',
+  '/system': 'Hệ thống',
   '/system/health': 'System Health',
   '/system/map-config': 'Cấu hình bản đồ',
   '/profile': 'Trang cá nhân'
@@ -102,9 +103,9 @@ export function Layout() {
       label: 'Hệ thống',
       items: [
         {
-          to: '/system/health',
-          label: 'Sức khỏe',
-          icon: Activity,
+          to: '/system',
+          label: 'Hệ thống',
+          icon: Settings,
           show: can('system_health', 'view')
         },
         {
@@ -146,7 +147,7 @@ export function Layout() {
                     <NavLink
                       key={item.to}
                       to={item.to}
-                      end={item.to === '/' || item.to === '/mountpoints'}
+                      end={item.to === '/' || item.to === '/mountpoints' || item.to === '/system'}
                       className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                     >
                       <Icon size={18} aria-hidden="true" />

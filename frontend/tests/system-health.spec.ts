@@ -16,8 +16,9 @@ test.describe('P0 Phase 4 system health', () => {
     await page.getByRole('button', { name: 'Đăng nhập' }).click();
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
-    await page.getByRole('link', { name: 'System Health' }).click();
+    await page.getByRole('link', { name: 'Hệ thống' }).click();
     await expect(page.getByRole('heading', { name: 'System Health' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Sức khỏe' })).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('heading', { name: 'Node', exact: true })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Host / VPS' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'MySQL' })).toBeVisible();
@@ -42,6 +43,15 @@ test.describe('P0 Phase 4 system health', () => {
     );
     expect(overflow).toBe(false);
     await page.screenshot({ path: 'test-results/system-health-mobile-dark.png', fullPage: true });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/system?tab=optimize');
+    await expect(page.getByRole('tab', { name: 'Tối ưu' })).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('heading', { name: 'Tối ưu chỉ số' })).toBeVisible();
+
+    await page.goto('/system/health');
+    await expect(page).toHaveURL(/\/system\?tab=health$/);
+    await expect(page.getByRole('tab', { name: 'Sức khỏe' })).toHaveAttribute('aria-selected', 'true');
 
     expect(errors).toEqual([]);
   });
