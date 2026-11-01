@@ -471,6 +471,16 @@ relayJobsRouter.patch(
     const upstreamKey = endpointKey(upstream);
     const downstreamKey = endpointKey(downstream);
     const enabled = body.enabled ?? Boolean(before.enabled);
+    const paused =
+      before.paused_by_station_id !== null || before.paused_by_mountpoint_id !== null;
+    if (body.enabled === true && paused) {
+      throw new ApiError(
+        409,
+        'RESOURCE_PAUSED',
+        'Relay job đang bị tạm dừng bởi trạm hoặc mountpoint'
+      );
+    }
+    const clearPause = body.enabled === false;
     await assertNoCycles({ id, upstreamKey, downstreamKey, enabled });
 
     const ownerId =
@@ -502,7 +512,8 @@ relayJobsRouter.patch(
         );
         await conn.query(
           `UPDATE relay_jobs SET
-             external_key = ?, name = ?, enabled = ?, paused_by_station_id = NULL,
+             external_key = ?, name = ?, enabled = ?,
+             paused_by_station_id = ?, paused_by_mountpoint_id = ?,
              upstream_host = ?, upstream_port = ?, upstream_mount = ?, upstream_credential_id = ?,
              upstream_proxy = ?, upstream_ssl = ?, upstream_ntrip_version = ?,
              downstream_host = ?, downstream_port = ?, downstream_mount = ?, downstream_credential_id = ?,
@@ -515,6 +526,8 @@ relayJobsRouter.patch(
             body.externalKey === undefined ? before.external_key : body.externalKey,
             body.name ?? before.name,
             enabled,
+            clearPause ? null : before.paused_by_station_id,
+            clearPause ? null : before.paused_by_mountpoint_id,
             upstream.host,
             upstream.port,
             upstream.mount,
@@ -589,6 +602,12 @@ relayJobsRouter.post(
       }
       try {
         await assertRecordScope(req, row.owner_web_user_id);
+        if (
+          body.action === 'enable' &&
+          (row.paused_by_station_id !== null || row.paused_by_mountpoint_id !== null)
+        ) {
+          throw new ApiError(409, 'RESOURCE_PAUSED', 'Relay job đang bị tạm dừng');
+        }
         if (body.action === 'enable') {
           await assertNoCycles({
             id,
@@ -624,7 +643,9 @@ relayJobsRouter.post(
         } else {
           await conn.query(
             `UPDATE relay_jobs
-                SET enabled = ?, paused_by_station_id = NULL,
+                SET enabled = ?,
+                    paused_by_station_id = NULL,
+                    paused_by_mountpoint_id = NULL,
                     desired_revision = desired_revision + 1
               WHERE id = ?`,
             [body.action === 'enable' ? 1 : 0, row.id]
@@ -869,6 +890,16 @@ async function setEnabled(req: any, enabled: boolean) {
     throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
   }
   await assertRecordScope(req, before.owner_web_user_id);
+  if (
+    enabled &&
+    (before.paused_by_station_id !== null || before.paused_by_mountpoint_id !== null)
+  ) {
+    throw new ApiError(
+      409,
+      'RESOURCE_PAUSED',
+      'Relay job đang bị tạm dừng bởi trạm hoặc mountpoint'
+    );
+  }
   if (enabled) {
     await assertNoCycles({
       id,
@@ -879,7 +910,9 @@ async function setEnabled(req: any, enabled: boolean) {
   }
   await adminPool.query(
     `UPDATE relay_jobs
-        SET enabled = ?, paused_by_station_id = NULL,
+        SET enabled = ?,
+            paused_by_station_id = NULL,
+            paused_by_mountpoint_id = NULL,
             desired_revision = desired_revision + 1
       WHERE id = ?`,
     [enabled, id]

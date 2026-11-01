@@ -847,16 +847,16 @@ Một relay job có thể bị tắt vì trạm hoặc vì mountpoint. Cần bi�
 
 ### Checklist test
 
-- [ ] Tắt mountpoint → job upstream disabled.
-- [ ] Tắt mountpoint → job downstream disabled.
-- [ ] Tắt trạm → job upstream/downstream của mountpoint trạm disabled.
-- [ ] Bật mountpoint khi trạm còn tắt → job vẫn disabled.
-- [ ] Bật trạm khi mountpoint còn tắt → job vẫn disabled.
-- [ ] Bật cả hai → job enabled.
-- [ ] Manual disable khi đang pause → resume không bật lại.
-- [ ] Manual enable khi còn pause → 409.
-- [ ] Xóa mountpoint → job disabled, owner cleared.
-- [ ] Revision tăng đúng.
+- [x] Tắt mountpoint → job upstream disabled.
+- [x] Tắt mountpoint → job downstream disabled.
+- [x] Tắt trạm → job upstream/downstream của mountpoint trạm disabled.
+- [x] Bật mountpoint khi trạm còn tắt → job vẫn disabled.
+- [x] Bật trạm khi mountpoint còn tắt → job vẫn disabled (owner mountpoint còn giữ).
+- [x] Bật cả hai → job enabled.
+- [x] Manual disable khi đang pause → resume không bật lại.
+- [x] Manual enable khi còn pause → 409.
+- [x] Xóa mountpoint → job disabled, owner cleared.
+- [x] Revision tăng ở các câu lệnh pause/resume.
 
 ### Ghi chú
 
@@ -1644,3 +1644,38 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - Windows host không có gcc nên `-race` chạy qua Docker `golang:1.24`.
   - Đã reset/seed lại 3 trạm test sau kiểm thử.
+### Nhật ký thực hiện — Bước 10
+- Thời điểm: 2026-11-01 11:06 +07:00
+- Trạng thái: DONE
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - Station pause/resume khớp cả upstream và downstream.
+  - Resume trạm chỉ bật job nếu `paused_by_mountpoint_id IS NULL`.
+  - Manual disable clear cả hai owner; manual enable bị 409 khi còn owner.
+  - Patch relay job giữ owner pause; chỉ clear khi người dùng disable.
+  - Bulk relay job áp dụng cùng quy tắc.
+- File thay đổi:
+  - `server/src/lib/stationStream.ts`
+  - `server/src/routes/relayJobs.ts`
+  - `docs/1/04_KE_HOACH_REALTIME_CRUD.md`
+  - `SESSION.md`
+- Test/Bằng chứng:
+  - `server npm run build`: PASS.
+  - Tạo 2 job test (upstream/downstream cùng MP).
+  - Disable station: cả 2 job enabled=0, owner=station.
+  - Enable station: cả 2 job enabled=1, owner NULL.
+  - Disable MP: cả 2 job owner=MP; disable station thêm owner station.
+  - Enable MP khi trạm tắt: job vẫn 0, còn owner station.
+  - Enable station: job enabled=1.
+  - Manual disable job khi pause: owner clear; enable MP không bật lại.
+  - Manual enable khi MP còn pause → 409.
+  - Xóa MP → job disabled, owner clear.
+- Checklist đã đạt:
+  - [x] Pause/resume station và mountpoint hai chiều.
+  - [x] Ownership precedence.
+  - [x] Manual override.
+  - [x] Revision tăng.
+- Lỗi/Ghi chú:
+  - Đã xóa job test và reset/seed lại 3 trạm.
+  - Không xóa relay job khi xóa trạm/mountpoint.

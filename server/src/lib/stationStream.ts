@@ -13,18 +13,22 @@ async function pauseResources(
 ): Promise<StationStreamEffect> {
   const [relayRows] = await conn.query<RowDataPacket[]>(
     `SELECT id FROM relay_jobs
-      WHERE deleted_at IS NULL AND enabled = 1 AND paused_by_station_id IS NULL
-        AND upstream_mount IN (SELECT name FROM mountpoints WHERE station_id = ?)`,
-    [stationId]
+      WHERE deleted_at IS NULL AND paused_by_station_id IS NULL
+        AND (enabled = 1 OR paused_by_mountpoint_id IS NOT NULL)
+        AND (upstream_mount IN (SELECT name FROM mountpoints WHERE station_id = ?)
+          OR downstream_mount IN (SELECT name FROM mountpoints WHERE station_id = ?))`,
+    [stationId, stationId]
   );
   await conn.query(
     `UPDATE relay_jobs
         SET enabled = 0,
             paused_by_station_id = ?,
             desired_revision = desired_revision + 1
-      WHERE deleted_at IS NULL AND enabled = 1 AND paused_by_station_id IS NULL
-        AND upstream_mount IN (SELECT name FROM mountpoints WHERE station_id = ?)`,
-    [stationId, stationId]
+      WHERE deleted_at IS NULL AND paused_by_station_id IS NULL
+        AND (enabled = 1 OR paused_by_mountpoint_id IS NOT NULL)
+        AND (upstream_mount IN (SELECT name FROM mountpoints WHERE station_id = ?)
+          OR downstream_mount IN (SELECT name FROM mountpoints WHERE station_id = ?))`,
+    [stationId, stationId, stationId]
   );
 
   await conn.query(
@@ -63,7 +67,7 @@ async function resumeResources(
   );
   await conn.query(
     `UPDATE relay_jobs
-        SET enabled = 1,
+        SET enabled = IF(paused_by_mountpoint_id IS NULL, 1, 0),
             paused_by_station_id = NULL,
             desired_revision = desired_revision + 1
       WHERE deleted_at IS NULL AND paused_by_station_id = ?`,
