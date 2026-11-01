@@ -491,3 +491,18 @@ Các bước cho mỗi trang:
 - Kết quả: PASS — server 88/88 test (14 file), frontend build PASS, navigation 1/1 PASS (1 worker, không skip). Stack compose healthy (mysql/server/gnss/web).
 - File: `docs/1/08_KE_HOACH_TRANG_HUONG_DAN.md`, `TASKS.md`, `SESSION.md`.
 - Sai lệch: baseline server là **88/88** (kế hoạch ghi 71/71 theo số liệu cũ) — dùng 88/88 làm mốc chống regress.
+
+### P08-1 — Scaffold Docusaurus (2026-11-01 23:11 +07:00)
+
+- Việc: tạo `docs-site/` (Docusaurus 3.10.2, preset classic, TS), `baseUrl '/guide/'`,
+  `trailingSlash`, locale `vi`, `onBrokenLinks/Anchors: 'throw'`; search index cục bộ
+  `@easyops-cn/docusaurus-search-local` 0.55.3; theme token khớp app (IBM Plex, accent
+  `#1e6b57`/`#63b9a4`, dark mode theo hệ điều hành); 2 chương mẫu 00, 01; favicon SVG.
+- Lệnh: `docs-site npm install`; `docs-site npm run build`; `npx docusaurus serve --port 3100`.
+- Kết quả: PASS — build sinh `build/` không broken link; serve trả HTTP 200 tại `/guide/`.
+- File: `docs-site/package.json`, `docusaurus.config.ts`, `sidebars.ts`, `tsconfig.json`,
+  `src/css/custom.css`, `src/clientModules/fonts.ts`, `docs/00-gioi-thieu.md`,
+  `docs/01-bat-dau.md`, `static/img/favicon.svg`.
+- Sai lệch: giữ **navbar thu gọn 48px** thay vì ẩn hoàn toàn (cần ô tìm kiếm và nút mở
+  sidebar trên mobile); footer ẩn bằng CSS. Font nạp qua `clientModules` vì `@import`
+  gói `@fontsource` không ổn định trong webpack của Docusaurus.
