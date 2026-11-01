@@ -724,7 +724,8 @@ phase sau khi phase trước còn FAIL; không làm các mục ngoài phạm vi 
 - [x] P07-4 Go đọc cấu hình DB + retention + internal API; go test PASS;
       runtime dry-run/reconcile 200.
 - [x] P07-5 Frontend Tối ưu & Tự động hóa; Playwright system-ops 2/2 PASS.
-- [ ] P07-6 Test, docs, graphify, rollout.
+- [x] P07-6 Test, docs, graphify, rollout; server 88/88, Go PASS, FE build,
+      Playwright P07 PASS; graphify 3493 nodes.
 
 ## 10. Ghi chú điều phối
 

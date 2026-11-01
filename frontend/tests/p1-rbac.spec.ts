@@ -24,7 +24,7 @@ test.describe('P1.2 RBAC tenant và menu', () => {
 
   test('admin không xem sức khỏe, phân quyền chỉ đọc', async ({ page }) => {
     await login(page, adminUsername, adminPassword);
-    await expect(page.locator('a[href="/system/health"]')).toHaveCount(0);
+    await expect(page.locator('a[href="/system"]')).toHaveCount(0);
     await expect(page.getByRole('link', { name: 'Phân quyền' })).toBeVisible();
 
     await page.goto('/roles');
@@ -49,7 +49,7 @@ test.describe('P1.2 RBAC tenant và menu', () => {
     await expect(page.getByRole('link', { name: 'Danh sách trạm' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Relay jobs' })).toBeVisible();
     await expect(page.locator('a[href="/caster"]')).toHaveCount(0);
-    await expect(page.locator('a[href="/system/health"]')).toHaveCount(0);
+    await expect(page.locator('a[href="/system"]')).toHaveCount(0);
     await expect(page.locator('a[href="/web-users"]')).toHaveCount(0);
 
     await page.goto('/stations');
