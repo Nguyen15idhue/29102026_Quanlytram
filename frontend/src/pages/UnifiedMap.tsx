@@ -1,21 +1,25 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, MapPinned } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
 import type { MapMode, MapOverviewResponse, MapStationItem } from '../types';
-import { Button, PageHeader, SearchInput, Select, StatusBadge } from '../components/ui';
-import { MapCanvas } from '../components/map/MapCanvas';
+import { Button, PageHeader, Select, StatusBadge } from '../components/ui';
+import { MapCanvas, type MapTempMarker } from '../components/map/MapCanvas';
 import { TileErrorBanner } from '../components/map/TileErrorBanner';
+import {
+  AddressSearch,
+  type AddressResult
+} from '../components/map/AddressSearch';
+import { MapFilterPanel, type MapFilterState } from '../components/map/MapFilterPanel';
+import { MapLegend } from '../components/map/MapLegend';
 import { useMapConfig } from '../lib/useMapConfig';
 
-const BASE_LAYERS = [
-  { value: 'stations', label: 'Tất cả trạm' },
-  { value: 'online', label: 'Online' },
-  { value: 'issues', label: 'Stale / lỗi' },
-  { value: 'missing_coords', label: 'Chưa có toạ độ' },
-  { value: 'missing_1005', label: 'Chưa có 1005' }
+const MODES: Array<{ value: MapMode; label: string }> = [
+  { value: 'streets', label: 'Đường phố' },
+  { value: 'satellite', label: 'Vệ tinh' },
+  { value: 'terrain', label: 'Địa hình' }
 ];
 
 function stateKind(state: string): 'ok' | 'warn' | 'error' | 'neutral' {
@@ -31,22 +35,35 @@ function coordLabel(item: MapStationItem): string {
   return 'Chưa có';
 }
 
+function normalizeMode(value: string | null): MapMode {
+  return value === 'satellite' || value === 'terrain' ? value : 'streets';
+}
+
 export function UnifiedMap() {
   const navigate = useNavigate();
   const { can } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const q = searchParams.get('q') ?? '';
-  const region = searchParams.get('region') ?? '';
-  const owner = searchParams.get('owner') ?? '';
-  const layer = searchParams.get('layer') ?? 'stations';
-  const mode = (searchParams.get('mode') as MapMode) || 'streets';
-  const stationParam = Number(searchParams.get('station') || 0);
-  const stationId = Number.isInteger(stationParam) && stationParam > 0 ? stationParam : null;
-
   const [tileError, setTileError] = useState<string | null>(null);
   const [retrySignal, setRetrySignal] = useState(0);
   const [fitSignal, setFitSignal] = useState(0);
+  const [tempMarker, setTempMarker] = useState<MapTempMarker | null>(null);
   const lastQuery = useRef('');
+
+  const filters: MapFilterState = useMemo(
+    () => ({
+      q: searchParams.get('q') ?? '',
+      layer: searchParams.get('layer') ?? 'stations',
+      transport: searchParams.get('transport') ?? '',
+      status: searchParams.get('status') ?? '',
+      region: searchParams.get('region') ?? '',
+      owner: searchParams.get('owner') ?? '',
+      hasCoords: searchParams.get('hasCoords') ?? ''
+    }),
+    [searchParams]
+  );
+  const mode = normalizeMode(searchParams.get('mode'));
+  const stationParam = Number(searchParams.get('station') || 0);
+  const stationId = Number.isInteger(stationParam) && stationParam > 0 ? stationParam : null;
 
   const permissions = useMemo(
     () => ({
@@ -57,36 +74,64 @@ export function UnifiedMap() {
     [can]
   );
 
-  function update(patch: Record<string, string | number | null>) {
-    const next = new URLSearchParams(searchParams);
-    for (const [key, value] of Object.entries(patch)) {
-      if (value === null || value === '') next.delete(key);
-      else next.set(key, String(value));
-    }
-    setSearchParams(next, { replace: true });
-  }
+  const applyPatch = useCallback(
+    (patch: Record<string, string | number | null>) => {
+      setSearchParams(
+        (current) => {
+          const next = new URLSearchParams(current);
+          for (const [key, value] of Object.entries(patch)) {
+            if (value === null || value === '') next.delete(key);
+            else next.set(key, String(value));
+          }
+          if (!('station' in patch)) next.delete('station');
+          return next;
+        },
+        { replace: true }
+      );
+    },
+    [setSearchParams]
+  );
 
   const query = useMemo(() => {
-    const params = new URLSearchParams({ layer });
-    if (q) params.set('q', q);
-    if (region) params.set('region', region);
-    if (owner) params.set('owner', owner);
+    const params = new URLSearchParams({ layer: filters.layer });
+    if (filters.q) params.set('q', filters.q);
+    if (filters.region) params.set('region', filters.region);
+    if (filters.owner) params.set('owner', filters.owner);
+    if (filters.transport) params.set('transport', filters.transport);
+    if (filters.status) params.set('status', filters.status);
+    if (filters.hasCoords) params.set('hasCoords', filters.hasCoords);
     return params.toString();
-  }, [layer, q, region, owner]);
+  }, [filters]);
 
   const config = useMapConfig();
   const overview = useQuery({
     queryKey: ['map-overview', query],
     queryFn: () => apiFetch<MapOverviewResponse>(`/api/map/overview?${query}`),
-    refetchInterval: 15_000
+    refetchInterval: 15_000,
+    placeholderData: (previous) => previous
   });
   const items = overview.data?.items ?? [];
   const selected = items.find((item) => item.id === stationId) ?? null;
-  const layersAvailable = overview.data?.layersAvailable ?? BASE_LAYERS.map((item) => item.value);
-  const layers = BASE_LAYERS.filter((item) => layersAvailable.includes(item.value));
-  if (permissions.online) {
-    layers.push({ value: 'online_accounts', label: 'Có tài khoản online' });
-  }
+  const counts = overview.data?.counts;
+
+  const layers = useMemo(() => {
+    const available = new Set(
+      overview.data?.layersAvailable ?? ['stations', 'online', 'issues', 'missing_coords']
+    );
+    const list = [
+      { value: 'stations', label: 'Tất cả trạm' },
+      { value: 'online', label: 'Online' },
+      { value: 'issues', label: 'Stale / lỗi' },
+      { value: 'missing_coords', label: 'Chưa có toạ độ' }
+    ].filter((item) => available.has(item.value));
+    if (permissions.quality && available.has('stations')) {
+      list.push({ value: 'missing_1005', label: 'Chưa có 1005' });
+    }
+    if (permissions.online && available.has('online_accounts')) {
+      list.push({ value: 'online_accounts', label: 'Có tài khoản online' });
+    }
+    return list;
+  }, [overview.data?.layersAvailable, permissions.quality, permissions.online]);
 
   useEffect(() => {
     if (!overview.data) return;
@@ -95,11 +140,37 @@ export function UnifiedMap() {
     setFitSignal((value) => value + 1);
   }, [overview.data, query]);
 
+  function handleReset() {
+    applyPatch({
+      q: null,
+      region: null,
+      owner: null,
+      transport: null,
+      status: null,
+      hasCoords: null,
+      layer: 'stations',
+      station: null
+    });
+  }
+
+  function handlePickAddress(item: AddressResult) {
+    setTempMarker({ lat: item.lat, lon: item.lon, label: item.label });
+  }
+
+  const emptyMessage = (() => {
+    if (!overview.data) return 'Không có trạm phù hợp bộ lọc.';
+    if (counts && counts.all === 0) return 'Không có trạm trong phạm vi bạn được xem.';
+    if (filters.hasCoords === '1' && counts && counts.missingCoords > 0) {
+      return 'Có trạm nhưng chưa có toạ độ. Hãy nhập toạ độ dự phòng trong form trạm.';
+    }
+    return 'Không có trạm phù hợp bộ lọc.';
+  })();
+
   return (
     <section className="page">
       <PageHeader
         title="Bản đồ vận hành"
-        description="Một bản đồ hợp nhất: trạng thái, chất lượng, relay và tài khoản online."
+        description="Trạng thái, chất lượng, relay và tài khoản online trên một bản đồ."
         actions={<MapPinned size={20} className="muted" aria-hidden="true" />}
       />
 
@@ -113,96 +184,60 @@ export function UnifiedMap() {
 
       <div className="map-shell">
         <aside className="panel map-side">
-          <SearchInput
-            value={q}
-            onChange={(value) => update({ q: value, station: null })}
-            placeholder="Tìm trạm, vùng, địa chỉ"
+          <AddressSearch onPick={handlePickAddress} />
+
+          <MapFilterPanel
+            state={filters}
+            layers={layers}
+            regions={overview.data?.regions ?? []}
+            owners={overview.data?.owners ?? []}
+            onChange={(patch) => applyPatch(patch)}
+            onReset={handleReset}
+            onFit={() => setFitSignal((value) => value + 1)}
           />
-          <Select
-            aria-label="Layer bản đồ"
-            value={layer}
-            onChange={(event) => update({ layer: event.target.value, station: null })}
-          >
-            {layers.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </Select>
-          <Select
-            aria-label="Nền bản đồ"
-            value={mode}
-            onChange={(event) => update({ mode: event.target.value })}
-          >
-            <option value="streets">Đường phố</option>
-            <option value="satellite">Vệ tinh</option>
-            <option value="terrain">Địa hình</option>
-          </Select>
-          <Select
-            aria-label="Lọc vùng"
-            value={region}
-            onChange={(event) => update({ region: event.target.value, station: null })}
-          >
-            <option value="">Mọi vùng</option>
-            {(overview.data?.regions ?? []).map((value) => (
-              <option key={value} value={value}>
-                {value}
-              </option>
-            ))}
-          </Select>
-          <Select
-            aria-label="Lọc owner"
-            value={owner}
-            onChange={(event) => update({ owner: event.target.value, station: null })}
-          >
-            <option value="">Mọi owner</option>
-            {(overview.data?.owners ?? []).map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.name}
-              </option>
-            ))}
-          </Select>
+
+          <div className="map-mode-row">
+            <span className="field-label">Nền bản đồ</span>
+            <Select
+              aria-label="Nền bản đồ"
+              value={mode}
+              onChange={(event) => applyPatch({ mode: event.target.value })}
+            >
+              {MODES.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </Select>
+          </div>
 
           <div className="map-summary">
-            <StatusBadge label={`${overview.data?.counts.online ?? 0} online`} kind="ok" />
+            <StatusBadge label={`${counts?.online ?? 0} online`} kind="ok" />
             <StatusBadge
-              label={`${overview.data?.counts.issues ?? 0} stale/lỗi`}
-              kind={overview.data?.counts.issues ? 'warn' : 'neutral'}
+              label={`${counts?.issues ?? 0} stale/lỗi`}
+              kind={counts?.issues ? 'warn' : 'neutral'}
             />
+            <StatusBadge label={`${counts?.withCoords ?? 0} có toạ độ`} kind="info" />
             <StatusBadge
-              label={`${overview.data?.counts.withCoords ?? 0} có toạ độ`}
-              kind="info"
-            />
-            <StatusBadge
-              label={`${overview.data?.counts.missingCoords ?? 0} thiếu toạ độ`}
-              kind={overview.data?.counts.missingCoords ? 'warn' : 'neutral'}
+              label={`${counts?.missingCoords ?? 0} thiếu toạ độ`}
+              kind={counts?.missingCoords ? 'warn' : 'neutral'}
             />
             {permissions.online && (
               <StatusBadge
-                label={`${overview.data?.counts.online_accounts ?? 0} có online`}
+                label={`${counts?.online_accounts ?? 0} có online`}
                 kind="info"
               />
             )}
           </div>
 
-          <div className="map-actions">
-            <Button type="button" onClick={() => setFitSignal((value) => value + 1)}>
-              Fit kết quả
-            </Button>
-            <Button
-              type="button"
-              onClick={() => update({ q: null, region: null, owner: null, station: null })}
-            >
-              Xoá lọc
-            </Button>
-          </div>
+          <MapLegend />
 
           {overview.isLoading ? (
             <div className="table-state">Đang tải bản đồ...</div>
           ) : overview.isError ? (
             <div className="table-state error">Không tải được dữ liệu bản đồ.</div>
           ) : items.length === 0 ? (
-            <div className="table-state">Không có trạm phù hợp bộ lọc.</div>
+            <div className="table-state">{emptyMessage}</div>
           ) : (
             <div className="map-list">
               {items.map((item) => (
@@ -210,15 +245,21 @@ export function UnifiedMap() {
                   type="button"
                   key={item.id}
                   className={`map-list-item ${item.id === stationId ? 'active' : ''}`}
-                  onClick={() => update({ station: item.id })}
+                  onClick={() => applyPatch({ station: item.id })}
                 >
                   <span>
                     <strong>{item.name}</strong>
                     <small className="mono">{item.id}</small>
                   </span>
                   <span className="map-list-badges">
-                    <StatusBadge label={coordLabel(item)} kind={item.hasCoords ? 'info' : 'warn'} />
-                    <StatusBadge label={item.transport} kind={stateKind(item.transport)} />
+                    <StatusBadge
+                      label={coordLabel(item)}
+                      kind={item.hasCoords ? 'info' : 'warn'}
+                    />
+                    <StatusBadge
+                      label={item.transport}
+                      kind={stateKind(item.transport)}
+                    />
                   </span>
                 </button>
               ))}
@@ -229,7 +270,10 @@ export function UnifiedMap() {
             <div className="map-detail">
               <div className="detail-subhead">
                 <h4>{selected.name}</h4>
-                <StatusBadge label={selected.transport} kind={stateKind(selected.transport)} />
+                <StatusBadge
+                  label={selected.transport}
+                  kind={stateKind(selected.transport)}
+                />
               </div>
               <dl className="facts">
                 <div>
@@ -274,7 +318,10 @@ export function UnifiedMap() {
                   <dd>{selected.region || '—'}</dd>
                 </div>
               </dl>
-              <Button variant="primary" onClick={() => navigate(`/stations/${selected.id}`)}>
+              <Button
+                variant="primary"
+                onClick={() => navigate(`/stations/${selected.id}`)}
+              >
                 <ArrowUpRight size={16} aria-hidden="true" /> Mở chi tiết trạm
               </Button>
             </div>
@@ -294,9 +341,10 @@ export function UnifiedMap() {
             items={items}
             selectedId={stationId}
             permissions={permissions}
+            tempMarker={tempMarker}
             fitSignal={fitSignal}
             retrySignal={retrySignal}
-            onSelect={(id) => update({ station: id })}
+            onSelect={(id) => applyPatch({ station: id })}
             onTileError={setTileError}
           />
         )}

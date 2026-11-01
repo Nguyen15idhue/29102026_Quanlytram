@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../lib/http';
-import { requireAuth } from '../middleware/auth';
+import { requireAuth, requirePermission } from '../middleware/auth';
 
 export const geoRouter = Router();
 geoRouter.use(requireAuth);
@@ -101,5 +101,88 @@ geoRouter.get(
     }
     cache.set(key, { expiresAt: Date.now() + CACHE_MS, value });
     res.json({ item: value });
+  })
+);
+
+interface GeoSearchItem {
+  label: string;
+  lat: number;
+  lon: number;
+}
+
+const searchCache = new Map<string, { expiresAt: number; items: GeoSearchItem[] }>();
+const SEARCH_CACHE_MS = 5 * 60 * 1000;
+const SEARCH_CACHE_LIMIT = 100;
+
+geoRouter.get(
+  '/search',
+  requirePermission('stations', 'view'),
+  asyncHandler(async (req, res) => {
+    const { q, limit } = z
+      .object({
+        q: z.string().trim().min(3).max(200),
+        limit: z.coerce.number().int().min(1).max(10).default(5)
+      })
+      .parse(req.query);
+
+    const cacheKey = `${q.toLowerCase()}|${limit}`;
+    const cached = searchCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      res.json({ items: cached.items });
+      return;
+    }
+
+    const apiKey = process.env.GEOAPIFY_API_KEY ?? '';
+    if (!apiKey) {
+      res.json({ items: [], warning: 'missing_key' });
+      return;
+    }
+
+    let items: GeoSearchItem[] = [];
+    try {
+      const url = new URL('https://api.geoapify.com/v1/geocode/search');
+      url.searchParams.set('text', q);
+      url.searchParams.set('limit', String(limit));
+      url.searchParams.set('lang', 'vi');
+      url.searchParams.set('apiKey', apiKey);
+      const response = await fetch(url, { signal: AbortSignal.timeout(4000) });
+      if (!response.ok) {
+        res.json({ items: [], warning: 'provider_error' });
+        return;
+      }
+      const data = (await response.json()) as any;
+      items = (data?.features ?? [])
+        .map((feature: any) => {
+          const properties = feature?.properties ?? {};
+          const lat = Number(properties.lat ?? feature?.geometry?.coordinates?.[1]);
+          const lon = Number(properties.lon ?? feature?.geometry?.coordinates?.[0]);
+          const label = String(
+            properties.formatted ??
+              [properties.name, properties.city, properties.country].filter(Boolean).join(', ')
+          );
+          return { label, lat, lon };
+        })
+        .filter(
+          (item: GeoSearchItem) =>
+            item.label &&
+            Number.isFinite(item.lat) &&
+            Number.isFinite(item.lon) &&
+            item.lat >= -90 &&
+            item.lat <= 90 &&
+            item.lon >= -180 &&
+            item.lon <= 180
+        );
+    } catch {
+      res.json({ items: [], warning: 'provider_error' });
+      return;
+    }
+
+    searchCache.set(cacheKey, { expiresAt: Date.now() + SEARCH_CACHE_MS, items });
+    while (searchCache.size > SEARCH_CACHE_LIMIT) {
+      const oldest = searchCache.keys().next().value;
+      if (oldest === undefined) break;
+      searchCache.delete(oldest);
+    }
+    res.json({ items });
   })
 );

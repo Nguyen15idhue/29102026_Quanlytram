@@ -1552,6 +1552,113 @@ label.check input {
   justify-content: flex-end;
 }
 
+.map-filter-panel {
+  display: grid;
+  gap: 10px;
+}
+
+.map-filter-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+}
+
+.map-filter-grid .field {
+  min-width: 0;
+}
+
+.map-mode-row {
+  display: grid;
+  gap: 4px;
+}
+
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.map-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.map-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.address-search {
+  position: relative;
+  display: grid;
+  gap: 4px;
+}
+
+.address-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+.address-input .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.address-results {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  z-index: 500;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-float);
+  max-height: 220px;
+  overflow: auto;
+}
+
+.address-results button {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.address-results button:hover,
+.address-results button:focus-visible {
+  background: var(--raised-2);
+}
+
+.tiny-text {
+  font-size: 11px;
+}
+
+@media (max-width: 560px) {
+  .map-filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .tile-error-banner {
   display: flex;
   align-items: center;

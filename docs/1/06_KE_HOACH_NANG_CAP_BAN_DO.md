@@ -646,25 +646,44 @@ Geoapify forward/reverse trả kết quả.
 
 ### P06-2 — Bộ lọc, tìm kiếm, tương tác bản đồ
 
-- [ ] `MapFilterPanel`: search + layer + transport + status + region + owner +
+- [x] `MapFilterPanel`: search + layer + transport + status + region + owner +
       hasCoords + reset.
-- [ ] Debounce search 300ms; AbortController cho request cũ.
-- [ ] URL state đầy đủ.
-- [ ] Fit bounds; flyTo selected; marker/list sync.
-- [ ] Legend.
-- [ ] Empty/loading/error states.
-- [ ] Responsive + dark mode.
-- [ ] **Không cluster**: marker trực tiếp; hướng dẫn dùng zoom/filter khi dày.
-- [ ] 3 mode nền.
-- [ ] **AddressSearch** dùng `GET /api/geo/search` (Geoapify):
+- [x] Debounce search 300ms; AbortController cho request cũ.
+- [x] URL state đầy đủ.
+- [x] Fit bounds; flyTo selected; marker/list sync.
+- [x] Legend.
+- [x] Empty/loading/error states.
+- [x] Responsive + dark mode.
+- [x] **Không cluster**: marker trực tiếp; hướng dẫn dùng zoom/filter khi dày.
+- [x] 3 mode nền.
+- [x] **AddressSearch** dùng `GET /api/geo/search` (Geoapify):
       debounce, chọn kết quả → flyTo + marker tạm; lỗi không chặn map.
-- [ ] **Ẩn/hiện filter/layer/popup field theo `can()`**:
-  `connections.view`, `relay.view`, `quality.view`, `settings.edit`.
+- [x] **Ẩn/hiện filter/layer/popup field theo `can()`**:
+  `connections.view`, `relay.view`, `quality.view`; `settings.edit` xử lý ở P06-3.
 
 **Nghiệm thu:**
 - Search trạm/địa chỉ/lọc đúng; counts đúng; fit đúng.
 - Click marker/list mở đúng popup/detail.
 - 390/768/1440 không tràn; dark mode dùng được.
+
+**Kết quả P06-2 (2026-11-01):**
+
+| Mục | Kết quả | Bằng chứng |
+|---|---|---|
+| `GET /api/geo/search` | PASS | `Hà Nội` → 200, 1 item `Hà Nội, Việt Nam` (21.0283, 105.8540); `q=Ha` → 400 `VALIDATION_ERROR`; chưa login → 401 |
+| Geoapify forward thật | PASS | gọi server-side, không in key; timeout 4s, cache 5 phút |
+| MapFilterPanel | PASS | search/layer/transport/status/region/owner/hasCoords/reset; debounce 300ms |
+| URL state | PASS | `q`, `layer`, `region`, `owner`, `transport`, `status`, `hasCoords`, `station`, `mode` |
+| Fit/flyTo/sync | PASS | Fit kết quả; chọn list/marker fly tới; popup + “Mở chi tiết trạm” |
+| AddressSearch | PASS | gõ >=3 ký tự, chọn gợi ý → tooltip + marker tạm, URL không đổi |
+| 3 mode nền | PASS | streets OSM, satellite Esri, terrain OpenTopoMap; attribution đổi theo mode |
+| Không cluster | PASS | `.marker-cluster` = 0; marker trực tiếp |
+| Responsive/dark | PASS | 1440/768/390 không tràn ngang; dark mode `data-theme=dark` |
+| Tile error banner | PASS | abort tile → banner; Thử lại với tile 200 → banner mất |
+| Xoá code cũ | PASS | xoá `StationMap.tsx`, `OnlineMap.tsx`; route `/stations/map`, `/online/map` vẫn redirect `/map` |
+| Playwright | PASS | `map-upgrade.spec.ts` 2/2 |
+| Frontend tsc/build | PASS | `npx tsc --noEmit`, `npm run build` |
+| Server tsc/Vitest/build | PASS | 71/71 |
 
 ### P06-3 — Cấu hình map cho super admin
 

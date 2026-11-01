@@ -526,3 +526,12 @@ Tile proxy bắt buộc đăng nhập; không public.
 - Provider lỗi → PNG 1×1 trong suốt, HTTP 502,
   `X-Tile-Proxy-Status: fallback`, `Cache-Control: no-store`.
 - `tileMode=direct` → proxy trả 404 `TILE_PROXY_DISABLED`.
+
+### `GET /api/geo/search` (Geoapify forward)
+
+- `requireAuth` + `stations.view`.
+- Query: `q` (>= 3 ký tự, tối đa 200), `limit` (1–10, mặc định 5).
+- Gọi Geoapify server-side bằng `GEOAPIFY_API_KEY`; không trả/log key.
+- Response: `{ items: [{ label, lat, lon }], warning?: "missing_key"|"provider_error" }`.
+- Không key/lỗi/timeout 4s → `items: []`, map vẫn hoạt động.
+- Cache ngắn 5 phút, tối đa 100 truy vấn.
