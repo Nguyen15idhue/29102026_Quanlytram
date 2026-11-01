@@ -8,7 +8,7 @@ import type { MapMode, MapOverviewResponse, MapStationItem } from '../types';
 import { Button, IconButton, Select, StatusBadge } from '../components/ui';
 import { MapCanvas, type MapTempMarker } from '../components/map/MapCanvas';
 import { TileErrorBanner } from '../components/map/TileErrorBanner';
-import { AddressSearch, type AddressResult } from '../components/map/AddressSearch';
+import { MapSearchBox, type AddressResult } from '../components/map/MapSearchBox';
 import { MapFilterPanel, type MapFilterState } from '../components/map/MapFilterPanel';
 import { MapLegend } from '../components/map/MapLegend';
 import { MapToolbar, type MapPanel } from '../components/map/MapToolbar';
@@ -60,6 +60,7 @@ export function UnifiedMap() {
   const [panel, setPanel] = useState<MapPanel>(null);
   const [legendOpen, setLegendOpen] = useState(initialLegendOpen);
   const lastQuery = useRef('');
+  const triggerRef = useRef<HTMLElement | null>(null);
 
   const filters: MapFilterState = useMemo(
     () => ({
@@ -159,18 +160,42 @@ export function UnifiedMap() {
     setFitSignal((value) => value + 1);
   }, [overview.data, query]);
 
+  function closePanel() {
+    setPanel(null);
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  }
+
+  function togglePanel(next: Exclude<MapPanel, null>) {
+    if (panel === next) {
+      closePanel();
+      return;
+    }
+    triggerRef.current = document.activeElement as HTMLElement | null;
+    setPanel(next);
+  }
+
+  const handleSearch = useCallback(
+    (nextQuery: string) => applyPatch({ q: nextQuery }),
+    [applyPatch]
+  );
+
   useEffect(() => {
     if (!panel) return;
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setPanel(null);
+      if (event.key === 'Escape') closePanel();
+    }
+    function onPointerDown(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.map-popover, .map-drawer, .map-toolbar')) return;
+      closePanel();
     }
     window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onPointerDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onPointerDown);
+    };
   }, [panel]);
-
-  function togglePanel(next: Exclude<MapPanel, null>) {
-    setPanel((current) => (current === next ? null : next));
-  }
 
   function handleReset() {
     applyPatch({
@@ -315,7 +340,11 @@ export function UnifiedMap() {
         )}
 
         <div className="map-search-float">
-          <AddressSearch onPick={handlePickAddress} />
+          <MapSearchBox
+            value={filters.q}
+            onSearch={handleSearch}
+            onPickAddress={handlePickAddress}
+          />
         </div>
 
         <MapToolbar
@@ -328,7 +357,7 @@ export function UnifiedMap() {
           onFit={() => setFitSignal((value) => value + 1)}
         />
 
-        {legendOpen && (
+        {legendOpen && panel === null && (
           <div className="map-legend-card" aria-label="Chú thích trạng thái">
             <strong>Chú thích</strong>
             <MapLegend />
@@ -344,7 +373,7 @@ export function UnifiedMap() {
           >
             <div className="map-panel-head">
               <strong>Bộ lọc bản đồ</strong>
-              <IconButton label="Đóng bộ lọc" onClick={() => setPanel(null)}>
+              <IconButton label="Đóng bộ lọc" onClick={closePanel}>
                 <X size={16} aria-hidden="true" />
               </IconButton>
             </div>
@@ -369,7 +398,7 @@ export function UnifiedMap() {
           >
             <div className="map-panel-head">
               <strong>Lớp bản đồ</strong>
-              <IconButton label="Đóng lớp bản đồ" onClick={() => setPanel(null)}>
+              <IconButton label="Đóng lớp bản đồ" onClick={closePanel}>
                 <X size={16} aria-hidden="true" />
               </IconButton>
             </div>
@@ -396,7 +425,7 @@ export function UnifiedMap() {
           >
             <div className="map-panel-head">
               <strong>Nền bản đồ</strong>
-              <IconButton label="Đóng nền bản đồ" onClick={() => setPanel(null)}>
+              <IconButton label="Đóng nền bản đồ" onClick={closePanel}>
                 <X size={16} aria-hidden="true" />
               </IconButton>
             </div>
@@ -424,7 +453,7 @@ export function UnifiedMap() {
             <div className="map-panel-head">
               <strong>Danh sách trạm</strong>
               <span className="muted">{counts?.filtered ?? items.length}</span>
-              <IconButton label="Đóng danh sách trạm" onClick={() => setPanel(null)}>
+              <IconButton label="Đóng danh sách trạm" onClick={closePanel}>
                 <X size={16} aria-hidden="true" />
               </IconButton>
             </div>

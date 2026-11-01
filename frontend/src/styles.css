@@ -1600,21 +1600,99 @@ label.check input {
   width: min(440px, calc(100% - 150px));
 }
 
-.map-search-float .address-search {
-  padding: 6px 10px;
+.map-search-box {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 999px;
   box-shadow: var(--shadow-float);
 }
 
-.map-search-float .address-search > .field-label {
+.map-search-icon {
+  flex: 0 0 auto;
+  color: var(--muted);
+}
+
+.map-search-box .input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 2px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.map-search-box .input:focus {
+  outline: none;
+}
+
+.map-search-clear {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 auto;
+}
+
+.map-search-results {
   position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 1400;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-float);
+  max-height: 260px;
+  overflow: auto;
+}
+
+.map-search-group {
+  padding: 4px 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.map-search-results button {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.map-search-results button:hover,
+.map-search-results button:focus-visible {
+  background: var(--raised-2);
+}
+
+.map-search-notice {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 1400;
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .map-legend-card {
@@ -2029,8 +2107,8 @@ label.check input {
     right: 8px;
   }
 
-  .map-search-float .address-search {
-    padding: 4px 8px;
+  .map-search-box {
+    padding: 2px 6px;
   }
 
   .map-toolbar {
