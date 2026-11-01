@@ -78,6 +78,10 @@ func main() {
 		serve(opts, true)
 	case "source":
 		serve(opts, false)
+	case "push":
+		if err := runSource(opts); err != nil {
+			log.Fatal(err)
+		}
 	case "rover":
 		if err := runRover(opts, *out, *expect); err != nil {
 			log.Fatal(err)
@@ -248,6 +252,58 @@ func handleUpload(conn net.Conn, body io.Reader, capture string) {
 		log.Printf("upload: %v after %d bytes", err, written)
 	}
 	log.Printf("CAPTURE %s %d bytes", capture, written)
+}
+
+func runSource(opts options) error {
+	conn, err := net.DialTimeout("tcp", opts.addr, 10*time.Second)
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(opts.timeout))
+
+	auth := ""
+	if opts.username != "" || opts.password != "" {
+		auth = fmt.Sprintf(
+			"Authorization: Basic %s\r\n",
+			base64.StdEncoding.EncodeToString([]byte(opts.username+":"+opts.password)),
+		)
+	}
+	request := fmt.Sprintf(
+		"SOURCE /%s HTTP/1.0\r\nHost: %s\r\nNtrip-Version: Ntrip/2.0\r\nUser-Agent: cors-mock-source\r\n%s\r\n",
+		opts.mount,
+		opts.addr,
+		auth,
+	)
+	if _, err := io.WriteString(conn, request); err != nil {
+		return err
+	}
+	reader := bufio.NewReader(conn)
+	status, err := reader.ReadString('\n')
+	if err != nil {
+		return err
+	}
+	status = strings.TrimRight(status, "\r\n")
+	if !strings.HasPrefix(status, "ICY 200") && !strings.HasPrefix(status, "HTTP/1.1 200") {
+		return fmt.Errorf("unexpected status %q", status)
+	}
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil {
+			return err
+		}
+		if strings.TrimSpace(line) == "" {
+			break
+		}
+	}
+	for {
+		if err := writeFixture(conn, opts); err != nil {
+			return err
+		}
+		if !opts.repeat {
+			return nil
+		}
+	}
 }
 
 func runRover(opts options, out, expect string) error {

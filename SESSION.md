@@ -15,6 +15,7 @@
 - Kế hoạch 04: Bước 10 DONE (relay pause ownership station/mountpoint, manual override 409)
 - Kế hoạch 04: Bước 11 DONE (probe fingerprint restart, probe/source reconcile, listener mapping đóng connection)
 - Kế hoạch 04: Bước 12 DONE (entity.changed invalidation, fallback polling, form immutable, row actions)
+- Kế hoạch 04: Bước 13 DONE (mock push/rover byte-exact, Flow A-G, source dừng khi tắt)
 - Phase hiện tại: P1.10.1 — Khắc phục trạm/kết nối/tọa độ/geo DONE; P1.11 map defer
 - Trạng thái P1.0: DONE (backup/restore PASS, graphify 2364 nodes, Playwright 15/15)
 - Trạng thái P1.1: DONE (migration 014–017, station_sources 39, tenant scope)
