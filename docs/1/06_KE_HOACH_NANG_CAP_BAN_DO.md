@@ -1,7 +1,7 @@
 # 06 — KẾ HOẠCH NÂNG CẤP TRANG BẢN ĐỒ
 
 > Ngày lập: 2026-11-01
-> Trạng thái: **HOÀN THÀNH P06-0..P06-4 (2026-11-01)**
+> Trạng thái: **HOÀN THÀNH P06-0..P06-4 (2026-11-01); P06-5 KẾ HOẠCH BỔ SUNG**
 > Phạm vi: trang `/map`, cấu hình nền bản đồ, tile proxy, dữ liệu toạ độ,
 > marker, tìm kiếm, lọc và test.
 > Không thay đổi kiến trúc RBAC/company hiện tại.
@@ -904,3 +904,184 @@ Geoapify forward/reverse trả kết quả.
 10. Không có secret trong diff.
 11. `docs/api.md`, `TASKS.md`, `SESSION.md` cập nhật.
 12. `graphify update .` sau thay đổi cấu trúc.
+
+---
+
+## 13. KẾ HOẠCH BỔ SUNG — LAYOUT BẢN ĐỒ HYBRID (P06-5)
+
+> Trạng thái: **KẾ HOẠCH — chưa sửa code**
+> Phạm vi: chỉ layout/UX trang `/map`; không đổi API, schema, RBAC server,
+> tile proxy hay dữ liệu.
+> Mục tiêu: bản đồ rộng gần toàn bộ vùng nội dung; bộ lọc, danh sách trạm,
+> nền bản đồ, chú giải đều là **icon nổi trên bản đồ**; mobile giống ảnh
+> tham chiếu TMT-EGREEN.
+
+### 13.1. Quyết định đã chốt (bổ sung)
+
+| Mã | Quyết định |
+|---|---|
+| D06-22 | Chọn **hybrid**: bản đồ full-bleed + overlay icon/popover/drawer; bỏ `aside.map-side` thường trực |
+| D06-23 | Panel bộ lọc **đóng mặc định**; desktop chỉ hiện **bảng chú thích trạng thái** |
+| D06-24 | Danh sách trạm là **icon nổi**; bấm mới mở danh sách (drawer/sheet) |
+| D06-25 | Mobile mặc định **chỉ hiện icon**, không hiện legend; desktop hiện **icon + legend trạng thái** |
+| D06-26 | Overlay dùng `position:absolute` trên map; không đẩy/thu nhỏ canvas thường trực |
+| D06-27 | Không thêm dependency; giữ Leaflet; icon lucide monochrome 16–20px |
+| D06-28 | Giữ nguyên URL state `q, layer, region, owner, transport, status, hasCoords, station, mode`; trạng thái đóng/mở overlay **không** đưa vào URL |
+| D06-29 | Chọn trạm: marker → popup + flyTo; danh sách → mở drawer có tóm tắt chi tiết; `?station=` mở drawer + chọn trạm |
+
+### 13.2. Bố cục đích
+
+**Desktop (≥1024px)**
+
+```text
+┌──────────────────────────────────────────────────────────────┐
+│ [shell topbar hiện có]                                       │
+├──────────────────────────────────────────────────────────────┤
+│                     [Search trạm/địa chỉ]      [Legend card] │
+│  [Bộ lọc]                                      [Icon rail]   │
+│                                                              │
+│                    BẢN ĐỒ FULL-BLEED                         │
+│  [+ -] zoom (Leaflet, góc trái dưới)                         │
+└──────────────────────────────────────────────────────────────┘
+```
+
+- Bản đồ chiếm toàn bộ vùng content; không còn cột trái 280–340px.
+- `Search` nổi trên cùng, gộp:
+  - nhóm **Trạm** (debounce, `q`);
+  - nhóm **Địa chỉ** (Geoapify forward, >=3 ký tự).
+- `Icon rail` bên phải (trên xuống): **Bộ lọc, Lớp, Nền bản đồ, Danh sách trạm, Chú giải, Fit**.
+- `Legend card` góc phải trên (trái icon rail), hiện mặc định trên desktop; chỉ chú giải
+  trạng thái: online / stale / offline-lỗi / không xác định-tắt.
+- `Bộ lọc` mở **popover trái** (dưới nút), đóng mặc định. Badge số filter đang bật.
+- `Danh sách trạm` mở **drawer phải** (rộng 360–420px) gồm list + tóm tắt trạm đang chọn
+  + nút “Mở chi tiết trạm”. Đóng mặc định.
+- `Lớp` và `Nền bản đồ` mở popover nhỏ cạnh icon.
+- Leaflet zoom giữ góc trái dưới; attribution giữ góc phải dưới.
+- Chỉ một trong `Bộ lọc` / `Danh sách` mở tại một thời điểm; `Chú giải` bật/tắt độc lập.
+- Nếu panel/drawer mở mà che map, không cần `invalidateSize` vì canvas không đổi kích thước;
+  vẫn giữ `ResizeObserver` hiện có cho thay đổi shell/mobile.
+
+**Mobile/tablet (<1024px)** — giống ảnh tham chiếu
+
+```text
+┌────────────────────────────┐
+│ [shell topbar]             │
+├────────────────────────────┤
+│ [🔍 Tìm trạm/địa chỉ]  [▦] │
+│                        [☰] │  ← icon rail dọc bên phải
+│        BẢN ĐỒ              │
+│                        [◈] │
+│                        [+] │
+│ [+ -]                      │  ← zoom trái dưới
+│                  [Fit][⟲]  │  ← FAB phải dưới
+└────────────────────────────┘
+```
+
+- Không hiện legend mặc định; bật bằng icon **Chú giải**.
+- Icon rail dọc bên phải: Bộ lọc, Lớp, Nền, Danh sách, Chú giải; touch target ≥44px.
+- `Bộ lọc` và `Danh sách` mở **bottom sheet** (cao tối đa ~80dvh, cuộn trong).
+- Search thu gọn; FAB góc phải dưới: **Fit kết quả**, **Về mặc định**.
+- Bản đồ cao `100dvh - topbar`, tôn trọng `env(safe-area-inset-*)`; không tràn ngang.
+- Tablet 768–1023 dùng cùng hành vi mobile (icon + sheet), sheet rộng tối đa 520px.
+
+### 13.3. Thành phần và trách nhiệm
+
+| Thành phần | Vai trò |
+|---|---|
+| `MapToolbar` (mới) | Icon rail; badge filter/list; `aria-expanded`; ẩn theo `can()` |
+| `MapSearchBox` (mới hoặc gộp AddressSearch) | Tìm trạm + địa chỉ; nhóm kết quả; chọn → flyTo |
+| `MapLegendCard` (tái dùng `MapLegend`) | Card nổi; desktop mặc định hiện, mobile mặc định ẩn |
+| `MapFilterPopover` (bọc `MapFilterPanel`) | Popover desktop / bottom sheet mobile |
+| `StationListDrawer` (mới) | List + tóm tắt trạm chọn + “Mở chi tiết trạm” |
+| `UnifiedMap` | Điều phối state overlay, URL state, selection, flyTo/fit |
+| `MapCanvas` | Giữ nguyên; thêm prop/không cần đổi nếu overlay không đổi kích thước |
+
+### 13.4. Hành vi chi tiết
+
+1. Mặc định tải trang: chỉ map + search + icon rail (desktop thêm legend card).
+2. Bấm `Bộ lọc`: mở popover/sheet; giữ nguyên filter đang chọn; Esc/click ngoài đóng.
+3. Bấm `Danh sách trạm`: mở drawer/sheet; tự đóng filter nếu đang mở.
+4. Bấm marker: popup + flyTo + highlight; không tự mở drawer.
+5. Bấm item trong danh sách: flyTo + hiện tóm tắt trong drawer; `station` lên URL.
+6. Deep link `?station=`: mở drawer, chọn trạm, flyTo.
+7. `Layer/Nền`: đổi trực tiếp, không đóng panel, không reset filter.
+8. `Fit`: fit theo tập đang lọc; mobile có FAB riêng.
+9. `Về mặc định`: reset filter về mặc định + center/zoom cấu hình; giữ mode.
+10. Search trạm và địa chỉ:
+    - gõ >=1 ký tự: tìm trạm (debounce 300ms);
+    - gõ >=3 ký tự: thêm nhóm địa chỉ Geoapify (debounce 300ms);
+    - lỗi/không key: chỉ hiện nhóm trạm, không chặn map.
+11. Badge filter = số filter khác mặc định; badge danh sách = `counts.filtered`.
+12. Không hard-code role; ẩn icon layer/online-account/relay/quality/chú giải theo `can()`
+    như hiện tại (legend trạng thái cơ bản vẫn hiện nếu user có `stations.view`).
+
+### 13.5. Responsive & dark mode
+
+| Breakpoint | Filter | Danh sách | Legend | Search |
+|---|---|---|---|---|
+| ≥1280 | Popover trái | Drawer phải | Hiện mặc định | Pill giữa |
+| 1024–1279 | Popover trái | Drawer phải | Hiện mặc định | Pill giữa |
+| 768–1023 | Bottom sheet | Bottom sheet | Ẩn mặc định | Compact |
+| <768 | Bottom sheet | Bottom sheet | Ẩn mặc định | Full width trừ icon |
+
+- Dark mode dùng token hiện có; overlay nền `--surface`, border `--border`,
+  shadow nhẹ khi mở; không hard-code màu light.
+- `prefers-reduced-motion`: tắt animation flyTo/drawer.
+- Không tràn ngang tại 1440/1024/768/390.
+
+### 13.6. A11y
+
+- Icon button có `aria-label`, `aria-expanded`, `aria-controls`.
+- Popover/drawer: focus trap, Esc đóng, trả focus về nút mở.
+- Click ngoài đóng (desktop); mobile có nút đóng rõ ràng.
+- Không dùng `div` giả button; hit target ≥44×44 mobile.
+- Contrast AA cả light/dark; không truyền đạt trạng thái chỉ bằng màu (có nhãn).
+
+### 13.7. File/khu vực dự kiến
+
+- `frontend/src/pages/UnifiedMap.tsx` (tái cấu trúc layout).
+- `frontend/src/components/map/MapToolbar.tsx` (mới).
+- `frontend/src/components/map/StationListDrawer.tsx` (mới).
+- `frontend/src/components/map/MapFilterPanel.tsx` (dùng trong popover/sheet, không đổi logic).
+- `frontend/src/components/map/AddressSearch.tsx` (gộp vào search hoặc giữ làm nhóm địa chỉ).
+- `frontend/src/components/map/MapLegend.tsx` (thêm biến thể card).
+- `frontend/src/components/map/MapCanvas.tsx` (chỉ chỉnh nếu cần `invalidateSize`).
+- `frontend/src/styles.css` (map full-bleed, overlay, toolbar, sheet, legend card, media).
+- `frontend/tests/map-upgrade.spec.ts`, `unified-map.spec.ts`, `map.spec.ts`.
+- Không đổi `server/`, `db/`, API, RBAC.
+
+### 13.8. Test bắt buộc (P06-5)
+
+| ID | Nội dung | Kỳ vọng |
+|---|---|---|
+| 06-T40 | Mặc định desktop | Map full, filter/list đóng, legend hiện |
+| 06-T41 | Mặc định mobile | Chỉ icon rail + search; legend ẩn; không tràn |
+| 06-T42 | Mở/đóng bộ lọc | Popover/sheet, giữ filter, Esc/click ngoài đóng, focus trả |
+| 06-T43 | Mở/đóng danh sách | Drawer/sheet; list + tóm tắt; mở/đóng không mất selection |
+| 06-T44 | Chọn marker/list | flyTo + popup/tóm tắt đúng; URL `station` |
+| 06-T45 | Deep link `?station=` | Mở drawer + chọn + flyTo |
+| 06-T46 | Lớp/Nền | Đổi không đóng panel, không reset filter |
+| 06-T47 | Fit/Về mặc định | Fit đúng tập lọc; reset đúng, giữ mode |
+| 06-T48 | Search trạm + địa chỉ | Nhóm kết quả; lỗi Geoapify chỉ còn trạm |
+| 06-T49 | RBAC toolbar | Ẩn icon layer/online/relay/quality theo `can()` |
+| 06-T50 | Responsive/dark | 1440/1024/768/390; dark; no overflow; no console error |
+| 06-T51 | Regression map | `map-upgrade`, `unified-map`, `map` PASS sau đổi selector |
+
+### 13.9. Nghiệm thu
+
+1. `/map` không còn cột panel thường trực; map rộng gần toàn vùng content.
+2. Desktop: chỉ icon + legend trạng thái mặc định; filter/list đóng.
+3. Mobile: chỉ icon + search; không legend; bottom sheet dùng được.
+4. Filter/list/legend/mode/layer đều mở từ icon nổi; đóng mở không mất state.
+5. URL state và RBAC giữ nguyên; `can()` không hard-code role.
+6. 06-T40..T51 PASS; regression PASS; không console error; không secret.
+
+### 13.10. Rủi ro / rollback
+
+- **Z-index Leaflet**: popover/drawer phải trên pane/control nhưng dưới modal toàn cục;
+  kiểm tra popup mở không bị che.
+- **Mất list thường trực**: người dùng quen nhìn danh sách; bù bằng badge + drawer mở nhanh.
+- **Mobile bottom sheet**: bàn phím ảo/safe-area; test 390 thực tế.
+- **Test selector**: nhiều test cũ phụ thuộc `.map-side`/select; phải cập nhật đồng bộ.
+- **Rollback**: layout là frontend-only; revert commit P06-5 là đủ, không ảnh hưởng API/DB.
+- **Công sức dự kiến**: 2–3 ngày gồm code + Playwright + responsive/dark + docs.
