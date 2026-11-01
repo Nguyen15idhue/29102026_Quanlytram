@@ -49,6 +49,19 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restore-mysql.ps1 `
 - Không commit file dump/zip; script chỉ ghi ra thư mục Backup.
 - Kiểm chứng: chạy backup, restore, khởi động lại, kiểm tra `/health` và dữ liệu.
 
+## 4.1. Retention & bảo trì
+
+- Cấu hình nằm trong `cors_admin.maintenance_jobs` (11 job) và
+  `cors_admin.maintenance_settings` (lịch chạy), không dùng ENV.
+- Migration: `db/migrations/admin/034_maintenance.sql`.
+- Go dọn `cors_runtime`: `relay_*`, `quality_*`, `caster_connections`,
+  `station_source_sessions`, `rtcm_message_stats`.
+- Node dọn `cors_admin`: `web_sessions`, `audit_logs`, `alerts` (chỉ `acked`).
+- Không bao giờ xóa session/connection đang mở, alert `open`,
+  `quality_alerts` chưa resolve, `relay_job_state`.
+- Chạy thử/chạy tay và lịch sử: UI `/system?tab=automation` (P07-5).
+- Lịch sử chạy: `cors_admin.maintenance_runs`.
+
 ## 5. Load test (mock only)
 
 ```powershell

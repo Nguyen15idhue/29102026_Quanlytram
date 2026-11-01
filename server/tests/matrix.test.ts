@@ -7,12 +7,16 @@ describe('roleMatrix company scope (P05-2)', () => {
     expect(roleMatrix('super_admin', 'system_health.view')).toBe('all');
     expect(roleMatrix('super_admin', 'roles.edit')).toBe('all');
     expect(roleMatrix('super_admin', 'companies.edit')).toBe('all');
+    expect(roleMatrix('super_admin', 'system_ops.view')).toBe('all');
+    expect(roleMatrix('super_admin', 'system_ops.edit')).toBe('all');
   });
 
   it('admin company-wide, chỉ đọc role, không quản lý listener/công ty', () => {
     expect(roleMatrix('admin', 'roles.view')).toBe('all');
     expect(roleMatrix('admin', 'roles.edit')).toBe('none');
     expect(roleMatrix('admin', 'system_health.view')).toBe('none');
+    expect(roleMatrix('admin', 'system_ops.view')).toBe('none');
+    expect(roleMatrix('admin', 'system_ops.edit')).toBe('none');
     expect(roleMatrix('admin', 'settings.view')).toBe('none');
     expect(roleMatrix('admin', 'companies.view')).toBe('none');
     expect(roleMatrix('admin', 'companies.edit')).toBe('none');
@@ -41,6 +45,8 @@ describe('roleMatrix company scope (P05-2)', () => {
     expect(roleMatrix('user', 'audit.view')).toBe('none');
     expect(roleMatrix('user', 'caster.view')).toBe('none');
     expect(roleMatrix('user', 'companies.view')).toBe('none');
+    expect(roleMatrix('user', 'system_ops.view')).toBe('none');
+    expect(roleMatrix('user', 'system_ops.edit')).toBe('none');
   });
 });
 

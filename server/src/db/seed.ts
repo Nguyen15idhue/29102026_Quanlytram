@@ -39,6 +39,8 @@ const permissions = [
   ['quality.ack', 'quality', 'ack'],
   ['audit.view', 'audit', 'view'],
   ['system_health.view', 'system_health', 'view'],
+  ['system_ops.view', 'system_ops', 'view'],
+  ['system_ops.edit', 'system_ops', 'edit'],
   ['caster.view', 'caster', 'view'],
   ['caster.add', 'caster', 'add'],
   ['caster.edit', 'caster', 'edit'],

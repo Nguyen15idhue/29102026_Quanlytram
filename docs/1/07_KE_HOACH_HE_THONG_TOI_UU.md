@@ -831,7 +831,7 @@ F:\3.Laptrinh\1. Project\1. GNSS\relayrtcm\backup
 | Bước | Trạng thái | Commit | Test | Ghi chú |
 |---|---|---|---|---|
 | P07-0 | DONE | `feat(system): P07-0 menu Hệ thống và tab mặc định Sức khỏe` | server build PASS; frontend build PASS; Playwright `system-health` + `navigation` 2/2 PASS | `/system` + 3 tab; `/system/health` redirect; menu còn 1 mục Hệ thống; HealthTab tách khỏi `SystemHealth.tsx` (đã xóa) |
-| P07-1 | PENDING | | | |
+| P07-1 | DONE | `feat(system): P07-1 bảng cấu hình bảo trì và quyền system_ops` | migrate 034 PASS; server build PASS; vitest 74/74 PASS | 11 job + 1 settings + 2 permission; super_admin 2 grant, admin/user 0; bỏ retention khỏi `.env.example` |
 | P07-2 | PENDING | | | |
 | P07-3 | PENDING | | | |
 | P07-4 | PENDING | | | |
@@ -844,3 +844,11 @@ Bằng chứng P07-0:
 - `npx playwright test tests/system-health.spec.ts tests/navigation.spec.ts`
   → 2 passed. E2E dùng mật khẩu seed local qua biến môi trường, không in giá trị.
 - `docker compose restart web` để Vite nạp mã mới; không chạm cổng 8081/2101.
+
+Bằng chứng P07-1:
+- `docker exec -w /app cors-mvp-server-1 npm run migrate`
+  → `[migrate] admin 034_maintenance.sql applied`.
+- Kiểm tra DB (không in secret): `jobs=11`, `settings=1`, `perms=2`,
+  `grants(super_admin)=2`, `denied(admin/user)=0`.
+- `docker exec -w /app cors-mvp-server-1 npm run build` → PASS.
+- `docker exec -w /app cors-mvp-server-1 npm test` → 12 files / 74 tests PASS.

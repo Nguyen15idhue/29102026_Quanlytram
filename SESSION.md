@@ -1066,3 +1066,7 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - Cách chạy E2E local: đọc `SEED_SUPERADMIN_PASSWORD` từ `.env.local` gán vào
   `E2E_PASSWORD` (không in giá trị), rồi `cd frontend; npx playwright test ...`.
 - Lưu ý: Vite trong container cần `docker compose restart web` để nạp file mới.
+- P07-1 DONE: migration `admin/034_maintenance.sql` (11 job + settings + runs +
+  2 quyền `system_ops.*`); seed.ts + matrix.ts; bỏ retention khỏi `.env.example`.
+  Kiểm tra DB: jobs=11, settings=1, perms=2, super_admin=2 grant, admin/user=0.
+  Server build PASS, vitest 74/74 PASS.
