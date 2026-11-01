@@ -1647,7 +1647,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 10
 - Thời điểm: 2026-11-01 11:06 +07:00
 - Trạng thái: DONE
-- Commit: (cập nhật sau commit)
+- Commit: 14fb484
 - Push: origin/main
 - Đã làm:
   - Station pause/resume khớp cả upstream và downstream.
