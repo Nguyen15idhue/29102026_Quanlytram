@@ -109,6 +109,18 @@ Chi tiết: `docs/1/05_KE_HOACH_CONG_TY_NHIEU_ADMIN.md`.
 
 Chi tiết: `docs/1/06_KE_HOACH_NANG_CAP_BAN_DO.md`.
 
+## 1g. Kế hoạch 06 bổ sung — P06-5 layout hybrid
+
+| Bước | Tên | Trạng thái |
+|---|---|---|
+| P06-5.0 | Baseline & chốt kế hoạch | DONE (baseline map 4/4; commit `ee402e5`) |
+| P06-5.1 | Full-bleed + MapToolbar | DONE (bỏ `.map-side`, icon rail, overlay state, map full; smoke 1440/390 PASS) |
+| P06-5.2 | Filter/legend/search nổi | TODO |
+| P06-5.3 | StationListDrawer + deep link | TODO |
+| P06-5.4 | Responsive/dark/a11y/rollout | TODO |
+
+Chi tiết: mục 13 của `docs/1/06_KE_HOACH_NANG_CAP_BAN_DO.md`.
+
 ---
 
 ## 2. Phase 0 — Chuẩn bị & xác minh

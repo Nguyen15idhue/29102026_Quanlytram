@@ -1085,3 +1085,13 @@ Geoapify forward/reverse trả kết quả.
 - **Test selector**: nhiều test cũ phụ thuộc `.map-side`/select; phải cập nhật đồng bộ.
 - **Rollback**: layout là frontend-only; revert commit P06-5 là đủ, không ảnh hưởng API/DB.
 - **Công sức dự kiến**: 2–3 ngày gồm code + Playwright + responsive/dark + docs.
+
+### 13.11. Tiến độ triển khai P06-5
+
+| Bước | Trạng thái | Bằng chứng |
+|---|---|---|
+| P06-5.0 Baseline | DONE | docker/health OK; fixtures 480/481/482; frontend tsc; Playwright map-upgrade/unified-map/map 4/4 PASS; commit `ee402e5` |
+| P06-5.1 Full-bleed + toolbar | DONE | bỏ `.map-side`; `MapToolbar` icon rail; overlay state filter/list/legend/layers/modes; map full; smoke desktop 1440 + mobile 390 PASS; tsc/build PASS |
+| P06-5.2 Filter/legend/search | TODO | - |
+| P06-5.3 Station list/drawer/deep link | TODO | - |
+| P06-5.4 Responsive/dark/a11y/rollout | TODO | - |
