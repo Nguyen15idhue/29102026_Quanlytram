@@ -1406,7 +1406,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 4
 - Thời điểm: 2026-11-01 10:33 +07:00
 - Trạng thái: DONE
-- Commit: (cập nhật sau commit)
+- Commit: 63cb8a2
 - Push: origin/main
 - Đã làm:
   - Bỏ `stations.code` khỏi schema, API, UI, import/export, seed và Go probe store.
