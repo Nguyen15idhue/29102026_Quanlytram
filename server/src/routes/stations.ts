@@ -976,9 +976,17 @@ stationsRouter.post(
         }
         const data = item.data;
         const [existing]: any = await conn.query(
-          'SELECT id, enabled, status FROM stations WHERE name = ? LIMIT 1',
+          'SELECT id, enabled, status, owner_web_user_id, company_id FROM stations WHERE name = ? LIMIT 1',
           [data.name]
         );
+        if (existing[0]) {
+          await assertRecordScope(
+            req,
+            existing[0].owner_web_user_id,
+            'owner_web_user_id',
+            existing[0].company_id
+          );
+        }
         const values = [
           data.name, data.host ?? '', data.port, data.connection_type,
           data.source_type, data.ntrip_version, data.ntrip_mode, data.lat, data.lon,
