@@ -37,6 +37,7 @@ interface JobItem {
   enabled: boolean;
   updatedAt: string | null;
   configSource: string;
+  running: boolean;
   lastRunAt: string | null;
   lastStatus: string | null;
   lastRowsDeleted: number | null;
@@ -310,9 +311,13 @@ export function AutomationTab() {
       header: 'Lần chạy cuối',
       cell: (job) => (
         <div>
-          <div className="mono">{formatLocal(job.lastRunAt)}</div>
+          <div className="mono">{job.running ? 'đang chạy' : formatLocal(job.lastRunAt)}</div>
           <div className="muted">
-            {job.lastStatus ? `${job.lastStatus} · ${job.lastRowsDeleted ?? 0} dòng` : 'chưa chạy'}
+            {job.running
+              ? 'Go/Node đang xử lý'
+              : job.lastStatus
+                ? `${job.lastStatus} · ${job.lastRowsDeleted ?? 0} dòng`
+                : 'chưa chạy'}
           </div>
         </div>
       )
@@ -329,7 +334,7 @@ export function AutomationTab() {
           <Button
             size="sm"
             variant="ghost"
-            disabled={!canEdit || runningKey === job.key}
+            disabled={!canEdit || runningKey === job.key || job.running}
             onClick={() => void executeRun(job, true)}
           >
             <Zap size={14} aria-hidden="true" /> Chạy thử
@@ -337,7 +342,7 @@ export function AutomationTab() {
           <Button
             size="sm"
             variant="danger"
-            disabled={!canEdit || runningKey === job.key}
+            disabled={!canEdit || runningKey === job.key || job.running}
             onClick={() => setRunTarget(job)}
           >
             <Play size={14} aria-hidden="true" /> Chạy ngay

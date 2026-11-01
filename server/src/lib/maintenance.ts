@@ -269,6 +269,27 @@ export async function reconcileGoMaintenance(): Promise<void> {
   }
 }
 
+export interface GoJobStatus {
+  key: string;
+  running: boolean;
+  lastRunAt?: string;
+  lastRows: number;
+  lastError?: string;
+}
+
+export async function goMaintenanceStatus(): Promise<GoJobStatus[] | null> {
+  try {
+    const status = await callGoInternal<{ jobs?: GoJobStatus[] }>(
+      '/internal/maintenance/status',
+      undefined,
+      { method: 'GET', timeoutMs: 2000 }
+    );
+    return status?.jobs ?? [];
+  } catch {
+    return null;
+  }
+}
+
 export async function lastRunMap(): Promise<
   Map<string, { status: string; rowsDeleted: number; finishedAt: string | null }>
 > {

@@ -836,7 +836,7 @@ F:\3.Laptrinh\1. Project\1. GNSS\relayrtcm\backup
 | P07-3 | DONE | `feat(system): P07-3 API tự động hóa và scheduler bảo trì` | server build PASS; vitest 88/88 PASS; API jobs 11, PUT config, dry-run, runs PASS; runtime prune 502 chờ P07-4 | Admin cleanup + scheduler; validation 400; lock 409; audit; `reconcile` gọi Go (P07-4 hoàn tất endpoint) |
 | P07-4 | DONE | `feat(system): P07-4 Go đọc cấu hình bảo trì và mở rộng retention` | go build/vet/test PASS; gnss rebuild PASS; runtime dry-run 200; reconcile 200; internal status 11 job | Go đọc admin DB, prune runtime DB; thêm 3 bảng; kiểm tra admin schema ≥34; bỏ retention ENV |
 | P07-5 | DONE | `feat(system): P07-5 giao diện tab Tối ưu và Tự động hóa` | frontend build PASS; Playwright `system-ops` 2/2 + health/navigation 3/3 PASS | Optimize cards/gợi ý; automation job table, sửa cấu hình, dry-run/chạy thật, lịch chạy, lịch sử; user 403/không thấy tab |
-| P07-6 | DONE | `test(system): P07-6 kiểm thử, tài liệu và graphify` | server 88/88; Go test/vet PASS; FE build PASS; Playwright P07 3/3 PASS; full 21 pass/17 fail (pre-existing/data) | graphify 3493 nodes/8326 edges/244 communities; cập nhật docs/OPS/AGENTS; không secret |
+| P07-6 | DONE | `test(system): P07-6 kiểm thử, tài liệu và graphify` | server 88/88; Go test/vet PASS; FE build PASS; Playwright P07 4/4 PASS; full 21 pass/17 fail (pre-existing/data) | graphify 3493 nodes/8326 edges/244 communities; jobs API merge Go status; cập nhật docs/OPS/AGENTS; không secret |
 
 Bằng chứng P07-0:
 - `cd server; npm run build` → PASS.
@@ -900,7 +900,9 @@ Bằng chứng P07-6:
   → build PASS, 14 file / 88 test PASS.
 - `cd gnss; go vet ./... && go test ./...` → PASS toàn bộ package.
 - `cd frontend; npm run build` → PASS.
-- Playwright P07: `system-ops` 2/2, `system-health` + `navigation` 2/2.
+- Playwright P07: `system-ops` 2/2, `system-health` + `navigation` 2/2 → 4/4.
+- `GET /api/system/maintenance/jobs` merge trạng thái Go: job runtime có
+  `running`, `lastStatus`, `lastRowsDeleted` từ `/internal/maintenance/status`.
 - Playwright full: 21 passed / 17 failed / 4 skipped. Các FAIL ngoài P07 do
   dữ liệu test/marker và mật khẩu admin local thiếu (map, metrics, p1-*);
   không có FAIL ở menu/tab P07. Ghi nhận BLOCKED, không sửa ngoài phạm vi.

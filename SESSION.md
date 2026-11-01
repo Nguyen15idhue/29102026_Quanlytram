@@ -1092,7 +1092,9 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   FE build PASS; Playwright `system-ops` 2/2 (superadmin + user1 403/không thấy
   tab); `system-health` + `navigation` PASS.
 - P07-6 DONE: server build + 88/88 test; Go vet/test PASS; FE build PASS;
-  Playwright P07 3/3 PASS. Full Playwright 21 pass / 17 fail / 4 skip — FAIL
+  Playwright P07 4/4 PASS. Full Playwright 21 pass / 17 fail / 4 skip — FAIL
   ngoài P07 do dữ liệu test/marker và thiếu mật khẩu admin local; không có
   FAIL menu/tab P07. `graphify update .` 3493 nodes/8326 edges/244 communities.
   Docs `OPS.md`/`AGENTS.md`/`TASKS.md`/plan 07 đã cập nhật; không secret.
+  Bổ sung: jobs API merge trạng thái Go (`running`/`lastStatus`/`lastRowsDeleted`)
+  qua `/internal/maintenance/status`; UI hiển thị job runtime đang chạy.

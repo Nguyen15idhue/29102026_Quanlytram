@@ -7,6 +7,7 @@ import {
   updateSettings
 } from '../lib/maintenanceConfig';
 import {
+  goMaintenanceStatus,
   lastRunMap,
   listRuns,
   nextDailyRun,
@@ -42,12 +43,14 @@ systemRouter.get(
   '/maintenance/jobs',
   requirePermission('system_ops', 'view'),
   asyncHandler(async (_req, res) => {
-    const [jobs, settings, last] = await Promise.all([
+    const [jobs, settings, last, goJobs] = await Promise.all([
       listJobs(true),
       getSettings(true),
-      lastRunMap()
+      lastRunMap(),
+      goMaintenanceStatus()
     ]);
     const nextRunAt = nextDailyRun(settings);
+    const goMap = new Map((goJobs ?? []).map((job) => [job.key, job]));
     res.json({
       generatedAt: new Date().toISOString(),
       scheduler: {
@@ -57,22 +60,27 @@ systemRouter.get(
         timezone: settings.timezone,
         updatedAt: settings.updatedAt
       },
-      items: jobs.map((job) => ({
-        key: job.key,
-        label: job.label,
-        scope: job.scope,
-        table: job.table,
-        retentionDays: job.retentionDays,
-        batchSize: job.batchSize,
-        intervalSec: job.intervalSec,
-        enabled: job.enabled,
-        updatedAt: job.updatedAt,
-        configSource: 'database',
-        lastRunAt: last.get(job.key)?.finishedAt ?? null,
-        lastStatus: last.get(job.key)?.status ?? null,
-        lastRowsDeleted: last.get(job.key)?.rowsDeleted ?? null,
-        nextRunAt: job.enabled && job.scope === 'admin' ? nextRunAt : null
-      }))
+      items: jobs.map((job) => {
+        const goJob = goMap.get(job.key);
+        const manual = last.get(job.key);
+        return {
+          key: job.key,
+          label: job.label,
+          scope: job.scope,
+          table: job.table,
+          retentionDays: job.retentionDays,
+          batchSize: job.batchSize,
+          intervalSec: job.intervalSec,
+          enabled: job.enabled,
+          updatedAt: job.updatedAt,
+          configSource: 'database',
+          running: goJob?.running ?? false,
+          lastRunAt: goJob?.lastRunAt ?? manual?.finishedAt ?? null,
+          lastStatus: goJob ? (goJob.lastError ? 'error' : goJob.lastRunAt ? 'ok' : null) : manual?.status ?? null,
+          lastRowsDeleted: goJob ? goJob.lastRows : manual?.rowsDeleted ?? null,
+          nextRunAt: job.enabled && job.scope === 'admin' ? nextRunAt : null
+        };
+      })
     });
   })
 );
