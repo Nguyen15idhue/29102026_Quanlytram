@@ -310,11 +310,11 @@ Có script reset, preflight và quy trình thực thi sẵn sàng; chưa chạy 
 
 ### Checklist test
 
-- [ ] Dry-run chạy PASS, in đúng số lượng.
-- [ ] Script không xóa web_users/roles/listener chuẩn nếu không cần.
-- [ ] Script có kiểm tra backup tồn tại trước khi chạy.
-- [ ] Có xác nhận thời điểm reset.
-- [ ] Chưa chạy reset thật.
+- [x] Dry-run chạy PASS, in đúng số lượng.
+- [x] Script không xóa web_users/roles/listener chuẩn nếu không cần.
+- [x] Script có kiểm tra backup tồn tại trước khi chạy.
+- [x] Có xác nhận thời điểm reset.
+- [x] Chưa chạy reset thật.
 
 ### Ghi chú
 
@@ -1340,3 +1340,32 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - Không có lỗi.
   - Dữ liệu baseline nằm ngoài repo để tránh commit artifact.
+
+### Nhật ký thực hiện — Bước 2
+- Thời điểm: 2026-11-01 09:35 +07:00
+- Trạng thái: DONE
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - Tạo `scripts/reset-test-stations.ps1` với dry-run mặc định, kiểm tra backup, transaction và tùy chọn `-ClearRuntime`.
+  - Tạo `scripts/seed-realtime-test.ps1` để tạo listener test 15999 và 3 trạm mẫu (caster_ingest, relay_caster, ntrip_client).
+  - Chạy dry-run reset, đối chiếu baseline; chưa thay đổi dữ liệu.
+- File thay đổi:
+  - `scripts/reset-test-stations.ps1`
+  - `scripts/seed-realtime-test.ps1`
+  - `docs/1/04_KE_HOACH_REALTIME_CRUD.md`
+  - `SESSION.md`
+- Test/Bằng chứng:
+  - Lệnh: `powershell -File scripts/reset-test-stations.ps1`
+  - Kết quả: `DRY_RUN`, backup hợp lệ.
+  - Counts: stations=40, mountpoints=39, station_sources=40, probes=2, accounts=2, caster_connections=106 (lịch sử), relay_jobs_enabled=1.
+  - Chưa chạy `-Execute`.
+- Checklist đã đạt:
+  - [x] Dry-run PASS.
+  - [x] Không xóa web_users/roles/listener chuẩn.
+  - [x] Kiểm tra backup trước khi chạy.
+  - [x] Có xác nhận thời điểm reset.
+  - [x] Chưa chạy reset thật.
+- Lỗi/Ghi chú:
+  - Script seed sẽ được đối chiếu lại với payload API sau Bước 4.
+  - Không ghi password/DSN ra output.
