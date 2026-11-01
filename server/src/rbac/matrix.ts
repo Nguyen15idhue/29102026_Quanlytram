@@ -3,21 +3,21 @@ import type { Scope } from './scope';
 export function roleMatrix(role: string, code: string): Scope {
   if (role === 'super_admin') return 'all';
   if (role === 'admin') {
+    if (code.startsWith('companies.')) return 'none';
     if (code === 'roles.view') return 'all';
     if (code.startsWith('roles.')) return 'none';
     if (code.startsWith('settings.')) return 'none';
     if (code === 'system_health.view') return 'none';
-    if (code.startsWith('web_users.')) return 'subtree';
-    if (code.startsWith('alerts.')) return 'subtree';
-    if (code.startsWith('quality.')) return 'subtree';
-    if (code === 'audit.view') return 'subtree';
+    if (code === 'caster.view') return 'all';
+    if (code.startsWith('caster.')) return 'none';
+    if (code.endsWith('.view') || code === 'audit.view') return 'tenant';
     if (
-      code.endsWith('.view') ||
       code.endsWith('.add') ||
       code.endsWith('.edit') ||
-      code.endsWith('.delete')
+      code.endsWith('.delete') ||
+      code.endsWith('.ack')
     ) {
-      return 'subtree';
+      return 'tenant';
     }
     return 'none';
   }

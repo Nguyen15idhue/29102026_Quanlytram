@@ -16,6 +16,23 @@ export async function subtreeIds(userId: number): Promise<number[]> {
   return rows.map((row) => Number(row.id));
 }
 
+export async function companyIdForUser(userId: number): Promise<number | null> {
+  const rows = await query<RowDataPacket[]>(
+    'SELECT company_id FROM web_users WHERE id = ?',
+    [userId]
+  );
+  const value = rows[0]?.company_id;
+  return value === null || value === undefined ? null : Number(value);
+}
+
+export async function companyUserIds(companyId: number): Promise<number[]> {
+  const rows = await query<RowDataPacket[]>(
+    'SELECT id FROM web_users WHERE company_id = ?',
+    [companyId]
+  );
+  return rows.map((row) => Number(row.id));
+}
+
 export async function tenantRootId(userId: number): Promise<number> {
   const rows = await query<RowDataPacket[]>(
     `WITH RECURSIVE ancestry AS (
@@ -37,6 +54,8 @@ export async function tenantRootId(userId: number): Promise<number> {
 }
 
 export async function tenantIds(userId: number): Promise<number[]> {
+  const companyId = await companyIdForUser(userId);
+  if (companyId !== null) return companyUserIds(companyId);
   return subtreeIds(await tenantRootId(userId));
 }
 
@@ -75,4 +94,13 @@ export function canManageRole(
 ): boolean {
   if (actorIsSuper) return true;
   return targetLevel < actorLevel;
+}
+
+export function canAssignRole(
+  actorLevel: number,
+  targetLevel: number,
+  actorIsSuper: boolean
+): boolean {
+  if (actorIsSuper) return true;
+  return targetLevel <= actorLevel;
 }

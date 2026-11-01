@@ -24,6 +24,11 @@ function userPayload(row: RowDataPacket) {
     displayName: String(row.display_name),
     email: String(row.email),
     parentUserId: row.parent_user_id === null ? null : Number(row.parent_user_id),
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    companyName: row.company_name === null || row.company_name === undefined ? null : String(row.company_name),
+    companyStatus: row.company_status === null || row.company_status === undefined
+      ? null
+      : String(row.company_status),
     role: {
       id: Number(row.role_id),
       code: String(row.role_code),
@@ -38,8 +43,10 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     const body = loginSchema.parse(req.body);
     const rows = await query<RowDataPacket[]>(
-      `SELECT u.*, r.code AS role_code, r.name AS role_name, r.level AS role_level
+      `SELECT u.*, r.code AS role_code, r.name AS role_name, r.level AS role_level,
+              c.name AS company_name, c.status AS company_status
          FROM web_users u JOIN roles r ON r.id = u.role_id
+         LEFT JOIN companies c ON c.id = u.company_id
         WHERE u.username = ? LIMIT 1`,
       [body.username]
     );
@@ -49,6 +56,9 @@ authRouter.post(
     const user = rows[0];
     if (user.status !== 'active') {
       throw new ApiError(403, 'ACCOUNT_LOCKED', 'Tài khoản đã bị khóa');
+    }
+    if (user.company_status === 'disabled') {
+      throw new ApiError(403, 'COMPANY_DISABLED', 'Công ty đã bị vô hiệu hóa');
     }
     const valid = await verifyPassword(String(user.password_hash), body.password);
     if (!valid) {
@@ -98,8 +108,10 @@ authRouter.get(
   asyncHandler(async (req, res) => {
     const auth = req.auth!;
     const rows = await query<RowDataPacket[]>(
-      `SELECT u.*, r.code AS role_code, r.name AS role_name, r.level AS role_level
+      `SELECT u.*, r.code AS role_code, r.name AS role_name, r.level AS role_level,
+              c.name AS company_name, c.status AS company_status
          FROM web_users u JOIN roles r ON r.id = u.role_id
+         LEFT JOIN companies c ON c.id = u.company_id
         WHERE u.id = ? LIMIT 1`,
       [auth.id]
     );
