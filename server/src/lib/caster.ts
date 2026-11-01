@@ -45,7 +45,13 @@ export function publicListener(row: any) {
     enabled: Boolean(row.enabled),
     role: String(row.role),
     description: String(row.description ?? ''),
+    global: true,
     mountpointCount: Number(row.mountpoint_count ?? 0),
+    ownerWebUserId:
+      row.owner_web_user_id === null || row.owner_web_user_id === undefined
+        ? null
+        : Number(row.owner_web_user_id),
+    ownerName: row.owner_name ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };

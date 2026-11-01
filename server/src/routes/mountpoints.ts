@@ -14,6 +14,7 @@ import {
   listScope,
   pageFrom,
   requireBulkPermission,
+  resolveWriteOwnership,
   scopeIdsFor
 } from '../rbac/access';
 import { callGoInternal } from '../lib/internalApi';
@@ -109,29 +110,20 @@ const createSchema = z.object({
   code_protocol: z.string().max(64).optional(),
   code_type: z.string().max(64).optional(),
   description: z.string().max(500).optional(),
-  owner_web_user_id: z.number().int().positive().nullable().optional()
+  owner_web_user_id: z.number().int().positive().nullable().optional(),
+  company_id: z.number().int().positive().nullable().optional()
 });
 const updateSchema = createSchema.partial();
 
-async function resolveOwner(req: any, requested?: number | null): Promise<number> {
-  const actor = req.auth!;
-  if (!requested || Number(requested) === actor.id) return actor.id;
-  if (req.permissionScope === 'own') {
-    throw new ApiError(403, 'FORBIDDEN', 'Không được gán chủ sở hữu khác');
-  }
-  if (req.permissionScope === 'subtree') {
-    const ids = await scopeIdsFor(req);
-    if (!ids.includes(Number(requested))) {
-      throw new ApiError(403, 'FORBIDDEN', 'Chủ sở hữu ngoài phạm vi quản lý');
-    }
-  }
-  const exists = await query<RowDataPacket[]>('SELECT id FROM web_users WHERE id = ?', [requested]);
-  if (exists.length === 0) throw new ApiError(400, 'INVALID_OWNER', 'Chủ sở hữu không tồn tại');
-  return Number(requested);
-}
-
 async function getMountpoint(id: number): Promise<RowDataPacket | null> {
-  const rows = await query<RowDataPacket[]>('SELECT * FROM mountpoints WHERE id = ?', [id]);
+  const rows = await query<RowDataPacket[]>(
+    `SELECT m.*, u.display_name AS owner_name, c.name AS company_name
+       FROM mountpoints m
+       LEFT JOIN web_users u ON u.id = m.owner_web_user_id
+       LEFT JOIN companies c ON c.id = m.company_id
+      WHERE m.id = ?`,
+    [id]
+  );
   return rows[0] ?? null;
 }
 
@@ -146,6 +138,8 @@ function publicMountpoint(row: any) {
     owner_web_user_id:
       row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
     owner_name: row.owner_name ?? null,
+    company_id: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    company_name: row.company_name ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at
   };
@@ -399,11 +393,11 @@ async function enrichExplorer(rows: RowDataPacket[]): Promise<{
 
 async function assertStationScope(req: any, stationId: number | null | undefined): Promise<void> {
   if (stationId === null || stationId === undefined) return;
-  const rows = await query<RowDataPacket[]>('SELECT owner_web_user_id FROM stations WHERE id = ?', [
+  const rows = await query<RowDataPacket[]>('SELECT owner_web_user_id, company_id FROM stations WHERE id = ?', [
     stationId
   ]);
   if (rows.length === 0) throw new ApiError(400, 'INVALID_STATION', 'Trạm không tồn tại');
-  await assertRecordScope(req, rows[0].owner_web_user_id);
+  await assertRecordScope(req, rows[0].owner_web_user_id, 'owner_web_user_id', rows[0].company_id);
 }
 
 mountpointsRouter.get(
@@ -411,7 +405,7 @@ mountpointsRouter.get(
   requirePermission('mountpoints', 'view'),
   asyncHandler(async (req, res) => {
     const ids = await scopeIdsFor(req);
-    const scope = listScope(req, ids, 'm.owner_web_user_id');
+    const scope = listScope(req, ids, 'm.owner_web_user_id', { companyColumn: 'm.company_id' });
     const { pageSize, offset } = pageFrom(req);
     const q = String(req.query.q || '').trim();
     const params: unknown[] = [...scope.params];
@@ -435,9 +429,16 @@ mountpointsRouter.get(
       where += ' AND m.owner_web_user_id = ?';
       params.push(ownerId);
     }
+    const companyId = Number(req.query.companyId || 0);
+    if (req.auth?.roleCode === 'super_admin' && Number.isInteger(companyId) && companyId > 0) {
+      where += ' AND m.company_id = ?';
+      params.push(companyId);
+    }
     const [rows] = await adminPool.query<RowDataPacket[]>(
-      `SELECT m.*, s.name AS station_name
-         FROM mountpoints m LEFT JOIN stations s ON s.id = m.station_id
+      `SELECT m.*, s.name AS station_name, c.name AS company_name
+         FROM mountpoints m
+         LEFT JOIN stations s ON s.id = m.station_id
+         LEFT JOIN companies c ON c.id = m.company_id
         WHERE ${where} ORDER BY m.id DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
     );
@@ -459,7 +460,7 @@ mountpointsRouter.get(
   requirePermission('mountpoints', 'view'),
   asyncHandler(async (req, res) => {
     const ids = await scopeIdsFor(req);
-    const scope = listScope(req, ids, 'm.owner_web_user_id');
+    const scope = listScope(req, ids, 'm.owner_web_user_id', { companyColumn: 'm.company_id' });
     const params: unknown[] = [...scope.params];
     let where = scope.sql;
     const q = String(req.query.q || '').trim();
@@ -477,13 +478,19 @@ mountpointsRouter.get(
       where += ' AND m.owner_web_user_id = ?';
       params.push(ownerId);
     }
+    const companyId = Number(req.query.companyId || 0);
+    if (req.auth?.roleCode === 'super_admin' && Number.isInteger(companyId) && companyId > 0) {
+      where += ' AND m.company_id = ?';
+      params.push(companyId);
+    }
 
     const rows = await query<RowDataPacket[]>(
       `SELECT m.*, s.name AS station_name,
-              u.username AS owner_name
+              u.username AS owner_name, c.name AS company_name
          FROM mountpoints m
          LEFT JOIN stations s ON s.id = m.station_id
          LEFT JOIN web_users u ON u.id = m.owner_web_user_id
+         LEFT JOIN companies c ON c.id = m.company_id
         WHERE ${where}
         ORDER BY m.name`,
       params
@@ -529,7 +536,7 @@ mountpointsRouter.get(
       [id]
     );
     if (rows.length === 0) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
-    await assertRecordScope(req, rows[0].owner_web_user_id);
+    await assertRecordScope(req, rows[0].owner_web_user_id, 'owner_web_user_id', rows[0].company_id);
     const enriched = await enrichExplorer(rows);
     res.json({ item: enriched.items[0], casterAvailable: enriched.casterAvailable });
   })
@@ -542,7 +549,7 @@ mountpointsRouter.get(
     const id = Number(req.params.id);
     const item = await getMountpoint(id);
     if (!item) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
-    await assertRecordScope(req, item.owner_web_user_id);
+    await assertRecordScope(req, item.owner_web_user_id, 'owner_web_user_id', item.company_id);
     const [listeners, accounts, relays] = await Promise.all([
       query<RowDataPacket[]>(
         `SELECT l.id, l.name, l.port, l.enabled
@@ -585,7 +592,7 @@ mountpointsRouter.get(
   asyncHandler(async (req, res) => {
     const item = await getMountpoint(Number(req.params.id));
     if (!item) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
-    await assertRecordScope(req, item.owner_web_user_id);
+    await assertRecordScope(req, item.owner_web_user_id, 'owner_web_user_id', item.company_id);
     res.json({ item: publicMountpoint(item) });
   })
 );
@@ -596,7 +603,9 @@ mountpointsRouter.post(
   asyncHandler(async (req, res) => {
     const body = createSchema.parse(req.body);
     await assertStationScope(req, body.station_id);
-    const ownerId = await resolveOwner(req, body.owner_web_user_id);
+    const ownership = await resolveWriteOwnership(req, body.owner_web_user_id, body.company_id);
+    const ownerId = ownership.ownerId;
+    const companyId = ownership.companyId;
     let enabled = body.enabled;
     let pausedBy: number | null = null;
     if (body.station_id) {
@@ -616,14 +625,14 @@ mountpointsRouter.post(
         `INSERT INTO mountpoints
            (name, station_id, enabled, paused_by_station_id,
             service_type, position_mode, satellite_systems, caster_interval,
-            code_protocol, code_type, description, owner_web_user_id, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            code_protocol, code_type, description, owner_web_user_id, company_id, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           body.name, body.station_id ?? null, enabled, pausedBy,
           body.service_type ?? 'rtcm', body.position_mode ?? 'normal',
           body.satellite_systems ?? '', body.caster_interval ?? 0,
           body.code_protocol ?? '', body.code_type ?? '', body.description ?? '',
-          ownerId, req.auth!.id
+          ownerId, companyId, req.auth!.id
         ]
       );
     } catch (err) {
@@ -644,16 +653,25 @@ mountpointsRouter.patch(
     const id = Number(req.params.id);
     const before = await getMountpoint(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     const body = updateSchema.parse(req.body);
+    if (
+      body.company_id !== undefined &&
+      Number(body.company_id) !== (before.company_id === null ? null : Number(before.company_id))
+    ) {
+      throw new ApiError(400, 'COMPANY_IMMUTABLE', 'Không được đổi công ty của mountpoint');
+    }
     if (body.name !== undefined && body.name !== before.name) {
       throw new ApiError(409, 'IMMUTABLE_FIELD', 'Tên mountpoint không thể sửa sau khi tạo');
     }
     if (body.station_id !== undefined) await assertStationScope(req, body.station_id);
-    const ownerId =
-      body.owner_web_user_id === undefined
-        ? Number(before.owner_web_user_id)
-        : await resolveOwner(req, body.owner_web_user_id);
+    let ownerId = Number(before.owner_web_user_id);
+    let companyId = before.company_id === null ? null : Number(before.company_id);
+    if (body.owner_web_user_id !== undefined) {
+      const ownership = await resolveWriteOwnership(req, body.owner_web_user_id, companyId);
+      ownerId = ownership.ownerId;
+      companyId = ownership.companyId;
+    }
     const stationId = body.station_id === undefined ? before.station_id : body.station_id;
     let nextEnabled = body.enabled === undefined ? Boolean(before.enabled) : body.enabled;
     let pausedBy = before.paused_by_station_id;
@@ -675,7 +693,7 @@ mountpointsRouter.patch(
       await conn.query(
         `UPDATE mountpoints SET station_id=?, enabled=?, paused_by_station_id=?,
            service_type=?, position_mode=?, satellite_systems=?, caster_interval=?,
-           code_protocol=?, code_type=?, description=?, owner_web_user_id=? WHERE id=?`,
+           code_protocol=?, code_type=?, description=?, owner_web_user_id=?, company_id=? WHERE id=?`,
         [
           stationId,
           nextEnabled,
@@ -688,6 +706,7 @@ mountpointsRouter.patch(
           body.code_type ?? before.code_type,
           body.description ?? before.description,
           ownerId,
+          companyId,
           id
         ]
       );
@@ -721,7 +740,7 @@ mountpointsRouter.post(
     const body = bulkBodySchema.parse(req.body);
     const ids = uniqueIds(body.ids);
     const rows = await query<RowDataPacket[]>(
-      `SELECT id, name, enabled, station_id, owner_web_user_id FROM mountpoints
+      `SELECT id, name, enabled, station_id, owner_web_user_id, company_id FROM mountpoints
         WHERE id IN (${ids.map(() => '?').join(',')})`,
       ids
     );
@@ -735,7 +754,7 @@ mountpointsRouter.post(
         continue;
       }
       try {
-        await assertRecordScope(req, row.owner_web_user_id);
+        await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
         allowed.push(row);
       } catch {
         result.forbidden += 1;
@@ -804,7 +823,7 @@ mountpointsRouter.delete(
     const id = Number(req.params.id);
     const before = await getMountpoint(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     const relayJobIds = await withTransaction(async (conn) => {
       const ids = await setRelayPauseForMountpoint(
         conn,

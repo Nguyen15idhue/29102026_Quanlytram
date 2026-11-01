@@ -42,7 +42,11 @@ const permissions = [
   ['caster.view', 'caster', 'view'],
   ['caster.add', 'caster', 'add'],
   ['caster.edit', 'caster', 'edit'],
-  ['caster.delete', 'caster', 'delete']
+  ['caster.delete', 'caster', 'delete'],
+  ['companies.view', 'companies', 'view'],
+  ['companies.add', 'companies', 'add'],
+  ['companies.edit', 'companies', 'edit'],
+  ['companies.delete', 'companies', 'delete']
 ] as const;
 
 async function main(): Promise<void> {
@@ -114,18 +118,20 @@ async function main(): Promise<void> {
     email: string,
     roleCode: string,
     parentId: number | null,
-    createdBy: number | null
+    createdBy: number | null,
+    companyId: number | null = null
   ): Promise<number> => {
     const role = await roleId(roleCode);
     const passwordHash = await hashPassword(password);
     await adminPool.query(
       `INSERT INTO web_users
-         (username, password_hash, display_name, email, role_id, parent_user_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)
+         (username, password_hash, display_name, email, role_id, parent_user_id, company_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE
          role_id = VALUES(role_id), parent_user_id = VALUES(parent_user_id),
-         display_name = VALUES(display_name), email = VALUES(email), status = 'active'`,
-      [username, passwordHash, displayName, email, role, parentId, createdBy]
+         display_name = VALUES(display_name), email = VALUES(email),
+         company_id = VALUES(company_id), status = 'active'`,
+      [username, passwordHash, displayName, email, role, parentId, companyId, createdBy]
     );
     const [rows] = await adminPool.query<any[]>(
       'SELECT id FROM web_users WHERE username = ?',
@@ -143,6 +149,17 @@ async function main(): Promise<void> {
     null,
     null
   );
+  await adminPool.query(
+    `INSERT INTO companies (code, name, status, created_by)
+     VALUES ('admin', 'Quản trị viên', 'active', ?)
+     ON DUPLICATE KEY UPDATE name = VALUES(name)`,
+    [superId]
+  );
+  const [companyRows] = await adminPool.query<any[]>(
+    "SELECT id FROM companies WHERE code = 'admin'"
+  );
+  const companyId = Number(companyRows[0].id);
+
   const adminId = await seedUser(
     'admin',
     config.seed.adminPassword,
@@ -150,7 +167,8 @@ async function main(): Promise<void> {
     'admin@example.local',
     'admin',
     superId,
-    superId
+    superId,
+    companyId
   );
   const user1Id = await seedUser(
     'user1',
@@ -159,7 +177,8 @@ async function main(): Promise<void> {
     'user1@example.local',
     'user',
     adminId,
-    adminId
+    adminId,
+    companyId
   );
   const user2Id = await seedUser(
     'user2',
@@ -168,7 +187,8 @@ async function main(): Promise<void> {
     'user2@example.local',
     'user',
     adminId,
-    adminId
+    adminId,
+    companyId
   );
 
   const [listenerRows] = await adminPool.query<any[]>(
@@ -189,9 +209,9 @@ async function main(): Promise<void> {
     const [inserted] = await adminPool.query<any>(
       `INSERT INTO stations
          (name, host, port, connection_type, source_type, enabled,
-          owner_web_user_id, created_by)
-       VALUES (?, 'example.invalid', 1509, 'ntrip', 'caster_ingest', 1, ?, ?)`,
-      [name, ownerId, createdBy]
+          owner_web_user_id, company_id, created_by)
+       VALUES (?, 'example.invalid', 1509, 'ntrip', 'caster_ingest', 1, ?, ?, ?)`,
+      [name, ownerId, companyId, createdBy]
     );
     const stationId = Number(inserted.insertId);
     if (listenerId) {
@@ -210,7 +230,8 @@ async function main(): Promise<void> {
             caster_requires_auth: true
           },
           ownerId,
-          createdBy
+          createdBy,
+          companyId
         );
       } finally {
         conn.release();
@@ -229,10 +250,10 @@ async function main(): Promise<void> {
     ['test_ntrip_02', user1Id, adminId]
   ] as const) {
     await adminPool.query(
-      `INSERT INTO ntrip_accounts (username, password_hash, max_connections, owner_web_user_id, created_by)
-       VALUES (?, ?, 2, ?, ?)
-       ON DUPLICATE KEY UPDATE owner_web_user_id = VALUES(owner_web_user_id)`,
-      [username, ntripHash, ownerId, createdBy]
+      `INSERT INTO ntrip_accounts (username, password_hash, max_connections, owner_web_user_id, company_id, created_by)
+       VALUES (?, ?, 2, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE owner_web_user_id = VALUES(owner_web_user_id), company_id = VALUES(company_id)`,
+      [username, ntripHash, ownerId, companyId, createdBy]
     );
   }
 

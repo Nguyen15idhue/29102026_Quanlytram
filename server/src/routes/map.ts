@@ -32,7 +32,7 @@ mapRouter.get(
   requirePermission('stations', 'view'),
   asyncHandler(async (req, res) => {
     const ids = await scopeIdsFor(req);
-    const scope = listScope(req, ids, 's.owner_web_user_id');
+    const scope = listScope(req, ids, 's.owner_web_user_id', { companyColumn: 's.company_id' });
     const params: unknown[] = [...scope.params];
     let where = scope.sql;
     const q = String(req.query.q || '').trim();
@@ -53,10 +53,11 @@ mapRouter.get(
 
     const rows = await query<RowDataPacket[]>(
       `SELECT s.id, s.name, s.region, s.address, s.source_type, s.ntrip_mode,
-              s.enabled, s.status,
-              s.owner_web_user_id, u.display_name AS owner_name
+              s.enabled, s.status, s.company_id,
+              s.owner_web_user_id, u.display_name AS owner_name, c.name AS company_name
          FROM stations s
          LEFT JOIN web_users u ON u.id = s.owner_web_user_id
+         LEFT JOIN companies c ON c.id = s.company_id
         WHERE ${where}
         ORDER BY s.id
         LIMIT 1000`,

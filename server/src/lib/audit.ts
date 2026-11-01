@@ -14,6 +14,14 @@ export function redact(value: unknown): unknown {
   return value;
 }
 
+function companyFrom(value: unknown): number | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const raw = (value as Record<string, unknown>).company_id;
+  if (raw === null || raw === undefined || raw === '') return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export async function writeAudit(
   pool: Pool,
   actorWebUserId: number | null,
@@ -25,11 +33,16 @@ export async function writeAudit(
   ip: string
 ): Promise<void> {
   try {
+    const explicitCompany = companyFrom(after) ?? companyFrom(before);
     await pool.query(
       `INSERT INTO audit_logs
-         (actor_web_user_id, action, entity_type, entity_id, before_redacted, after_redacted, ip)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         (actor_web_user_id, company_id, action, entity_type, entity_id,
+          before_redacted, after_redacted, ip)
+       SELECT ?, COALESCE(?, (SELECT company_id FROM web_users WHERE id = ?)),
+              ?, ?, ?, ?, ?, ?`,
       [
+        actorWebUserId,
+        explicitCompany,
         actorWebUserId,
         action,
         entityType,

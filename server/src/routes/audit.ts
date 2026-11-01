@@ -20,6 +20,8 @@ function publicLog(row: RowDataPacket) {
     entityId: String(row.entity_id ?? ''),
     before: row.before_redacted ?? null,
     after: row.after_redacted ?? null,
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    companyName: row.company_name ?? null,
     ip: String(row.ip ?? ''),
     createdAt: row.created_at
   };
@@ -38,6 +40,21 @@ auditRouter.get(
 
     const params: unknown[] = [];
     const where: string[] = ['1=1'];
+    const isSuper = req.auth?.roleCode === 'super_admin';
+    if (!isSuper) {
+      if (req.auth?.companyId === null || req.auth?.companyId === undefined) {
+        where.push('1=0');
+      } else {
+        where.push('a.company_id = ?');
+        params.push(Number(req.auth.companyId));
+      }
+    } else {
+      const companyId = Number(req.query.companyId || 0);
+      if (Number.isInteger(companyId) && companyId > 0) {
+        where.push('a.company_id = ?');
+        params.push(companyId);
+      }
+    }
     if (action) {
       where.push('a.action = ?');
       params.push(action);
@@ -61,9 +78,10 @@ auditRouter.get(
 
     const whereSql = where.join(' AND ');
     const [rows] = await adminPool.query<RowDataPacket[]>(
-      `SELECT a.*, u.username AS actor_name
+      `SELECT a.*, u.username AS actor_name, c.name AS company_name
          FROM audit_logs a
          LEFT JOIN web_users u ON u.id = a.actor_web_user_id
+         LEFT JOIN companies c ON c.id = a.company_id
         WHERE ${whereSql}
         ORDER BY a.id DESC
         LIMIT ? OFFSET ?`,

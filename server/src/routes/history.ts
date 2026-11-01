@@ -28,7 +28,7 @@ function parseDate(value: unknown, label: string): Date | null {
 
 async function allowedJobs(req: Request): Promise<AllowedJobs> {
   const ids = await scopeIdsFor(req);
-  const scope = listScope(req, ids, 'owner_web_user_id');
+  const scope = listScope(req, ids, 'owner_web_user_id', { companyColumn: 'company_id' });
   const [rows] = await adminPool.query<any[]>(
     `SELECT id, name FROM relay_jobs WHERE ${scope.sql}`,
     scope.params

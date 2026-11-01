@@ -36,16 +36,25 @@ export async function createStationResources(
   stationId: number,
   data: StationSourceInput,
   ownerId: number,
-  actorId: number
+  actorId: number,
+  companyId?: number | null
 ): Promise<CreatedStationResources> {
   const mountpointName = await uniqueMountpointName(conn, data.name);
   const mountpointEnabled = data.enabled ? 1 : 0;
   const pausedBy = data.enabled ? null : stationId;
+  let resolvedCompanyId = companyId;
+  if (resolvedCompanyId === undefined) {
+    const [ownerRows] = await conn.query<any[]>(
+      'SELECT company_id FROM web_users WHERE id = ?',
+      [ownerId]
+    );
+    resolvedCompanyId = ownerRows[0]?.company_id ?? null;
+  }
   const [mountpointResult] = await conn.query<any>(
     `INSERT INTO mountpoints
        (name, station_id, enabled, paused_by_station_id, description,
-        owner_web_user_id, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        owner_web_user_id, company_id, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       mountpointName,
       stationId,
@@ -53,6 +62,7 @@ export async function createStationResources(
       pausedBy,
       'Tự sinh khi tạo trạm',
       ownerId,
+      resolvedCompanyId,
       actorId
     ]
   );
@@ -106,9 +116,9 @@ export async function createStationResources(
     const [accountResult] = await conn.query<any>(
       `INSERT INTO ntrip_accounts
          (username, password_hash, enabled, max_connections, owner_web_user_id,
-          created_by, managed_by_station_id)
-       VALUES (?, ?, 1, 1, ?, ?, ?)`,
-      [username, passwordHash, ownerId, actorId, stationId]
+          company_id, created_by, managed_by_station_id)
+       VALUES (?, ?, 1, 1, ?, ?, ?, ?)`,
+      [username, passwordHash, ownerId, resolvedCompanyId, actorId, stationId]
     );
     const accountId = Number(accountResult.insertId);
     await conn.query(

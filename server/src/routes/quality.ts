@@ -377,7 +377,7 @@ qualityRouter.get(
     const id = Number(req.params.id);
     const station = await getStation(id);
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, station.owner_web_user_id);
+    await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
     const windowMinutes = parseWindowMinutes(req.query.window, 15);
     const from = new Date(Date.now() - windowMinutes * 60_000);
     const mountpointId = req.query.mountpointId ? Number(req.query.mountpointId) : null;
@@ -422,7 +422,7 @@ qualityRouter.get(
     const id = Number(req.params.id);
     const station = await getStation(id);
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, station.owner_web_user_id);
+    await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
     const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 24 * 3600_000);
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
@@ -456,7 +456,7 @@ qualityRouter.get(
     const id = Number(req.params.id);
     const job = await getRelayJob(id);
     if (!job) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
-    await assertRecordScope(req, job.owner_web_user_id);
+    await assertRecordScope(req, job.owner_web_user_id, 'owner_web_user_id', job.company_id);
     const windowMinutes = parseWindowMinutes(req.query.window, 15);
     const from = new Date(Date.now() - windowMinutes * 60_000);
     const direction = String(req.query.direction || '').trim();
@@ -498,7 +498,7 @@ qualityRouter.get(
     const id = Number(req.params.id);
     const job = await getRelayJob(id);
     if (!job) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
-    await assertRecordScope(req, job.owner_web_user_id);
+    await assertRecordScope(req, job.owner_web_user_id, 'owner_web_user_id', job.company_id);
     const from = req.query.from ? new Date(String(req.query.from)) : new Date(Date.now() - 24 * 3600_000);
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
@@ -589,7 +589,7 @@ qualityRouter.get(
     const stationId = Number(req.params.id);
     const station = await getStation(stationId);
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, station.owner_web_user_id);
+    await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
     const rows = await query<RowDataPacket[]>(
       'SELECT * FROM station_probes WHERE station_id = ? ORDER BY id',
       [stationId]
@@ -605,7 +605,7 @@ qualityRouter.post(
     const stationId = Number(req.params.id);
     const station = await getStation(stationId);
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, station.owner_web_user_id);
+    await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
     const body = probeCreateSchema.parse(req.body ?? {});
     if (body.mountpointId) {
       const mountpoint = await query<RowDataPacket[]>(
@@ -618,8 +618,9 @@ qualityRouter.post(
     }
     const [result] = await adminPool.query<any>(
       `INSERT INTO station_probes
-         (station_id, mountpoint_id, enabled, probe_interval_sec, credential_id, owner_web_user_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+         (station_id, mountpoint_id, enabled, probe_interval_sec, credential_id,
+          owner_web_user_id, company_id, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         stationId,
         body.mountpointId ?? null,
@@ -627,6 +628,7 @@ qualityRouter.post(
         body.probeIntervalSec,
         body.credentialId ?? null,
         station.owner_web_user_id,
+        station.company_id ?? null,
         req.auth!.id
       ]
     );
@@ -655,7 +657,7 @@ qualityRouter.patch(
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy station probe');
     const station = await getStation(Number(before.station_id));
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, station.owner_web_user_id);
+    await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
     const body = probeUpdateSchema.parse(req.body ?? {});
     await adminPool.query(
       `UPDATE station_probes
@@ -695,7 +697,7 @@ qualityRouter.delete(
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy station probe');
     const station = await getStation(Number(before.station_id));
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, station.owner_web_user_id);
+    await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
     await adminPool.query('DELETE FROM station_probes WHERE id = ?', [id]);
     await writeAudit(
       adminPool,
@@ -717,7 +719,7 @@ async function setProbeEnabled(req: any, enabled: boolean) {
   if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy station probe');
   const station = await getStation(Number(before.station_id));
   if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-  await assertRecordScope(req, station.owner_web_user_id);
+  await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
   await adminPool.query(
     'UPDATE station_probes SET enabled = ?, paused_by_station_id = NULL WHERE id = ?',
     [enabled, id]

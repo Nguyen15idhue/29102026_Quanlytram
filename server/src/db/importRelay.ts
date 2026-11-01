@@ -173,8 +173,8 @@ async function upsertCredential(
     return Number(rows[0].id);
   }
   const [result]: any = await conn.query(
-    'INSERT INTO relay_credentials (name, username, password_enc, owner_web_user_id, created_by) VALUES (?, ?, ?, ?, NULL)',
-    [name, credential.username, encryptSecret(credential.password), ownerId]
+    'INSERT INTO relay_credentials (name, username, password_enc, owner_web_user_id, company_id, created_by) VALUES (?, ?, ?, ?, (SELECT company_id FROM web_users WHERE id = ?), NULL)',
+    [name, credential.username, encryptSecret(credential.password), ownerId, ownerId]
   );
   return Number(result.insertId);
 }

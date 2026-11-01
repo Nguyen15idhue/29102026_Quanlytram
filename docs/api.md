@@ -5,6 +5,15 @@ Auth: session cookie `cors_sid` (HttpOnly, SameSite=Lax).
 CSRF: mọi request ghi (`POST/PATCH/PUT/DELETE`) phải gửi header `X-CSRF-Token` lấy từ `POST /api/auth/login` hoặc `GET /api/auth/me`.
 Timezone: lưu UTC; hiển thị/log `Asia/Ho_Chi_Minh` (+07:00).
 
+Từ kế hoạch 05 (công ty nhiều admin): `tenant` = `company_id`. Tài nguyên
+`stations`, `mountpoints`, `ntrip_accounts`, `relay_jobs`, `station_probes`,
+`alerts`, `audit_logs` có `company_id`; response trả thêm `company_id`/
+`company_name` (hoặc `companyId`/`companyName` với web users) và
+`owner_web_user_id`/`owner_name` khi có. Super admin tạo tài nguyên phải chọn
+`company_id` (thiếu → 400 `COMPANY_REQUIRED`). Owner phải cùng company
+(→ 400 `OWNER_COMPANY_MISMATCH`). `caster_listeners` là tài nguyên toàn hệ
+thống: không có `company_id`, mọi công ty xem được, chỉ super admin CRUD.
+
 ## 1. Error format
 
 ```json
@@ -99,9 +108,14 @@ Mountpoint không còn cấu hình auth riêng; caster luôn xác thực bằng
 | POST | `/api/web-users/:id/lock` | `web_users.edit` |
 | POST | `/api/web-users/:id/unlock` | `web_users.edit` |
 
-Tạo: `username`, `password`, `display_name`, `email`, `role_id`, `parent_user_id`.
+Tạo: `username`, `password`, `display_name`, `email`, `role_id`, `parent_user_id`,
+`company_id`. Super admin bắt buộc chọn company (hoặc suy ra từ parent); admin
+bị ép `company_id` của mình. Response trả `companyId`, `companyName`,
+`companyStatus`. Admin được tạo peer admin cùng company nhưng không sửa/khóa/xóa
+peer admin; không tạo/sửa `super_admin`.
 Tự sửa (user): chỉ `display_name`, `email`, `password`.
 Không quản lý `super_admin`; không tạo/sửa user level >= mình; không xóa chính mình.
+Import/export `.xlsx` thêm cột `company_code`/`company_name`; không có cột password.
 
 ## 6. Roles & permissions
 
@@ -365,19 +379,24 @@ Body tạo/sửa: `username`, `password`, `enabled`, `max_connections`,
 `owner_web_user_id`. Response không trả `password_hash`.
 ACL body: `{ "mountpointIds": [1, 2] }`; placeholder cho Phase 4.
 
-## 14. Caster listeners (Phase 4 — planned)
+## 14. Caster listeners (Phase 4)
 
 - Port mặc định **1509** cho source và rover; tùy chỉnh theo listener.
 - Một mountpoint có thể gắn nhiều listener: A,B,C→1509; A,C→1508.
 - Không dùng 2101/8081.
+- Listener là tài nguyên **toàn hệ thống** (D05-7): response `global: true`,
+  `ownerWebUserId`, `ownerName`; không có `companyId`.
+- Admin xem toàn bộ listener nhưng không có `caster.add/edit/delete`.
+- Danh sách mountpoint gắn listener (`/listeners/:id/mountpoints`) lọc theo
+  company của actor; super admin thấy tất cả (D05-8).
 
 | Method | Endpoint | Quyền |
 |---|---|---|
-| GET/POST | `/api/caster/listeners` | `settings.view` / `settings.edit` |
-| GET/PATCH/DELETE | `/api/caster/listeners/:id` | `settings.view` / `settings.edit` |
-| POST | `/api/caster/listeners/:id/enable` | `settings.edit` |
-| POST | `/api/caster/listeners/:id/disable` | `settings.edit` |
-| GET/PUT | `/api/caster/listeners/:id/mountpoints` | `settings.view` / `settings.edit` |
+| GET/POST | `/api/caster/listeners` | `caster.view` / `caster.add` |
+| GET/PATCH/DELETE | `/api/caster/listeners/:id` | `caster.view` / `caster.edit` / `caster.delete` |
+| POST | `/api/caster/listeners/:id/enable` | `caster.edit` |
+| POST | `/api/caster/listeners/:id/disable` | `caster.edit` |
+| GET/PUT | `/api/caster/listeners/:id/mountpoints` | `caster.view` / `caster.edit` |
 | GET | `/api/connections` | `connections.view` |
 | DELETE | `/api/connections/:id` | `connections.delete` |
 
@@ -443,3 +462,25 @@ Sự kiện: `snapshot`, `relay.updated`, `relay.session`, `connection.updated`,
 | GET | `/api/profile/sessions` | Đăng nhập; phiên hiện tại |
 | GET | `/api/dictionaries?code=` | Đăng nhập; dictionary cho select |
 | GET | `/api/audit-logs?module=&from=&to=&q=` | `audit.view`; redaction |
+
+## 17. Companies (kế hoạch 05)
+
+Chỉ super admin (`companies.*` scope `all`): tạo công ty, tạo admin đầu tiên,
+quản lý trạng thái. Company `disabled`: user thuộc company không đăng nhập được,
+session cũ bị từ chối ở `requireAuth`; tài nguyên **không** bị xóa.
+
+| Method | Endpoint | Quyền / ghi chú |
+|---|---|---|
+| GET | `/api/companies?q=&status=&page=&pageSize=` | `companies.view`; kèm `userCount` |
+| GET | `/api/companies/:id` | `companies.view` |
+| GET | `/api/companies/:id/users?page=&pageSize=` | `companies.view`; user thuộc company |
+| POST | `/api/companies` | `companies.add`; `code`, `name`, `notes`; trùng code → 409 |
+| PATCH | `/api/companies/:id` | `companies.edit`; `name`, `notes` |
+| POST | `/api/companies/:id/enable\|disable` | `companies.edit` |
+| DELETE | `/api/companies/:id` | `companies.delete`; 409 `COMPANY_IN_USE` nếu còn dữ liệu |
+
+Response company: `id`, `code`, `name`, `status`, `notes`, `userCount`,
+`createdAt`, `updatedAt`.
+Filter `companyId` trên list stations/mountpoints/ntrip-accounts/relay-jobs/
+alerts/web-users/audit-logs chỉ áp dụng cho super admin.
+Audit ghi `company_id` theo tài nguyên (fallback company của actor) và redact secret.

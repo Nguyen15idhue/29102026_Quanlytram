@@ -67,6 +67,8 @@ Nguyên tắc:
 | D05-6 | Có cần company root user riêng? | Không. Dùng bảng `companies`; admin đầu tiên là reporting root |
 | D05-7 | Listener caster thuộc công ty hay toàn hệ thống? | **Toàn hệ thống**. Chỉ super_admin tạo/sửa/xóa; mọi công ty được xem tất cả |
 | D05-8 | Mountpoint dưới listener hiển thị thế nào? | Listener global; danh sách mountpoint liên kết lọc theo company của actor, super thấy tất cả |
+| D05-9 | Owner khi super admin tạo tài nguyên? | Bắt buộc chọn company; owner mặc định là super (created_by) trừ khi chỉ định owner cùng company. Tài nguyên vẫn hiển thị cho company qua `company_id` |
+| D05-10 | Company disable ảnh hưởng gì? | Chặn đăng nhập + vô hiệu session cũ của user thuộc company; không xóa tài nguyên; super vẫn truy cập |
 
 ## 4. Thay đổi dữ liệu
 
@@ -373,19 +375,55 @@ Ghi chú P05-1 (2026-11-01):
 
 ### P05-2 — RBAC company
 
-- [ ] `companyIdForUser`, `companyUserIds`.
-- [ ] `tenant` dùng company_id.
-- [ ] `assertRecordScope` kiểm tra company.
-- [ ] Ma trận quyền admin company-wide.
-- [ ] Peer admin policy.
+- [x] `companyIdForUser`, `companyUserIds`.
+- [x] `tenant` dùng company_id.
+- [x] `assertRecordScope` kiểm tra company.
+- [x] Ma trận quyền admin company-wide.
+- [x] Peer admin policy.
+
+Ghi chú P05-2 (2026-11-01):
+
+- `tenantIds` = toàn bộ user cùng `company_id`; fallback subtree nếu user chưa
+  có company (legacy) để tránh lockout.
+- `listScope`/`assertRecordScope` nhận `companyColumn`/`companyId`; các route
+  stations/mountpoints/ntrip_accounts/relay_jobs/alerts dùng `company_id` cho
+  `tenant`, giữ `own` theo owner.
+- `canAssignRole` (≤ level) cho tạo/gán role; `canManageRole` (< level) cho
+  sửa/khóa/xóa. Admin tạo được peer admin nhưng `assertCanTarget` chặn sửa
+  peer admin (D05-2).
+- `resolveParent` bắt buộc parent cùng company; admin tạo peer admin đặt parent
+  = admin root của company; chống chu trình.
+- Auth/login kiểm tra company `active`; company `disabled` chặn login và
+  `requireAuth` từ chối session cũ (D05-10).
+- Migration `031_rbac_company_scope.sql` + `032_company_permission_fix.sql`
+  (admin `companies.*` = none; caster.view = all; caster add/edit/delete = none).
+- Test: server tsc PASS; vitest 61/61 PASS.
 
 ### P05-3 — API
 
-- [ ] Companies CRUD.
-- [ ] Web users company.
-- [ ] Tài nguyên trả company/owner.
-- [ ] Filter company cho super.
-- [ ] Audit company.
+- [x] Companies CRUD.
+- [x] Web users company.
+- [x] Tài nguyên trả company/owner.
+- [x] Filter company cho super.
+- [x] Audit company.
+
+Ghi chú P05-3 (2026-11-01):
+
+- `server/src/routes/companies.ts` + mount `/api/companies`; chỉ super
+  (`requireSuper` + `companies.*`).
+- `resolveWriteOwnership` dùng chung: super bắt buộc `company_id` (hoặc suy ra
+  từ owner) → thiếu trả 400 `COMPANY_REQUIRED`; admin ép company của mình;
+  owner khác company → 400 `OWNER_COMPANY_MISMATCH`.
+- Resource trả `company_id`/`company_name`, `owner_web_user_id`/`owner_name`;
+  web users trả `companyId`/`companyName`/`companyStatus`.
+- List filter `companyId` cho super: stations, mountpoints, ntrip-accounts,
+  relay-jobs, alerts, web-users, audit-logs.
+- Listener: `global: true`, `ownerWebUserId`, `ownerName`; admin xem tất cả,
+  không CRUD; mountpoint liên kết lọc theo company (D05-8).
+- Audit ghi `company_id` (ưu tiên company của tài nguyên, fallback actor) và
+  redact secret.
+- Import user thêm `company_code`; admin ép company; không export password.
+- Đã kiểm thử API thực tế: 29/29 check PASS (T2–T7, T9–T13, T16–T19).
 
 ### P05-4 — UI
 

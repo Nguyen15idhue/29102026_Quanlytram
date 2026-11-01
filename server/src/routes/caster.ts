@@ -39,16 +39,29 @@ function castorGuard(router: Router): void {
 }
 
 const LISTENER_SELECT = `
-  SELECT l.*,
+  SELECT l.*, u.display_name AS owner_name,
          (SELECT COUNT(*) FROM caster_listener_mountpoints m WHERE m.listener_id = l.id) AS mountpoint_count
-    FROM caster_listeners l`;
+    FROM caster_listeners l
+    LEFT JOIN web_users u ON u.id = l.owner_web_user_id`;
 
 async function getListenerRow(id: number): Promise<any | null> {
   const [rows] = await adminPool.query<any[]>(`${LISTENER_SELECT} WHERE l.id = ?`, [id]);
   return rows[0] ?? null;
 }
 
-async function listenerMountpointIds(id: number): Promise<number[]> {
+async function listenerMountpointIds(id: number, req?: Request): Promise<number[]> {
+  if (req && req.auth?.roleCode !== 'super_admin') {
+    if (req.auth?.companyId === null || req.auth?.companyId === undefined) return [];
+    const rows = await query<RowDataPacket[]>(
+      `SELECT lm.mountpoint_id
+         FROM caster_listener_mountpoints lm
+         JOIN mountpoints m ON m.id = lm.mountpoint_id
+        WHERE lm.listener_id = ? AND m.company_id = ?
+        ORDER BY lm.mountpoint_id`,
+      [id, Number(req.auth.companyId)]
+    );
+    return rows.map((row) => Number(row.mountpoint_id));
+  }
   const rows = await query<RowDataPacket[]>(
     'SELECT mountpoint_id FROM caster_listener_mountpoints WHERE listener_id = ? ORDER BY mountpoint_id',
     [id]
@@ -157,7 +170,7 @@ casterRouter.get(
     if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
     await assertRecordScope(req, row.owner_web_user_id);
     res.json({
-      item: { ...publicListener(row), mountpointIds: await listenerMountpointIds(Number(row.id)) }
+      item: { ...publicListener(row), mountpointIds: await listenerMountpointIds(Number(row.id), req) }
     });
   })
 );
@@ -419,13 +432,18 @@ casterRouter.get(
     const listener = await getListenerRow(id);
     if (!listener) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
     await assertRecordScope(req, listener.owner_web_user_id);
+    const isSuper = req.auth?.roleCode === 'super_admin';
+    const companyFilter = isSuper
+      ? ''
+      : ' AND m.company_id = ?';
+    const params: unknown[] = isSuper ? [id] : [id, Number(req.auth!.companyId)];
     const rows = await query<RowDataPacket[]>(
       `SELECT m.id, m.name, m.station_id, s.name AS station_name
          FROM caster_listener_mountpoints lm
          JOIN mountpoints m ON m.id = lm.mountpoint_id
          LEFT JOIN stations s ON s.id = m.station_id
-        WHERE lm.listener_id = ? ORDER BY m.name`,
-      [id]
+        WHERE lm.listener_id = ?${companyFilter} ORDER BY m.name`,
+      params
     );
     res.json({ items: rows });
   })

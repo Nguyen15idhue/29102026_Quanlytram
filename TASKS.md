@@ -90,8 +90,8 @@ Bổ sung 2026-11-01: trạng thái streaming `online | offline | no data | —`
 | Bước | Tên | Trạng thái |
 |---|---|---|
 | P05-1 | Schema companies + company_id + backfill | DONE |
-| P05-2 | RBAC company, peer admin, listener global | IN PROGRESS |
-| P05-3 | API companies/users/resources/audit | TODO |
+| P05-2 | RBAC company, peer admin, listener global | DONE |
+| P05-3 | API companies/users/resources/audit | DONE |
 | P05-4 | UI Companies, cột/filter công ty | TODO |
 | P05-5 | Test matrix 05-T1..T19, regression, rollout | TODO |
 

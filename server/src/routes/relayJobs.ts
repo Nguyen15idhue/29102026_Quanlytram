@@ -26,6 +26,7 @@ import {
   listScope,
   pageFrom,
   requireBulkPermission,
+  resolveWriteOwnership,
   scopeIdsFor
 } from '../rbac/access';
 import { TOMBSTONE_KEY_SQL } from '../lib/tombstone';
@@ -64,7 +65,8 @@ const createSchema = z.object({
   origin: z.enum(['manual', 'import', 'discover']).optional().default('manual'),
   originRef: z.string().max(190).optional().default(''),
   tags: z.unknown().nullable().optional(),
-  ownerWebUserId: z.number().int().positive().nullable().optional()
+  ownerWebUserId: z.number().int().positive().nullable().optional(),
+  companyId: z.number().int().positive().nullable().optional()
 });
 
 const endpointPatch = z.object({
@@ -92,16 +94,21 @@ const updateSchema = z.object({
   origin: z.enum(['manual', 'import', 'discover']).optional(),
   originRef: z.string().max(190).optional(),
   tags: z.unknown().nullable().optional(),
-  ownerWebUserId: z.number().int().positive().nullable().optional()
+  ownerWebUserId: z.number().int().positive().nullable().optional(),
+  companyId: z.number().int().positive().nullable().optional()
 });
 
 const JOB_SELECT = `
   SELECT j.*,
          uc.username AS upstream_credential_username,
-         dc.username AS downstream_credential_username
+         dc.username AS downstream_credential_username,
+         u.display_name AS owner_name,
+         c.name AS company_name
     FROM relay_jobs j
     LEFT JOIN relay_credentials uc ON uc.id = j.upstream_credential_id
-    LEFT JOIN relay_credentials dc ON dc.id = j.downstream_credential_id`;
+    LEFT JOIN relay_credentials dc ON dc.id = j.downstream_credential_id
+    LEFT JOIN web_users u ON u.id = j.owner_web_user_id
+    LEFT JOIN companies c ON c.id = j.company_id`;
 
 interface CredentialInput {
   username: string;
@@ -157,6 +164,9 @@ function publicJob(row: any, state: any) {
     originRef: row.origin_ref,
     tags: row.tags ?? null,
     ownerWebUserId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
+    ownerName: row.owner_name ?? null,
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    companyName: row.company_name ?? null,
     importedAt: row.imported_at,
     sourceSha256: row.source_sha256,
     createdAt: row.created_at,
@@ -172,23 +182,6 @@ function publicJob(row: any, state: any) {
         }
       : null
   };
-}
-
-async function resolveOwner(req: any, requested?: number | null): Promise<number> {
-  const actor = req.auth!;
-  if (!requested || Number(requested) === actor.id) return actor.id;
-  if (req.permissionScope === 'own') {
-    throw new ApiError(403, 'FORBIDDEN', 'Không được gán chủ sở hữu khác');
-  }
-  if (req.permissionScope === 'subtree') {
-    const ids = await scopeIdsFor(req);
-    if (!ids.includes(Number(requested))) {
-      throw new ApiError(403, 'FORBIDDEN', 'Chủ sở hữu ngoài phạm vi quản lý');
-    }
-  }
-  const exists = await query<RowDataPacket[]>('SELECT id FROM web_users WHERE id = ?', [requested]);
-  if (exists.length === 0) throw new ApiError(400, 'INVALID_OWNER', 'Chủ sở hữu không tồn tại');
-  return Number(requested);
 }
 
 async function getJobRow(id: number, conn?: any): Promise<any | null> {
@@ -310,7 +303,8 @@ async function upsertCredential(
   existingId: number | null,
   name: string,
   ownerId: number,
-  actorId: number
+  actorId: number,
+  companyId: number | null = null
 ): Promise<number | null> {
   if (input === undefined) return existingId;
   if (input === null) return null;
@@ -338,9 +332,9 @@ async function upsertCredential(
     throw new ApiError(400, 'CREDENTIAL_PASSWORD_REQUIRED', 'Cần mật khẩu cho credential mới');
   }
   const [result]: any = await conn.query(
-    `INSERT INTO relay_credentials (name, username, password_enc, owner_web_user_id, created_by)
-     VALUES (?, ?, ?, ?, ?)`,
-    [name, input.username, encryptSecret(input.password), ownerId, actorId]
+    `INSERT INTO relay_credentials (name, username, password_enc, owner_web_user_id, company_id, created_by)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [name, input.username, encryptSecret(input.password), ownerId, companyId, actorId]
   );
   return Number(result.insertId);
 }
@@ -398,7 +392,7 @@ relayJobsRouter.get(
   requirePermission('relay', 'view'),
   asyncHandler(async (req, res) => {
     const ids = await scopeIdsFor(req);
-    const scope = listScope(req, ids, 'j.owner_web_user_id');
+    const scope = listScope(req, ids, 'j.owner_web_user_id', { companyColumn: 'j.company_id' });
     const { pageSize, offset } = pageFrom(req);
     const q = String(req.query.q || '').trim();
     const params: unknown[] = [...scope.params];
@@ -411,6 +405,11 @@ relayJobsRouter.get(
     if (enabled === '0' || enabled === '1') {
       where += ' AND j.enabled = ?';
       params.push(Number(enabled));
+    }
+    const companyId = Number(req.query.companyId || 0);
+    if (req.auth?.roleCode === 'super_admin' && Number.isInteger(companyId) && companyId > 0) {
+      where += ' AND j.company_id = ?';
+      params.push(companyId);
     }
     const [rows] = await adminPool.query<any[]>(
       `${JOB_SELECT} WHERE ${where} ORDER BY j.id DESC LIMIT ? OFFSET ?`,
@@ -448,7 +447,7 @@ relayJobsRouter.get(
     if (!row || row.deleted_at !== null) {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
-    await assertRecordScope(req, row.owner_web_user_id);
+    await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
     const state = await getState(Number(row.id));
     const metrics = await metricsFor([Number(row.id)]);
     res.json({ item: attachRuntime(row, state, metrics.get(Number(row.id))) });
@@ -464,7 +463,7 @@ relayJobsRouter.get(
     if (!row || row.deleted_at !== null) {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
-    await assertRecordScope(req, row.owner_web_user_id);
+    await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
     const state = await getState(id);
     const metrics = (await metricsFor([id])).get(id);
     const [sessions, hourly] = await Promise.all([
@@ -736,7 +735,7 @@ relayJobsRouter.get(
     if (!row || row.deleted_at !== null) {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
-    await assertRecordScope(req, row.owner_web_user_id);
+    await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
     res.json(
       await buildRelayActivity(
         id,
@@ -796,7 +795,7 @@ relayJobsRouter.get(
     if (!row || row.deleted_at !== null) {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
-    await assertRecordScope(req, row.owner_web_user_id);
+    await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
     const direction = String(req.query.direction) === 'downstream' ? 'downstream' : 'upstream';
     const range = timelineRange(req.query.range);
     const { hours, bucketSec, resolutionSec, seriesBucketSec } = TIMELINE_RANGES[range];
@@ -898,7 +897,7 @@ relayJobsRouter.get(
     if (!row || row.deleted_at !== null) {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
-    await assertRecordScope(req, row.owner_web_user_id);
+    await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
     const { pageSize, offset } = pageFrom(req);
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
     const from = req.query.from
@@ -1127,7 +1126,9 @@ relayJobsRouter.post(
   requirePermission('relay', 'add'),
   asyncHandler(async (req, res) => {
     const body = createSchema.parse(req.body);
-    const ownerId = await resolveOwner(req, body.ownerWebUserId);
+    const ownership = await resolveWriteOwnership(req, body.ownerWebUserId, body.companyId);
+    const ownerId = ownership.ownerId;
+    const companyId = ownership.companyId;
     const upstreamKey = endpointKey(body.upstream);
     const downstreamKey = endpointKey(body.downstream);
     await assertNoCycles({
@@ -1146,7 +1147,8 @@ relayJobsRouter.post(
           null,
           `${body.name} upstream`,
           ownerId,
-          req.auth!.id
+          req.auth!.id,
+          companyId
         );
         const downstreamCredentialId = await upsertCredential(
           conn,
@@ -1154,7 +1156,8 @@ relayJobsRouter.post(
           null,
           `${body.name} downstream`,
           ownerId,
-          req.auth!.id
+          req.auth!.id,
+          companyId
         );
         const [result]: any = await conn.query(
           `INSERT INTO relay_jobs (
@@ -1164,8 +1167,8 @@ relayJobsRouter.post(
              downstream_host, downstream_port, downstream_mount, downstream_credential_id,
              downstream_proxy, downstream_ssl, downstream_ntrip_version, downstream_mode,
              lat, lon, ua_prefix, nmea_interval_sec, origin, origin_ref, tags,
-             desired_revision, upstream_key, downstream_key, owner_web_user_id, created_by
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)`,
+             desired_revision, upstream_key, downstream_key, owner_web_user_id, company_id, created_by
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
           [
             body.externalKey ?? null,
             body.name,
@@ -1195,6 +1198,7 @@ relayJobsRouter.post(
             upstreamKey,
             downstreamKey,
             ownerId,
+            companyId,
             req.auth!.id
           ]
         );
@@ -1229,7 +1233,7 @@ relayJobsRouter.patch(
     if (!before || before.deleted_at !== null) {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     const body = updateSchema.parse(req.body);
 
     const upstream = {
@@ -1266,7 +1270,18 @@ relayJobsRouter.patch(
     const ownerId =
       body.ownerWebUserId === undefined
         ? Number(before.owner_web_user_id)
-        : await resolveOwner(req, body.ownerWebUserId);
+        : (await resolveWriteOwnership(
+            req,
+            body.ownerWebUserId,
+            before.company_id === null ? null : Number(before.company_id)
+          )).ownerId;
+    const companyId = before.company_id === null ? null : Number(before.company_id);
+    if (
+      body.companyId !== undefined &&
+      Number(body.companyId) !== companyId
+    ) {
+      throw new ApiError(400, 'COMPANY_IMMUTABLE', 'Không được đổi công ty của relay job');
+    }
 
     try {
       await withTransaction(async (conn) => {
@@ -1278,7 +1293,8 @@ relayJobsRouter.patch(
             : Number(before.upstream_credential_id),
           `${body.name ?? before.name} upstream`,
           ownerId,
-          req.auth!.id
+          req.auth!.id,
+          companyId
         );
         const downstreamCredentialId = await upsertCredential(
           conn,
@@ -1288,7 +1304,8 @@ relayJobsRouter.patch(
             : Number(before.downstream_credential_id),
           `${body.name ?? before.name} downstream`,
           ownerId,
-          req.auth!.id
+          req.auth!.id,
+          companyId
         );
         await conn.query(
           `UPDATE relay_jobs SET
@@ -1383,7 +1400,7 @@ relayJobsRouter.post(
         continue;
       }
       try {
-        await assertRecordScope(req, row.owner_web_user_id);
+        await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
         if ((body.action === 'enable' || body.action === 'disable') && row.locked) {
           throw new ApiError(409, 'RELAY_LOCKED', 'Relay job đang khóa');
         }
@@ -1531,7 +1548,7 @@ relayJobsRouter.post(
           if (!existing || existing.deleted_at !== null) {
             throw new ApiError(404, 'NOT_FOUND', 'Relay job không tồn tại');
           }
-          await assertRecordScope(req, existing.owner_web_user_id);
+          await assertRecordScope(req, existing.owner_web_user_id, 'owner_web_user_id', existing.company_id);
         }
         await assertNoCycles({
           id: id > 0 ? id : null,
@@ -1556,11 +1573,26 @@ relayJobsRouter.post(
           const downstreamKey = endpointKey(bodyItem.downstream);
           const existingRows = bodyItem.id
             ? await conn.query(
-                'SELECT upstream_credential_id, downstream_credential_id FROM relay_jobs WHERE id = ?',
+                'SELECT upstream_credential_id, downstream_credential_id, owner_web_user_id, company_id FROM relay_jobs WHERE id = ?',
                 [bodyItem.id]
               )
             : null;
           const existing = (existingRows as any[] | null)?.[0]?.[0] ?? null;
+          let ownerId = existing?.owner_web_user_id
+            ? Number(existing.owner_web_user_id)
+            : Number(req.auth!.id);
+          let companyId = existing?.company_id === null || existing?.company_id === undefined
+            ? null
+            : Number(existing.company_id);
+          if (!bodyItem.id) {
+            const ownership = await resolveWriteOwnership(
+              req,
+              bodyItem.ownerWebUserId,
+              bodyItem.companyId
+            );
+            ownerId = ownership.ownerId;
+            companyId = ownership.companyId;
+          }
           const upstreamCredentialId = await upsertCredential(
             conn,
             bodyItem.upstreamCredential,
@@ -1568,8 +1600,9 @@ relayJobsRouter.post(
               ? Number(existing.upstream_credential_id)
               : null,
             `${bodyItem.name} upstream`,
+            ownerId,
             req.auth!.id,
-            req.auth!.id
+            companyId
           );
           const downstreamCredentialId = await upsertCredential(
             conn,
@@ -1578,8 +1611,9 @@ relayJobsRouter.post(
               ? Number(existing.downstream_credential_id)
               : null,
             `${bodyItem.name} downstream`,
+            ownerId,
             req.auth!.id,
-            req.auth!.id
+            companyId
           );
           if (bodyItem.id) {
             await conn.query(
@@ -1615,8 +1649,8 @@ relayJobsRouter.post(
                  downstream_host, downstream_port, downstream_mount, downstream_credential_id,
                  downstream_proxy, downstream_ssl, downstream_ntrip_version, downstream_mode,
                  lat, lon, ua_prefix, nmea_interval_sec, origin, origin_ref, tags,
-                 desired_revision, upstream_key, downstream_key, owner_web_user_id, created_by
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?, 1, ?, ?, ?, ?)`,
+                 desired_revision, upstream_key, downstream_key, owner_web_user_id, company_id, created_by
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?, 1, ?, ?, ?, ?, ?)`,
               [
                 bodyItem.externalKey, bodyItem.name, bodyItem.enabled ? 1 : 0,
                 bodyItem.upstream.host, bodyItem.upstream.port, bodyItem.upstream.mount,
@@ -1627,7 +1661,7 @@ relayJobsRouter.post(
                 bodyItem.downstreamMode, bodyItem.lat, bodyItem.lon, bodyItem.uaPrefix,
                 bodyItem.nmeaIntervalSec, bodyItem.originRef,
                 bodyItem.tags === null ? null : JSON.stringify(bodyItem.tags),
-                upstreamKey, downstreamKey, req.auth!.id, req.auth!.id
+                upstreamKey, downstreamKey, ownerId, companyId, req.auth!.id
               ]
             );
             created += 1;
@@ -1660,7 +1694,7 @@ relayJobsRouter.delete(
     if (!before || before.deleted_at !== null) {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     await adminPool.query(
       `UPDATE relay_jobs
           SET deleted_at = UTC_TIMESTAMP(3), enabled = 0,
@@ -1691,7 +1725,7 @@ async function setEnabled(req: any, enabled: boolean) {
   if (!before || before.deleted_at !== null) {
     throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
   }
-  await assertRecordScope(req, before.owner_web_user_id);
+  await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
   if (before.locked) {
     throw new ApiError(409, 'RELAY_LOCKED', 'Relay job đang khóa, phải mở khóa trước');
   }
@@ -1759,7 +1793,7 @@ async function setLocked(req: any, locked: boolean) {
   if (!before || before.deleted_at !== null) {
     throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
   }
-  await assertRecordScope(req, before.owner_web_user_id);
+  await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
   if (locked && before.enabled) {
     throw new ApiError(400, 'RELAY_ENABLED', 'Phải tắt relay job trước khi khóa');
   }
@@ -1813,7 +1847,7 @@ relayJobsRouter.post(
     if (!before || before.deleted_at !== null) {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     await adminPool.query(
       'UPDATE relay_jobs SET desired_revision = desired_revision + 1 WHERE id = ?',
       [id]
@@ -1843,7 +1877,7 @@ relayJobsRouter.post(
     if (!row || row.deleted_at !== null) {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
-    await assertRecordScope(req, row.owner_web_user_id);
+    await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
     try {
       const result = await callGoInternal('/internal/test', { jobId: id }, { timeoutMs: 10000 });
       res.json({ result });

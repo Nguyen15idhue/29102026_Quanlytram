@@ -34,6 +34,9 @@ function publicAlert(row: any) {
     status: String(row.status),
     ownerWebUserId:
       row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
+    ownerName: row.owner_name ?? null,
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    companyName: row.company_name ?? null,
     createdAt: row.created_at,
     ackedAt: row.acked_at,
     ackedBy: row.acked_by === null ? null : Number(row.acked_by),
@@ -42,7 +45,14 @@ function publicAlert(row: any) {
 }
 
 async function getAlert(id: number): Promise<any | null> {
-  const [rows] = await adminPool.query<any[]>('SELECT * FROM alerts WHERE id = ?', [id]);
+  const [rows] = await adminPool.query<any[]>(
+    `SELECT a.*, u.display_name AS owner_name, c.name AS company_name
+       FROM alerts a
+       LEFT JOIN web_users u ON u.id = a.owner_web_user_id
+       LEFT JOIN companies c ON c.id = a.company_id
+      WHERE a.id = ?`,
+    [id]
+  );
   return rows[0] ?? null;
 }
 
@@ -52,7 +62,7 @@ alertsRouter.get(
   asyncHandler(async (req, res) => {
     const { pageSize, offset } = pageFrom(req);
     const ids = await scopeIdsFor(req);
-    const scope = listScope(req, ids, 'owner_web_user_id');
+    const scope = listScope(req, ids, 'a.owner_web_user_id', { companyColumn: 'a.company_id' });
     const status = String(req.query.status || '').trim();
     const severity = String(req.query.severity || '').trim();
     const level = String(req.query.level || '').trim();
@@ -64,39 +74,48 @@ alertsRouter.get(
     const params: unknown[] = [...scope.params];
     let where = scope.sql;
     if (status === 'open' || status === 'acked') {
-      where += ' AND status = ?';
+      where += ' AND a.status = ?';
       params.push(status);
     }
     if (severity) {
-      where += ' AND severity = ?';
+      where += ' AND a.severity = ?';
       params.push(severity);
     }
     if (level) {
-      where += ' AND level = ?';
+      where += ' AND a.level = ?';
       params.push(level);
     }
     if (eventType) {
-      where += ' AND event_type = ?';
+      where += ' AND a.event_type = ?';
       params.push(eventType);
     }
     if (unread === '1' || unread === 'true') {
-      where += ' AND unread = 1';
+      where += ' AND a.unread = 1';
     }
     if (targetType) {
-      where += ' AND target_type = ?';
+      where += ' AND a.target_type = ?';
       params.push(targetType);
     }
     if (q) {
-      where += ' AND (title LIKE ? OR message LIKE ? OR type LIKE ?)';
+      where += ' AND (a.title LIKE ? OR a.message LIKE ? OR a.type LIKE ?)';
       params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    const companyId = Number(req.query.companyId || 0);
+    if (req.auth?.roleCode === 'super_admin' && Number.isInteger(companyId) && companyId > 0) {
+      where += ' AND a.company_id = ?';
+      params.push(companyId);
     }
 
     const [rows] = await adminPool.query<any[]>(
-      `SELECT * FROM alerts WHERE ${where} ORDER BY id DESC LIMIT ? OFFSET ?`,
+      `SELECT a.*, u.display_name AS owner_name, c.name AS company_name
+         FROM alerts a
+         LEFT JOIN web_users u ON u.id = a.owner_web_user_id
+         LEFT JOIN companies c ON c.id = a.company_id
+        WHERE ${where} ORDER BY a.id DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
     );
     const [countRows] = await adminPool.query<any[]>(
-      `SELECT COUNT(*) AS total FROM alerts WHERE ${where}`,
+      `SELECT COUNT(*) AS total FROM alerts a WHERE ${where}`,
       params
     );
     const includeImpact = ['1', 'true'].includes(String(req.query.includeImpact || ''));
@@ -126,7 +145,7 @@ alertsRouter.post(
   requirePermission('alerts', 'view'),
   asyncHandler(async (req, res) => {
     const ids = await scopeIdsFor(req);
-    const scope = listScope(req, ids, 'owner_web_user_id');
+    const scope = listScope(req, ids, 'owner_web_user_id', { companyColumn: 'company_id' });
     await adminPool.query(
       `UPDATE alerts SET unread = 0, read_at = UTC_TIMESTAMP(3)
         WHERE ${scope.sql} AND unread = 1`,
@@ -143,7 +162,7 @@ alertsRouter.post(
     const id = Number(req.params.id);
     const row = await getAlert(id);
     if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy cảnh báo');
-    await assertRecordScope(req, row.owner_web_user_id);
+    await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
     await adminPool.query('UPDATE alerts SET unread = 0, read_at = UTC_TIMESTAMP(3) WHERE id = ?', [id]);
     res.json({ item: publicAlert(await getAlert(id)) });
   })
@@ -155,7 +174,7 @@ alertsRouter.get(
   asyncHandler(async (req, res) => {
     const row = await getAlert(Number(req.params.id));
     if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy cảnh báo');
-    await assertRecordScope(req, row.owner_web_user_id);
+    await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
     res.json({ item: publicAlert(row) });
   })
 );
@@ -172,7 +191,7 @@ alertsRouter.post(
       .parse(req.body);
     const ids = uniqueIds(body.ids);
     const rows = await query<RowDataPacket[]>(
-      `SELECT id, status, owner_web_user_id FROM alerts
+      `SELECT id, status, owner_web_user_id, company_id FROM alerts
         WHERE id IN (${ids.map(() => '?').join(',')})`,
       ids
     );
@@ -186,7 +205,7 @@ alertsRouter.post(
         continue;
       }
       try {
-        await assertRecordScope(req, row.owner_web_user_id);
+        await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
         if (row.status === 'acked') result.skipped += 1;
         else allowed.push(row);
       } catch {
@@ -225,7 +244,7 @@ alertsRouter.post(
     const id = Number(req.params.id);
     const before = await getAlert(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy cảnh báo');
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     const body = ackSchema.parse(req.body ?? {});
 
     if (before.status !== 'acked') {

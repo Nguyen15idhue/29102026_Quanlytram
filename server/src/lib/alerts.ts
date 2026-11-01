@@ -30,8 +30,9 @@ export async function createAlertOnce(input: AlertInput): Promise<number | null>
 
   const [result] = await query<any>(
     `INSERT INTO alerts
-       (type, severity, target_type, target_id, title, message, dedupe_key, owner_web_user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+       (type, severity, target_type, target_id, title, message, dedupe_key,
+        owner_web_user_id, company_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT company_id FROM web_users WHERE id = ?))`,
     [
       input.type,
       input.severity,
@@ -40,6 +41,7 @@ export async function createAlertOnce(input: AlertInput): Promise<number | null>
       input.title.slice(0, MAX_TITLE),
       input.message.slice(0, MAX_MESSAGE),
       input.dedupeKey,
+      input.ownerId,
       input.ownerId
     ]
   );

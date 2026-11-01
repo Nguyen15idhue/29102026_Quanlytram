@@ -16,6 +16,7 @@ import {
   listScope,
   pageFrom,
   requireBulkPermission,
+  resolveWriteOwnership,
   scopeIdsFor
 } from '../rbac/access';
 
@@ -45,6 +46,7 @@ const createSchema = z.object({
   auth_method: z.string().max(32).optional(),
   notes: z.string().max(500).optional(),
   owner_web_user_id: z.number().int().positive().nullable().optional(),
+  company_id: z.number().int().positive().nullable().optional(),
   listenerIds: z.array(z.number().int().positive()).max(200).optional(),
   mountpointIds: z.array(z.number().int().positive()).max(1000).optional()
 });
@@ -65,13 +67,17 @@ async function assertScopedIds(
   ids: number[]
 ): Promise<void> {
   if (ids.length === 0) return;
+  const companyColumn = table === 'mountpoints' ? ', company_id' : '';
   const rows = await query<RowDataPacket[]>(
-    `SELECT id, owner_web_user_id FROM ${table}
+    `SELECT id, owner_web_user_id${companyColumn} FROM ${table}
       WHERE id IN (${ids.map(() => '?').join(',')})`,
     ids
   );
   if (rows.length !== ids.length) throw new ApiError(400, 'INVALID_ACL', 'ACL không tồn tại');
-  for (const row of rows) await assertRecordScope(req, row.owner_web_user_id);
+  if (table === 'caster_listeners') return;
+  for (const row of rows) {
+    await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
+  }
 }
 
 async function listenerIdsFor(accountId: number): Promise<number[]> {
@@ -122,37 +128,30 @@ function publicAccount(row: RowDataPacket) {
     availableArea: String(row.available_area ?? ''),
     notes: String(row.notes ?? ''),
     ownerWebUserId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
+    ownerName: row.owner_name ?? null,
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+    companyName: row.company_name ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
 }
 
-async function resolveOwner(req: any, requested?: number | null): Promise<number> {
-  const actor = req.auth!;
-  if (!requested || Number(requested) === actor.id) return actor.id;
-  if (req.permissionScope === 'own') {
-    throw new ApiError(403, 'FORBIDDEN', 'Không được gán chủ sở hữu khác');
-  }
-  if (req.permissionScope === 'subtree') {
-    const ids = await scopeIdsFor(req);
-    if (!ids.includes(Number(requested))) {
-      throw new ApiError(403, 'FORBIDDEN', 'Chủ sở hữu ngoài phạm vi quản lý');
-    }
-  }
-  const exists = await query<RowDataPacket[]>('SELECT id FROM web_users WHERE id = ?', [requested]);
-  if (exists.length === 0) throw new ApiError(400, 'INVALID_OWNER', 'Chủ sở hữu không tồn tại');
-  return Number(requested);
-}
-
 async function getAccount(id: number): Promise<RowDataPacket | null> {
-  const rows = await query<RowDataPacket[]>('SELECT * FROM ntrip_accounts WHERE id = ?', [id]);
+  const rows = await query<RowDataPacket[]>(
+    `SELECT a.*, u.display_name AS owner_name, c.name AS company_name
+       FROM ntrip_accounts a
+       LEFT JOIN web_users u ON u.id = a.owner_web_user_id
+       LEFT JOIN companies c ON c.id = a.company_id
+      WHERE a.id = ?`,
+    [id]
+  );
   return rows[0] ?? null;
 }
 
 async function assertAccountScope(req: any, id: number): Promise<RowDataPacket> {
   const account = await getAccount(id);
   if (!account) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy tài khoản NTRIP');
-  await assertRecordScope(req, account.owner_web_user_id);
+  await assertRecordScope(req, account.owner_web_user_id, 'owner_web_user_id', account.company_id);
   return account;
 }
 
@@ -168,7 +167,7 @@ ntripAccountsRouter.get(
   requirePermission('ntrip_accounts', 'view'),
   asyncHandler(async (req, res) => {
     const ids = await scopeIdsFor(req);
-    const scope = listScope(req, ids, 'a.owner_web_user_id');
+    const scope = listScope(req, ids, 'a.owner_web_user_id', { companyColumn: 'a.company_id' });
     const { pageSize, offset } = pageFrom(req);
     const q = String(req.query.q || '').trim();
     const params: unknown[] = [...scope.params];
@@ -187,8 +186,17 @@ ntripAccountsRouter.get(
       where += ' AND a.owner_web_user_id = ?';
       params.push(ownerId);
     }
+    const companyId = Number(req.query.companyId || 0);
+    if (req.auth?.roleCode === 'super_admin' && Number.isInteger(companyId) && companyId > 0) {
+      where += ' AND a.company_id = ?';
+      params.push(companyId);
+    }
     const [rows] = await adminPool.query<RowDataPacket[]>(
-      `SELECT a.* FROM ntrip_accounts a WHERE ${where} ORDER BY a.id DESC LIMIT ? OFFSET ?`,
+      `SELECT a.*, u.display_name AS owner_name, c.name AS company_name
+         FROM ntrip_accounts a
+         LEFT JOIN web_users u ON u.id = a.owner_web_user_id
+         LEFT JOIN companies c ON c.id = a.company_id
+        WHERE ${where} ORDER BY a.id DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
     );
     const [countRows] = await adminPool.query<RowDataPacket[]>(
@@ -266,9 +274,6 @@ ntripAccountsRouter.put(
       if (rows.length !== ids.length) {
         throw new ApiError(400, 'INVALID_LISTENER', 'Listener không tồn tại');
       }
-      for (const row of rows) {
-        await assertRecordScope(req, row.owner_web_user_id);
-      }
     }
     await withTransaction(async (conn) => {
       await conn.query('DELETE FROM account_listener_acl WHERE account_id = ?', [account.id]);
@@ -307,14 +312,14 @@ ntripAccountsRouter.put(
     const uniqueIds = [...new Set(body.mountpointIds)];
     if (uniqueIds.length > 0) {
       const rows = await query<RowDataPacket[]>(
-        `SELECT id, owner_web_user_id FROM mountpoints WHERE id IN (${uniqueIds.map(() => '?').join(',')})`,
+        `SELECT id, owner_web_user_id, company_id FROM mountpoints WHERE id IN (${uniqueIds.map(() => '?').join(',')})`,
         uniqueIds
       );
       if (rows.length !== uniqueIds.length) {
         throw new ApiError(400, 'INVALID_MOUNTPOINT', 'Mountpoint không tồn tại');
       }
       for (const row of rows) {
-        await assertRecordScope(req, row.owner_web_user_id);
+        await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
       }
     }
     await withTransaction(async (conn) => {
@@ -349,7 +354,9 @@ ntripAccountsRouter.post(
     const body = createSchema.parse(req.body);
     await assertScopedIds(req, 'caster_listeners', [...new Set(body.listenerIds ?? [])]);
     await assertScopedIds(req, 'mountpoints', [...new Set(body.mountpointIds ?? [])]);
-    const ownerId = await resolveOwner(req, body.owner_web_user_id);
+    const ownership = await resolveWriteOwnership(req, body.owner_web_user_id, body.company_id);
+    const ownerId = ownership.ownerId;
+    const companyId = ownership.companyId;
     const passwordHash = await hashPassword(body.password);
     let accountId: number;
     try {
@@ -358,13 +365,13 @@ ntripAccountsRouter.post(
           `INSERT INTO ntrip_accounts
              (username, password_hash, enabled, max_connections,
               company, contact_name, email, phone, valid_from, valid_to,
-              available_area, auth_method, notes, owner_web_user_id, created_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              available_area, auth_method, notes, owner_web_user_id, company_id, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             body.username, passwordHash, body.enabled, body.max_connections,
             body.company ?? '', body.contact_name ?? '', body.email ?? '', body.phone ?? '',
             body.valid_from ?? null, body.valid_to ?? null, body.available_area ?? '',
-            body.auth_method ?? 'basic', body.notes ?? '', ownerId, req.auth!.id
+            body.auth_method ?? 'basic', body.notes ?? '', ownerId, companyId, req.auth!.id
           ]
         );
         const id = Number(result.insertId);
@@ -409,6 +416,12 @@ ntripAccountsRouter.patch(
     const id = Number(req.params.id);
     const before = await assertAccountScope(req, id);
     const body = updateSchema.parse(req.body);
+    if (
+      body.company_id !== undefined &&
+      Number(body.company_id) !== (before.company_id === null ? null : Number(before.company_id))
+    ) {
+      throw new ApiError(400, 'COMPANY_IMMUTABLE', 'Không được đổi công ty của tài khoản NTRIP');
+    }
     if (body.username !== undefined && body.username !== before.username) {
       throw new ApiError(409, 'IMMUTABLE_FIELD', 'Username NTRIP không thể sửa sau khi tạo');
     }
@@ -418,10 +431,13 @@ ntripAccountsRouter.patch(
     if (body.mountpointIds !== undefined) {
       await assertScopedIds(req, 'mountpoints', [...new Set(body.mountpointIds)]);
     }
-    const ownerId =
-      body.owner_web_user_id === undefined
-        ? Number(before.owner_web_user_id)
-        : await resolveOwner(req, body.owner_web_user_id);
+    let ownerId = Number(before.owner_web_user_id);
+    let companyId = before.company_id === null ? null : Number(before.company_id);
+    if (body.owner_web_user_id !== undefined) {
+      const ownership = await resolveWriteOwnership(req, body.owner_web_user_id, companyId);
+      ownerId = ownership.ownerId;
+      companyId = ownership.companyId;
+    }
     const passwordHash = body.password ? await hashPassword(body.password) : before.password_hash;
     try {
       await withTransaction(async (conn) => {
@@ -430,7 +446,7 @@ ntripAccountsRouter.patch(
               SET username = ?, password_hash = ?, enabled = ?, max_connections = ?,
                   company = ?, contact_name = ?, email = ?, phone = ?,
                   valid_from = ?, valid_to = ?, available_area = ?, auth_method = ?, notes = ?,
-                  owner_web_user_id = ?
+                  owner_web_user_id = ?, company_id = ?
             WHERE id = ?`,
           [
             body.username ?? before.username,
@@ -447,6 +463,7 @@ ntripAccountsRouter.patch(
             body.auth_method ?? before.auth_method,
             body.notes ?? before.notes,
             ownerId,
+            companyId,
             id
           ]
         );
@@ -539,7 +556,7 @@ ntripAccountsRouter.post(
     const body = bulkBodySchema.parse(req.body);
     const ids = uniqueIds(body.ids);
     const rows = await query<RowDataPacket[]>(
-      `SELECT id, username, enabled, owner_web_user_id FROM ntrip_accounts
+      `SELECT id, username, enabled, owner_web_user_id, company_id FROM ntrip_accounts
         WHERE id IN (${ids.map(() => '?').join(',')})`,
       ids
     );
@@ -553,7 +570,7 @@ ntripAccountsRouter.post(
         continue;
       }
       try {
-        await assertRecordScope(req, row.owner_web_user_id);
+        await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
         allowed.push(row);
       } catch {
         result.forbidden += 1;

@@ -44,7 +44,7 @@ import {
   TIMELINE_RANGES,
   timelineRange
 } from '../lib/statusTimeline';
-import { requireAuth, requirePermission } from '../middleware/auth';
+import { requireAuth, requirePermission, isSuperAdmin } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import {
   assertRecordScope,
@@ -52,6 +52,7 @@ import {
   listScope,
   pageFrom,
   requireBulkPermission,
+  resolveWriteOwnership,
   scopeIdsFor
 } from '../rbac/access';
 
@@ -95,7 +96,8 @@ const stationBaseSchema = z.object({
   network_mode: text(64),
   protocol: z.string().max(64).optional().default('ntrip'),
   custom_fields: z.unknown().nullable().optional(),
-  owner_web_user_id: z.number().int().positive().nullable().optional()
+  owner_web_user_id: z.number().int().positive().nullable().optional(),
+  company_id: z.number().int().positive().nullable().optional()
 });
 
 const createSchema = stationBaseSchema.extend({
@@ -148,7 +150,8 @@ const updateSchema = z.object({
   network_mode: text(64),
   protocol: z.string().max(64).optional(),
   custom_fields: z.unknown().nullable().optional(),
-  owner_web_user_id: z.number().int().positive().nullable().optional()
+  owner_web_user_id: z.number().int().positive().nullable().optional(),
+  company_id: z.number().int().positive().nullable().optional()
 });
 
 function validateSourceFields(data: z.infer<typeof createSchema>): string | null {
@@ -164,7 +167,7 @@ function validateSourceFields(data: z.infer<typeof createSchema>): string | null
   return null;
 }
 
-const stationColumns = `s.*, u.display_name AS owner_name,
+const stationColumns = `s.*, u.display_name AS owner_name, c.name AS company_name,
   (SELECT COUNT(*) FROM mountpoints m WHERE m.station_id = s.id) AS mountpoint_count,
   (SELECT m.name FROM mountpoints m WHERE m.station_id = s.id ORDER BY m.id LIMIT 1) AS mountpoint_name,
   (SELECT a.username FROM ntrip_accounts a WHERE a.managed_by_station_id = s.id LIMIT 1) AS account_username,
@@ -176,28 +179,12 @@ const stationColumns = `s.*, u.display_name AS owner_name,
   (SELECT l.port FROM station_sources ss JOIN caster_listeners l ON l.id = ss.caster_listener_id
     WHERE ss.station_id = s.id) AS station_caster_port`;
 
-async function resolveOwner(req: any, requested?: number | null): Promise<number> {
-  const actor = req.auth!;
-  if (!requested || Number(requested) === actor.id) return actor.id;
-  if (req.permissionScope === 'own') {
-    throw new ApiError(403, 'FORBIDDEN', 'Không được gán chủ sở hữu khác');
-  }
-  if (req.permissionScope === 'subtree') {
-    const ids = await scopeIdsFor(req);
-    if (!ids.includes(Number(requested))) {
-      throw new ApiError(403, 'FORBIDDEN', 'Chủ sở hữu ngoài phạm vi quản lý');
-    }
-  }
-  const exists = await query<RowDataPacket[]>('SELECT id FROM web_users WHERE id = ?', [requested]);
-  if (exists.length === 0) throw new ApiError(400, 'INVALID_OWNER', 'Chủ sở hữu không tồn tại');
-  return Number(requested);
-}
-
 async function getStation(id: number): Promise<any | null> {
   const rows = await query<RowDataPacket[]>(
     `SELECT ${stationColumns}
        FROM stations s
        LEFT JOIN web_users u ON u.id = s.owner_web_user_id
+       LEFT JOIN companies c ON c.id = s.company_id
       WHERE s.id = ?`,
     [id]
   );
@@ -644,7 +631,7 @@ async function stationSampleRows(id: number, windowSec = 900): Promise<any[]> {
 async function scopedStation(req: any, id: number): Promise<any> {
   const station = await getStation(id);
   if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-  await assertRecordScope(req, station.owner_web_user_id);
+  await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
   return station;
 }
 
@@ -794,6 +781,11 @@ function whereFrom(req: any, scope: any, params: unknown[]) {
     where += ' AND s.receiver_type = ?';
     params.push(receiver);
   }
+  const companyId = Number(req.query.companyId || 0);
+  if (req.auth?.roleCode === 'super_admin' && Number.isInteger(companyId) && companyId > 0) {
+    where += ' AND s.company_id = ?';
+    params.push(companyId);
+  }
   return where;
 }
 
@@ -802,7 +794,7 @@ stationsRouter.get(
   requirePermission('stations', 'view'),
   asyncHandler(async (req, res) => {
     const ids = await scopeIdsFor(req);
-    const scope = listScope(req, ids);
+    const scope = listScope(req, ids, 's.owner_web_user_id', { companyColumn: 's.company_id' });
     const { pageSize, offset } = pageFrom(req);
     const params: unknown[] = [...scope.params];
     const where = whereFrom(req, scope, params);
@@ -810,6 +802,7 @@ stationsRouter.get(
       `SELECT ${stationColumns}
          FROM stations s
          LEFT JOIN web_users u ON u.id = s.owner_web_user_id
+         LEFT JOIN companies c ON c.id = s.company_id
         WHERE ${where}
         ORDER BY s.id DESC LIMIT ? OFFSET ?`,
       [...params, pageSize, offset]
@@ -843,13 +836,14 @@ stationsRouter.get(
   requirePermission('stations', 'view'),
   asyncHandler(async (req, res) => {
     const ids = await scopeIdsFor(req);
-    const scope = listScope(req, ids);
+    const scope = listScope(req, ids, 's.owner_web_user_id', { companyColumn: 's.company_id' });
     const params: unknown[] = [...scope.params];
     const where = whereFrom(req, scope, params);
     const [rows] = await adminPool.query<RowDataPacket[]>(
       `SELECT ${stationColumns}
          FROM stations s
          LEFT JOIN web_users u ON u.id = s.owner_web_user_id
+         LEFT JOIN companies c ON c.id = s.company_id
         WHERE ${where} ORDER BY s.id`,
       params
     );
@@ -966,10 +960,20 @@ stationsRouter.post(
     await withTransaction(async (conn) => {
       for (const item of normalized) {
         const [ownerRows]: any = await conn.query(
-          'SELECT id FROM web_users WHERE username = ? LIMIT 1',
+          'SELECT id, company_id FROM web_users WHERE username = ? LIMIT 1',
           [item.ownerUsername]
         );
         const ownerId = ownerRows[0]?.id ?? req.auth!.id;
+        const ownerCompany = ownerRows[0]?.company_id ?? null;
+        const companyId = isSuperAdmin(req)
+          ? ownerCompany
+          : req.auth!.companyId;
+        if (companyId === null || companyId === undefined) {
+          throw new ApiError(400, 'COMPANY_REQUIRED', 'Phải chọn công ty khi import trạm');
+        }
+        if (!isSuperAdmin(req) && ownerCompany !== null && Number(ownerCompany) !== Number(companyId)) {
+          throw new ApiError(400, 'OWNER_COMPANY_MISMATCH', 'Chủ sở hữu khác công ty');
+        }
         const data = item.data;
         const [existing]: any = await conn.query(
           'SELECT id, enabled, status FROM stations WHERE name = ? LIMIT 1',
@@ -983,7 +987,8 @@ stationsRouter.post(
           data.antenna_sn ?? '', data.antenna_height, data.elevation_mask, data.contractor ?? '',
           data.region ?? '', data.address ?? '', data.device_id ?? '', data.network_type ?? '',
           data.network_mode ?? '', data.protocol,
-          data.custom_fields === undefined ? null : JSON.stringify(data.custom_fields), ownerId
+          data.custom_fields === undefined ? null : JSON.stringify(data.custom_fields),
+          ownerId, companyId
         ];
         if (existing[0]) {
           await conn.query(
@@ -992,7 +997,7 @@ stationsRouter.post(
                station_type=?, enabled=?, receiver_type=?, receiver_sn=?, receiver_firmware=?,
                antenna_type=?, antenna_sn=?, antenna_height=?, elevation_mask=?, contractor=?,
                region=?, address=?, device_id=?, network_type=?, network_mode=?, protocol=?,
-               custom_fields=?, owner_web_user_id=? WHERE id=?`,
+           custom_fields=?, owner_web_user_id=?, company_id=? WHERE id=?`,
             [...values, Number(existing[0].id)]
           );
           updated += 1;
@@ -1017,8 +1022,8 @@ stationsRouter.post(
                lat, lon, notes, station_type, enabled,
                receiver_type, receiver_sn, receiver_firmware, antenna_type, antenna_sn,
                antenna_height, elevation_mask, contractor, region, address, device_id,
-               network_type, network_mode, protocol, custom_fields, owner_web_user_id, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               network_type, network_mode, protocol, custom_fields, owner_web_user_id, company_id, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [...values, req.auth!.id]
           );
           const stationId = Number(inserted.insertId);
@@ -1027,7 +1032,7 @@ stationsRouter.post(
               stationId
             ]);
           }
-          await createStationResources(conn, stationId, data, ownerId, req.auth!.id);
+          await createStationResources(conn, stationId, data, ownerId, req.auth!.id, companyId);
           created += 1;
         }
       }
@@ -1636,7 +1641,9 @@ stationsRouter.post(
     const body = createSchema.parse(req.body);
     const sourceError = validateSourceFields(body);
     if (sourceError) throw new ApiError(400, 'VALIDATION_ERROR', sourceError);
-    const ownerId = await resolveOwner(req, body.owner_web_user_id);
+    const ownership = await resolveWriteOwnership(req, body.owner_web_user_id, body.company_id);
+    const ownerId = ownership.ownerId;
+    const companyId = ownership.companyId;
     const created = await withTransaction(async (conn) => {
       const [result] = await conn.query<any>(
         `INSERT INTO stations
@@ -1645,9 +1652,9 @@ stationsRouter.post(
             address_detail, receiver_type, receiver_sn, receiver_firmware, antenna_type,
             antenna_sn, antenna_height, elevation_mask, contractor, region, address,
             device_id, network_type, network_mode, protocol, custom_fields,
-            owner_web_user_id, created_by)
+            owner_web_user_id, company_id, created_by)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                 ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           body.name, body.host ?? '', body.port, body.connection_type,
           body.source_type, body.ntrip_version, body.ntrip_mode,
@@ -1659,7 +1666,7 @@ stationsRouter.post(
           body.region ?? '', body.address ?? '', body.device_id ?? '', body.network_type ?? '',
           body.network_mode ?? '', body.protocol,
           body.custom_fields === undefined ? null : JSON.stringify(body.custom_fields),
-          ownerId, req.auth!.id
+          ownerId, companyId, req.auth!.id
         ]
       );
       const id = Number(result.insertId);
@@ -1671,7 +1678,8 @@ stationsRouter.post(
         id,
         body,
         ownerId,
-        req.auth!.id
+        req.auth!.id,
+        companyId
       );
       return { id, resources };
     });
@@ -1704,18 +1712,31 @@ stationsRouter.patch(
     const id = Number(req.params.id);
     const before = await getStation(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     const body = updateSchema.parse(req.body);
+    if (
+      body.company_id !== undefined &&
+      Number(body.company_id) !== (before.company_id === null ? null : Number(before.company_id))
+    ) {
+      throw new ApiError(400, 'COMPANY_IMMUTABLE', 'Không được đổi công ty của trạm');
+    }
     if (body.name !== undefined && body.name !== before.name) {
       throw new ApiError(409, 'IMMUTABLE_FIELD', 'Tên trạm không thể sửa sau khi tạo');
     }
     if (body.port !== undefined && Number(body.port) !== Number(before.port)) {
       throw new ApiError(409, 'IMMUTABLE_FIELD', 'Port trạm không thể sửa sau khi tạo');
     }
-    const ownerId =
-      body.owner_web_user_id === undefined
-        ? Number(before.owner_web_user_id)
-        : await resolveOwner(req, body.owner_web_user_id);
+    let ownerId = Number(before.owner_web_user_id);
+    let companyId = before.company_id === null ? null : Number(before.company_id);
+    if (body.owner_web_user_id !== undefined) {
+      const ownership = await resolveWriteOwnership(
+        req,
+        body.owner_web_user_id,
+        companyId
+      );
+      ownerId = ownership.ownerId;
+      companyId = ownership.companyId;
+    }
     const value = (key: string) =>
       body[key as keyof typeof body] === undefined ? before[key] : body[key as keyof typeof body];
     const enabledChanged =
@@ -1731,7 +1752,7 @@ stationsRouter.patch(
            receiver_type=?, receiver_sn=?, receiver_firmware=?,
            antenna_type=?, antenna_sn=?, antenna_height=?, elevation_mask=?, contractor=?,
            region=?, address=?, device_id=?, network_type=?, network_mode=?, protocol=?,
-           custom_fields=?, owner_web_user_id=? WHERE id=?`,
+           custom_fields=?, owner_web_user_id=?, company_id=? WHERE id=?`,
         [
           value('host'), value('connection_type'),
           value('source_type'), value('ntrip_version'), value('ntrip_mode'),
@@ -1742,7 +1763,7 @@ stationsRouter.patch(
           value('contractor'), value('region'), value('address'), value('device_id'),
           value('network_type'), value('network_mode'), value('protocol'),
           body.custom_fields === undefined ? before.custom_fields : JSON.stringify(body.custom_fields),
-          ownerId, id
+          ownerId, companyId, id
         ]
       );
       if (!enabledChanged) return null;
@@ -1764,7 +1785,7 @@ async function setStationEnabled(req: any, enabled: boolean) {
   const id = Number(req.params.id);
   const before = await getStation(id);
   if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-  await assertRecordScope(req, before.owner_web_user_id);
+  await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
   if (String(before.status) === 'locked') {
     throw new ApiError(400, 'STATION_LOCKED', 'Trạm đang khóa, phải mở khóa trước');
   }
@@ -1820,7 +1841,7 @@ stationsRouter.post(
     const id = Number(req.params.id);
     const before = await getStation(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     if (Number(before.enabled) === 1) {
       throw new ApiError(400, 'STATION_ENABLED', 'Phải tắt trạm trước khi khóa');
     }
@@ -1855,7 +1876,7 @@ stationsRouter.post(
     const id = Number(req.params.id);
     const before = await getStation(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     if (String(before.status) !== 'locked') {
       res.json({ item: before });
       return;
@@ -2095,7 +2116,7 @@ stationsRouter.get(
   asyncHandler(async (req, res) => {
     const station = await getStation(Number(req.params.id));
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, station.owner_web_user_id);
+    await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
     res.json(await buildStationActivity(station, String(req.query.range ?? '24h')));
   })
 );
@@ -2219,7 +2240,7 @@ stationsRouter.get(
   asyncHandler(async (req, res) => {
     const station = await getStation(Number(req.params.id));
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, station.owner_web_user_id);
+    await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
     const range = String(req.query.range ?? '1d');
     const hours = range === '30d' ? 720 : range === '7d' ? 168 : 24;
     const end = new Date();
@@ -2346,7 +2367,7 @@ stationsRouter.post(
     if (!password && body.stationId) {
       const station = await getStation(body.stationId);
       if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-      await assertRecordScope(req, station.owner_web_user_id);
+  await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
       const rows = await query<RowDataPacket[]>(
         'SELECT client_password_enc FROM station_sources WHERE station_id = ?',
         [body.stationId]
@@ -2468,7 +2489,7 @@ stationsRouter.get(
   asyncHandler(async (req, res) => {
     const station = await getStation(Number(req.params.id));
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, station.owner_web_user_id);
+    await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
     const rows = await query<RowDataPacket[]>(
       `SELECT ss.*, l.name AS caster_listener_name, l.port AS caster_port
          FROM station_sources ss
@@ -2486,7 +2507,7 @@ stationsRouter.put(
   asyncHandler(async (req, res) => {
     const station = await getStation(Number(req.params.id));
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, station.owner_web_user_id);
+    await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
     const body = sourceSchema.parse(req.body);
     if (body.source_role === 'ntrip_caster' && body.caster_listener_id) {
       const listeners = await query<RowDataPacket[]>(
@@ -2645,7 +2666,7 @@ stationsRouter.post(
         continue;
       }
       try {
-        await assertRecordScope(req, row.owner_web_user_id);
+        await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
         allowed.push(row);
       } catch {
         result.forbidden += 1;
@@ -2736,7 +2757,7 @@ stationsRouter.delete(
     const id = Number(req.params.id);
     const before = await getStation(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     if (Number(before.enabled) === 1) {
       throw new ApiError(400, 'STATION_ENABLED', 'Trạm đang bật, phải tắt trước khi xóa');
     }
