@@ -6,7 +6,8 @@ import { writeAudit } from '../lib/audit';
 import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
 import { asyncHandler, ApiError } from '../lib/http';
 import { hashPassword } from '../lib/password';
-import { callGoInternal } from '../lib/internalApi';
+import { reconcileAffected } from '../lib/reconcile';
+import { publishEntityChange } from '../lib/entityChange';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import {
@@ -23,13 +24,9 @@ ntripAccountsRouter.use(requireAuth);
 ntripAccountsRouter.use(csrfProtection);
 
 async function requestCasterReconcile(): Promise<void> {
-  try {
-    await callGoInternal('/internal/caster/reconcile', {});
-  } catch (err) {
-    console.warn(
-      '[ntrip-accounts] caster reconcile failed',
-      err instanceof Error ? err.message : 'unknown'
-    );
+  const result = await reconcileAffected({ caster: true });
+  if (!result.ok) {
+    console.warn('[ntrip-accounts] reconcile failed', result.errors.join('; '));
   }
 }
 
@@ -283,6 +280,7 @@ ntripAccountsRouter.put(
       }
     });
     await requestCasterReconcile();
+    publishEntityChange({ entity: 'ntrip_account', id: account.id, action: 'update_listener_acl' });
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -329,6 +327,7 @@ ntripAccountsRouter.put(
       }
     });
     await requestCasterReconcile();
+    publishEntityChange({ entity: 'ntrip_account', id: account.id, action: 'update_acl' });
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -398,6 +397,7 @@ ntripAccountsRouter.post(
       ipFrom(req)
     );
     await requestCasterReconcile();
+    publishEntityChange({ entity: 'ntrip_account', id: accountId, action: 'create' });
     res.status(201).json({ item: account ? publicAccount(account) : null });
   })
 );
@@ -484,6 +484,7 @@ ntripAccountsRouter.patch(
       ipFrom(req)
     );
     await requestCasterReconcile();
+    publishEntityChange({ entity: 'ntrip_account', id, action: 'update' });
     res.json({ item: after ? publicAccount(after) : null });
   })
 );
@@ -503,6 +504,11 @@ async function setEnabled(req: any, enabled: boolean) {
     ipFrom(req)
   );
   await requestCasterReconcile();
+  publishEntityChange({
+    entity: 'ntrip_account',
+    id: account.id,
+    action: enabled ? 'unlock' : 'lock'
+  });
   return after ? publicAccount(after) : null;
 }
 
@@ -566,7 +572,10 @@ ntripAccountsRouter.post(
       }
     });
     result.updated = allowed.length;
-    if (result.updated > 0) await requestCasterReconcile();
+    if (result.updated > 0) {
+      await requestCasterReconcile();
+      publishEntityChange({ entity: 'ntrip_account', id: 'bulk', action: body.action });
+    }
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -588,6 +597,7 @@ ntripAccountsRouter.delete(
     const account = await assertAccountScope(req, Number(req.params.id));
     await adminPool.query('DELETE FROM ntrip_accounts WHERE id = ?', [account.id]);
     await requestCasterReconcile();
+    publishEntityChange({ entity: 'ntrip_account', id: account.id, action: 'delete' });
     await writeAudit(
       adminPool,
       req.auth!.id,

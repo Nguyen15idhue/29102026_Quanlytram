@@ -1,6 +1,6 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { withTransaction } from '../db/pool';
-import { callGoInternal } from './internalApi';
+import { reconcileAffected, type ReconcileResult } from './reconcile';
 
 export interface StationStreamEffect {
   relayJobIds: number[];
@@ -104,33 +104,17 @@ export async function setStationStreamingInTransaction(
 
 export async function notifyStationStreamingChange(
   effect: StationStreamEffect
-): Promise<void> {
-  try {
-    if (effect.relayJobIds.length > 0) {
-      await callGoInternal('/internal/reconcile', { jobIds: effect.relayJobIds });
-    }
-  } catch (err) {
-    console.warn(
-      '[stations] relay reconcile failed',
-      err instanceof Error ? err.message : 'unknown'
-    );
+): Promise<ReconcileResult> {
+  const result = await reconcileAffected({
+    relayJobIds: effect.relayJobIds,
+    mountpointIds: effect.mountpointIds,
+    caster: true,
+    probe: true
+  });
+  if (!result.ok) {
+    console.warn('[stations] reconcile failed', result.errors.join('; '));
   }
-  try {
-    await callGoInternal('/internal/caster/reconcile', {});
-  } catch (err) {
-    console.warn(
-      '[stations] caster reconcile failed',
-      err instanceof Error ? err.message : 'unknown'
-    );
-  }
-  try {
-    await callGoInternal('/internal/probe/reconcile', {});
-  } catch (err) {
-    console.warn(
-      '[stations] probe reconcile failed',
-      err instanceof Error ? err.message : 'unknown'
-    );
-  }
+  return result;
 }
 
 export async function setStationStreaming(

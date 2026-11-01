@@ -53,6 +53,26 @@ export function socketClientCount(): number {
   return activeIo?.engine?.clientsCount ?? 0;
 }
 
+export interface EntityChangeEvent {
+  entity:
+    | 'station'
+    | 'mountpoint'
+    | 'ntrip_account'
+    | 'listener'
+    | 'relay_job'
+    | 'probe';
+  id: number | string;
+  action: string;
+  ts?: string;
+}
+
+export function emitEntityChange(event: EntityChangeEvent): void {
+  activeIo?.emit('entity.changed', {
+    ...event,
+    ts: event.ts ?? new Date().toISOString()
+  });
+}
+
 export function parseCookieHeader(header: string | undefined): Record<string, string> {
   const out: Record<string, string> = {};
   if (!header) return out;

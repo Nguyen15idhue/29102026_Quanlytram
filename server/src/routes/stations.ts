@@ -15,6 +15,7 @@ import { decryptSecret, encryptSecret } from '../lib/crypto';
 import { callGoInternal } from '../lib/internalApi';
 import { hashPassword } from '../lib/password';
 import { createStationResources } from '../lib/stationResources';
+import { publishEntityChange } from '../lib/entityChange';
 import {
   notifyStationStreamingChange,
   setStationStreamingInTransaction,
@@ -1351,12 +1352,12 @@ stationsRouter.post(
       );
       return { id, resources };
     });
-    if (body.enabled) {
-      await notifyStationStreamingChange({
-        relayJobIds: [],
-        mountpointIds: [created.resources.mountpointId]
-      });
-    }
+    const reconcile = body.enabled
+      ? await notifyStationStreamingChange({
+          relayJobIds: [],
+          mountpointIds: [created.resources.mountpointId]
+        })
+      : null;
     const station = await getStation(created.id);
     await writeAudit(
       adminPool,
@@ -1368,7 +1369,8 @@ stationsRouter.post(
       { station, resources: created.resources },
       ipFrom(req)
     );
-    res.status(201).json({ item: station, resources: created.resources });
+    publishEntityChange({ entity: 'station', id: created.id, action: 'create' });
+    res.status(201).json({ item: station, resources: created.resources, reconcile });
   })
 );
 
@@ -1427,10 +1429,11 @@ stationsRouter.patch(
       ]);
       return setStationStreamingInTransaction(conn, id, Boolean(body.enabled));
     });
-    if (effect) await notifyStationStreamingChange(effect);
+    const reconcile = effect ? await notifyStationStreamingChange(effect) : null;
     const after = await getStation(id);
     await writeAudit(adminPool, req.auth!.id, 'update', 'station', id, before, after, ipFrom(req));
-    res.json({ item: after });
+    publishEntityChange({ entity: 'station', id, action: 'update' });
+    res.json({ item: after, reconcile });
   })
 );
 
@@ -1463,6 +1466,11 @@ async function setStationEnabled(req: any, enabled: boolean) {
     after,
     ipFrom(req)
   );
+  publishEntityChange({
+    entity: 'station',
+    id,
+    action: enabled ? 'enable' : 'disable'
+  });
   return after;
 }
 
@@ -2308,6 +2316,7 @@ stationsRouter.delete(
       { mountpointIds: result.mountpointIds, relayJobIds: result.relayJobIds },
       ipFrom(req)
     );
+    publishEntityChange({ entity: 'station', id, action: 'delete' });
     res.status(204).send();
   })
 );

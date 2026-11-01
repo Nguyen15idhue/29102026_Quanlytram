@@ -17,8 +17,10 @@ import {
   scopeIdsFor
 } from '../rbac/access';
 import { callGoInternal } from '../lib/internalApi';
+import { reconcileAffected } from '../lib/reconcile';
 import { publicConnection, type GoConnection } from '../lib/caster';
 import { mountpointSourceState } from '../lib/mountpointExplorer';
+import { publishEntityChange } from '../lib/entityChange';
 
 export const mountpointsRouter = Router();
 mountpointsRouter.use(requireAuth);
@@ -32,24 +34,12 @@ function duplicateMountpointGuard(err: unknown): never {
 }
 
 async function reconcileAfterMountpointChange(relayJobIds: number[]): Promise<void> {
-  try {
-    await callGoInternal('/internal/caster/reconcile', {});
-  } catch (err) {
-    console.warn(
-      '[mountpoints] caster reconcile failed',
-      err instanceof Error ? err.message : 'unknown'
-    );
-  }
-  const ids = [...new Set(relayJobIds)].filter((id) => id > 0);
-  if (ids.length > 0) {
-    try {
-      await callGoInternal('/internal/reconcile', { jobIds: ids });
-    } catch (err) {
-      console.warn(
-        '[mountpoints] relay reconcile failed',
-        err instanceof Error ? err.message : 'unknown'
-      );
-    }
+  const result = await reconcileAffected({
+    relayJobIds,
+    caster: true
+  });
+  if (!result.ok) {
+    console.warn('[mountpoints] reconcile failed', result.errors.join('; '));
   }
 }
 
@@ -642,6 +632,7 @@ mountpointsRouter.post(
     const item = await getMountpoint(Number(result.insertId));
     await reconcileAfterMountpointChange([]);
     await writeAudit(adminPool, req.auth!.id, 'create', 'mountpoint', result.insertId, null, item, ipFrom(req));
+    publishEntityChange({ entity: 'mountpoint', id: result.insertId, action: 'create' });
     res.status(201).json({ item: publicMountpoint(item) });
   })
 );
@@ -714,6 +705,7 @@ mountpointsRouter.patch(
     await reconcileAfterMountpointChange(relayJobIds);
     const after = await getMountpoint(id);
     await writeAudit(adminPool, req.auth!.id, 'update', 'mountpoint', id, before, after, ipFrom(req));
+    publishEntityChange({ entity: 'mountpoint', id, action: 'update' });
     res.json({ item: publicMountpoint(after) });
   })
 );
@@ -798,6 +790,9 @@ mountpointsRouter.post(
       { ids, result },
       ipFrom(req)
     );
+    if (result.updated > 0) {
+      publishEntityChange({ entity: 'mountpoint', id: 'bulk', action: body.action });
+    }
     res.json({ result });
   })
 );
@@ -822,6 +817,7 @@ mountpointsRouter.delete(
     });
     await reconcileAfterMountpointChange(relayJobIds);
     await writeAudit(adminPool, req.auth!.id, 'delete', 'mountpoint', id, before, null, ipFrom(req));
+    publishEntityChange({ entity: 'mountpoint', id, action: 'delete' });
     res.status(204).send();
   })
 );

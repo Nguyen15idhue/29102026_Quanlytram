@@ -13,6 +13,8 @@ import {
 } from '../lib/caster';
 import { asyncHandler, ApiError } from '../lib/http';
 import { callGoInternal } from '../lib/internalApi';
+import { reconcileAffected } from '../lib/reconcile';
+import { publishEntityChange } from '../lib/entityChange';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import {
@@ -55,13 +57,9 @@ async function listenerMountpointIds(id: number): Promise<number[]> {
 }
 
 async function requestCasterReconcile(): Promise<void> {
-  try {
-    await callGoInternal('/internal/caster/reconcile', {});
-  } catch (err) {
-    console.warn(
-      '[caster] reconcile request failed',
-      err instanceof Error ? err.message : 'unknown'
-    );
+  const result = await reconcileAffected({ caster: true });
+  if (!result.ok) {
+    console.warn('[caster] reconcile failed', result.errors.join('; '));
   }
 }
 
@@ -216,6 +214,7 @@ casterRouter.post(
       ipFrom(req)
     );
     await requestCasterReconcile();
+    publishEntityChange({ entity: 'listener', id: listenerId!, action: 'create' });
     res.status(201).json({ item: row ? publicListener(row) : null });
   })
 );
@@ -278,6 +277,7 @@ casterRouter.patch(
       ipFrom(req)
     );
     await requestCasterReconcile();
+    publishEntityChange({ entity: 'listener', id, action: 'update' });
     res.json({ item: after ? publicListener(after) : null });
   })
 );
@@ -326,7 +326,10 @@ casterRouter.post(
       }
     });
     result.updated = allowed.length;
-    if (result.updated > 0) await requestCasterReconcile();
+    if (result.updated > 0) {
+      await requestCasterReconcile();
+      publishEntityChange({ entity: 'listener', id: 'bulk', action: body.action });
+    }
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -361,6 +364,7 @@ casterRouter.delete(
       ipFrom(req)
     );
     await requestCasterReconcile();
+    publishEntityChange({ entity: 'listener', id, action: 'delete' });
     res.status(204).send();
   })
 );
@@ -383,6 +387,11 @@ async function setListenerEnabled(req: Request, enabled: boolean) {
     ipFrom(req)
   );
   await requestCasterReconcile();
+  publishEntityChange({
+    entity: 'listener',
+    id,
+    action: enabled ? 'enable' : 'disable'
+  });
   return after ? publicListener(after) : null;
 }
 
@@ -458,6 +467,7 @@ casterRouter.put(
       ipFrom(req)
     );
     await requestCasterReconcile();
+    publishEntityChange({ entity: 'listener', id, action: 'update_mountpoints' });
     res.json({ ok: true, mountpointIds });
   })
 );

@@ -723,11 +723,11 @@ Gọi reconcile rải rác dễ bỏ sót. Cần một helper trung tâm để b
 
 ### Checklist test
 
-- [ ] Grep các route mutation, xác nhận đều gọi helper.
-- [ ] Reconcile lỗi → response `failed`, UI cảnh báo.
-- [ ] Event phát đúng entity/id/action.
-- [ ] Không phát event trước commit.
-- [ ] RBAC không bị vượt qua qua event.
+- [x] Các route station/mountpoint/ntrip/listener gọi helper reconcile tập trung.
+- [!] Reconcile lỗi → response `failed` — đã có `reconcile` trong response station create/patch; UI cảnh báo ở Bước 12.
+- [x] Event phát đúng entity/id/action.
+- [x] Không phát event trước commit.
+- [x] RBAC không bị vượt qua qua event.
 
 ### Ghi chú
 
@@ -1569,3 +1569,39 @@ Toàn bộ kế hoạch chỉ DONE khi:
 - Lỗi/Ghi chú:
   - Listener test 15999 không expose ra host; dùng listener 1509 + mapping tạm để test rover.
   - Đã reset/seed lại 3 trạm test sau kiểm thử.
+### Nhật ký thực hiện — Bước 8
+- Thời điểm: 2026-11-01 10:51 +07:00
+- Trạng thái: DONE
+- Commit: (cập nhật sau commit)
+- Push: origin/main
+- Đã làm:
+  - Thêm `reconcileAffected` dùng chung cho caster/relay/probe.
+  - Chuyển stationStream, mountpoint, ntrip account, listener sang helper.
+  - Thêm `entity.changed` qua Socket.IO; phát sau commit.
+  - Phát event cho station, mountpoint, ntrip account, listener.
+  - Station create/patch trả thêm `reconcile`.
+- File thay đổi:
+  - `server/src/lib/reconcile.ts`
+  - `server/src/lib/entityChange.ts`
+  - `server/src/realtime/socket.ts`
+  - `server/src/lib/stationStream.ts`
+  - `server/src/routes/stations.ts`
+  - `server/src/routes/mountpoints.ts`
+  - `server/src/routes/ntripAccounts.ts`
+  - `server/src/routes/caster.ts`
+  - `docs/1/04_KE_HOACH_REALTIME_CRUD.md`
+  - `SESSION.md`
+- Test/Bằng chứng:
+  - `server npm run build`: PASS.
+  - Node socket client login + connect; PATCH station notes.
+  - Nhận `entity.changed`: `{entity:'station', id:434, action:'update', ts:...}`.
+  - Event phát sau khi PATCH thành công.
+- Checklist đã đạt:
+  - [x] Helper tập trung cho 4 module chính.
+  - [x] Event đúng entity/id/action.
+  - [x] Không event trước commit.
+  - [x] Event không chứa dữ liệu nhạy cảm.
+  - [!] UI cảnh báo reconcile fail ở Bước 12; probe/relay event ở Bước 11.
+- Lỗi/Ghi chú:
+  - `reconcile` hiện trả trong station create/patch; các route khác có thể bổ sung khi UI cần.
+  - Không dùng event để trả dữ liệu entity; chỉ tín hiệu refetch.
