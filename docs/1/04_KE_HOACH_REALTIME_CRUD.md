@@ -1714,7 +1714,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 12
 - Thời điểm: 2026-11-01 11:22 +07:00
 - Trạng thái: DONE
-- Commit: (cập nhật sau commit)
+- Commit: d094a11
 - Push: origin/main
 - Đã làm:
   - RealtimeProvider nghe `entity.changed` và invalidate query key theo entity.
