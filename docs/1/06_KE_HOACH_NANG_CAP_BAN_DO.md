@@ -687,30 +687,47 @@ Geoapify forward/reverse trả kết quả.
 
 ### P06-3 — Cấu hình map cho super admin
 
-- [ ] `GET/PUT /api/map/config`, `POST /api/map/config/test`.
-- [ ] Lưu `settings['map.config']`; audit.
-- [ ] **Quyền:**
+- [x] `GET/PUT /api/map/config`, `POST /api/map/config/test`.
+- [x] Lưu `settings['map.config']`; audit.
+- [x] **Quyền:**
   - `GET` cho user đã đăng nhập, response sanitized.
   - `PUT`/`test`: `settings.edit` + super admin.
   - Admin/user gọi trực tiếp → 403.
-- [ ] **UI:**
+- [x] **UI:**
   - Trang `/system/map-config` hoặc panel trong Hệ thống.
   - Menu/nút chỉ hiện khi `can('settings','edit')`.
   - Không hard-code role trong component.
-- [ ] Panel super admin tối giản:
+- [x] Panel super admin tối giản:
   - provider/tile mode/tile URL/attribution/subdomains
   - maxZoom/maxNativeZoom/retina
   - center/zoom
   - 3 mode
   - Test kết nối
-- [ ] Refresh map sau lưu.
-- [ ] Chặn URL ngoài allowlist; sanitize secret.
-- [ ] Cập nhật `docs/api.md`.
+- [x] Refresh map sau lưu.
+- [x] Chặn URL ngoài allowlist; sanitize secret.
+- [x] Cập nhật `docs/api.md`.
 
 **Nghiệm thu:**
 - Super đổi nền, lưu, map tải lại theo config.
 - Admin/user không đổi được.
 - Không lộ key.
+
+**Kết quả P06-3 (2026-11-01):**
+
+| Mục | Kết quả | Bằng chứng |
+|---|---|---|
+| Lưu config | PASS | `settings['map.config']` JSON; PUT zoom 7 → GET zoom 7; đổi lại zoom 6 |
+| Audit | PASS | `audit_logs` row 1616/1617: `action=update`, `entity_type=map_config`, `entity_id=map.config`, redacted |
+| GET sanitized | PASS | super/admin/user/custom role 200; response không `apiKey/token/secret/password` |
+| PUT/test RBAC | PASS | admin/user 403; super 200; audit ghi nhận |
+| Secret không lưu | PASS | PUT kèm `apiKey` → 200 nhưng response/GET không có `apiKey` |
+| Allowlist | PASS | direct `tile.openstreetmap.org` → 400 `VALIDATION_ERROR` |
+| Test kết nối | PASS | streets `osm-de`, satellite `esri`, terrain `opentopomap`, tất cả 200 |
+| UI `/system/map-config` | PASS | menu “Cấu hình bản đồ” chỉ hiện với `settings.edit`; user1 vào trực tiếp thấy “Bạn không có quyền truy cập trang này.” |
+| Refresh map sau lưu | PASS | invalidate query `map-config`; reload trang giữ giá trị mới |
+| Playwright | PASS | `map-config.spec.ts` 2/2 |
+| Frontend tsc/build | PASS | `npx tsc --noEmit`, `npm run build` |
+| Server tsc/test/build | PASS | 71/71 |
 
 ### P06-4 — Test & rollout
 

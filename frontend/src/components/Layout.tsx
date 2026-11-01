@@ -38,6 +38,7 @@ const titles: Record<string, string> = {
   '/companies': 'Công ty',
   '/roles': 'Vai trò & quyền',
   '/system/health': 'System Health',
+  '/system/map-config': 'Cấu hình bản đồ',
   '/profile': 'Trang cá nhân'
 };
 
@@ -105,6 +106,12 @@ export function Layout() {
           label: 'Sức khỏe',
           icon: Activity,
           show: can('system_health', 'view')
+        },
+        {
+          to: '/system/map-config',
+          label: 'Cấu hình bản đồ',
+          icon: MapPinned,
+          show: can('settings', 'edit')
         },
         { to: '/alerts', label: 'Cảnh báo', icon: Bell, show: can('alerts', 'view') },
         { to: '/history', label: 'Lịch sử', icon: History, show: can('relay', 'view') || can('audit', 'view') },

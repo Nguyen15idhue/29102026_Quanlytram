@@ -1653,6 +1653,23 @@ label.check input {
   font-size: 11px;
 }
 
+.text-ok {
+  color: var(--ok);
+  font-weight: 600;
+}
+
+.text-error {
+  color: var(--danger, #c53030);
+  font-weight: 600;
+}
+
+.map-config-test ul {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 4px;
+}
+
 @media (max-width: 560px) {
   .map-filter-grid {
     grid-template-columns: 1fr;

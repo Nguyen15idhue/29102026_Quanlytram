@@ -1,6 +1,7 @@
 import { RowDataPacket } from 'mysql2/promise';
 import { z } from 'zod';
 import { query } from '../db/pool';
+import { ApiError } from './http';
 
 export type MapMode = 'streets' | 'satellite' | 'terrain';
 export type TileMode = 'proxy' | 'direct';
@@ -195,20 +196,24 @@ export function mergeMapConfig(
 function checkUrlSafety(config: MapConfig): MapConfig {
   if (config.tileMode === 'proxy') {
     if (!config.tileUrl.startsWith('/api/map/tiles')) {
-      throw new Error('tileUrl proxy phải trỏ tới /api/map/tiles');
+      throw new ApiError(400, 'VALIDATION_ERROR', 'tileUrl proxy phải trỏ tới /api/map/tiles');
     }
     for (const mode of MAP_MODES) {
       if (!config.modes[mode].tileUrl.startsWith('/api/map/tiles')) {
-        throw new Error(`tileUrl mode ${mode} phải trỏ tới /api/map/tiles`);
+        throw new ApiError(
+          400,
+          'VALIDATION_ERROR',
+          `tileUrl mode ${mode} phải trỏ tới /api/map/tiles`
+        );
       }
     }
   } else {
     if (!isAllowedHttpUrl(config.tileUrl)) {
-      throw new Error('tileUrl nằm ngoài allowlist');
+      throw new ApiError(400, 'VALIDATION_ERROR', 'tileUrl nằm ngoài allowlist');
     }
     for (const mode of MAP_MODES) {
       if (!isAllowedHttpUrl(config.modes[mode].tileUrl)) {
-        throw new Error(`tileUrl mode ${mode} nằm ngoài allowlist`);
+        throw new ApiError(400, 'VALIDATION_ERROR', `tileUrl mode ${mode} nằm ngoài allowlist`);
       }
     }
   }
