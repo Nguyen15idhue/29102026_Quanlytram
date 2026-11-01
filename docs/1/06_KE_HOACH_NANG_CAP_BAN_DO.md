@@ -601,11 +601,11 @@ Geoapify forward/reverse trả kết quả.
 
 ### P06-1 — Sửa nền tảng: tile + toạ độ
 
-- [ ] Thêm `server/src/lib/mapConfig*` (default, sanitize, validate).
-- [ ] Thêm `GET /api/map/config`.
-- [ ] Thêm `GET /api/map/tiles/:z/:x/:y` proxy.
-- [ ] Cấu hình allowlist + cache + fallback.
-- [ ] Sửa `GET /api/map/overview`:
+- [x] Thêm `server/src/lib/mapConfig*` (default, sanitize, validate).
+- [x] Thêm `GET /api/map/config`.
+- [x] Thêm `GET /api/map/tiles/:z/:x/:y` proxy.
+- [x] Cấu hình allowlist + cache + fallback.
+- [x] Sửa `GET /api/map/overview`:
   - fallback toạ độ 1005 → station
   - `coordSource`, `hasCoords`, `missingCoords`
   - filter `transport/status/hasCoords`
@@ -613,12 +613,12 @@ Geoapify forward/reverse trả kết quả.
   - **giữ scope `stations.view` + company/owner hiện tại**
   - **field-level gate quality/relay/online-account**
   - trả `layersAvailable`
-- [ ] Frontend `useMapConfig` + `MapCanvas` bước đầu.
-- [ ] `UnifiedMap` dùng config thay OSM hard-code.
-- [ ] Thêm banner lỗi tile + retry.
-- [ ] **Form trạm:** thêm input nhập tay “Vĩ độ dự phòng” / “Kinh độ dự phòng”
+- [x] Frontend `useMapConfig` + `MapCanvas` bước đầu.
+- [x] `UnifiedMap` dùng config thay OSM hard-code.
+- [x] Thêm banner lỗi tile + retry.
+- [x] **Form trạm:** thêm input nhập tay “Vĩ độ dự phòng” / “Kinh độ dự phòng”
       dùng `stations.lat/lon`; validation WGS84.
-- [ ] Test nhanh RBAC: user không thấy owner/company khác; layer online
+- [x] Test nhanh RBAC: user không thấy owner/company khác; layer online
       accounts ẩn nếu thiếu `connections.view`.
 
 **Nghiệm thu:**
@@ -626,6 +626,23 @@ Geoapify forward/reverse trả kết quả.
 - Marker = số trạm có toạ độ.
 - Trạm chỉ có `stations.lat/lon` hiện marker; nhập được trong form trạm.
 - Không còn hard-code OSM trong page.
+
+**Kết quả P06-1 (2026-11-01):**
+
+| Mục | Kết quả | Bằng chứng |
+|---|---|---|
+| Server tsc/build | PASS | `npx tsc --noEmit`, `npm run build` |
+| Server Vitest | PASS | 71/71 (thêm `tests/map.test.ts` 10 test) |
+| Frontend tsc/build | PASS | `npx tsc --noEmit`, `npm run build` |
+| Tile proxy | PASS | `/api/map/tiles/5/24/15` 200 image/png 14.685B, `X-Tile-Proxy-Status: ok`, `Cache-Control: public, max-age=86400` |
+| Tile satellite/terrain | PASS | satellite 200 image/jpeg 12.295B; terrain 200 image/png 30.195B |
+| Tile lỗi/z-x-y/mode | PASS | z=5,x=999 → 400 `INVALID_TILE`; mode sai → 400 `INVALID_MODE`; chưa login → 401 |
+| Toạ độ marker | PASS | trạm 480 `coordSource=1005`; trạm 481 `coordSource=station`; trạm 482/483 `none`; super `withCoords=2`, `missingCoords=2` |
+| Field-level gate | PASS | user role `quality.view=own`, `relay.view=tenant`; custom role chỉ `stations.view`: `relayJobCount=null`, `quality=unknown`, `onlineAccounts=0`, thiếu layer `online_accounts` |
+| RBAC config | PASS | GET config: super/admin/user/custom 200, không secret; PUT/test: admin/user 403, super 200 |
+| RBAC company | PASS | admin company 1 gửi `companyId=999` bị bỏ qua, vẫn thấy 3 trạm company 1 |
+| Form trạm | PASS | có input “Vĩ độ dự phòng”/“Kinh độ dự phòng”, `type=number`, min/max WGS84 |
+| Playwright smoke | PASS | tile proxy 200 ảnh, marker count 2, attribution OSM, chuyển satellite attribution Esri, form có 2 input; không console error |
 
 ### P06-2 — Bộ lọc, tìm kiếm, tương tác bản đồ
 

@@ -3,12 +3,21 @@ import { RowDataPacket } from 'mysql2/promise';
 import { query } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
 import { asyncHandler } from '../lib/http';
-import { ecefToGeodetic } from '../lib/geo';
+import {
+  getMapConfig,
+  isMapMode,
+  parseTileCoord,
+  MapMode
+} from '../lib/mapConfig';
+import { resolveStationCoords } from '../lib/mapCoords';
 import { fetchLiveQuality } from '../lib/quality';
 import { transportStatusFor } from '../lib/stationDetail';
+import { fetchTile, TRANSPARENT_PNG } from '../lib/tileProxy';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import { listScope, scopeIdsFor } from '../rbac/access';
+import { permissionsForRole } from '../rbac/permissions';
+import { inScope, Scope, scopeClause, subtreeIds, tenantIds } from '../rbac/scope';
 
 export const mapRouter = Router();
 mapRouter.use(requireAuth);
@@ -27,18 +36,112 @@ function sourceTypeOf(row: RowDataPacket, relayJobCount: number): string {
   return 'manual';
 }
 
+const TRANSPORT_VALUES = new Set(['online', 'stale', 'no_data', 'offline', 'error', 'unknown']);
+
+function parseList(value: unknown): string[] {
+  return String(value ?? '')
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+async function relayScopeClause(scope: Scope, actorId: number): Promise<{ sql: string; params: unknown[] }> {
+  if (scope === 'all') return { sql: '1=1', params: [] };
+  if (scope === 'tenant') return { sql: '__TENANT__', params: [] };
+  if (scope === 'own') return { sql: 'r.owner_web_user_id = ?', params: [actorId] };
+  if (scope === 'subtree') {
+    const ids = await subtreeIds(actorId);
+    return {
+      sql: scopeClause('subtree', actorId, ids, 'r.owner_web_user_id').sql,
+      params: ids
+    };
+  }
+  return { sql: '1=0', params: [] };
+}
+
+mapRouter.get(
+  '/tiles/:z/:x/:y',
+  asyncHandler(async (req, res) => {
+    const config = await getMapConfig();
+    if (config.tileMode !== 'proxy') {
+      res.status(404).json({
+        error: { code: 'TILE_PROXY_DISABLED', message: 'Tile proxy đang tắt' }
+      });
+      return;
+    }
+    const coord = parseTileCoord(req.params.z, req.params.x, req.params.y);
+    if (!coord) {
+      res.status(400).json({
+        error: { code: 'INVALID_TILE', message: 'Toạ độ tile không hợp lệ' }
+      });
+      return;
+    }
+    const modeRaw = String(req.query.mode ?? 'streets');
+    if (!isMapMode(modeRaw)) {
+      res.status(400).json({
+        error: { code: 'INVALID_MODE', message: 'Mode tile không hợp lệ' }
+      });
+      return;
+    }
+    const mode = modeRaw as MapMode;
+    const result = await fetchTile(mode, coord.z, coord.x, coord.y);
+    if (!result) {
+      res.status(502);
+      res.setHeader('X-Tile-Proxy-Status', 'fallback');
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'no-store');
+      res.send(TRANSPARENT_PNG);
+      return;
+    }
+    res.status(200);
+    res.setHeader('X-Tile-Proxy-Status', 'ok');
+    res.setHeader('Content-Type', result.contentType);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(result.buffer);
+  })
+);
+
 mapRouter.get(
   '/overview',
   requirePermission('stations', 'view'),
   asyncHandler(async (req, res) => {
+    const perms = await permissionsForRole(req.auth!.roleId);
+    const scopeOf = (code: string): Scope =>
+      (perms.find((item) => item.code === code)?.scope ?? 'none') as Scope;
+    const qualityScope = scopeOf('quality.view');
+    const relayScope = scopeOf('relay.view');
+    const connectionsScope = scopeOf('connections.view');
+    const qualityAllowed = qualityScope !== 'none';
+    const relayAllowed = relayScope !== 'none';
+    const connectionsAllowed = connectionsScope !== 'none';
+    const qualityIds =
+      qualityScope === 'tenant'
+        ? await tenantIds(req.auth!.id)
+        : qualityScope === 'subtree'
+          ? await subtreeIds(req.auth!.id)
+          : [];
+
     const ids = await scopeIdsFor(req);
     const scope = listScope(req, ids, 's.owner_web_user_id', { companyColumn: 's.company_id' });
     const params: unknown[] = [...scope.params];
     let where = scope.sql;
+
+    const isSuper = req.auth!.roleCode === 'super_admin';
+    const companyIdParam = Number(req.query.companyId || 0);
+    if (isSuper && Number.isInteger(companyIdParam) && companyIdParam > 0) {
+      where += ' AND s.company_id = ?';
+      params.push(companyIdParam);
+    }
+    const baseWhere = where;
+    const baseParams: unknown[] = [...params];
+
     const q = String(req.query.q || '').trim();
     if (q) {
-      where += ' AND (s.name LIKE ? OR s.region LIKE ? OR s.address LIKE ?)';
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+      where +=
+        ' AND (s.name LIKE ? OR CAST(s.id AS CHAR) LIKE ? OR s.region LIKE ?' +
+        ' OR s.address LIKE ? OR u.display_name LIKE ? OR c.name LIKE ?)';
+      const like = `%${q}%`;
+      params.push(like, like, like, like, like, like);
     }
     const region = String(req.query.region || '').trim();
     if (region) {
@@ -50,10 +153,18 @@ mapRouter.get(
       where += ' AND s.owner_web_user_id = ?';
       params.push(owner);
     }
+    const status = String(req.query.status || '').trim();
+    if (status === 'active') {
+      where += " AND s.enabled = 1 AND s.status <> 'locked'";
+    } else if (status === 'disabled') {
+      where += ' AND s.enabled = 0';
+    } else if (status === 'locked') {
+      where += " AND s.status = 'locked'";
+    }
 
     const rows = await query<RowDataPacket[]>(
       `SELECT s.id, s.name, s.region, s.address, s.source_type, s.ntrip_mode,
-              s.enabled, s.status, s.company_id,
+              s.enabled, s.status, s.company_id, s.lat, s.lon,
               s.owner_web_user_id, u.display_name AS owner_name, c.name AS company_name
          FROM stations s
          LEFT JOIN web_users u ON u.id = s.owner_web_user_id
@@ -64,6 +175,28 @@ mapRouter.get(
       params
     );
     const stationIds = rows.map((row) => Number(row.id));
+
+    const relayCountByMount = new Map<string, number>();
+    if (relayAllowed && stationIds.length > 0) {
+      const relayScopeValue = await relayScopeClause(relayScope, req.auth!.id);
+      const useTenant = relayScopeValue.sql === '__TENANT__';
+      const relaySql = useTenant ? 'r.company_id = ?' : relayScopeValue.sql;
+      const relayParams = useTenant
+        ? [req.auth!.companyId ?? -1]
+        : relayScopeValue.params;
+      const relayRows = await query<RowDataPacket[]>(
+        `SELECT r.upstream_mount, COUNT(*) AS c
+           FROM relay_jobs r
+          WHERE r.deleted_at IS NULL AND r.upstream_mount IS NOT NULL
+            AND ${relaySql}
+          GROUP BY r.upstream_mount`,
+        relayParams
+      );
+      for (const row of relayRows) {
+        relayCountByMount.set(String(row.upstream_mount), Number(row.c));
+      }
+    }
+
     const [latestRows, mountpointRows, live] = await Promise.all([
       stationIds.length
         ? runtimeQuery<RowDataPacket[]>(
@@ -79,17 +212,15 @@ mapRouter.get(
         : [],
       stationIds.length
         ? query<RowDataPacket[]>(
-            `SELECT m.id, m.station_id, m.name,
-                    (SELECT COUNT(*) FROM relay_jobs r
-                      WHERE r.deleted_at IS NULL AND r.upstream_mount = m.name) AS relay_count
+            `SELECT m.id, m.station_id, m.name
                FROM mountpoints m WHERE m.station_id IN (${placeholders(stationIds)})`,
             stationIds
           )
         : [],
-      fetchLiveQuality(1500)
+      qualityAllowed ? fetchLiveQuality(1500) : Promise.resolve({ items: [] as any[] })
     ]);
 
-    const latestMap = new Map<number, any>();
+    const latestMap = new Map<number, RowDataPacket>();
     for (const row of latestRows) latestMap.set(Number(row.target_id), row);
     const liveMap = new Map<number, any>();
     for (const item of live.items) {
@@ -104,13 +235,16 @@ mapRouter.get(
     for (const row of mountpointRows) {
       const stationId = Number(row.station_id);
       mountpointCount.set(stationId, (mountpointCount.get(stationId) ?? 0) + 1);
-      relayCount.set(stationId, (relayCount.get(stationId) ?? 0) + Number(row.relay_count ?? 0));
+      relayCount.set(
+        stationId,
+        (relayCount.get(stationId) ?? 0) + (relayCountByMount.get(String(row.name)) ?? 0)
+      );
       mountpointIds.push(Number(row.id));
       stationByMountpoint.set(Number(row.id), stationId);
     }
 
     const onlineSets = new Map<number, Set<string>>();
-    if (mountpointIds.length > 0) {
+    if (connectionsAllowed && mountpointIds.length > 0) {
       const connectionRows = await runtimeQuery<RowDataPacket[]>(
         `SELECT id, mountpoint_id, account_id FROM caster_connections
           WHERE end_ts IS NULL AND mountpoint_id IN (${placeholders(mountpointIds)})`,
@@ -126,29 +260,17 @@ mapRouter.get(
     }
 
     const now = Date.now();
+    const actorId = req.auth!.id;
     const items = rows.map((row) => {
       const stationId = Number(row.id);
+      const ownerId =
+        row.owner_web_user_id === null || row.owner_web_user_id === undefined
+          ? null
+          : Number(row.owner_web_user_id);
+      const qualityVisible =
+        qualityAllowed && inScope(qualityScope, actorId, qualityIds, ownerId);
       const latest = latestMap.get(stationId) ?? null;
-      const has1005 =
-        latest?.reported_station_id !== null &&
-        latest?.reported_station_id !== undefined &&
-        latest?.arp_x !== null &&
-        latest?.arp_x !== undefined &&
-        latest?.arp_y !== null &&
-        latest?.arp_y !== undefined &&
-        latest?.arp_z !== null &&
-        latest?.arp_z !== undefined;
-      let lat: number | null = null;
-      let lon: number | null = null;
-      if (has1005) {
-        const point = ecefToGeodetic(
-          Number(latest.arp_x) / 10000,
-          Number(latest.arp_y) / 10000,
-          Number(latest.arp_z) / 10000
-        );
-        lat = point.lat;
-        lon = point.lon;
-      }
+      const coords = resolveStationCoords(latest as never, { lat: row.lat, lon: row.lon });
       const liveItem = liveMap.get(stationId);
       const ageMs = liveItem
         ? liveItem.ageMs
@@ -157,50 +279,72 @@ mapRouter.get(
           : null;
       const stationOff = Number(row.enabled) === 0 || String(row.status) === 'locked';
       const state = stationOff ? 'disabled' : liveItem?.state ?? latest?.state;
-      const score = stationOff
-        ? null
-        : liveItem
+      const transport = stationOff
+        ? 'offline'
+        : qualityVisible
+          ? transportStatusFor(state, ageMs)
+          : 'unknown';
+      const score = qualityVisible
+        ? liveItem
           ? liveItem.score
           : latest
             ? Number(latest.score)
-            : null;
+            : null
+        : null;
       const relays = relayCount.get(stationId) ?? 0;
+      const onlineAccounts = connectionsAllowed
+        ? onlineSets.get(stationId)?.size ?? 0
+        : 0;
       return {
         id: stationId,
         name: String(row.name),
-        lat,
-        lon,
-        has1005,
-        transport: stationOff ? 'offline' : transportStatusFor(state, ageMs),
-        quality: state ? String(state) : 'unknown',
+        lat: coords.lat,
+        lon: coords.lon,
+        coordSource: coords.coordSource,
+        hasCoords: coords.lat !== null && coords.lon !== null,
+        qualityVisible,
+        has1005: qualityVisible && coords.has1005,
+        transport,
+        quality: qualityVisible && state ? String(state) : 'unknown',
         score,
         sourceType: sourceTypeOf(row, relays),
         mountpointCount: mountpointCount.get(stationId) ?? 0,
-        relayJobCount: relays,
-        onlineAccounts: onlineSets.get(stationId)?.size ?? 0,
+        relayJobCount: relayAllowed ? relays : null,
+        onlineAccounts,
         region: String(row.region ?? ''),
         address: String(row.address ?? ''),
+        companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+        companyName: row.company_name ?? null,
         ownerWebUserId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
         ownerName: row.owner_name ?? null
       };
     });
 
-    const counts = {
-      all: items.length,
-      online: items.filter((item) => item.transport === 'online').length,
-      issues: items.filter(
-        (item) => item.transport === 'no_data' || item.transport === 'offline' || item.transport === 'error'
-      ).length,
-      online_accounts: items.filter((item) => item.onlineAccounts > 0).length,
-      missing_1005: items.filter((item) => !item.has1005).length
-    };
+    const transportFilter = parseList(req.query.transport).filter((value) =>
+      TRANSPORT_VALUES.has(value)
+    );
+    const hasCoordsFilter = String(req.query.hasCoords ?? '').trim();
+    let filtered = items;
+    if (transportFilter.length > 0) {
+      filtered = filtered.filter((item) => transportFilter.includes(String(item.transport)));
+    }
+    if (hasCoordsFilter === '1' || hasCoordsFilter === 'true') {
+      filtered = filtered.filter((item) => item.hasCoords);
+    } else if (hasCoordsFilter === '0' || hasCoordsFilter === 'false') {
+      filtered = filtered.filter((item) => !item.hasCoords);
+    }
     const layer = String(req.query.layer || 'all');
-    const filtered = items.filter((item) => {
+    filtered = filtered.filter((item) => {
       if (layer === 'online') return item.transport === 'online';
       if (layer === 'issues') {
-        return item.transport === 'no_data' || item.transport === 'offline' || item.transport === 'error';
+        return (
+          item.transport === 'no_data' ||
+          item.transport === 'offline' ||
+          item.transport === 'error'
+        );
       }
-      if (layer === 'online_accounts') return item.onlineAccounts > 0;
+      if (layer === 'online_accounts') return connectionsAllowed && item.onlineAccounts > 0;
+      if (layer === 'missing_coords') return !item.hasCoords;
       if (layer === 'missing_1005') return !item.has1005;
       return true;
     });
@@ -208,30 +352,62 @@ mapRouter.get(
     const [regionRows, ownerRows] = await Promise.all([
       query<RowDataPacket[]>(
         `SELECT DISTINCT s.region FROM stations s
-          WHERE ${scope.sql} AND s.region <> '' ORDER BY s.region`,
-        scope.params
+          WHERE ${baseWhere} AND s.region <> '' ORDER BY s.region`,
+        baseParams
       ),
       query<RowDataPacket[]>(
         `SELECT DISTINCT s.owner_web_user_id, u.display_name AS owner_name
            FROM stations s
            LEFT JOIN web_users u ON u.id = s.owner_web_user_id
-          WHERE ${scope.sql} AND s.owner_web_user_id IS NOT NULL
+          WHERE ${baseWhere} AND s.owner_web_user_id IS NOT NULL
           ORDER BY owner_name`,
-        scope.params
+        baseParams
       )
     ]);
 
+    const layersAvailable = ['stations', 'online', 'issues', 'missing_coords'];
+    if (connectionsAllowed) layersAvailable.push('online_accounts');
+
+    const counts = {
+      all: items.length,
+      online: items.filter((item) => item.transport === 'online').length,
+      issues: items.filter(
+        (item) =>
+          item.transport === 'no_data' ||
+          item.transport === 'offline' ||
+          item.transport === 'error'
+      ).length,
+      online_accounts: connectionsAllowed
+        ? items.filter((item) => item.onlineAccounts > 0).length
+        : 0,
+      withCoords: items.filter((item) => item.hasCoords).length,
+      missingCoords: items.filter((item) => !item.hasCoords).length,
+      missing_1005: items.filter((item) => item.qualityVisible && !item.has1005).length,
+      filtered: filtered.length
+    };
+
     res.json({
-      items: filtered.slice(0, 1000),
+      items: filtered.slice(0, 1000).map(({ qualityVisible: _qualityVisible, ...item }) => item),
       total: filtered.length,
       counts,
+      layersAvailable,
       regions: regionRows.map((row) => String(row.region)),
       owners: ownerRows.map((row) => ({
         id: Number(row.owner_web_user_id),
         name: String(row.owner_name ?? row.owner_web_user_id)
       })),
-      filters: { q, region, owner: owner > 0 ? owner : null, layer }
+      filters: {
+        q,
+        region,
+        owner: owner > 0 ? owner : null,
+        layer,
+        transport: transportFilter,
+        status: status || null,
+        hasCoords: hasCoordsFilter || null,
+        companyId: isSuper && Number.isInteger(companyIdParam) && companyIdParam > 0
+          ? companyIdParam
+          : null
+      }
     });
   })
 );
-

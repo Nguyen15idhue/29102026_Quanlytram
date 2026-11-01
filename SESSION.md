@@ -5,6 +5,7 @@
 - Thời điểm: 2026-11-01 09:27 (Asia/Ho_Chi_Minh, +07:00)
 - Tài liệu phân quyền đầy đủ: `docs/2/PHAN_QUYEN.md` (RBAC, company, scope, UI, realtime, audit, checklist test)
 - Kế hoạch 06 P06-0 DONE: tile providers reachable từ server + browser; chốt `tileMode=proxy`; Geoapify forward/reverse OK (không in key); fixture 480 (1005), 481 (lat/lon dự phòng), 482 (không toạ độ); backup `cors-mysql-20261101-190927.sql.zip`
+- Kế hoạch 06 P06-1 DONE: tile proxy (allowlist/cache/fallback), `GET/PUT/test /api/map/config`, overview `coordSource` + filter + field-level gate + `layersAvailable`; frontend `useMapConfig`/`MapCanvas`/`TileErrorBanner`; form trạm có “Vĩ độ/Kinh độ dự phòng”; server 71/71, FE build, Playwright smoke PASS
 - Kế hoạch 05: P05-1 DONE (backup `cors-mysql-20261101-165655.sql.zip`; migration 028–030; 1 company `admin`, user admin/user1/user2 có company_id; báo cáo backfill 247 dòng cho tài nguyên owner super/null)
 - Kế hoạch 05: P05-2 DONE (tenant=company, peer admin, listener global; migration 031–032; server 61/61)
 - Kế hoạch 05: P05-3 DONE (companies API, company/owner response, filter super, audit company; API integration 37/37)

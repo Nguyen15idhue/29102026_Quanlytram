@@ -993,21 +993,27 @@ export interface MountpointExplorerDetailResponse {
   casterAvailable: boolean;
 }
 
+export type CoordSource = '1005' | 'station' | 'none';
+
 export interface MapStationItem {
   id: number;
   name: string;
   lat: number | null;
   lon: number | null;
+  coordSource: CoordSource;
+  hasCoords: boolean;
   has1005: boolean;
-  transport: 'online' | 'stale' | 'offline' | 'error' | 'unknown';
+  transport: 'online' | 'stale' | 'no_data' | 'offline' | 'error' | 'unknown';
   quality: string;
   score: number | null;
   sourceType: string;
   mountpointCount: number;
-  relayJobCount: number;
+  relayJobCount: number | null;
   onlineAccounts: number;
   region: string;
   address: string;
+  companyId: number | null;
+  companyName: string | null;
   ownerWebUserId: number | null;
   ownerName: string | null;
 }
@@ -1020,9 +1026,49 @@ export interface MapOverviewResponse {
     online: number;
     issues: number;
     online_accounts: number;
+    withCoords: number;
+    missingCoords: number;
     missing_1005: number;
+    filtered: number;
   };
+  layersAvailable: string[];
   regions: string[];
   owners: Array<{ id: number; name: string }>;
-  filters: { q: string; region: string; owner: number | null; layer: string };
+  filters: {
+    q: string;
+    region: string;
+    owner: number | null;
+    layer: string;
+    transport: string[];
+    status: string | null;
+    hasCoords: string | null;
+    companyId: number | null;
+  };
+}
+
+export type MapMode = 'streets' | 'satellite' | 'terrain';
+
+export interface MapModeConfig {
+  provider?: string;
+  tileUrl: string;
+  attribution: string;
+  maxZoom: number;
+  maxNativeZoom?: number;
+  retina?: boolean;
+  subdomains?: string[];
+}
+
+export interface MapConfig {
+  version: number;
+  provider: string;
+  tileMode: 'proxy' | 'direct';
+  tileUrl: string;
+  attribution: string;
+  subdomains: string[];
+  maxZoom: number;
+  maxNativeZoom: number;
+  retina: boolean;
+  center: { lat: number; lng: number };
+  zoom: number;
+  modes: Record<MapMode, MapModeConfig>;
 }

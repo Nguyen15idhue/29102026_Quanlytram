@@ -1,17 +1,20 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import L from 'leaflet';
 import { ArrowUpRight, MapPinned } from 'lucide-react';
 import { apiFetch } from '../api/client';
-import type { MapOverviewResponse, MapStationItem } from '../types';
+import { useAuth } from '../auth/AuthProvider';
+import type { MapMode, MapOverviewResponse, MapStationItem } from '../types';
 import { Button, PageHeader, SearchInput, Select, StatusBadge } from '../components/ui';
+import { MapCanvas } from '../components/map/MapCanvas';
+import { TileErrorBanner } from '../components/map/TileErrorBanner';
+import { useMapConfig } from '../lib/useMapConfig';
 
-const LAYERS = [
+const BASE_LAYERS = [
   { value: 'stations', label: 'Tất cả trạm' },
   { value: 'online', label: 'Online' },
   { value: 'issues', label: 'Stale / lỗi' },
-  { value: 'online_accounts', label: 'Có tài khoản online' },
+  { value: 'missing_coords', label: 'Chưa có toạ độ' },
   { value: 'missing_1005', label: 'Chưa có 1005' }
 ];
 
@@ -22,39 +25,37 @@ function stateKind(state: string): 'ok' | 'warn' | 'error' | 'neutral' {
   return 'neutral';
 }
 
-function colorFor(item: MapStationItem): string {
-  if (!item.has1005) return '#6b7280';
-  if (item.transport === 'online') return '#1f8a57';
-  if (item.transport === 'stale') return '#b7791f';
-  if (item.transport === 'offline' || item.transport === 'error') return '#c53030';
-  return '#6b7280';
-}
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => {
-    const map: Record<string, string> = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;'
-    };
-    return map[char];
-  });
+function coordLabel(item: MapStationItem): string {
+  if (item.coordSource === '1005') return '1005';
+  if (item.coordSource === 'station') return 'Dự phòng';
+  return 'Chưa có';
 }
 
 export function UnifiedMap() {
-  const mapRef = useRef<HTMLDivElement>(null);
-  const mapInstance = useRef<L.Map | null>(null);
-  const layerRef = useRef<L.LayerGroup | null>(null);
   const navigate = useNavigate();
+  const { can } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const q = searchParams.get('q') ?? '';
   const region = searchParams.get('region') ?? '';
   const owner = searchParams.get('owner') ?? '';
   const layer = searchParams.get('layer') ?? 'stations';
+  const mode = (searchParams.get('mode') as MapMode) || 'streets';
   const stationParam = Number(searchParams.get('station') || 0);
   const stationId = Number.isInteger(stationParam) && stationParam > 0 ? stationParam : null;
+
+  const [tileError, setTileError] = useState<string | null>(null);
+  const [retrySignal, setRetrySignal] = useState(0);
+  const [fitSignal, setFitSignal] = useState(0);
+  const lastQuery = useRef('');
+
+  const permissions = useMemo(
+    () => ({
+      quality: can('quality', 'view'),
+      relay: can('relay', 'view'),
+      online: can('connections', 'view')
+    }),
+    [can]
+  );
 
   function update(patch: Record<string, string | number | null>) {
     const next = new URLSearchParams(searchParams);
@@ -72,6 +73,8 @@ export function UnifiedMap() {
     if (owner) params.set('owner', owner);
     return params.toString();
   }, [layer, q, region, owner]);
+
+  const config = useMapConfig();
   const overview = useQuery({
     queryKey: ['map-overview', query],
     queryFn: () => apiFetch<MapOverviewResponse>(`/api/map/overview?${query}`),
@@ -79,74 +82,61 @@ export function UnifiedMap() {
   });
   const items = overview.data?.items ?? [];
   const selected = items.find((item) => item.id === stationId) ?? null;
+  const layersAvailable = overview.data?.layersAvailable ?? BASE_LAYERS.map((item) => item.value);
+  const layers = BASE_LAYERS.filter((item) => layersAvailable.includes(item.value));
+  if (permissions.online) {
+    layers.push({ value: 'online_accounts', label: 'Có tài khoản online' });
+  }
 
   useEffect(() => {
-    if (!mapRef.current || mapInstance.current) return;
-    const map = L.map(mapRef.current).setView([16.0, 106.0], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-    layerRef.current = L.layerGroup().addTo(map);
-    mapInstance.current = map;
-    return () => {
-      map.remove();
-      mapInstance.current = null;
-      layerRef.current = null;
-    };
-  }, []);
-
-  useEffect(() => {
-    const layerGroup = layerRef.current;
-    if (!layerGroup) return;
-    layerGroup.clearLayers();
-    for (const item of items) {
-      if (!item.has1005 || item.lat === null || item.lon === null) continue;
-      const marker = L.circleMarker([item.lat, item.lon], {
-        radius: item.id === stationId ? 10 : 7,
-        color: colorFor(item),
-        fillColor: colorFor(item),
-        fillOpacity: 0.88,
-        weight: item.id === stationId ? 3 : 2
-      });
-      marker.bindPopup(
-        `<strong>${escapeHtml(item.name)}</strong><br>${escapeHtml(item.name)}<br>` +
-          `Transport: ${escapeHtml(item.transport)}<br>` +
-          `Quality: ${item.score ?? '—'} · ${escapeHtml(item.quality)}<br>` +
-          `Mountpoint: ${item.mountpointCount} · Relay: ${item.relayJobCount}<br>` +
-          `Online account: ${item.onlineAccounts}`
-      );
-      marker.on('click', () => update({ station: item.id }));
-      marker.addTo(layerGroup);
-    }
-  }, [items, stationId]);
-
-  useEffect(() => {
-    if (!selected || selected.lat === null || selected.lon === null) return;
-    mapInstance.current?.flyTo([selected.lat, selected.lon], 12, { duration: 0.5 });
-  }, [selected?.id]);
+    if (!overview.data) return;
+    if (lastQuery.current === query) return;
+    lastQuery.current = query;
+    setFitSignal((value) => value + 1);
+  }, [overview.data, query]);
 
   return (
     <section className="page">
       <PageHeader
         title="Bản đồ vận hành"
-        description="Một bản đồ hợp nhất: trạng thái, quality, relay, tài khoản online và toạ độ 1005."
+        description="Một bản đồ hợp nhất: trạng thái, chất lượng, relay và tài khoản online."
         actions={<MapPinned size={20} className="muted" aria-hidden="true" />}
+      />
+
+      <TileErrorBanner
+        message={tileError}
+        onRetry={() => {
+          setTileError(null);
+          setRetrySignal((value) => value + 1);
+        }}
       />
 
       <div className="map-shell">
         <aside className="panel map-side">
-          <SearchInput value={q} onChange={(value) => update({ q: value, station: null })} placeholder="Tìm trạm, vùng, địa chỉ" />
+          <SearchInput
+            value={q}
+            onChange={(value) => update({ q: value, station: null })}
+            placeholder="Tìm trạm, vùng, địa chỉ"
+          />
           <Select
             aria-label="Layer bản đồ"
             value={layer}
             onChange={(event) => update({ layer: event.target.value, station: null })}
           >
-            {LAYERS.map((item) => (
+            {layers.map((item) => (
               <option key={item.value} value={item.value}>
                 {item.label}
               </option>
             ))}
+          </Select>
+          <Select
+            aria-label="Nền bản đồ"
+            value={mode}
+            onChange={(event) => update({ mode: event.target.value })}
+          >
+            <option value="streets">Đường phố</option>
+            <option value="satellite">Vệ tinh</option>
+            <option value="terrain">Địa hình</option>
           </Select>
           <Select
             aria-label="Lọc vùng"
@@ -180,13 +170,31 @@ export function UnifiedMap() {
               kind={overview.data?.counts.issues ? 'warn' : 'neutral'}
             />
             <StatusBadge
-              label={`${overview.data?.counts.missing_1005 ?? 0} chưa 1005`}
-              kind={overview.data?.counts.missing_1005 ? 'warn' : 'neutral'}
-            />
-            <StatusBadge
-              label={`${overview.data?.counts.online_accounts ?? 0} có online`}
+              label={`${overview.data?.counts.withCoords ?? 0} có toạ độ`}
               kind="info"
             />
+            <StatusBadge
+              label={`${overview.data?.counts.missingCoords ?? 0} thiếu toạ độ`}
+              kind={overview.data?.counts.missingCoords ? 'warn' : 'neutral'}
+            />
+            {permissions.online && (
+              <StatusBadge
+                label={`${overview.data?.counts.online_accounts ?? 0} có online`}
+                kind="info"
+              />
+            )}
+          </div>
+
+          <div className="map-actions">
+            <Button type="button" onClick={() => setFitSignal((value) => value + 1)}>
+              Fit kết quả
+            </Button>
+            <Button
+              type="button"
+              onClick={() => update({ q: null, region: null, owner: null, station: null })}
+            >
+              Xoá lọc
+            </Button>
           </div>
 
           {overview.isLoading ? (
@@ -208,11 +216,10 @@ export function UnifiedMap() {
                     <strong>{item.name}</strong>
                     <small className="mono">{item.id}</small>
                   </span>
-                  {item.has1005 ? (
+                  <span className="map-list-badges">
+                    <StatusBadge label={coordLabel(item)} kind={item.hasCoords ? 'info' : 'warn'} />
                     <StatusBadge label={item.transport} kind={stateKind(item.transport)} />
-                  ) : (
-                    <StatusBadge label="Chưa 1005" kind="warn" />
-                  )}
+                  </span>
                 </button>
               ))}
             </div>
@@ -226,11 +233,22 @@ export function UnifiedMap() {
               </div>
               <dl className="facts">
                 <div>
-                  <dt>Quality</dt>
+                  <dt>Toạ độ</dt>
                   <dd>
-                    {selected.score ?? '—'} · {selected.quality}
+                    {selected.lat !== null && selected.lon !== null
+                      ? `${selected.lat.toFixed(5)}, ${selected.lon.toFixed(5)}`
+                      : '—'}{' '}
+                    <span className="muted">({coordLabel(selected)})</span>
                   </dd>
                 </div>
+                {permissions.quality && (
+                  <div>
+                    <dt>Chất lượng</dt>
+                    <dd>
+                      {selected.score ?? '—'} · {selected.quality}
+                    </dd>
+                  </div>
+                )}
                 <div>
                   <dt>Nguồn</dt>
                   <dd>{selected.sourceType || '—'}</dd>
@@ -239,14 +257,18 @@ export function UnifiedMap() {
                   <dt>Mountpoint</dt>
                   <dd className="mono">{selected.mountpointCount}</dd>
                 </div>
-                <div>
-                  <dt>Relay job</dt>
-                  <dd className="mono">{selected.relayJobCount}</dd>
-                </div>
-                <div>
-                  <dt>Tài khoản online</dt>
-                  <dd className="mono">{selected.onlineAccounts}</dd>
-                </div>
+                {permissions.relay && selected.relayJobCount !== null && (
+                  <div>
+                    <dt>Relay job</dt>
+                    <dd className="mono">{selected.relayJobCount}</dd>
+                  </div>
+                )}
+                {permissions.online && (
+                  <div>
+                    <dt>Tài khoản online</dt>
+                    <dd className="mono">{selected.onlineAccounts}</dd>
+                  </div>
+                )}
                 <div>
                   <dt>Vùng</dt>
                   <dd>{selected.region || '—'}</dd>
@@ -259,7 +281,25 @@ export function UnifiedMap() {
           )}
         </aside>
 
-        <div className="panel map-canvas" ref={mapRef} />
+        {config.isLoading ? (
+          <div className="panel map-canvas table-state">Đang tải cấu hình bản đồ...</div>
+        ) : config.isError || !config.data ? (
+          <div className="panel map-canvas table-state error">
+            Không tải được cấu hình bản đồ.
+          </div>
+        ) : (
+          <MapCanvas
+            config={config.data.config}
+            mode={mode}
+            items={items}
+            selectedId={stationId}
+            permissions={permissions}
+            fitSignal={fitSignal}
+            retrySignal={retrySignal}
+            onSelect={(id) => update({ station: id })}
+            onTileError={setTileError}
+          />
+        )}
       </div>
     </section>
   );

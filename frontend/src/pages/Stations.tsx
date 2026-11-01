@@ -1118,6 +1118,33 @@ export function Stations() {
             </Field>
           </fieldset>
 
+          <fieldset className="form-section">
+            <legend>Toạ độ dự phòng (WGS84)</legend>
+            <Field label="Vĩ độ dự phòng">
+              <Input
+                type="number"
+                min={-90}
+                max={90}
+                step="0.0000001"
+                value={form.lat}
+                placeholder="VD: 21.0285"
+                onChange={(event) => setForm({ ...form, lat: event.target.value })}
+              />
+            </Field>
+            <Field label="Kinh độ dự phòng">
+              <Input
+                type="number"
+                min={-180}
+                max={180}
+                step="0.0000001"
+                value={form.lon}
+                placeholder="VD: 105.8542"
+                onChange={(event) => setForm({ ...form, lon: event.target.value })}
+              />
+            </Field>
+            <p className="muted">Dùng khi trạm chưa có toạ độ 1005/1006.</p>
+          </fieldset>
+
           {editing && (
             <fieldset className="form-section">
               <legend>Vị trí</legend>

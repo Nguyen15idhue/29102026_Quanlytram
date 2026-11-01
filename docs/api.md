@@ -484,3 +484,45 @@ Response company: `id`, `code`, `name`, `status`, `notes`, `userCount`,
 Filter `companyId` trên list stations/mountpoints/ntrip-accounts/relay-jobs/
 alerts/web-users/audit-logs chỉ áp dụng cho super admin.
 Audit ghi `company_id` theo tài nguyên (fallback company của actor) và redact secret.
+
+## 18. Map (kế hoạch 06)
+
+Cấu hình map lưu ở `settings['map.config']` (JSON), không có migration.
+Tile proxy bắt buộc đăng nhập; không public.
+
+| Method | Endpoint | Quyền / ghi chú |
+|---|---|---|
+| GET | `/api/map/config` | Đăng nhập; trả `{ config }` đã sanitize, không secret |
+| PUT | `/api/map/config` | `settings.edit` + super admin; allowlist field; audit `map_config` |
+| POST | `/api/map/config/test` | `settings.edit` + super admin; thử tile streets/satellite/terrain |
+| GET | `/api/map/tiles/:z/:x/:y?mode=streets\|satellite\|terrain` | Đăng nhập; chỉ khi `tileMode=proxy` |
+| GET | `/api/map/overview` | `stations.view`; scope company/owner; filter mở rộng |
+
+`GET /api/map/overview` bổ sung:
+
+- Query: `q`, `layer` (`stations|online|issues|missing_coords|missing_1005|online_accounts`),
+  `transport` (comma `online|stale|no_data|offline|error|unknown`),
+  `status` (`active|disabled|locked`), `hasCoords` (`1|0`), `region`, `owner`,
+  `companyId` (chỉ super).
+- Item: `coordSource` (`1005|station|none`), `hasCoords`, `has1005`,
+  `companyId`, `companyName`; `relayJobCount` = `null` nếu thiếu `relay.view`.
+- Counts: `all`, `online`, `issues`, `online_accounts`, `withCoords`,
+  `missingCoords`, `missing_1005`, `filtered`; kèm `layersAvailable`.
+- Quy tắc toạ độ: 1005 hợp lệ → `coordSource=1005`; nếu không, `stations.lat/lon`
+  hợp lệ → `station`; còn lại `none` (không marker).
+- Field-level: `quality/score/has1005/transport` cần `quality.view`;
+  `relayJobCount` cần `relay.view`; `onlineAccounts` + layer `online_accounts`
+  cần `connections.view`. `companyId` chỉ áp dụng cho super.
+
+`GET /api/map/tiles/:z/:x/:y`:
+
+- `0 ≤ z ≤ 22`; `0 ≤ x,y < 2^z`; mode mặc định `streets`.
+- Host upstream allowlist: `tile.openstreetmap.de`, `a.tile.openstreetmap.fr`,
+  `server.arcgisonline.com`, `a.tile.opentopomap.org`; không dùng
+  `tile.openstreetmap.org`.
+- Timeout 8s, redirect tối đa 3 và mỗi hop phải trong allowlist.
+- Cache in-memory 256 tile, TTL 6h; thành công `Cache-Control: public, max-age=86400`,
+  header `X-Tile-Proxy-Status: ok`.
+- Provider lỗi → PNG 1×1 trong suốt, HTTP 502,
+  `X-Tile-Proxy-Status: fallback`, `Cache-Control: no-store`.
+- `tileMode=direct` → proxy trả 404 `TILE_PROXY_DISABLED`.

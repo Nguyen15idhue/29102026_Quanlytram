@@ -11,6 +11,7 @@ import { asyncHandler, errorHandler, notFound } from './lib/http';
 import { authRouter } from './routes/auth';
 import { stationsRouter } from './routes/stations';
 import { mapRouter } from './routes/map';
+import { mapConfigRouter } from './routes/mapConfig';
 import { geoRouter } from './routes/geo';
 import { mountpointsRouter } from './routes/mountpoints';
 import { webUsersRouter } from './routes/webUsers';
@@ -119,6 +120,7 @@ app.get(
 
 app.use('/api/auth', authRouter);
 app.use('/api/stations', stationsRouter);
+app.use('/api/map/config', mapConfigRouter);
 app.use('/api/map', mapRouter);
 app.use('/api/geo', geoRouter);
 app.use('/api/mountpoints', mountpointsRouter);

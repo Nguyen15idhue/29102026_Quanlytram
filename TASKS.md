@@ -102,7 +102,7 @@ Chi tiết: `docs/1/05_KE_HOACH_CONG_TY_NHIEU_ADMIN.md`.
 | Bước | Tên | Trạng thái |
 |---|---|---|
 | P06-0 | Chuẩn bị, xác minh provider, fixture | DONE (server+browser reach 4 tile host; `tileMode=proxy`; Geoapify reverse/forward OK; fixture 480/481/482; backup DB) |
-| P06-1 | Nền tảng tile + toạ độ | TODO |
+| P06-1 | Nền tảng tile + toạ độ | DONE (tile proxy + config GET, overview coordSource/filter/field-gate, MapCanvas, form toạ độ dự phòng; server 71/71, FE build, Playwright smoke PASS) |
 | P06-2 | Bộ lọc, tìm kiếm, tương tác | TODO |
 | P06-3 | Cấu hình map super admin | TODO |
 | P06-4 | Test & rollout | TODO |

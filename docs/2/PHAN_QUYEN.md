@@ -695,6 +695,10 @@ thấy tab Audit.
 | Thành phần | Quyền | Phạm vi |
 |---|---|---|
 | `GET /api/map/overview` | `stations.view` | Company (company_id) |
+| `GET /api/map/config` | Đăng nhập | Config sanitized, không secret |
+| `PUT /api/map/config` | `settings.edit` + super admin | Toàn hệ thống |
+| `POST /api/map/config/test` | `settings.edit` + super admin | Toàn hệ thống |
+| `GET /api/map/tiles/:z/:x/:y` | Đăng nhập | Asset hạ tầng, không row scope |
 | `GET /api/ops/dashboard` | Đăng nhập | Lọc theo từng permission scope |
 | `GET /api/snapshot` | Đăng nhập | Lọc theo permission scope |
 | Socket.IO snapshot/subscribe | Đăng nhập | Lọc theo permission scope |
@@ -706,6 +710,16 @@ Dashboard/snapshot/socket dùng owner-based:
 - Alerts: own/tenant.
 - Connections: theo mountpoint owner.
 - Listener room: chỉ cần `connections.view != none` (admin/super).
+
+Map overview field-level (kế hoạch 06, đã triển khai P06-1):
+- `quality`, `score`, `transport`, `has1005` cần `quality.view`; nếu thiếu →
+  `unknown`/`null`/`false` (toạ độ 1005 vẫn dùng cho marker theo `stations.view`).
+- `relayJobCount` cần `relay.view`; nếu thiếu → `null` và popup ẩn relay.
+- `onlineAccounts` + layer `online_accounts` cần `connections.view`; nếu thiếu →
+  `0` và `layersAvailable` không có `online_accounts`.
+- `companyId` filter chỉ super; admin/user gửi `companyId` bị bỏ qua.
+- `GET /api/map/config` sanitized cho mọi user; `PUT`/`test` chặn admin/user
+  bằng `settings.edit` + super admin (403).
 
 ### 8.14. System health & settings
 
