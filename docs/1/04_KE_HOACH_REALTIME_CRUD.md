@@ -1344,7 +1344,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 2
 - Thời điểm: 2026-11-01 09:35 +07:00
 - Trạng thái: DONE
-- Commit: (cập nhật sau commit)
+- Commit: e94202a
 - Push: origin/main
 - Đã làm:
   - Tạo `scripts/reset-test-stations.ps1` với dry-run mặc định, kiểm tra backup, transaction và tùy chọn `-ClearRuntime`.
