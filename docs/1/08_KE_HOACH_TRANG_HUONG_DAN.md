@@ -527,3 +527,25 @@ Các bước cho mỗi trang:
   `docker compose restart web` sau khi build guide. (2) Thêm cờ
   `--allow-missing-images` để P08-2 chạy được trước khi có ảnh; P08-5 dùng `--check`
   nghiêm ngặt. (3) `--check` coi `/` là `<Route index>`.
+
+### P08-3 — Seed demo, chụp ảnh, inventory (2026-11-02 00:10 +07:00)
+
+- Việc: `scripts/seed-docs-fixtures.mjs` (dry-run mặc định, `ALLOW_DOCS_SEED=1`,
+  idempotent) tạo công ty `DOCS Demo`, `docs.admin`, `docs.user`, 3 trạm, 4 mountpoint,
+  2 listener, 2 tài khoản NTRIP, 2 relay job, 3 cảnh báo — tất cả có tiền tố `DOCS`;
+  `scripts/reset-docs-fixtures.ps1` (UTF-8 BOM, tiếng Việt chuẩn, `-DryRun`/`-Apply`);
+  `frontend/scripts/capture-guide-shots.mjs` sinh 23 ảnh + `ui-inventory.json`.
+- Lệnh: `node scripts/seed-docs-fixtures.mjs`; `ALLOW_DOCS_SEED=1 ... --apply`;
+  `powershell -File scripts/reset-docs-fixtures.ps1 -DryRun`;
+  `node frontend/scripts/capture-guide-shots.mjs` (2 lần) + so SHA-256.
+- Kết quả: PASS — seed lần 2 báo "không có" (idempotent); reset dry-run in đúng
+  tiếng Việt (19 bản ghi); ảnh **23/23 giống nhau** giữa 2 lần chụp; ảnh chỉ chứa
+  dữ liệu `DOCS` (tenant scope của `docs.admin`), 2.99 MB thô.
+- File: `scripts/seed-docs-fixtures.mjs`, `scripts/reset-docs-fixtures.ps1`,
+  `frontend/scripts/capture-guide-shots.mjs`, `docs-site/static/img/docs/**`,
+  `docs-site/generated/ui-inventory.json` (gitignored).
+- Sai lệch: (1) seed bằng SQL + argon2 (không qua API) để tránh CSRF và giữ idempotent;
+  (2) listener và relay job tạo ở trạng thái **tắt** để không bind cổng/không nối
+  `example.invalid` (không tạo traffic thật); (3) bỏ ảnh trang Công ty (admin công ty
+  không có quyền xem) — chương 10 dùng ảnh Người dùng/Vai trò/Trang cá nhân;
+  (4) để ảnh ổn định: đóng băng `Date`, mask cột thời gian/phiên và chụp riêng hộp thoại.

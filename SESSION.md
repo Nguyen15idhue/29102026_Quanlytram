@@ -3,10 +3,13 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-11-01 09:27 (Asia/Ho_Chi_Minh, +07:00)
+- Fix timeline 1h/24h/7d/1m dùng chung nguồn tuổi byte cuối: bucket rộng lấy trạng thái chiếm phần lớn thời gian (không lấy midpoint), trả thêm `segments` chính xác + segment "trước khi tạo"; no_data chỉ còn 10s grace kể cả khi session còn mở; đọc lùi 1 sample để nội suy đúng đầu range; live badge/station transport đồng bộ. Server tsc PASS, vitest 90/90, FE tsc PASS.
+- Verify API job 227 + station 480: online/offline/no_data/none và mốc chuyển trạng thái khớp giữa 4 khung; 1 tháng có segment none từ rangeFrom đến createdAt.
 - Kế hoạch 08 lập xong: `docs/1/08_KE_HOACH_TRANG_HUONG_DAN.md` (Docusaurus build-time + Playwright capture + 12 chương; trang `/guide`, menu "Hướng dẫn" giữa Relay và Hệ thống).
 - P08-0 DONE: baseline server 88/88 (14 file), frontend build PASS, navigation 1/1 PASS; compose healthy; không sửa mã nguồn.
 - P08-1 DONE: `docs-site/` Docusaurus 3.10.2 (baseUrl `/guide/`, locale vi, search local), 2 chương mẫu; build PASS, serve HTTP 200.
 - P08-2 DONE: route `/guide` + iframe, nhóm menu "Hướng dẫn" giữa Relay và Hệ thống, `build-guide.mjs`, nginx `/guide/`; nav 1/1 PASS, FE build PASS.
+- P08-3 DONE: seed DOCS Demo (3 trạm/4 MP/2 listener/2 account/2 relay/3 alert) idempotent; reset PS UTF-8 BOM; 23 ảnh + inventory, 2 lần chụp hash giống nhau.
 - Tài liệu phân quyền đầy đủ: `docs/2/PHAN_QUYEN.md` (RBAC, company, scope, UI, realtime, audit, checklist test)
 - Kế hoạch 06 P06-0 DONE: tile providers reachable từ server + browser; chốt `tileMode=proxy`; Geoapify forward/reverse OK (không in key); fixture 480 (1005), 481 (lat/lon dự phòng), 482 (không toạ độ); backup `cors-mysql-20261101-190927.sql.zip`
 - Kế hoạch 06 P06-1 DONE: tile proxy (allowlist/cache/fallback), `GET/PUT/test /api/map/config`, overview `coordSource` + filter + field-level gate + `layersAvailable`; frontend `useMapConfig`/`MapCanvas`/`TileErrorBanner`; form trạm có “Vĩ độ/Kinh độ dự phòng”; server 71/71, FE build, Playwright smoke PASS
