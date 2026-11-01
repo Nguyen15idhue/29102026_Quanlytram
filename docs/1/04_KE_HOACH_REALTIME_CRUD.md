@@ -1749,7 +1749,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 13
 - Thời điểm: 2026-11-01 11:32 +07:00
 - Trạng thái: DONE
-- Commit: (cập nhật sau commit)
+- Commit: 38039d1
 - Push: origin/main
 - Đã làm:
   - Bổ sung mock `push` mode để đẩy RTCM vào caster có Basic auth.
