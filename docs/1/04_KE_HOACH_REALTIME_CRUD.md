@@ -1849,7 +1849,7 @@ Toàn bộ kế hoạch chỉ DONE khi:
 ### Nhật ký thực hiện — Bước 15
 - Thời điểm: 2026-11-01 11:55 +07:00
 - Trạng thái: DONE (real streaming vẫn BLOCKED ở Bước 14)
-- Commit: (cập nhật sau commit)
+- Commit: 6cc3c0b
 - Push: origin/main
 - Đã làm:
   - Chạy regression server, Go, frontend, Playwright.
