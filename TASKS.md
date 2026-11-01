@@ -97,6 +97,18 @@ Bổ sung 2026-11-01: trạng thái streaming `online | offline | no data | —`
 
 Chi tiết: `docs/1/05_KE_HOACH_CONG_TY_NHIEU_ADMIN.md`.
 
+## 1f. Kế hoạch 06 — Nâng cấp bản đồ
+
+| Bước | Tên | Trạng thái |
+|---|---|---|
+| P06-0 | Chuẩn bị, xác minh provider, fixture | DONE (server+browser reach 4 tile host; `tileMode=proxy`; Geoapify reverse/forward OK; fixture 480/481/482; backup DB) |
+| P06-1 | Nền tảng tile + toạ độ | TODO |
+| P06-2 | Bộ lọc, tìm kiếm, tương tác | TODO |
+| P06-3 | Cấu hình map super admin | TODO |
+| P06-4 | Test & rollout | TODO |
+
+Chi tiết: `docs/1/06_KE_HOACH_NANG_CAP_BAN_DO.md`.
+
 ---
 
 ## 2. Phase 0 — Chuẩn bị & xác minh
