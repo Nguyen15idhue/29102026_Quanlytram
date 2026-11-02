@@ -30,6 +30,7 @@ const states: Record<string, RelayStateInput> = {
   paused: input({ pausedByStation: true, enabled: false }),
   disabled: input({ enabled: false }),
   pending: input({ enabled: true, desiredRevision: 2, appliedRevision: 1 }),
+  pending_disabled: input({ enabled: false, desiredRevision: 2, appliedRevision: 1 }),
   online: input({
     enabled: true,
     runtimeState: 'streaming',
@@ -111,7 +112,7 @@ describe('assertTransition — ma trận hành động', () => {
         locked: 'OK',
         paused: 'OK',
         disabled: 'OK',
-        pending: 'RELAY_PENDING',
+        pending: 'RELAY_ENABLED',
         online: 'RELAY_ENABLED'
       },
       unlock: {
@@ -140,7 +141,7 @@ describe('assertTransition — ma trận hành động', () => {
         locked: 'RELAY_LOCKED',
         paused: 'OK',
         disabled: 'OK',
-        pending: 'RELAY_PENDING',
+        pending: 'RELAY_ENABLED',
         online: 'RELAY_ENABLED'
       },
       patch_enable: {
@@ -159,6 +160,17 @@ describe('assertTransition — ma trận hành động', () => {
         );
       }
     }
+  });
+
+  it('chặn khóa/xóa khi cấu hình trước chưa áp dụng (job đã tắt)', () => {
+    expect(codeFor(states.pending_disabled, 'lock')).toBe('RELAY_PENDING');
+    expect(codeFor(states.pending_disabled, 'delete')).toBe('RELAY_PENDING');
+  });
+
+  it('job mới chưa từng áp dụng không bị coi là pending', () => {
+    const neverApplied = input({ enabled: false, desiredRevision: 3, appliedRevision: null });
+    expect(codeFor(neverApplied, 'lock')).toBe('OK');
+    expect(codeFor(neverApplied, 'delete')).toBe('OK');
   });
 
   it('chặn khóa/xóa khi job đã tắt nhưng runtime còn sống', () => {

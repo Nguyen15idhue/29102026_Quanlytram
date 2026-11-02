@@ -33,6 +33,13 @@ import {
   scopeIdsFor
 } from '../rbac/access';
 import { TOMBSTONE_KEY_SQL } from '../lib/tombstone';
+import {
+  allowedActions,
+  assertTransition,
+  deriveRelayState,
+  type RelayAction,
+  type RelayStateInput
+} from '../lib/relayState';
 
 export const relayJobsRouter = Router();
 relayJobsRouter.use(requireAuth);
@@ -266,7 +273,7 @@ function relayStreamStatus(
   state: any,
   metrics: GoRelayMetrics | undefined
 ): 'online' | 'offline' | 'no_data' | null {
-  if (row.locked) return null;
+  if (row.locked) return 'offline';
   if (!row.enabled) return 'offline';
   const runtime = String(metrics?.state ?? state?.runtime_state ?? '');
   if (runtime !== 'streaming') return 'offline';
@@ -276,9 +283,37 @@ function relayStreamStatus(
   );
 }
 
+function relayStateInput(
+  row: any,
+  state: any,
+  metrics: GoRelayMetrics | undefined
+): RelayStateInput {
+  return {
+    deleted: row.deleted_at !== null && row.deleted_at !== undefined,
+    locked: Boolean(row.locked),
+    enabled: Boolean(row.enabled),
+    pausedByStation:
+      row.paused_by_station_id !== null && row.paused_by_station_id !== undefined,
+    pausedByMountpoint:
+      row.paused_by_mountpoint_id !== null && row.paused_by_mountpoint_id !== undefined,
+    desiredRevision: Number(row.desired_revision ?? 0),
+    appliedRevision: state ? Number(state.applied_revision) : null,
+    runtimeState: metrics?.state ?? state?.runtime_state ?? null,
+    directionStatus: {
+      upstream: relayDirectionStatus(row, metrics, 'upstream'),
+      downstream: relayDirectionStatus(row, metrics, 'downstream')
+    }
+  };
+}
+
 function attachRuntime(row: any, state: any, metrics: GoRelayMetrics | undefined) {
+  const input = relayStateInput(row, state, metrics);
+  const relayState = deriveRelayState(input);
   return {
     ...publicJob(row, state),
+    relayState: relayState.state,
+    relayStateLabel: relayState.label,
+    allowedActions: allowedActions(input),
     streamStatus: relayStreamStatus(row, state, metrics),
     directionStatus: {
       upstream: relayDirectionStatus(row, metrics, 'upstream'),
@@ -372,15 +407,20 @@ async function assertNoCycles(proposed: {
   }
 }
 
-async function requestReconcile(jobId: number): Promise<void> {
+async function requestReconcile(jobId: number): Promise<'ok' | 'pending' | 'failed'> {
   try {
-    await callGoInternal('/internal/reconcile', { jobIds: [jobId] });
+    await callGoInternal('/internal/reconcile', { jobIds: [jobId] }, { timeoutMs: 2500 });
   } catch (err) {
     console.warn(
       '[relay] reconcile request failed',
       err instanceof Error ? err.message : 'unknown'
     );
+    return 'failed';
   }
+  const [state, row] = await Promise.all([getState(jobId), getJobRow(jobId)]);
+  if (!row) return 'ok';
+  const applied = state ? Number(state.applied_revision) : 0;
+  return applied >= Number(row.desired_revision) ? 'ok' : 'pending';
 }
 
 function duplicateGuard(err: unknown): never {
@@ -1266,6 +1306,12 @@ relayJobsRouter.patch(
     }
     await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     const body = updateSchema.parse(req.body);
+    if (body.enabled === true) {
+      assertTransition(
+        relayStateInput(before, await getState(id), undefined),
+        'patch_enable'
+      );
+    }
 
     const upstream = {
       host: body.upstream?.host ?? before.upstream_host,
@@ -1295,7 +1341,7 @@ relayJobsRouter.patch(
         'Relay job đang bị tạm dừng bởi trạm hoặc mountpoint'
       );
     }
-    const clearPause = body.enabled === false;
+    const clearPause = body.enabled === true;
     await assertNoCycles({ id, upstreamKey, downstreamKey, enabled });
 
     const ownerId =
@@ -1404,8 +1450,8 @@ relayJobsRouter.patch(
       publicJob(after, null),
       ipFrom(req)
     );
-    await requestReconcile(id);
-    res.json({ item: publicJob(after, await getState(id)) });
+    const reconcile = await requestReconcile(id);
+    res.json({ item: publicJob(after, await getState(id)), reconcile });
   })
 );
 
@@ -1424,6 +1470,8 @@ relayJobsRouter.post(
     const ids = uniqueIds(body.ids);
     const result = emptyBulkResult();
     const allowed: any[] = [];
+    const [stateMap, metricMap] = await Promise.all([statesFor(ids), metricsFor(ids)]);
+    const action = body.action as RelayAction;
     for (const id of ids) {
       const row = await getJobRow(id);
       if (!row || row.deleted_at !== null) {
@@ -1432,21 +1480,10 @@ relayJobsRouter.post(
       }
       try {
         await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
-        if ((body.action === 'enable' || body.action === 'disable') && row.locked) {
-          throw new ApiError(409, 'RELAY_LOCKED', 'Relay job đang khóa');
-        }
-        if (body.action === 'lock' && row.enabled) {
-          throw new ApiError(409, 'RELAY_ENABLED', 'Phải tắt relay job trước khi khóa');
-        }
-        if (body.action === 'unlock' && !row.locked) {
-          throw new ApiError(409, 'RELAY_UNLOCKED', 'Relay job không ở trạng thái khóa');
-        }
-        if (
-          body.action === 'enable' &&
-          (row.paused_by_station_id !== null || row.paused_by_mountpoint_id !== null)
-        ) {
-          throw new ApiError(409, 'RESOURCE_PAUSED', 'Relay job đang bị tạm dừng');
-        }
+        assertTransition(
+          relayStateInput(row, stateMap.get(Number(id)), metricMap.get(Number(id))),
+          action
+        );
         if (body.action === 'enable') {
           await assertNoCycles({
             id,
@@ -1484,21 +1521,27 @@ relayJobsRouter.post(
             `UPDATE relay_jobs
                 SET locked = ?,
                     enabled = 0,
-                    paused_by_station_id = NULL,
-                    paused_by_mountpoint_id = NULL,
                     desired_revision = desired_revision + 1
               WHERE id = ?`,
             [body.action === 'lock' ? 1 : 0, row.id]
           );
-        } else {
+        } else if (body.action === 'enable') {
           await conn.query(
             `UPDATE relay_jobs
-                SET enabled = ?,
+                SET enabled = 1,
                     paused_by_station_id = NULL,
                     paused_by_mountpoint_id = NULL,
                     desired_revision = desired_revision + 1
               WHERE id = ?`,
-            [body.action === 'enable' ? 1 : 0, row.id]
+            [row.id]
+          );
+        } else {
+          await conn.query(
+            `UPDATE relay_jobs
+                SET enabled = 0,
+                    desired_revision = desired_revision + 1
+              WHERE id = ?`,
+            [row.id]
           );
         }
       }
@@ -1596,6 +1639,7 @@ relayJobsRouter.post(
     }
     let created = 0;
     let updated = 0;
+    const warnings: string[] = [];
     const touchedIds: number[] = [];
     if (!body.dryRun && errors.length === 0) {
       await withTransaction(async (conn) => {
@@ -1604,11 +1648,16 @@ relayJobsRouter.post(
           const downstreamKey = endpointKey(bodyItem.downstream);
           const existingRows = bodyItem.id
             ? await conn.query(
-                'SELECT upstream_credential_id, downstream_credential_id, owner_web_user_id, company_id FROM relay_jobs WHERE id = ?',
+                'SELECT upstream_credential_id, downstream_credential_id, owner_web_user_id, company_id, locked FROM relay_jobs WHERE id = ?',
                 [bodyItem.id]
               )
             : null;
           const existing = (existingRows as any[] | null)?.[0]?.[0] ?? null;
+          const lockedExisting = Boolean(existing?.locked);
+          const effectiveEnabled = Boolean(bodyItem.enabled) && !lockedExisting;
+          if (lockedExisting && bodyItem.enabled) {
+            warnings.push(`Relay job #${bodyItem.id} đang khóa: giữ trạng thái tắt`);
+          }
           let ownerId = existing?.owner_web_user_id
             ? Number(existing.owner_web_user_id)
             : Number(req.auth!.id);
@@ -1658,7 +1707,7 @@ relayJobsRouter.post(
                  upstream_key=?, downstream_key=?, desired_revision=desired_revision+1
                WHERE id=?`,
               [
-                bodyItem.externalKey, bodyItem.name, bodyItem.enabled ? 1 : 0,
+                bodyItem.externalKey, bodyItem.name, effectiveEnabled ? 1 : 0,
                 bodyItem.upstream.host, bodyItem.upstream.port, bodyItem.upstream.mount,
                 upstreamCredentialId, bodyItem.upstream.proxy, bodyItem.upstream.ssl ? 1 : 0,
                 bodyItem.upstream.ntripVersion, bodyItem.downstream.host, bodyItem.downstream.port,
@@ -1712,7 +1761,7 @@ relayJobsRouter.post(
       );
       for (const id of touchedIds) await requestReconcile(id);
     }
-    res.json({ dryRun: body.dryRun, created, updated, errors, items: items.length });
+    res.json({ dryRun: body.dryRun, created, updated, errors, warnings, items: items.length });
   })
 );
 
@@ -1726,6 +1775,7 @@ relayJobsRouter.delete(
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
     await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
+    assertTransition(relayStateInput(before, await getState(id), undefined), 'delete');
     await adminPool.query(
       `UPDATE relay_jobs
           SET deleted_at = UTC_TIMESTAMP(3), enabled = 0,
@@ -1757,19 +1807,10 @@ async function setEnabled(req: any, enabled: boolean) {
     throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
   }
   await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
-  if (before.locked) {
-    throw new ApiError(409, 'RELAY_LOCKED', 'Relay job đang khóa, phải mở khóa trước');
-  }
-  if (
-    enabled &&
-    (before.paused_by_station_id !== null || before.paused_by_mountpoint_id !== null)
-  ) {
-    throw new ApiError(
-      409,
-      'RESOURCE_PAUSED',
-      'Relay job đang bị tạm dừng bởi trạm hoặc mountpoint'
-    );
-  }
+  assertTransition(
+    relayStateInput(before, await getState(id), undefined),
+    enabled ? 'enable' : 'disable'
+  );
   if (enabled) {
     await assertNoCycles({
       id,
@@ -1778,15 +1819,25 @@ async function setEnabled(req: any, enabled: boolean) {
       enabled: true
     });
   }
-  await adminPool.query(
-    `UPDATE relay_jobs
-        SET enabled = ?,
-            paused_by_station_id = NULL,
-            paused_by_mountpoint_id = NULL,
-            desired_revision = desired_revision + 1
-      WHERE id = ?`,
-    [enabled, id]
-  );
+  if (enabled) {
+    await adminPool.query(
+      `UPDATE relay_jobs
+          SET enabled = 1,
+              paused_by_station_id = NULL,
+              paused_by_mountpoint_id = NULL,
+              desired_revision = desired_revision + 1
+        WHERE id = ?`,
+      [id]
+    );
+  } else {
+    await adminPool.query(
+      `UPDATE relay_jobs
+          SET enabled = 0,
+              desired_revision = desired_revision + 1
+        WHERE id = ?`,
+      [id]
+    );
+  }
   const after = await getJobRow(id);
   await writeAudit(
     adminPool,
@@ -1798,15 +1849,15 @@ async function setEnabled(req: any, enabled: boolean) {
     publicJob(after, null),
     ipFrom(req)
   );
-  await requestReconcile(id);
-  return publicJob(after, await getState(id));
+  const reconcile = await requestReconcile(id);
+  return { item: publicJob(after, await getState(id)), reconcile };
 }
 
 relayJobsRouter.post(
   '/:id/enable',
   requirePermission('relay', 'edit'),
   asyncHandler(async (req, res) => {
-    res.json({ item: await setEnabled(req, true) });
+    res.json(await setEnabled(req, true));
   })
 );
 
@@ -1814,7 +1865,7 @@ relayJobsRouter.post(
   '/:id/disable',
   requirePermission('relay', 'edit'),
   asyncHandler(async (req, res) => {
-    res.json({ item: await setEnabled(req, false) });
+    res.json(await setEnabled(req, false));
   })
 );
 
@@ -1825,15 +1876,14 @@ async function setLocked(req: any, locked: boolean) {
     throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
   }
   await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
-  if (locked && before.enabled) {
-    throw new ApiError(400, 'RELAY_ENABLED', 'Phải tắt relay job trước khi khóa');
-  }
+  assertTransition(
+    relayStateInput(before, await getState(id), undefined),
+    locked ? 'lock' : 'unlock'
+  );
   await adminPool.query(
     `UPDATE relay_jobs
         SET locked = ?,
             enabled = 0,
-            paused_by_station_id = NULL,
-            paused_by_mountpoint_id = NULL,
             desired_revision = desired_revision + 1
       WHERE id = ?`,
     [locked ? 1 : 0, id]
@@ -1849,15 +1899,15 @@ async function setLocked(req: any, locked: boolean) {
     publicJob(after, null),
     ipFrom(req)
   );
-  await requestReconcile(id);
-  return publicJob(after, await getState(id));
+  const reconcile = await requestReconcile(id);
+  return { item: publicJob(after, await getState(id)), reconcile };
 }
 
 relayJobsRouter.post(
   '/:id/lock',
   requirePermission('relay', 'edit'),
   asyncHandler(async (req, res) => {
-    res.json({ item: await setLocked(req, true) });
+    res.json(await setLocked(req, true));
   })
 );
 
@@ -1865,7 +1915,7 @@ relayJobsRouter.post(
   '/:id/unlock',
   requirePermission('relay', 'edit'),
   asyncHandler(async (req, res) => {
-    res.json({ item: await setLocked(req, false) });
+    res.json(await setLocked(req, false));
   })
 );
 
@@ -1879,6 +1929,7 @@ relayJobsRouter.post(
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
     await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
+    assertTransition(relayStateInput(before, await getState(id), undefined), 'restart');
     await adminPool.query(
       'UPDATE relay_jobs SET desired_revision = desired_revision + 1 WHERE id = ?',
       [id]
@@ -1894,8 +1945,8 @@ relayJobsRouter.post(
       publicJob(after, null),
       ipFrom(req)
     );
-    await requestReconcile(id);
-    res.json({ item: publicJob(after, await getState(id)) });
+    const reconcile = await requestReconcile(id);
+    res.json({ item: publicJob(after, await getState(id)), reconcile });
   })
 );
 
@@ -1909,6 +1960,7 @@ relayJobsRouter.post(
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy relay job');
     }
     await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
+    assertTransition(relayStateInput(row, await getState(id), undefined), 'test');
     try {
       const result = await callGoInternal('/internal/test', { jobId: id }, { timeoutMs: 10000 });
       res.json({ result });

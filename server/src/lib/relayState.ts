@@ -72,7 +72,7 @@ export function isPaused(input: RelayStateInput): boolean {
 
 export function isPending(input: RelayStateInput): boolean {
   if (input.desiredRevision === null || input.desiredRevision === undefined) return false;
-  if (input.appliedRevision === null || input.appliedRevision === undefined) return true;
+  if (input.appliedRevision === null || input.appliedRevision === undefined) return false;
   return Number(input.appliedRevision) < Number(input.desiredRevision);
 }
 
@@ -137,11 +137,11 @@ export function assertTransition(input: RelayStateInput, action: RelayAction): v
 
     case 'lock':
       if (state === 'locked') return;
-      if (pending || state === 'pending') {
-        throw conflict('RELAY_PENDING', 'Cấu hình trước chưa áp dụng xong, thử lại sau');
-      }
       if (input.enabled) {
         throw conflict('RELAY_ENABLED', 'Phải tắt relay job trước khi khóa');
+      }
+      if (pending || state === 'pending') {
+        throw conflict('RELAY_PENDING', 'Cấu hình trước chưa áp dụng xong, thử lại sau');
       }
       if (isRuntimeLive(input.runtimeState)) {
         throw conflict('RELAY_ONLINE', 'Relay đang kết nối, chờ dừng hẳn trước khi khóa');
@@ -170,11 +170,11 @@ export function assertTransition(input: RelayStateInput, action: RelayAction): v
       if (state === 'locked') {
         throw conflict('RELAY_LOCKED', 'Relay job đang khóa, phải mở khóa trước khi xóa');
       }
-      if (pending || state === 'pending') {
-        throw conflict('RELAY_PENDING', 'Cấu hình trước chưa áp dụng xong, thử lại sau');
-      }
       if (input.enabled) {
         throw conflict('RELAY_ENABLED', 'Relay job đang bật, phải tắt trước khi xóa');
+      }
+      if (pending || state === 'pending') {
+        throw conflict('RELAY_PENDING', 'Cấu hình trước chưa áp dụng xong, thử lại sau');
       }
       if (isRuntimeLive(input.runtimeState)) {
         throw conflict('RELAY_ONLINE', 'Relay đang online, chờ dừng hẳn trước khi xóa');

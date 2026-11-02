@@ -430,3 +430,25 @@ P10-5 0.75 · P10-6 0.5).
   (không ném `RELAY_UNLOCKED`) theo bước P10-2; mã `RELAY_UNLOCKED` giữ cho bulk báo
   `skipped`; (3) `allowedActions` loại các hành động idempotent để UI không hiện nút
   vô nghĩa; (4) thứ tự kiểm tra `lock`/`delete`: pending trước enabled.
+
+### P10-2 — Áp ma trận vào API relay (2026-11-02 09:51 +07:00)
+
+- Việc: guard single/bulk/PATCH/import qua `relayState`; `requestReconcile` trả
+  `ok|pending|failed` (timeout 2.5s); `DELETE` chặn bật/khóa/pending/online;
+  `PATCH` chặn `enabled=true` khi khóa; `lock` không xóa `paused_*`; `disable`
+  không xóa pause; bulk dùng chung luật; import ép `enabled=0` cho job khóa và
+  trả `warnings`; list/detail trả `relayState`, `relayStateLabel`,
+  `allowedActions`; `relayStreamStatus` trả `offline` khi khóa;
+  `stationStream.resume` thêm `locked = 0`.
+- Lệnh: `npm run build`; `npm test`; kiểm tra API thật bằng script tạm (không commit).
+- Kết quả: PASS — server **116/116**; API: list có `relayState`/`allowedActions`;
+  xóa khi bật → `RELAY_ENABLED`; lock job tắt → 200; PATCH `enabled=true` khi khóa
+  → `RELAY_LOCKED`; PATCH metadata khi khóa → 200; bulk delete 3 job (bật/khóa/tắt)
+  → `updated=1`, `skipped=2`; xóa hợp lệ → 204; dọn sạch job test.
+- File: `server/src/routes/relayJobs.ts`, `server/src/lib/relayState.ts`,
+  `server/src/lib/stationStream.ts`, `server/tests/relayState.test.ts`.
+- Sai lệch: (1) `isPending` chỉ đúng khi **đã có** `applied_revision`; job mới chưa
+  áp dụng không bị coi là pending để không chặn khóa/xóa; (2) `lock`/`delete` kiểm
+  tra `enabled` trước `pending` (ưu tiên thông báo “phải tắt”); (3) import trả
+  `warnings` thay vì đưa vào `errors` (errors>0 sẽ hủy cả batch); (4) phải
+  `docker compose restart server` sau build vì `node --watch` không tự nạp `dist`.
