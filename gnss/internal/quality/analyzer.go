@@ -839,6 +839,7 @@ func (a *Analyzer) Health() Health {
 	}
 	if a.storeDrops != nil {
 		health.StoreDrops = a.storeDrops.Dropped()
+		health.StoreFailures = a.storeDrops.Failures()
 	}
 	return health
 }

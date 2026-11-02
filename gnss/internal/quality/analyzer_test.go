@@ -517,3 +517,56 @@ func TestScoreAlertsThresholdsAndRecovery(t *testing.T) {
 		t.Fatalf("scoreAlert = %q, want recovered", state.scoreAlert)
 	}
 }
+
+type blockingStore struct{}
+
+func (blockingStore) SaveMessageStats(ctx context.Context, _ []MessageStat) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (blockingStore) SaveSamples(ctx context.Context, _ []Sample) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (blockingStore) UpsertAlert(ctx context.Context, _ AlertRecord) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func (blockingStore) ResolveAlert(ctx context.Context, _ Target, _ string, _ time.Time) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func TestAsyncStoreAppliesTimeout(t *testing.T) {
+	async := NewAsyncStore(blockingStore{}, 4)
+	async.storeTimeout = 50 * time.Millisecond
+	if err := async.SaveSamples(context.Background(), []Sample{{Score: 1}}); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan struct{})
+	go func() {
+		async.Run(ctx)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) && async.Failures() == 0 {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if async.Failures() != 1 {
+		t.Fatalf("failures = %d, want 1", async.Failures())
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Run did not stop")
+	}
+}

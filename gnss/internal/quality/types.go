@@ -139,14 +139,15 @@ type Snapshot struct {
 }
 
 type Health struct {
-	QueueDepth  int    `json:"queueDepth"`
-	QueueSize   int    `json:"queueSize"`
-	Dropped     uint64 `json:"dropped"`
-	ParseErrors uint64 `json:"parseErrors"`
-	Targets     int    `json:"targets"`
-	AlertsOpen  int    `json:"alertsOpen"`
-	StoreDrops  uint64 `json:"storeDrops"`
-	Time        string `json:"time"`
+	QueueDepth    int    `json:"queueDepth"`
+	QueueSize     int    `json:"queueSize"`
+	Dropped       uint64 `json:"dropped"`
+	ParseErrors   uint64 `json:"parseErrors"`
+	Targets       int    `json:"targets"`
+	AlertsOpen    int    `json:"alertsOpen"`
+	StoreDrops    uint64 `json:"storeDrops"`
+	StoreFailures uint64 `json:"storeFailures"`
+	Time          string `json:"time"`
 }
 
 type Sample struct {

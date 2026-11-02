@@ -227,10 +227,12 @@ type storeOp struct {
 // AsyncStore decouples RTCM parsing from MySQL latency. When the queue is full
 // the operation is dropped and counted; relay/caster byte flow is never blocked.
 type AsyncStore struct {
-	store Store
-	queue chan storeOp
+	store        Store
+	queue        chan storeOp
+	storeTimeout time.Duration
 
-	dropped atomic.Uint64
+	dropped  atomic.Uint64
+	failures atomic.Uint64
 
 	mu      sync.Mutex
 	started bool
@@ -242,9 +244,10 @@ func NewAsyncStore(store Store, queueSize int) *AsyncStore {
 		queueSize = 4096
 	}
 	return &AsyncStore{
-		store: store,
-		queue: make(chan storeOp, queueSize),
-		done:  make(chan struct{}),
+		store:        store,
+		queue:        make(chan storeOp, queueSize),
+		storeTimeout: 4 * time.Second,
+		done:         make(chan struct{}),
 	}
 }
 
@@ -308,20 +311,31 @@ func (a *AsyncStore) Run(ctx context.Context) {
 }
 
 func (a *AsyncStore) apply(op storeOp) {
+	ctx, cancel := context.WithTimeout(context.Background(), a.storeTimeout)
+	defer cancel()
+
+	var err error
 	switch op.kind {
 	case opStats:
-		_ = a.store.SaveMessageStats(context.Background(), op.stats)
+		err = a.store.SaveMessageStats(ctx, op.stats)
 	case opSamples:
-		_ = a.store.SaveSamples(context.Background(), op.samples)
+		err = a.store.SaveSamples(ctx, op.samples)
 	case opAlert:
-		_ = a.store.UpsertAlert(context.Background(), *op.alert)
+		err = a.store.UpsertAlert(ctx, *op.alert)
 	case opResolve:
-		_ = a.store.ResolveAlert(context.Background(), op.resolve.Target, op.resolve.Code, op.resolve.ResolvedAt)
+		err = a.store.ResolveAlert(ctx, op.resolve.Target, op.resolve.Code, op.resolve.ResolvedAt)
+	}
+	if err != nil {
+		a.failures.Add(1)
 	}
 }
 
 func (a *AsyncStore) Dropped() uint64 {
 	return a.dropped.Load()
+}
+
+func (a *AsyncStore) Failures() uint64 {
+	return a.failures.Load()
 }
 
 func (a *AsyncStore) Done() <-chan struct{} {
