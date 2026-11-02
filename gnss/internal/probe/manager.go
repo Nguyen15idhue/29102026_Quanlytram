@@ -17,6 +17,7 @@ import (
 type Options struct {
 	PollInterval time.Duration
 	DialTimeout  time.Duration
+	IdleTimeout  time.Duration
 	ReadBuffer   int
 	NMEAInterval time.Duration
 	RetryMin     time.Duration
@@ -28,6 +29,7 @@ func DefaultOptions() Options {
 	return Options{
 		PollInterval: 10 * time.Second,
 		DialTimeout:  15 * time.Second,
+		IdleTimeout:  60 * time.Second,
 		ReadBuffer:   32 * 1024,
 		NMEAInterval: 10 * time.Second,
 		RetryMin:     time.Second,
@@ -42,6 +44,9 @@ func (o Options) withDefaults() Options {
 	}
 	if o.DialTimeout <= 0 {
 		o.DialTimeout = defaults.DialTimeout
+	}
+	if o.IdleTimeout <= 0 {
+		o.IdleTimeout = defaults.IdleTimeout
 	}
 	if o.ReadBuffer <= 0 {
 		o.ReadBuffer = defaults.ReadBuffer
@@ -260,6 +265,9 @@ func (m *Manager) connectAndRead(ctx context.Context, cfg *Config) error {
 
 	buffer := make([]byte, m.opts.ReadBuffer)
 	for {
+		if response.Conn != nil {
+			_ = response.Conn.SetReadDeadline(time.Now().Add(m.opts.IdleTimeout))
+		}
 		n, readErr := response.Body.Read(buffer)
 		if n > 0 && m.opts.Quality != nil {
 			sample := append([]byte(nil), buffer[:n]...)

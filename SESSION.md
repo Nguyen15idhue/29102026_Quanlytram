@@ -1134,5 +1134,8 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   `runtime.Start` ngoài `manager.mu`; thêm 2 test khoá/đồng thời. `go build`,
   `go vet`, `go test ./...` PASS. Lưu ý: host Windows không có cgo/gcc nên
   `go test -race` chưa chạy được, cần bổ sung trên CI Linux.
-- Kế hoạch 11 đang triển khai tuần tự P11-4…P11-10; nhật ký ở
+- P11-4 DONE: relay upstream + probe có `IdleTimeout` 60s (read deadline mỗi
+  vòng đọc), caster bật TCP keepalive 30s và trần 500 kết nối / 50 mỗi IP.
+  `go build`, `go vet`, `go test ./...` PASS (+3 test idle/limit).
+- Kế hoạch 11 đang triển khai tuần tự P11-5…P11-10; nhật ký ở
   `docs/1/11_BAO_CAO_TOI_UU_TAI_NGUYEN.md` §12.

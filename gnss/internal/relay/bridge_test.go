@@ -551,3 +551,28 @@ func TestUpstreamReadIsNotBlockedBySlowDownstream(t *testing.T) {
 	t.Fatalf("upstream read stalled behind slow downstream: bytesUp=%d want=%d",
 		metrics.Snapshot(0).BytesUp, len(payload))
 }
+
+func TestIdleUpstreamTimesOut(t *testing.T) {
+	upstream := newMockServer(t, upstreamHandler(upstreamOptions{keepOpen: true}))
+	downstream := newMockServer(t, downstreamHandler(downstreamOptions{response: "HTTP/1.0 200 OK\r\n\r\n"}))
+	cfg := testConfig(upstream, downstream, "post")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	err := RunSession(ctx, cfg, Options{
+		DialTimeout:   time.Second,
+		IdleTimeout:   150 * time.Millisecond,
+		MonitorBuffer: 16,
+		ReadBuffer:    1024,
+		NMEAInterval:  time.Hour,
+		RetryMin:      time.Second,
+		RetryMax:      time.Second,
+	}, rtcm.NewMonitor(1<<16), &Metrics{})
+	if err == nil {
+		t.Fatal("expected idle timeout error")
+	}
+	var netErr net.Error
+	if !errors.As(err, &netErr) || !netErr.Timeout() {
+		t.Fatalf("error = %v, want timeout", err)
+	}
+}

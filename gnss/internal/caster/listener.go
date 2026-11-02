@@ -31,6 +31,10 @@ func (lr *listenerRuntime) serve() {
 		if err != nil {
 			return
 		}
+		if tcp, ok := conn.(*net.TCPConn); ok {
+			_ = tcp.SetKeepAlive(true)
+			_ = tcp.SetKeepAlivePeriod(30 * time.Second)
+		}
 		lr.mgr.connWG.Add(1)
 		go func() {
 			defer lr.mgr.connWG.Done()

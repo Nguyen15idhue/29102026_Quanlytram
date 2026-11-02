@@ -16,6 +16,7 @@ import (
 
 type Options struct {
 	DialTimeout      time.Duration
+	IdleTimeout      time.Duration
 	MonitorBuffer    int
 	ReadBuffer       int
 	DownstreamBuffer int
@@ -30,6 +31,7 @@ type Options struct {
 func DefaultOptions() Options {
 	return Options{
 		DialTimeout:      15 * time.Second,
+		IdleTimeout:      60 * time.Second,
 		MonitorBuffer:    256,
 		ReadBuffer:       32 * 1024,
 		DownstreamBuffer: 256,
@@ -44,6 +46,9 @@ func (o Options) withDefaults() Options {
 	defaults := DefaultOptions()
 	if o.DialTimeout <= 0 {
 		o.DialTimeout = defaults.DialTimeout
+	}
+	if o.IdleTimeout <= 0 {
+		o.IdleTimeout = defaults.IdleTimeout
 	}
 	if o.MonitorBuffer <= 0 {
 		o.MonitorBuffer = defaults.MonitorBuffer
@@ -210,6 +215,9 @@ func RunSession(
 		case err := <-writerErr:
 			return err
 		default:
+		}
+		if upstream.Conn != nil {
+			_ = upstream.Conn.SetReadDeadline(time.Now().Add(opts.IdleTimeout))
 		}
 		n, readErr := upstream.Body.Read(buffer)
 		if n > 0 {

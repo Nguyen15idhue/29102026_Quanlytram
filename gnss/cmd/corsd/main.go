@@ -86,6 +86,7 @@ func main() {
 
 	options := relay.DefaultOptions()
 	options.DialTimeout = cfg.DialTimeout
+	options.IdleTimeout = cfg.RelayIdleTimeout
 	options.PollInterval = cfg.PollInterval
 	options.RetryMin = time.Second
 	options.RetryMax = 30 * time.Second
@@ -106,6 +107,8 @@ func main() {
 	casterOptions.QueueSize = cfg.CasterQueueSize
 	casterOptions.ReadBuffer = cfg.CasterReadBuffer
 	casterOptions.MaxHeader = cfg.CasterMaxHeaderBytes
+	casterOptions.MaxConnections = cfg.CasterMaxConnections
+	casterOptions.MaxConnectionsPerIP = cfg.CasterMaxConnectionsPerIP
 	casterOptions.Quality = analyzer
 	casterManager := caster.NewManager(
 		caster.NewMySQLStore(adminDB),
@@ -116,6 +119,7 @@ func main() {
 	probeOptions := probe.DefaultOptions()
 	probeOptions.PollInterval = cfg.ProbePollInterval
 	probeOptions.DialTimeout = cfg.DialTimeout
+	probeOptions.IdleTimeout = cfg.ProbeIdleTimeout
 	probeOptions.ReadBuffer = cfg.ProbeReadBuffer
 	probeOptions.NMEAInterval = cfg.ProbeNMEAInterval
 	probeOptions.Quality = analyzer

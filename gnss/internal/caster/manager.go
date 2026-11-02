@@ -15,27 +15,31 @@ import (
 )
 
 type Options struct {
-	BindAddr      string
-	PollInterval  time.Duration
-	HeaderTimeout time.Duration
-	WriteTimeout  time.Duration
-	DBTimeout     time.Duration
-	ReadBuffer    int
-	QueueSize     int
-	MaxHeader     int
-	Quality       *quality.Analyzer
+	BindAddr            string
+	PollInterval        time.Duration
+	HeaderTimeout       time.Duration
+	WriteTimeout        time.Duration
+	DBTimeout           time.Duration
+	ReadBuffer          int
+	QueueSize           int
+	MaxHeader           int
+	MaxConnections      int
+	MaxConnectionsPerIP int
+	Quality             *quality.Analyzer
 }
 
 func DefaultOptions() Options {
 	return Options{
-		BindAddr:      "0.0.0.0",
-		PollInterval:  10 * time.Second,
-		HeaderTimeout: 10 * time.Second,
-		WriteTimeout:  10 * time.Second,
-		DBTimeout:     3 * time.Second,
-		ReadBuffer:    32 * 1024,
-		QueueSize:     64,
-		MaxHeader:     16 * 1024,
+		BindAddr:            "0.0.0.0",
+		PollInterval:        10 * time.Second,
+		HeaderTimeout:       10 * time.Second,
+		WriteTimeout:        10 * time.Second,
+		DBTimeout:           3 * time.Second,
+		ReadBuffer:          32 * 1024,
+		QueueSize:           64,
+		MaxHeader:           16 * 1024,
+		MaxConnections:      500,
+		MaxConnectionsPerIP: 50,
 	}
 }
 
@@ -95,6 +99,8 @@ type manager struct {
 	listenerError map[int64]string
 	conns         map[int64]*connection
 	pending       map[int64]int
+	pendingIP     map[string]int
+	pendingTotal  int
 	syntheticID   int64
 }
 
@@ -112,6 +118,7 @@ func NewManager(store ConfigStore, runtime RuntimeStore, opts Options) *manager 
 		listenerError: make(map[int64]string),
 		conns:         make(map[int64]*connection),
 		pending:       make(map[int64]int),
+		pendingIP:     make(map[string]int),
 	}
 }
 
@@ -338,9 +345,15 @@ func (m *manager) register(conn *connection, account *AccountConfig) error {
 		m.mu.Unlock()
 		return errStopping
 	}
+	remoteIP := remoteHost(conn.remoteAddr)
+	if !m.reserveSlotLocked(remoteIP) {
+		m.mu.Unlock()
+		return errMaxConns
+	}
 	if account != nil {
 		count := m.accountConnsLocked(account.ID) + m.pending[account.ID]
 		if count >= account.MaxConnections {
+			m.releaseSlotLocked(remoteIP)
 			m.mu.Unlock()
 			return errMaxConns
 		}
@@ -353,6 +366,7 @@ func (m *manager) register(conn *connection, account *AccountConfig) error {
 		if account != nil {
 			m.releasePendingLocked(account.ID)
 		}
+		m.releaseSlotLocked(remoteIP)
 		m.mu.Unlock()
 		return errInvalidConfig
 	}
@@ -384,6 +398,7 @@ func (m *manager) register(conn *connection, account *AccountConfig) error {
 	if account != nil {
 		m.releasePendingLocked(account.ID)
 	}
+	m.releaseSlotLocked(remoteIP)
 	if m.stopping {
 		m.mu.Unlock()
 		if startID > 0 {
@@ -411,6 +426,48 @@ func (m *manager) accountConnsLocked(accountID int64) int {
 	count := 0
 	for _, existing := range m.conns {
 		if existing.accountID != nil && *existing.accountID == accountID {
+			count++
+		}
+	}
+	return count
+}
+
+func remoteHost(addr string) string {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return addr
+	}
+	return host
+}
+
+func (m *manager) reserveSlotLocked(ip string) bool {
+	total := len(m.conns) + m.pendingTotal
+	if m.opts.MaxConnections > 0 && total >= m.opts.MaxConnections {
+		return false
+	}
+	if m.opts.MaxConnectionsPerIP > 0 && m.ipConnsLocked(ip)+m.pendingIP[ip] >= m.opts.MaxConnectionsPerIP {
+		return false
+	}
+	m.pendingTotal++
+	m.pendingIP[ip]++
+	return true
+}
+
+func (m *manager) releaseSlotLocked(ip string) {
+	if m.pendingTotal > 0 {
+		m.pendingTotal--
+	}
+	if m.pendingIP[ip] <= 1 {
+		delete(m.pendingIP, ip)
+		return
+	}
+	m.pendingIP[ip]--
+}
+
+func (m *manager) ipConnsLocked(ip string) int {
+	count := 0
+	for _, existing := range m.conns {
+		if remoteHost(existing.remoteAddr) == ip {
 			count++
 		}
 	}

@@ -1,4 +1,4 @@
-﻿package caster
+package caster
 
 import (
 	"bufio"
@@ -836,3 +836,64 @@ func TestRegisterReservesSlotsConcurrently(t *testing.T) {
 	}
 }
 
+func clearRegisteredConns(mgr *manager) {
+	mgr.mu.Lock()
+	mgr.conns = make(map[int64]*connection)
+	mgr.pending = make(map[int64]int)
+	mgr.pendingIP = make(map[string]int)
+	mgr.pendingTotal = 0
+	mgr.mu.Unlock()
+}
+
+func TestRegisterEnforcesPerIPLimit(t *testing.T) {
+	cfg := registerTestConfig(10)
+	mgr := NewManager(&memoryStore{cfg: cfg}, &memoryRuntime{}, Options{
+		DBTimeout:           time.Second,
+		ReadBuffer:          1024,
+		QueueSize:           4,
+		MaxConnectionsPerIP: 2,
+	})
+	seedRegisterConfig(mgr, cfg)
+	defer clearRegisteredConns(mgr)
+
+	first := testConnection()
+	first.remoteAddr = "127.0.0.1:1000"
+	second := testConnection()
+	second.remoteAddr = "127.0.0.1:1001"
+	third := testConnection()
+	third.remoteAddr = "127.0.0.1:1002"
+
+	if err := mgr.register(first, cfg.Accounts[0]); err != nil {
+		t.Fatalf("first: %v", err)
+	}
+	if err := mgr.register(second, cfg.Accounts[0]); err != nil {
+		t.Fatalf("second: %v", err)
+	}
+	if err := mgr.register(third, cfg.Accounts[0]); err != errMaxConns {
+		t.Fatalf("third = %v, want errMaxConns", err)
+	}
+}
+
+func TestRegisterEnforcesGlobalLimit(t *testing.T) {
+	cfg := registerTestConfig(10)
+	mgr := NewManager(&memoryStore{cfg: cfg}, &memoryRuntime{}, Options{
+		DBTimeout:      time.Second,
+		ReadBuffer:     1024,
+		QueueSize:      4,
+		MaxConnections: 2,
+	})
+	seedRegisterConfig(mgr, cfg)
+	defer clearRegisteredConns(mgr)
+
+	for index, addr := range []string{"10.0.0.1:1", "10.0.0.2:1", "10.0.0.3:1"} {
+		conn := testConnection()
+		conn.remoteAddr = addr
+		err := mgr.register(conn, cfg.Accounts[0])
+		if index < 2 && err != nil {
+			t.Fatalf("connection %d: %v", index, err)
+		}
+		if index == 2 && err != errMaxConns {
+			t.Fatalf("connection %d = %v, want errMaxConns", index, err)
+		}
+	}
+}
