@@ -6,6 +6,7 @@
 - Kế hoạch 09 lập: `docs/1/09_KE_HOACH_TIMELINE_TRANG_THAI.md` — no_data theo frame/60s (`xx` mặc định 10), offline theo kết nối/service/tắt-khoá, `system_down` vs `source_lost`, rolling 30d, `none` hiển thị mọi khung; chưa triển khai code.
 - P09 Phase 0 PASS: baseline `scripts/verify-timeline.ps1` tái hiện 24h/7d/30d `online` lúc 00:30/04:00 (downtime), độ phủ segment 72.371s < khung; server tsc PASS, vitest 89/90 (FAIL stationDetail.test:19 do WIP), frontend tsc PASS.
 - WIP timeline lần trước được làm lại trong P09; không giữ kết luận 90/90 cũ vì semantics đã đổi.
+- P09 Phase 1 PASS: `statusTimeline` mới dùng frame/60s (`timeline.minFramesPerWindow`, mặc định 10), `offline` khi không kết nối, `no_data` khi kết nối nhưng frame thấp, bỏ nối gap >120s, `segments` gồm `none`; server tsc PASS, vitest 92/92.
 - Kế hoạch 08 lập xong: `docs/1/08_KE_HOACH_TRANG_HUONG_DAN.md` (Docusaurus build-time + Playwright capture + 12 chương; trang `/guide`, menu "Hướng dẫn" giữa Relay và Hệ thống).
 - P08-0 DONE: baseline server 88/88 (14 file), frontend build PASS, navigation 1/1 PASS; compose healthy; không sửa mã nguồn.
 - P08-1 DONE: `docs-site/` Docusaurus 3.10.2 (baseUrl `/guide/`, locale vi, search local), 2 chương mẫu; build PASS, serve HTTP 200.

@@ -40,10 +40,12 @@ import {
 import {
   buildStatusTimeline,
   combinedRelayStatus,
+  SAMPLE_LOOKBACK_MS,
   statusForLiveAge,
   TIMELINE_RANGES,
   timelineRange
 } from '../lib/statusTimeline';
+import { loadTimelineConfig } from '../lib/timelineConfig';
 import { requireAuth, requirePermission, isSuperAdmin } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import {
@@ -2138,18 +2140,22 @@ stationsRouter.get(
     const { hours, bucketSec, resolutionSec, seriesBucketSec } = TIMELINE_RANGES[range];
     const now = new Date();
     const from = new Date(now.getTime() - hours * 3600_000);
+    // Đọc lùi thêm một sample để nội suy đúng trạng thái ngay tại rangeFrom.
+    const sampleFrom = new Date(from.getTime() - SAMPLE_LOOKBACK_MS);
     const rows = await runtimeQuery<RowDataPacket[]>(
-      `SELECT ts, state, age_ms, satellites, avg_cnr, msm_epochs, gaps
+      `SELECT ts, state, age_ms, frames, window_sec, satellites, avg_cnr, msm_epochs, gaps
          FROM quality_samples
         WHERE target_type = 'station' AND target_id = ? AND direction = 'ingest'
           AND ts >= ? AND ts <= ?
         ORDER BY ts ASC`,
-      [station.id, from, now]
+      [station.id, sampleFrom, now]
     );
     const samples = rows.map((row) => ({
       ts: new Date(row.ts),
       state: String(row.state ?? ''),
-      ageMs: Number(row.age_ms ?? 0)
+      ageMs: Number(row.age_ms ?? 0),
+      frames: Number(row.frames ?? 0),
+      windowSec: Number(row.window_sec ?? 60)
     }));
     const rawConnectionInfo = await stationConnectionIntervals(station, from, now);
     const connectionInfo =
@@ -2196,6 +2202,7 @@ stationsRouter.get(
       samples,
       connections: connectionInfo.connections,
       hasConnectionInfo: connectionInfo.hasConnectionInfo,
+      minFramesPerWindow: (await loadTimelineConfig()).minFramesPerWindow,
       currentStatus
     });
     const seriesBucketMs = seriesBucketSec * 1000;

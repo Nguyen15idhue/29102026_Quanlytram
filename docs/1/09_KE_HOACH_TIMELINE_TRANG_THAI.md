@@ -367,15 +367,15 @@ Với T0 = 00:23:15, T1 = 08:17:14, T2 = 08:18:14, now = 08:21:
 
 ## 8. Checklist Definition of Done
 
-- [ ] `statusAt(t)` độc lập khung; cùng `t` cho cùng status ở 4 khung.
-- [ ] `no_data` theo định nghĩa mới (`< xx` frame/60s), không còn giới hạn 10s.
+- [x] `statusAt(t)` độc lập khung; cùng `t` cho cùng status ở 4 khung.
+- [x] `no_data` theo định nghĩa mới (`< xx` frame/60s), không còn giới hạn 10s.
 - [ ] `offline` chỉ khi không kết nối / service dừng / tắt-khoá.
 - [ ] `system_down` và `source_lost` phân biệt được trong reason/log.
-- [ ] Không nối sample cách nhau > 120 giây.
-- [ ] Khung `1h/24h/7d/30d` đúng `now−range`, `1m` = 30 ngày.
-- [ ] `segments` phủ kín khung, gồm `none`, hiển thị được.
-- [ ] Tổng 4 trạng thái = độ dài khung.
-- [ ] Tỷ lệ online giữ công thức hiện tại, tính riêng từng khung.
+- [x] Không nối sample cách nhau > 120 giây.
+- [x] Khung `1h/24h/7d/30d` đúng `now−range`, `1m` = 30 ngày.
+- [x] `segments` phủ kín khung, gồm `none`, hiển thị được.
+- [x] Tổng 4 trạng thái = độ dài khung.
+- [x] Tỷ lệ online giữ công thức hiện tại, tính riêng từng khung.
 - [ ] Badge live và timeline cùng nguồn.
 - [ ] Server test/tsc PASS; frontend build PASS; Playwright PASS.
 - [ ] `SESSION.md` cập nhật bằng chứng.
@@ -398,7 +398,7 @@ Với T0 = 00:23:15, T1 = 08:17:14, T2 = 08:18:14, now = 08:21:
 | Phase | Trạng thái | Ngày | Bằng chứng | Lệnh đã chạy | Ghi chú |
 |---|---|---|---|---|---|
 | 0 — Baseline | PASS | 2026-11-02 | Script `scripts/verify-timeline.ps1` tái hiện lỗi: 24h/7d/30d `online` tại 00:30 và 04:00 (đang downtime); độ phủ 1h PASS, 24h/7d/30d FAIL (segment 72.371s). Server tsc PASS; vitest 89/90, 1 FAIL `stationDetail.test.ts:19` do WIP đổi semantics. | `npx tsc -p tsconfig.json --noEmit`; `npm test`; `scripts/verify-timeline.ps1 -Kind station -Id 480 ...` | WIP timeline được giữ để làm lại ở Phase 1; không commit các thay đổi không liên quan (`Dashboard`, `ops.ts`, ...). |
-| 1 — Status engine | Chưa làm |  |  |  |  |
+| 1 — Status engine | PASS | 2026-11-02 | `statusAt(t)` dùng frame/60s + kết nối; bỏ nối gap >120s; `segments` gồm `none`; 92/92 vitest PASS, tsc PASS. | `npx tsc -p tsconfig.json --noEmit`; `npm test` | Chưa có service downtime (Phase 2) nên gap mất kết nối đang là `no_data`; sẽ chuyển `offline` khi có `service_runs`. |
 | 2 — Service lifecycle | Chưa làm |  |  |  |  |
 | 3 — API contract | Chưa làm |  |  |  |  |
 | 4 — UI | Chưa làm |  |  |  |  |

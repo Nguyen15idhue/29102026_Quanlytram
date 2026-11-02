@@ -259,6 +259,11 @@ async function main(): Promise<void> {
     );
   }
 
+  await adminPool.query(
+    `INSERT IGNORE INTO settings (setting_key, setting_value)
+     VALUES ('timeline.minFramesPerWindow', '10')`
+  );
+
   console.log('[seed] roles, permissions, users, stations, mountpoints, ntrip accounts ready');
 }
 
