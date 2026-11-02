@@ -570,3 +570,55 @@ func TestAsyncStoreAppliesTimeout(t *testing.T) {
 		t.Fatal("Run did not stop")
 	}
 }
+
+func TestFeedEnforcesQueueByteBudget(t *testing.T) {
+	analyzer := NewAnalyzer(Options{QueueSize: 100, QueueBytes: 100}, &fakeStore{})
+	chunk := make([]byte, 80)
+	target := Target{Type: TargetStation, ID: 1}
+
+	analyzer.Feed(target, chunk)
+	analyzer.Feed(target, chunk)
+
+	health := analyzer.Health()
+	if health.Dropped != 1 {
+		t.Fatalf("dropped = %d, want 1", health.Dropped)
+	}
+	if health.QueueBytes != 80 {
+		t.Fatalf("queue bytes = %d, want 80", health.QueueBytes)
+	}
+	if health.QueueDepth != 1 {
+		t.Fatalf("queue depth = %d, want 1", health.QueueDepth)
+	}
+}
+
+func TestTargetsExpireAfterTTL(t *testing.T) {
+	analyzer := NewAnalyzer(Options{
+		QueueSize:      16,
+		TargetTTL:      100 * time.Millisecond,
+		EvalInterval:   time.Hour,
+		StatsInterval:  time.Hour,
+		SampleInterval: time.Hour,
+		ScoreInterval:  time.Hour,
+	}, &fakeStore{})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go analyzer.Run(ctx)
+	defer analyzer.Shutdown()
+
+	analyzer.Feed(Target{Type: TargetStation, ID: 1}, []byte{1, 2, 3})
+	deadline := time.Now().Add(2 * time.Second)
+	for analyzer.Health().Targets == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := analyzer.Health().Targets; got != 1 {
+		t.Fatalf("targets = %d, want 1 after feed", got)
+	}
+
+	deadline = time.Now().Add(3 * time.Second)
+	for analyzer.Health().Targets != 0 && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got := analyzer.Health().Targets; got != 0 {
+		t.Fatalf("targets = %d, want 0 after TTL", got)
+	}
+}

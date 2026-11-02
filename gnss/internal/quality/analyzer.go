@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -15,6 +16,8 @@ const maxTargetBuffer = 128 * 1024
 
 type Options struct {
 	QueueSize       int
+	QueueBytes      int
+	TargetTTL       time.Duration
 	SampleInterval  time.Duration
 	StatsInterval   time.Duration
 	EvalInterval    time.Duration
@@ -30,6 +33,8 @@ type Options struct {
 func DefaultOptions() Options {
 	return Options{
 		QueueSize:       2048,
+		QueueBytes:      16 * 1024 * 1024,
+		TargetTTL:       10 * time.Minute,
 		SampleInterval:  60 * time.Second,
 		StatsInterval:   10 * time.Second,
 		EvalInterval:    5 * time.Second,
@@ -47,6 +52,12 @@ func (o Options) withDefaults() Options {
 	defaults := DefaultOptions()
 	if o.QueueSize <= 0 {
 		o.QueueSize = defaults.QueueSize
+	}
+	if o.QueueBytes <= 0 {
+		o.QueueBytes = defaults.QueueBytes
+	}
+	if o.TargetTTL <= 0 {
+		o.TargetTTL = defaults.TargetTTL
 	}
 	if o.SampleInterval <= 0 {
 		o.SampleInterval = defaults.SampleInterval
@@ -220,12 +231,13 @@ type Analyzer struct {
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
 
-	mu         sync.Mutex
-	targets    map[string]*targetState
-	dropped    uint64
-	openAlerts int
-	started    bool
-	storeDrops *AsyncStore
+	mu          sync.Mutex
+	targets     map[string]*targetState
+	dropped     uint64
+	openAlerts  int
+	started     bool
+	queuedBytes atomic.Int64
+	storeDrops  *AsyncStore
 }
 
 func NewAnalyzer(opts Options, store Store) *Analyzer {
@@ -246,9 +258,17 @@ func (a *Analyzer) Feed(target Target, data []byte) {
 	if len(data) == 0 {
 		return
 	}
+	size := int64(len(data))
+	if len(a.queue) >= cap(a.queue) || a.queuedBytes.Load()+size > int64(a.opts.QueueBytes) {
+		a.mu.Lock()
+		a.dropped++
+		a.mu.Unlock()
+		return
+	}
 	copied := append([]byte(nil), data...)
 	select {
 	case a.queue <- feedItem{target: target, data: copied, at: time.Now().UTC()}:
+		a.queuedBytes.Add(size)
 	default:
 		a.mu.Lock()
 		a.dropped++
@@ -273,12 +293,22 @@ func (a *Analyzer) Run(ctx context.Context) {
 		a.consume(runCtx)
 	}()
 
+	sweepInterval := a.opts.TargetTTL / 2
+	if sweepInterval < 500*time.Millisecond {
+		sweepInterval = 500 * time.Millisecond
+	}
+	if sweepInterval > time.Minute {
+		sweepInterval = time.Minute
+	}
+
 	evalTicker := time.NewTicker(a.opts.EvalInterval)
 	statsTicker := time.NewTicker(a.opts.StatsInterval)
 	sampleTicker := time.NewTicker(a.opts.SampleInterval)
+	sweepTicker := time.NewTicker(sweepInterval)
 	defer evalTicker.Stop()
 	defer statsTicker.Stop()
 	defer sampleTicker.Stop()
+	defer sweepTicker.Stop()
 
 	for {
 		select {
@@ -291,6 +321,8 @@ func (a *Analyzer) Run(ctx context.Context) {
 			a.flushStats(time.Now().UTC())
 		case <-sampleTicker.C:
 			a.emitSamples(time.Now().UTC())
+		case <-sweepTicker.C:
+			a.sweepTargets(time.Now().UTC())
 		}
 	}
 }
@@ -319,6 +351,7 @@ func (a *Analyzer) consume(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case item := <-a.queue:
+			a.queuedBytes.Add(-int64(len(item.data)))
 			a.mu.Lock()
 			state := a.targets[item.target.Key()]
 			if state == nil {
@@ -327,6 +360,16 @@ func (a *Analyzer) consume(ctx context.Context) {
 			}
 			state.ingest(item.data, item.at, a.opts.GapThreshold, a.opts.ResetAfter)
 			a.mu.Unlock()
+		}
+	}
+}
+
+func (a *Analyzer) sweepTargets(now time.Time) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for key, state := range a.targets {
+		if !state.lastFeedAt.IsZero() && now.Sub(state.lastFeedAt) > a.opts.TargetTTL {
+			delete(a.targets, key)
 		}
 	}
 }
@@ -835,6 +878,7 @@ func (a *Analyzer) Health() Health {
 		ParseErrors: parseErrors,
 		Targets:     len(a.targets),
 		AlertsOpen:  a.openAlerts,
+		QueueBytes:  a.queuedBytes.Load(),
 		Time:        time.Now().UTC().Format(time.RFC3339),
 	}
 	if a.storeDrops != nil {

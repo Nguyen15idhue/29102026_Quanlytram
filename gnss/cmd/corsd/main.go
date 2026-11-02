@@ -73,6 +73,8 @@ func main() {
 	qualityAsync := quality.NewAsyncStore(qualityStore, cfg.QualityStoreQueueSize)
 	analyzer := quality.NewAnalyzer(quality.Options{
 		QueueSize:       cfg.QualityQueueSize,
+		QueueBytes:      cfg.QualityQueueBytes,
+		TargetTTL:       cfg.QualityTargetTTL,
 		SampleInterval:  cfg.QualitySampleInterval,
 		StatsInterval:   cfg.QualityStatsInterval,
 		EvalInterval:    cfg.QualityEvalInterval,

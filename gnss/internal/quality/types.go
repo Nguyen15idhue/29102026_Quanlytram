@@ -141,6 +141,7 @@ type Snapshot struct {
 type Health struct {
 	QueueDepth    int    `json:"queueDepth"`
 	QueueSize     int    `json:"queueSize"`
+	QueueBytes    int64  `json:"queueBytes"`
 	Dropped       uint64 `json:"dropped"`
 	ParseErrors   uint64 `json:"parseErrors"`
 	Targets       int    `json:"targets"`

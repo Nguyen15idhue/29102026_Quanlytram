@@ -42,6 +42,8 @@ type Config struct {
 	ProbeIdleTimeout  time.Duration
 
 	QualityQueueSize       int
+	QualityQueueBytes      int
+	QualityTargetTTL       time.Duration
 	QualitySampleInterval  time.Duration
 	QualityStatsInterval   time.Duration
 	QualityEvalInterval    time.Duration
@@ -122,6 +124,8 @@ func Load() Config {
 		ProbeIdleTimeout:  getenvSeconds("PROBE_IDLE_TIMEOUT_SEC", 60*time.Second),
 
 		QualityQueueSize:       getenvInt("QUALITY_QUEUE_SIZE", 2048),
+		QualityQueueBytes:      getenvInt("QUALITY_QUEUE_BYTES", 16*1024*1024),
+		QualityTargetTTL:       getenvSeconds("QUALITY_TARGET_TTL_SEC", 10*time.Minute),
 		QualitySampleInterval:  getenvSeconds("QUALITY_SAMPLE_INTERVAL_SEC", 60*time.Second),
 		QualityStatsInterval:   getenvSeconds("QUALITY_STATS_INTERVAL_SEC", 10*time.Second),
 		QualityEvalInterval:    getenvSeconds("QUALITY_EVAL_INTERVAL_SEC", 5*time.Second),

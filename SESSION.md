@@ -1141,5 +1141,7 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   cấu hình bản đồ. Server build PASS, vitest 125/125 PASS.
 - P11-6 DONE: `AsyncStore` ghi DB có timeout 4 giây + đếm `Failures`, health
   trả thêm `storeFailures`. Go build/vet/test quality PASS.
-- Kế hoạch 11 đang triển khai tuần tự P11-7…P11-10; nhật ký ở
+- P11-7 DONE: analyzer giới hạn queue theo byte (16 MB) và dọn target theo TTL
+  600s; `Feed` không copy khi queue đầy. Go build/vet/test PASS (+2 test).
+- Kế hoạch 11 đang triển khai tuần tự P11-8…P11-10; nhật ký ở
   `docs/1/11_BAO_CAO_TOI_UU_TAI_NGUYEN.md` §12.
