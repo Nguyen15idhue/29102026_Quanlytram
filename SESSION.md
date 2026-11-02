@@ -22,6 +22,7 @@
 - P10-0 DONE: baseline server 102/102, server build PASS, Go test/vet PASS, FE build PASS; kế hoạch 10 đã vào `TASKS.md` 9.4.
 - P10-1 DONE: `relayState.ts` + 12 test ma trận; server 114/114, build PASS.
 - P10-2 DONE: guard single/bulk/PATCH/import, reconcile trả trạng thái, list trả `relayState`/`allowedActions`; server 116/116.
+- P10-3 DONE: Go nạp job khóa/trạm tắt với `Enabled=false` → lý do `disabled`; 4 test mới, `go test ./...` + vet PASS.
 - Tài liệu phân quyền đầy đủ: `docs/2/PHAN_QUYEN.md` (RBAC, company, scope, UI, realtime, audit, checklist test)
 - Kế hoạch 06 P06-0 DONE: tile providers reachable từ server + browser; chốt `tileMode=proxy`; Geoapify forward/reverse OK (không in key); fixture 480 (1005), 481 (lat/lon dự phòng), 482 (không toạ độ); backup `cors-mysql-20261101-190927.sql.zip`
 - Kế hoạch 06 P06-1 DONE: tile proxy (allowlist/cache/fallback), `GET/PUT/test /api/map/config`, overview `coordSource` + filter + field-level gate + `layersAvailable`; frontend `useMapConfig`/`MapCanvas`/`TileErrorBanner`; form trạm có “Vĩ độ/Kinh độ dự phòng”; server 71/71, FE build, Playwright smoke PASS

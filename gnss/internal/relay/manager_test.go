@@ -395,3 +395,187 @@ func TestMonitorDoesNotChangeRelayedBytes(t *testing.T) {
 		t.Fatal("monitor altered the relayed bytes")
 	}
 }
+
+func TestComputeEnabledHonoursLockAndStation(t *testing.T) {
+	cases := []struct {
+		name           string
+		configEnabled  bool
+		locked         bool
+		deleted        bool
+		stationBlocked bool
+		want           bool
+	}{
+		{"bình thường", true, false, false, false, true},
+		{"đang tắt", false, false, false, false, false},
+		{"bị khóa", true, true, false, false, false},
+		{"đã xóa", true, false, true, false, false},
+		{"trạm nguồn tắt/khóa", true, false, false, true, false},
+	}
+	for _, tc := range cases {
+		if got := computeEnabled(tc.configEnabled, tc.locked, tc.deleted, tc.stationBlocked); got != tc.want {
+			t.Fatalf("%s: computeEnabled = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestLockedJobStopsWithDisabledReason(t *testing.T) {
+	upstream := newMockServer(t, upstreamHandler(upstreamOptions{
+		payload:  deterministicPayload(64),
+		keepOpen: true,
+		signal:   true,
+	}))
+	downstream := newMockServer(t, downstreamHandler(downstreamOptions{}))
+	cfg := testConfig(upstream, downstream, "source")
+	cfg.ConfigEnabled = true
+	writer := &MemoryWriter{}
+	store := &fakeStore{jobs: []*JobConfig{cfg}}
+	manager := NewManager(store, writer, Options{
+		DialTimeout:  time.Second,
+		PollInterval: time.Hour,
+		RetryMin:     10 * time.Millisecond,
+		RetryMax:     20 * time.Millisecond,
+		NMEAInterval: time.Hour,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go manager.Run(ctx)
+
+	waitFor(t, 3*time.Second, func() bool {
+		for _, state := range writer.StateWrites() {
+			if state.state == "streaming" {
+				return true
+			}
+		}
+		return false
+	})
+
+	locked := *cfg
+	locked.Locked = true
+	locked.Enabled = computeEnabled(locked.ConfigEnabled, true, false, false)
+	store.setJobs([]*JobConfig{&locked})
+	if err := manager.Reconcile(ctx, []int64{cfg.ID}); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	waitFor(t, 2*time.Second, func() bool {
+		states := writer.StateWrites()
+		return len(states) > 0 && states[len(states)-1].state == "disabled"
+	})
+	time.Sleep(150 * time.Millisecond)
+
+	states := writer.StateWrites()
+	last := states[len(states)-1]
+	if last.state != "disabled" {
+		t.Fatalf("last state = %q, want disabled", last.state)
+	}
+	if last.lastError != "" {
+		t.Fatalf("last error = %q, want empty", last.lastError)
+	}
+	sawDisabled := false
+	for _, session := range writer.SessionWrites() {
+		if session.closeReason == "deleted" {
+			t.Fatalf("locked job bị đóng với lý do deleted: %+v", session)
+		}
+		if session.closeReason == "disabled" {
+			sawDisabled = true
+		}
+	}
+	if !sawDisabled {
+		t.Fatal("không có phiên đóng với lý do disabled")
+	}
+}
+
+func TestStationLockedStopsRelayWithDisabledReason(t *testing.T) {
+	upstream := newMockServer(t, upstreamHandler(upstreamOptions{
+		payload:  deterministicPayload(64),
+		keepOpen: true,
+		signal:   true,
+	}))
+	downstream := newMockServer(t, downstreamHandler(downstreamOptions{}))
+	cfg := testConfig(upstream, downstream, "source")
+	cfg.ConfigEnabled = true
+	writer := &MemoryWriter{}
+	store := &fakeStore{jobs: []*JobConfig{cfg}}
+	manager := NewManager(store, writer, Options{
+		DialTimeout:  time.Second,
+		PollInterval: time.Hour,
+		RetryMin:     10 * time.Millisecond,
+		RetryMax:     20 * time.Millisecond,
+		NMEAInterval: time.Hour,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go manager.Run(ctx)
+
+	waitFor(t, 3*time.Second, func() bool {
+		for _, state := range writer.StateWrites() {
+			if state.state == "streaming" {
+				return true
+			}
+		}
+		return false
+	})
+
+	blocked := *cfg
+	blocked.StationBlocked = true
+	blocked.Enabled = computeEnabled(blocked.ConfigEnabled, false, false, true)
+	store.setJobs([]*JobConfig{&blocked})
+	if err := manager.Reconcile(ctx, []int64{cfg.ID}); err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+
+	waitFor(t, 2*time.Second, func() bool {
+		states := writer.StateWrites()
+		return len(states) > 0 && states[len(states)-1].state == "disabled"
+	})
+	for _, session := range writer.SessionWrites() {
+		if session.closeReason == "deleted" {
+			t.Fatalf("relay bị trạm khóa lại đóng với lý do deleted: %+v", session)
+		}
+	}
+}
+
+func TestLockedEnabledRowNeverStreams(t *testing.T) {
+	upstream := newMockServer(t, upstreamHandler(upstreamOptions{
+		payload:  deterministicPayload(64),
+		keepOpen: true,
+		signal:   true,
+	}))
+	downstream := newMockServer(t, downstreamHandler(downstreamOptions{}))
+	cfg := testConfig(upstream, downstream, "source")
+	cfg.ConfigEnabled = true
+	cfg.Locked = true
+	cfg.Enabled = computeEnabled(true, true, false, false)
+	writer := &MemoryWriter{}
+	store := &fakeStore{jobs: []*JobConfig{cfg}}
+	manager := NewManager(store, writer, Options{
+		DialTimeout:  time.Second,
+		PollInterval: time.Hour,
+		RetryMin:     10 * time.Millisecond,
+		RetryMax:     20 * time.Millisecond,
+		NMEAInterval: time.Hour,
+	})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go manager.Run(ctx)
+
+	waitFor(t, 2*time.Second, func() bool {
+		for _, state := range writer.StateWrites() {
+			if state.state == "disabled" {
+				return true
+			}
+		}
+		return false
+	})
+	time.Sleep(250 * time.Millisecond)
+	for _, state := range writer.StateWrites() {
+		if state.state == "streaming" {
+			t.Fatal("relay đang khóa nhưng vẫn stream")
+		}
+	}
+	select {
+	case <-upstream.connected:
+		t.Fatal("relay đang khóa vẫn mở kết nối upstream")
+	default:
+	}
+}

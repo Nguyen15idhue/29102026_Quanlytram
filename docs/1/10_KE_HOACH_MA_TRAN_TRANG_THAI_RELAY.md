@@ -452,3 +452,19 @@ P10-5 0.75 · P10-6 0.5).
   tra `enabled` trước `pending` (ưu tiên thông báo “phải tắt”); (3) import trả
   `warnings` thay vì đưa vào `errors` (errors>0 sẽ hủy cả batch); (4) phải
   `docker compose restart server` sau build vì `node --watch` không tự nạp `dist`.
+
+### P10-3 — Go phân biệt disabled và deleted (2026-11-02 09:54 +07:00)
+
+- Việc: `store.go` chọn thêm `deleted_at`, `locked`, trạng thái trạm nguồn và chỉ
+  lọc `deleted_at IS NULL`; `types.go` thêm `ConfigEnabled/Locked/Deleted/StationBlocked`
+  và hàm `computeEnabled`; `Enabled` được tính trong Go thay vì lọc SQL. Nhờ đó job
+  bị khóa hoặc bị trạm nguồn tắt được nạp với `Enabled=false` → `disabled`, không
+  còn bị coi là “không tồn tại” rồi đóng phiên với lý do `deleted`.
+- Test mới: `TestComputeEnabledHonoursLockAndStation`,
+  `TestLockedJobStopsWithDisabledReason`, `TestStationLockedStopsRelayWithDisabledReason`,
+  `TestLockedEnabledRowNeverStreams`.
+- Lệnh: `gofmt -w`; `go test ./internal/relay/...`; `go test ./...`; `go vet ./...`.
+- Kết quả: PASS — toàn bộ Go test PASS, vet sạch; test locked/station-blocked xác nhận
+  phiên đóng với `disabled`, không có `deleted`, và row `locked=1&enabled=1` không stream.
+- File: `gnss/internal/relay/store.go`, `types.go`, `manager_test.go`.
+- Sai lệch: không. E2E dùng binary mới cần `docker compose up -d --build gnss` ở P10-6.

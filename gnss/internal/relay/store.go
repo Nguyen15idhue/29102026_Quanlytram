@@ -30,7 +30,8 @@ const jobColumns = `
   j.downstream_host, j.downstream_port, j.downstream_mount, j.downstream_proxy, j.downstream_ssl, j.downstream_ntrip_version,
   COALESCE(dc.username, ''), COALESCE(dc.password_enc, ''),
   j.downstream_mode, j.lat, j.lon, j.ua_prefix, j.nmea_interval_sec, j.origin,
-  j.upstream_key, j.downstream_key
+  j.upstream_key, j.downstream_key,
+  j.deleted_at, j.locked, IFNULL(s.enabled, 1), IFNULL(s.status, '')
 FROM relay_jobs j
 LEFT JOIN relay_credentials uc ON uc.id = j.upstream_credential_id
 LEFT JOIN relay_credentials dc ON dc.id = j.downstream_credential_id
@@ -49,6 +50,9 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 		upstreamUsername, upstreamPasswordEnc     string
 		downstreamUsername, downstreamPasswordEnc string
 		dbUpstreamKey, dbDownstreamKey            string
+		deletedAt                                 sql.NullTime
+		locked, stationEnabled                    int
+		stationStatus                             string
 	)
 	err := scanner.Scan(
 		&job.ID,
@@ -80,12 +84,20 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 		&job.Origin,
 		&dbUpstreamKey,
 		&dbDownstreamKey,
+		&deletedAt,
+		&locked,
+		&stationEnabled,
+		&stationStatus,
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	job.Enabled = enabled != 0
+	job.ConfigEnabled = enabled != 0
+	job.Locked = locked != 0
+	job.Deleted = deletedAt.Valid
+	job.StationBlocked = stationEnabled == 0 || stationStatus == "locked"
+	job.Enabled = computeEnabled(job.ConfigEnabled, job.Locked, job.Deleted, job.StationBlocked)
 	job.Upstream.SSL = upstreamSSL != 0
 	job.Downstream.SSL = downstreamSSL != 0
 	if lat.Valid {
@@ -126,8 +138,7 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 
 func (s *MySQLStore) LoadAll(ctx context.Context) ([]*JobConfig, error) {
 	rows, err := s.db.QueryContext(ctx, `SELECT `+jobColumns+`
-		WHERE j.deleted_at IS NULL AND j.locked = 0
-		  AND (j.enabled = 0 OR s.id IS NULL OR (s.enabled = 1 AND s.status <> 'locked'))
+		WHERE j.deleted_at IS NULL
 		ORDER BY j.id`)
 	if err != nil {
 		return nil, err
@@ -147,8 +158,7 @@ func (s *MySQLStore) LoadAll(ctx context.Context) ([]*JobConfig, error) {
 
 func (s *MySQLStore) LoadJob(ctx context.Context, id int64) (*JobConfig, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT `+jobColumns+`
-		WHERE j.deleted_at IS NULL AND j.id = ? AND j.locked = 0
-		  AND (j.enabled = 0 OR s.id IS NULL OR (s.enabled = 1 AND s.status <> 'locked'))`, id)
+		WHERE j.deleted_at IS NULL AND j.id = ?`, id)
 	job, err := s.scanJob(row)
 	if err == sql.ErrNoRows {
 		return nil, nil
