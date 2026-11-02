@@ -13,6 +13,7 @@ import (
 	"cors/gnss/internal/caster"
 	"cors/gnss/internal/config"
 	"cors/gnss/internal/db"
+	"cors/gnss/internal/lifecycle"
 	"cors/gnss/internal/maintenance"
 	"cors/gnss/internal/probe"
 	"cors/gnss/internal/quality"
@@ -66,6 +67,7 @@ func main() {
 
 	store := relay.NewMySQLStore(adminDB, cfg.AppEncKey)
 	writer := relay.NewBufferedWriter(runtimeDB, cfg.QueueSize, cfg.BatchSize, cfg.FlushInterval)
+	serviceRuns := lifecycle.New(runtimeDB, "go", lifecycle.DefaultInterval)
 
 	qualityStore := quality.NewMySQLStore(runtimeDB)
 	qualityAsync := quality.NewAsyncStore(qualityStore, cfg.QualityStoreQueueSize)
@@ -131,6 +133,7 @@ func main() {
 	go casterManager.Run(runCtx)
 	go probeManager.Run(runCtx)
 	go maintenanceRunner.Run(runCtx)
+	go serviceRuns.Run(runCtx)
 
 	server := &http.Server{
 		Addr:              ":" + cfg.Port,
@@ -160,6 +163,9 @@ func main() {
 	casterManager.Shutdown(shutdownCtx)
 	probeManager.Shutdown(shutdownCtx)
 	analyzer.Flush()
+	if err := serviceRuns.Stop(shutdownCtx, "service_stop"); err != nil {
+		log.Printf("service lifecycle stop: %v", err)
+	}
 	runCancel()
 
 	select {

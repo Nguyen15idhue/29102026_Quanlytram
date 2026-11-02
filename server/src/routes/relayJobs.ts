@@ -20,6 +20,7 @@ import {
 } from '../lib/statusTimeline';
 import { findCycle, RelayEdge } from '../lib/loopGuard';
 import { loadTimelineConfig } from '../lib/timelineConfig';
+import { loadServiceDowntime } from '../lib/serviceDowntime';
 import { requireAuth, requirePermission } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import {
@@ -752,16 +753,17 @@ async function relayConnectionIntervals(
   jobId: number,
   from: Date,
   to: Date
-): Promise<Array<{ from: Date; to: Date | null }>> {
+): Promise<Array<{ from: Date; to: Date | null; reason: string }>> {
   const rows = await runtimeQuery<RowDataPacket[]>(
-    `SELECT start_ts, end_ts FROM relay_sessions
+    `SELECT start_ts, end_ts, close_reason FROM relay_sessions
       WHERE relay_job_id = ? AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
       ORDER BY start_ts`,
     [jobId, from, to]
   );
   return rows.map((row) => ({
     from: new Date(row.start_ts),
-    to: row.end_ts ? new Date(row.end_ts) : null
+    to: row.end_ts ? new Date(row.end_ts) : null,
+    reason: String(row.close_reason ?? '')
   }));
 }
 
@@ -838,6 +840,17 @@ relayJobsRouter.get(
         : hasConnectionInfo
           ? relayLiveStatus(liveAge, connections, now)
           : statusForLiveAge(liveAge);
+    const downtime = await loadServiceDowntime(from, now);
+    const currentReason: 'disabled' | 'system_down' | undefined =
+      row.locked || !row.enabled
+        ? 'disabled'
+        : downtime.some(
+              (interval) =>
+                interval.from.getTime() <= now.getTime() &&
+                (!interval.to || now.getTime() < interval.to.getTime())
+            )
+          ? 'system_down'
+          : undefined;
     const timeline = buildStatusTimeline({
       createdAt: row.created_at ? new Date(row.created_at) : null,
       deletedAt: row.deleted_at ? new Date(row.deleted_at) : null,
@@ -848,8 +861,10 @@ relayJobsRouter.get(
       samples,
       connections,
       hasConnectionInfo,
+      downtime,
       minFramesPerWindow: (await loadTimelineConfig()).minFramesPerWindow,
-      currentStatus
+      currentStatus,
+      currentReason
     });
     const seriesBucketMs = seriesBucketSec * 1000;
     const series = [];

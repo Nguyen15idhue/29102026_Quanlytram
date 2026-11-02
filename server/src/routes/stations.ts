@@ -46,6 +46,7 @@ import {
   timelineRange
 } from '../lib/statusTimeline';
 import { loadTimelineConfig } from '../lib/timelineConfig';
+import { loadServiceDowntime } from '../lib/serviceDowntime';
 import { requireAuth, requirePermission, isSuperAdmin } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import {
@@ -362,7 +363,7 @@ async function stationConnectionIntervals(
   from: Date,
   to: Date
 ): Promise<{
-  connections: Array<{ from: Date; to: Date | null }>;
+  connections: Array<{ from: Date; to: Date | null; reason: string }>;
   hasConnectionInfo: boolean;
 }> {
   const stationId = Number(station.id);
@@ -377,10 +378,10 @@ async function stationConnectionIntervals(
     return { connections: [], hasConnectionInfo: false };
   }
 
-  const connections: Array<{ from: Date; to: Date | null }> = [];
+  const connections: Array<{ from: Date; to: Date | null; reason: string }> = [];
   try {
     const sourceRows = await runtimeQuery<RowDataPacket[]>(
-      `SELECT start_ts, end_ts FROM station_source_sessions
+      `SELECT start_ts, end_ts, close_reason FROM station_source_sessions
         WHERE station_id = ? AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
         ORDER BY start_ts`,
       [stationId, from, to]
@@ -388,7 +389,8 @@ async function stationConnectionIntervals(
     for (const row of sourceRows) {
       connections.push({
         from: new Date(row.start_ts),
-        to: row.end_ts ? new Date(row.end_ts) : null
+        to: row.end_ts ? new Date(row.end_ts) : null,
+        reason: String(row.close_reason ?? '')
       });
     }
   } catch {
@@ -403,7 +405,7 @@ async function stationConnectionIntervals(
   if (mountpointIds.length > 0) {
     const placeholders = mountpointIds.map(() => '?').join(',');
     const casterRows = await runtimeQuery<RowDataPacket[]>(
-      `SELECT start_ts, end_ts FROM caster_connections
+      `SELECT start_ts, end_ts, disconnect_reason FROM caster_connections
         WHERE mountpoint_id IN (${placeholders}) AND direction = 'source'
           AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
         ORDER BY start_ts`,
@@ -412,7 +414,8 @@ async function stationConnectionIntervals(
     for (const row of casterRows) {
       connections.push({
         from: new Date(row.start_ts),
-        to: row.end_ts ? new Date(row.end_ts) : null
+        to: row.end_ts ? new Date(row.end_ts) : null,
+        reason: String(row.disconnect_reason ?? '')
       });
     }
   }
@@ -429,7 +432,7 @@ async function stationConnectionIntervals(
     if (relayIds.length > 0) {
       const relayPlaceholders = relayIds.map(() => '?').join(',');
       const sessionRows = await runtimeQuery<RowDataPacket[]>(
-        `SELECT start_ts, end_ts FROM relay_sessions
+        `SELECT start_ts, end_ts, close_reason FROM relay_sessions
           WHERE relay_job_id IN (${relayPlaceholders})
             AND (end_ts IS NULL OR end_ts >= ?) AND start_ts <= ?
           ORDER BY start_ts`,
@@ -438,7 +441,8 @@ async function stationConnectionIntervals(
       for (const row of sessionRows) {
         connections.push({
           from: new Date(row.start_ts),
-          to: row.end_ts ? new Date(row.end_ts) : null
+          to: row.end_ts ? new Date(row.end_ts) : null,
+          reason: String(row.close_reason ?? '')
         });
       }
     }
@@ -2193,6 +2197,17 @@ stationsRouter.get(
             connectionInfo.hasConnectionInfo,
             now
           );
+    const downtime = await loadServiceDowntime(from, now);
+    const currentReason: 'disabled' | 'system_down' | undefined =
+      Number(station.enabled) === 0 || String(station.status) === 'locked'
+        ? 'disabled'
+        : downtime.some(
+              (interval) =>
+                interval.from.getTime() <= now.getTime() &&
+                (!interval.to || now.getTime() < interval.to.getTime())
+            )
+          ? 'system_down'
+          : undefined;
     const timeline = buildStatusTimeline({
       createdAt: station.created_at ? new Date(station.created_at) : null,
       rangeFrom: from,
@@ -2202,8 +2217,10 @@ stationsRouter.get(
       samples,
       connections: connectionInfo.connections,
       hasConnectionInfo: connectionInfo.hasConnectionInfo,
+      downtime,
       minFramesPerWindow: (await loadTimelineConfig()).minFramesPerWindow,
-      currentStatus
+      currentStatus,
+      currentReason
     });
     const seriesBucketMs = seriesBucketSec * 1000;
     const series = [];

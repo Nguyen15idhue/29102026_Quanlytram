@@ -369,9 +369,8 @@ Với T0 = 00:23:15, T1 = 08:17:14, T2 = 08:18:14, now = 08:21:
 
 - [x] `statusAt(t)` độc lập khung; cùng `t` cho cùng status ở 4 khung.
 - [x] `no_data` theo định nghĩa mới (`< xx` frame/60s), không còn giới hạn 10s.
-- [ ] `offline` chỉ khi không kết nối / service dừng / tắt-khoá.
-- [ ] `system_down` và `source_lost` phân biệt được trong reason/log.
-- [x] Không nối sample cách nhau > 120 giây.
+- [x] `offline` chỉ khi không kết nối / service dừng / tắt-khoá.
+- [x] `system_down` và `source_lost` phân biệt được trong reason/log.- [x] Không nối sample cách nhau > 120 giây.
 - [x] Khung `1h/24h/7d/30d` đúng `now−range`, `1m` = 30 ngày.
 - [x] `segments` phủ kín khung, gồm `none`, hiển thị được.
 - [x] Tổng 4 trạng thái = độ dài khung.
@@ -399,7 +398,7 @@ Với T0 = 00:23:15, T1 = 08:17:14, T2 = 08:18:14, now = 08:21:
 |---|---|---|---|---|---|
 | 0 — Baseline | PASS | 2026-11-02 | Script `scripts/verify-timeline.ps1` tái hiện lỗi: 24h/7d/30d `online` tại 00:30 và 04:00 (đang downtime); độ phủ 1h PASS, 24h/7d/30d FAIL (segment 72.371s). Server tsc PASS; vitest 89/90, 1 FAIL `stationDetail.test.ts:19` do WIP đổi semantics. | `npx tsc -p tsconfig.json --noEmit`; `npm test`; `scripts/verify-timeline.ps1 -Kind station -Id 480 ...` | WIP timeline được giữ để làm lại ở Phase 1; không commit các thay đổi không liên quan (`Dashboard`, `ops.ts`, ...). |
 | 1 — Status engine | PASS | 2026-11-02 | `statusAt(t)` dùng frame/60s + kết nối; bỏ nối gap >120s; `segments` gồm `none`; 92/92 vitest PASS, tsc PASS. | `npx tsc -p tsconfig.json --noEmit`; `npm test` | Chưa có service downtime (Phase 2) nên gap mất kết nối đang là `no_data`; sẽ chuyển `offline` khi có `service_runs`. |
-| 2 — Service lifecycle | Chưa làm |  |  |  |  |
+| 2 — Service lifecycle | PASS | 2026-11-02 | Migration runtime 007 `service_runs`; Go lifecycle heartbeat/start/stop; Node `serviceDowntime` + reason `system_down`; Go test/vet PASS; server 97/97 PASS. Fixture ca 02/11: 00:30 và 04:00 `offline (system_down)` ở 24h/7d/30d, 08:20 `online`; script PASS. | `docker exec cors-mvp-server-1 node dist/db/migrate.js`; `go test ./...`; `go vet ./...`; `npm test`; `scripts/verify-timeline.ps1` | Fixture `service_runs` cho ca 02/11 đang có trong DB dev để xem UI; không commit dữ liệu. Cần restart Go để ghi heartbeat thật (xin phép ở Phase 5). |
 | 3 — API contract | Chưa làm |  |  |  |  |
 | 4 — UI | Chưa làm |  |  |  |  |
 | 5 — Xác minh | Chưa làm |  |  |  |  |
