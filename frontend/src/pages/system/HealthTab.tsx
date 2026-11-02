@@ -18,6 +18,8 @@ interface HealthResponse {
     nodeVersion: string;
     cpuPercent: number;
     rssBytes: number;
+    rssPercent: number;
+    memoryLimitBytes: number;
     heapUsedBytes: number;
     heapTotalBytes: number;
     heapPercent: number;
@@ -184,12 +186,18 @@ export function HealthTab() {
             <Card
               title="Node"
               status={data.node.status}
-              note="Cảnh báo heap ≥80% hoặc event-loop ≥200ms; lỗi ≥92% hoặc ≥1000ms."
+              note="Cảnh báo heap ≥400MB hoặc RSS ≥70% giới hạn hoặc event-loop ≥200ms; lỗi ≥700MB, RSS ≥85% hoặc ≥1000ms."
             >
               <dl className="health-facts">
                 <div><dt>Uptime</dt><dd>{formatDuration(data.node.uptimeSec)}</dd></div>
                 <div><dt>CPU process</dt><dd className="mono">{data.node.cpuPercent.toFixed(1)}%</dd></div>
-                <div><dt>RSS</dt><dd className="mono">{formatBytes(data.node.rssBytes)}</dd></div>
+                <div>
+                  <dt>RSS</dt>
+                  <dd className="mono">
+                    {formatBytes(data.node.rssBytes)} · {data.node.rssPercent.toFixed(1)}% /{' '}
+                    {formatBytes(data.node.memoryLimitBytes)}
+                  </dd>
+                </div>
                 <div>
                   <dt>Heap</dt>
                   <dd className="mono">

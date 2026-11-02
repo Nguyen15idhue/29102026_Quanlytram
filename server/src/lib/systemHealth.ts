@@ -9,6 +9,7 @@ import {
   overallHealthStatus,
   type HealthStatus
 } from './healthStatus';
+import { nodeMemoryLimitBytes } from './memoryLimit';
 import { socketClientCount } from '../realtime/socket';
 
 type Status = HealthStatus;
@@ -178,6 +179,8 @@ async function collect() {
   const loopLag = await eventLoopLagMs();
   const memory = process.memoryUsage();
   const heapPercent = memory.heapTotal > 0 ? (memory.heapUsed / memory.heapTotal) * 100 : 0;
+  const memoryLimit = nodeMemoryLimitBytes();
+  const rssPercent = memoryLimit > 0 ? (memory.rss / memoryLimit) * 100 : 0;
   const hostTotal = os.totalmem();
   const hostFree = os.freemem();
   const hostUsed = hostTotal - hostFree;
@@ -185,12 +188,18 @@ async function collect() {
   const [disk, mysql, go] = await Promise.all([diskMetric(), mysqlMetric(), goMetric()]);
   const diskPercent = 'usedPercent' in disk ? disk.usedPercent : null;
   const node = {
-    status: nodeHealthStatus({ heapPercent, eventLoopLagMs: loopLag }),
+    status: nodeHealthStatus({
+      heapUsedBytes: memory.heapUsed,
+      rssPercent,
+      eventLoopLagMs: loopLag
+    }),
     uptimeSec: process.uptime(),
     pid: process.pid,
     nodeVersion: process.version,
     cpuPercent: cpu.processCpuPercent,
     rssBytes: memory.rss,
+    rssPercent,
+    memoryLimitBytes: memoryLimit,
     heapUsedBytes: memory.heapUsed,
     heapTotalBytes: memory.heapTotal,
     heapPercent,

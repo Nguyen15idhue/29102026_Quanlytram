@@ -230,3 +230,30 @@ Các mẫu tương ứng đều đã được xử lý đúng (xem §8).
 | P11-8 | DONE | `b492abd` | Bỏ state chết `qualityAlerts`/`lastQualityAck` (không component nào dùng); `connection.updated` invalidate `online-connections` thay poll 5s; QualityPanel 15s→60s, Dashboard 10s→30s; QueryClient mặc định `staleTime` 30s / `gcTime` 5 phút; `apiFetch` nhận `AbortSignal`; toast clear timeout khi unmount/xoá; `MapCanvas` diff marker theo chữ ký (id + toạ độ + nội dung + tài khoản) thay `clearLayers()` toàn bộ | `npm run build` (tsc --noEmit + vite) PASS; `npx playwright test realtime, entity-realtime, unified-map` → 4 skipped (thiếu biến môi trường E2E, không phải FAIL) | Hành vi chọn marker giữ nguyên nhờ effect tách riêng; không đổi style/CSS |
 | P11-9 | DONE | `833dd16` | Export trạm và người dùng chặn ở 20.000 dòng (LIMIT + 400 `EXPORT_TOO_LARGE`); cache reverse-geocode chuyển sang `TtlLruCache` (1.000 entry, TTL 1 giờ, LRU thật); dashboard ops gộp `COUNT(*) ... GROUP BY` thay nạp từng dòng alert trong ngày; pool admin/runtime thêm `connectTimeout` 10s, `maxIdle`, `idleTimeout` 60s, `queueLimit` | `npm run build` PASS; `npm test` → 21 file / 128 test PASS (thêm 3 test LRU) | Các truy vấn quality đã có LIMIT sẵn (1000/2000/5000) nên giữ nguyên; RBAC vẫn kiểm tra ở server |
 | P11-10 | DONE | `e7e0331` | `docker-compose.yml`: `mem_limit`/`cpus` cho mysql (2g/2.0), server (1g/1.0), gnss (1g/1.0); MySQL thêm `--innodb-buffer-pool-size=1G`, `--max-connections=200`; log rotation 10m×3 cho `web` | `docker compose config --quiet` → CONFIG_OK; đọc lại config thấy đúng mem_limit/cpus/tham số MySQL/log | Giá trị chọn cho host ≥ 8 GB RAM, chỉnh theo thực tế; KHÔNG chạy `docker compose up` để tránh ảnh hưởng relay đang chạy |
+
+## 13. Bổ sung: ngưỡng sức khỏe Node (2026-11-02)
+
+Chỉ số cũ `heapPercent = heapUsed / heapTotal` gây cảnh báo giả: V8 giữ `heapTotal` sát mức dùng, nên tỉ lệ thường xuyên 80–95% dù ứng dụng khỏe (quan sát thực tế: 38.4 / 42.7 MB · 89.7%, RSS 122 MB, event-loop 0.4 ms → vẫn báo `warn`).
+
+Đã đổi sang ngưỡng tuyệt đối + theo giới hạn container:
+
+| Mức | Điều kiện mới |
+|---|---|
+| warn | `heapUsed ≥ 400 MB` hoặc `RSS ≥ 70%` giới hạn hoặc `event-loop lag ≥ 200 ms` |
+| error | `heapUsed ≥ 700 MB` hoặc `RSS ≥ 85%` giới hạn hoặc `event-loop lag ≥ 1000 ms` |
+| ok | còn lại |
+
+Giới hạn bộ nhớ lấy theo thứ tự: `NODE_MEMORY_LIMIT_MB` → cgroup (`/sys/fs/cgroup/memory.max`, v1) → `os.totalmem()`; cache 60 giây.
+
+| Hạng mục | Chi tiết |
+|---|---|
+| `server/src/lib/healthStatus.ts` | Hằng số ngưỡng + `nodeHealthStatus({ heapUsedBytes, rssPercent, eventLoopLagMs })` |
+| `server/src/lib/memoryLimit.ts` (mới) | Phát hiện giới hạn bộ nhớ container |
+| `server/src/lib/systemHealth.ts` | Trả thêm `rssPercent`, `memoryLimitBytes`; dùng ngưỡng mới |
+| `server/src/lib/systemOptimize.ts` | Gợi ý "Bộ nhớ Node cao" theo heapUsed/RSS; trả thêm `heapUsedBytes`, `heapTotalBytes`, `rssPercent`, `memoryLimitBytes` |
+| `frontend/src/pages/system/HealthTab.tsx` | RSS hiển thị `dùng · % / giới hạn`; cập nhật ghi chú ngưỡng |
+| `frontend/src/pages/system/OptimizeTab.tsx` | Heap tuyệt đối + RSS % |
+| `docker-compose.yml`, `.env.example` | `NODE_MEMORY_LIMIT_MB=1024` (khớp `mem_limit: 1g`) |
+| Test | `healthStatus.test.ts` 7 trường hợp; `systemOptimize.test.ts` dùng heapUsed/rssPercent |
+
+Kiểm tra: server build PASS, `npm test` 21 file / 128 test PASS; frontend build PASS; `docker compose config` OK. Với số liệu đã nêu (heap 38.4 MB, RSS 122 MB / 1024 MB ≈ 11.9%, lag 0.4 ms) trạng thái mới là **ok**.

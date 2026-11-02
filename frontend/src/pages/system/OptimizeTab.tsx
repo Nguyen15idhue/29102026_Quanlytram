@@ -55,7 +55,16 @@ interface OptimizeResponse {
     quality: Record<string, unknown> | null;
     relay: { jobId: number; state: string; monitorDrops: number; crcErrors: number; retries: number }[];
   };
-  node: { heapPercent: number; eventLoopLagMs: number; rssBytes: number; socketClients: number };
+  node: {
+    heapUsedBytes: number;
+    heapTotalBytes: number;
+    heapPercent: number;
+    rssBytes: number;
+    rssPercent: number;
+    memoryLimitBytes: number;
+    eventLoopLagMs: number;
+    socketClients: number;
+  };
   disk:
     | {
         available: true;
@@ -270,9 +279,19 @@ export function OptimizeTab() {
                 />
               </header>
               <dl className="health-facts">
-                <div><dt>Heap</dt><dd className="mono">{data.node.heapPercent.toFixed(1)}%</dd></div>
+                <div>
+                  <dt>Heap</dt>
+                  <dd className="mono">
+                    {formatBytes(data.node.heapUsedBytes)} / {formatBytes(data.node.heapTotalBytes)}
+                  </dd>
+                </div>
                 <div><dt>Event-loop</dt><dd className="mono">{data.node.eventLoopLagMs.toFixed(1)} ms</dd></div>
-                <div><dt>RSS</dt><dd className="mono">{formatBytes(data.node.rssBytes)}</dd></div>
+                <div>
+                  <dt>RSS</dt>
+                  <dd className="mono">
+                    {formatBytes(data.node.rssBytes)} · {data.node.rssPercent.toFixed(1)}%
+                  </dd>
+                </div>
                 <div><dt>Socket clients</dt><dd className="mono">{data.node.socketClients}</dd></div>
                 <div>
                   <dt>Đĩa</dt>

@@ -38,7 +38,8 @@ describe('systemOptimize splitTables', () => {
 
 describe('systemOptimize buildRecommendations', () => {
   const base = {
-    heapPercent: 40,
+    heapUsedBytes: 100 * 1024 * 1024,
+    rssPercent: 30,
     eventLoopLagMs: 10,
     mysqlLatencyMs: 20,
     quality: { queueDepth: 0, queueSize: 100, dropped: 0, storeDrops: 0 },
@@ -54,7 +55,7 @@ describe('systemOptimize buildRecommendations', () => {
   it('cảnh báo heap, lag, DB, queue và drops', () => {
     const items = buildRecommendations({
       ...base,
-      heapPercent: 85,
+      heapUsedBytes: 450 * 1024 * 1024,
       eventLoopLagMs: 250,
       mysqlLatencyMs: 400,
       quality: { queueDepth: 95, queueSize: 100, dropped: 2, storeDrops: 1 }

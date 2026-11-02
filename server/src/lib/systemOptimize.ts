@@ -6,6 +6,8 @@ import { adminPool, query } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
 import { socketClientCount } from '../realtime/socket';
 import { callGoInternal } from './internalApi';
+import { NODE_HEAP_WARN_BYTES, NODE_RSS_WARN_PERCENT } from './healthStatus';
+import { nodeMemoryLimitBytes } from './memoryLimit';
 
 export type OptimizeLevel = 'info' | 'warn' | 'critical';
 
@@ -149,7 +151,8 @@ export function splitTables(
 }
 
 export function buildRecommendations(input: {
-  heapPercent: number;
+  heapUsedBytes: number;
+  rssPercent: number;
   eventLoopLagMs: number;
   mysqlLatencyMs: number;
   quality:
@@ -166,12 +169,14 @@ export function buildRecommendations(input: {
   diskUsedPercent: number | null;
 }): Recommendation[] {
   const items: Recommendation[] = [];
-  if (input.heapPercent >= 80) {
+  if (input.heapUsedBytes >= NODE_HEAP_WARN_BYTES || input.rssPercent >= NODE_RSS_WARN_PERCENT) {
     items.push({
       id: 'heap-high',
       level: 'warn',
-      title: 'Heap Node cao',
-      detail: `Heap đang dùng ${input.heapPercent.toFixed(1)}%. Xem xét tăng RAM hoặc giảm cache.`,
+      title: 'Bộ nhớ Node cao',
+      detail: `Heap dùng ${Math.round(input.heapUsedBytes / (1024 * 1024))} MB · RSS ${input.rssPercent.toFixed(
+        1
+      )}% giới hạn. Xem xét tăng RAM hoặc giảm cache.`,
       actionTab: null
     });
   }
@@ -438,6 +443,8 @@ async function eventLoopLagMs(): Promise<number> {
 async function collect() {
   const memory = process.memoryUsage();
   const heapPercent = memory.heapTotal > 0 ? (memory.heapUsed / memory.heapTotal) * 100 : 0;
+  const memoryLimit = nodeMemoryLimitBytes();
+  const rssPercent = memoryLimit > 0 ? (memory.rss / memoryLimit) * 100 : 0;
   const loopLag = await eventLoopLagMs();
   const [tables, pool, latency, slow, disk, go, retention] = await Promise.all([
     tableMetric(),
@@ -449,7 +456,8 @@ async function collect() {
     retentionMetric()
   ]);
   const recommendations = buildRecommendations({
-    heapPercent,
+    heapUsedBytes: memory.heapUsed,
+    rssPercent,
     eventLoopLagMs: loopLag,
     mysqlLatencyMs: latency ?? 0,
     quality: go.quality,
@@ -472,9 +480,13 @@ async function collect() {
     },
     go,
     node: {
+      heapUsedBytes: memory.heapUsed,
+      heapTotalBytes: memory.heapTotal,
       heapPercent,
-      eventLoopLagMs: loopLag,
       rssBytes: memory.rss,
+      rssPercent,
+      memoryLimitBytes: memoryLimit,
+      eventLoopLagMs: loopLag,
       socketClients: socketClientCount()
     },
     disk,

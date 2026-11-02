@@ -3,9 +3,14 @@ import { hostHealthStatus, nodeHealthStatus, overallHealthStatus } from '../src/
 
 describe('health status thresholds and fallback', () => {
   it('classifies node thresholds', () => {
-    expect(nodeHealthStatus({ heapPercent: 50, eventLoopLagMs: 10 })).toBe('ok');
-    expect(nodeHealthStatus({ heapPercent: 85, eventLoopLagMs: 10 })).toBe('warn');
-    expect(nodeHealthStatus({ heapPercent: 50, eventLoopLagMs: 1200 })).toBe('error');
+    const MB = 1024 * 1024;
+    expect(nodeHealthStatus({ heapUsedBytes: 38 * MB, rssPercent: 12, eventLoopLagMs: 0.4 })).toBe('ok');
+    expect(nodeHealthStatus({ heapUsedBytes: 450 * MB, rssPercent: 20, eventLoopLagMs: 10 })).toBe('warn');
+    expect(nodeHealthStatus({ heapUsedBytes: 100 * MB, rssPercent: 75, eventLoopLagMs: 10 })).toBe('warn');
+    expect(nodeHealthStatus({ heapUsedBytes: 100 * MB, rssPercent: 20, eventLoopLagMs: 250 })).toBe('warn');
+    expect(nodeHealthStatus({ heapUsedBytes: 800 * MB, rssPercent: 20, eventLoopLagMs: 10 })).toBe('error');
+    expect(nodeHealthStatus({ heapUsedBytes: 100 * MB, rssPercent: 90, eventLoopLagMs: 10 })).toBe('error');
+    expect(nodeHealthStatus({ heapUsedBytes: 100 * MB, rssPercent: 20, eventLoopLagMs: 1200 })).toBe('error');
   });
 
   it('classifies host thresholds and null disk as non-fatal', () => {

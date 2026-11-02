@@ -59,6 +59,7 @@ services:
         max-file: "3"
     environment:
       MIGRATIONS_DIR: /db/migrations
+      NODE_MEMORY_LIMIT_MB: "1024"
       TSC_WATCHFILE: UsePolling
       TSC_WATCHDIRECTORY: UsePolling
     command:

@@ -1159,3 +1159,10 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   cgo/gcc); chạy Playwright với biến E2E khi cần nghiệm thu UI.
 - Cách chạy kiểm tra nhanh: `cd gnss; go build ./...; go vet ./...; go test ./...`
   và `cd server; npm run build; npm test` và `cd frontend; npm run build`.
+- Ngưỡng sức khỏe Node: bỏ `heapUsed/heapTotal` (gây warn giả 80–95%), dùng
+  `heapUsed` tuyệt đối (warn 400MB, error 700MB), `RSS %` giới hạn container
+  (warn 70%, error 85%, `NODE_MEMORY_LIMIT_MB=1024` khớp `mem_limit: 1g`) và
+  event-loop lag như cũ. Thêm `lib/memoryLimit.ts`; health/optimize trả thêm
+  `rssPercent`, `memoryLimitBytes`; HealthTab/OptimizeTab hiển thị RSS và
+  heap tuyệt đối. Test: server 21 file / 128 PASS, FE build PASS, compose
+  config OK. Chi tiết: `docs/1/11_...md` §13.

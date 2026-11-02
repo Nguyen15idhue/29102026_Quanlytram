@@ -1,11 +1,31 @@
 export type HealthStatus = 'ok' | 'warn' | 'error' | 'unknown';
 
+const MB = 1024 * 1024;
+
+export const NODE_HEAP_WARN_BYTES = 400 * MB;
+export const NODE_HEAP_ERROR_BYTES = 700 * MB;
+export const NODE_RSS_WARN_PERCENT = 70;
+export const NODE_RSS_ERROR_PERCENT = 85;
+
 export function nodeHealthStatus(input: {
-  heapPercent: number;
+  heapUsedBytes: number;
+  rssPercent: number;
   eventLoopLagMs: number;
 }): HealthStatus {
-  if (input.heapPercent >= 92 || input.eventLoopLagMs >= 1000) return 'error';
-  if (input.heapPercent >= 80 || input.eventLoopLagMs >= 200) return 'warn';
+  if (
+    input.heapUsedBytes >= NODE_HEAP_ERROR_BYTES ||
+    input.rssPercent >= NODE_RSS_ERROR_PERCENT ||
+    input.eventLoopLagMs >= 1000
+  ) {
+    return 'error';
+  }
+  if (
+    input.heapUsedBytes >= NODE_HEAP_WARN_BYTES ||
+    input.rssPercent >= NODE_RSS_WARN_PERCENT ||
+    input.eventLoopLagMs >= 200
+  ) {
+    return 'warn';
+  }
   return 'ok';
 }
 
