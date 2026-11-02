@@ -1147,5 +1147,8 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   marker map cập nhật theo diff, thêm `staleTime` 30s, `AbortSignal`, clear
   timeout toast. `npm run build` PASS; Playwright 3 spec liên quan bị skip do
   thiếu biến E2E (không FAIL).
-- Kế hoạch 11 đang triển khai tuần tự P11-9…P11-10; nhật ký ở
+- P11-9 DONE: export trạm/người dùng chặn 20.000 dòng, geocode cache LRU
+  1.000 entry, dashboard ops gộp COUNT theo nhóm, pool có connectTimeout.
+  Server build PASS, vitest 21 file / 128 test PASS.
+- Kế hoạch 11 còn P11-10 (hạ tầng compose + MySQL tuning); nhật ký ở
   `docs/1/11_BAO_CAO_TOI_UU_TAI_NGUYEN.md` §12.

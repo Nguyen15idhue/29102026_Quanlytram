@@ -76,16 +76,18 @@ opsRouter.get(
     const alertScope = scopeOf(perms, 'alerts.view');
     if (alertScope !== 'none') {
       const alertRows = await adminQuery<RowDataPacket[]>(
-        `SELECT severity, owner_web_user_id FROM alerts
-          WHERE created_at >= ? AND created_at < ? AND severity <> 'info'`,
+        `SELECT severity, owner_web_user_id, COUNT(*) AS total FROM alerts
+          WHERE created_at >= ? AND created_at < ? AND severity <> 'info'
+          GROUP BY severity, owner_web_user_id`,
         [day.start, day.end]
       );
       const alertIds = idsFor(alertScope);
       for (const row of alertRows) {
         if (!inScope(alertScope, auth.id, alertIds, row.owner_web_user_id)) continue;
-        incidentsToday.total += 1;
-        if (String(row.severity) === 'critical') incidentsToday.critical += 1;
-        else incidentsToday.warning += 1;
+        const count = Number(row.total ?? 0);
+        incidentsToday.total += count;
+        if (String(row.severity) === 'critical') incidentsToday.critical += count;
+        else incidentsToday.warning += count;
       }
     }
     if (qualityScope !== 'none') {
@@ -114,15 +116,17 @@ opsRouter.get(
           where.params
         ),
         runtimeQuery<RowDataPacket[]>(
-          `SELECT id, level FROM quality_alerts
-            WHERE first_seen >= ? AND first_seen < ? AND level <> 'info' AND ${where.sql}`,
+          `SELECT level, COUNT(*) AS total FROM quality_alerts
+            WHERE first_seen >= ? AND first_seen < ? AND level <> 'info' AND ${where.sql}
+            GROUP BY level`,
           [day.start, day.end, ...where.params]
         )
       ]);
       for (const row of qualityTodayRows) {
-        incidentsToday.total += 1;
-        if (String(row.level) === 'critical') incidentsToday.critical += 1;
-        else incidentsToday.warning += 1;
+        const count = Number(row.total ?? 0);
+        incidentsToday.total += count;
+        if (String(row.level) === 'critical') incidentsToday.critical += count;
+        else incidentsToday.warning += count;
       }
     }
 

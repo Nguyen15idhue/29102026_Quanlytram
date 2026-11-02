@@ -63,6 +63,8 @@ export const stationsRouter = Router();
 stationsRouter.use(requireAuth);
 stationsRouter.use(csrfProtection);
 
+export const EXPORT_MAX_ROWS = 20000;
+
 const text = (max: number) => z.string().max(max).optional();
 const nullableNumber = (min: number, max: number) =>
   z.number().min(min).max(max).nullable().optional();
@@ -850,9 +852,12 @@ stationsRouter.get(
          FROM stations s
          LEFT JOIN web_users u ON u.id = s.owner_web_user_id
          LEFT JOIN companies c ON c.id = s.company_id
-        WHERE ${where} ORDER BY s.id`,
+        WHERE ${where} ORDER BY s.id LIMIT ${EXPORT_MAX_ROWS + 1}`,
       params
     );
+    if (rows.length > EXPORT_MAX_ROWS) {
+      throw new ApiError(400, 'EXPORT_TOO_LARGE', 'Dữ liệu vượt quá 20.000 dòng, hãy lọc trước khi xuất');
+    }
     const headers = [
       'name', 'station_type', 'enabled', 'host', 'port', 'connection_type',
       'source_type', 'ntrip_version', 'ntrip_mode',

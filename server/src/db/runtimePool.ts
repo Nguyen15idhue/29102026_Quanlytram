@@ -9,6 +9,10 @@ export const runtimePool: Pool = mysql.createPool({
   database: config.mysql.runtimeDatabase,
   waitForConnections: true,
   connectionLimit: 5,
+  connectTimeout: 10_000,
+  maxIdle: 5,
+  idleTimeout: 60_000,
+  queueLimit: 0,
   timezone: 'Z',
   dateStrings: false,
   decimalNumbers: true

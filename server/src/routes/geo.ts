@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../lib/http';
+import { TtlLruCache } from '../lib/ttlLruCache';
 import { requireAuth, requirePermission } from '../middleware/auth';
 
 export const geoRouter = Router();
@@ -44,8 +45,7 @@ async function nominatim(lat: number, lon: number): Promise<GeoResult | null> {
   }
 }
 
-const cache = new Map<string, { expiresAt: number; value: GeoResult }>();
-const CACHE_MS = 60 * 60 * 1000;
+const cache = new TtlLruCache<string, GeoResult>(1000, 60 * 60 * 1000);
 
 geoRouter.get(
   '/reverse',
@@ -58,8 +58,8 @@ geoRouter.get(
       .parse(req.query);
     const key = `${lat.toFixed(5)},${lon.toFixed(5)}`;
     const cached = cache.get(key);
-    if (cached && cached.expiresAt > Date.now()) {
-      res.json({ item: cached.value });
+    if (cached) {
+      res.json({ item: cached });
       return;
     }
 
@@ -99,7 +99,7 @@ geoRouter.get(
       const fallback = await nominatim(lat, lon);
       if (fallback) value = fallback;
     }
-    cache.set(key, { expiresAt: Date.now() + CACHE_MS, value });
+    cache.set(key, value);
     res.json({ item: value });
   })
 );

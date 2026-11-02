@@ -25,6 +25,8 @@ export const webUsersRouter = Router();
 webUsersRouter.use(requireAuth);
 webUsersRouter.use(csrfProtection);
 
+const EXPORT_MAX_ROWS = 20000;
+
 const createSchema = z.object({
   username: z.string().min(3).max(64).regex(/^[A-Za-z0-9_.-]+$/),
   password: z.string().min(8).max(200),
@@ -269,9 +271,12 @@ webUsersRouter.get(
          JOIN roles r ON r.id = u.role_id
          LEFT JOIN web_users p ON p.id = u.parent_user_id
          LEFT JOIN companies c ON c.id = u.company_id
-        WHERE ${where} ORDER BY u.username`,
+        WHERE ${where} ORDER BY u.username LIMIT ${EXPORT_MAX_ROWS + 1}`,
       params
     );
+    if (rows.length > EXPORT_MAX_ROWS) {
+      throw new ApiError(400, 'EXPORT_TOO_LARGE', 'Dữ liệu vượt quá 20.000 dòng, hãy lọc trước khi xuất');
+    }
     const buffer = await buildWorkbook(
       ['username', 'display_name', 'email', 'role_code', 'parent_username', 'status', 'company_code', 'company_name'],
       rows.map((row) => [
