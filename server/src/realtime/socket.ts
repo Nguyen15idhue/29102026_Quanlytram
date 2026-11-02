@@ -17,7 +17,8 @@ import {
   permissionMap,
   scopeOf,
   type PermissionMap,
-  type RawData
+  type RawData,
+  type Snapshot
 } from './filter';
 
 export interface SocketAuth {
@@ -35,11 +36,37 @@ interface SocketState {
   permissions: PermissionMap;
   subtreeIds: number[];
   tenantIds: number[];
+  lastAuthAt: number;
+  lastSnapshotSig: string;
   lastRelaySig: string;
   lastConnSig: string;
   lastQualitySig: string;
   knownAlertIds: Set<number>;
   knownQualityAlertIds: Set<number>;
+}
+
+const AUTH_REFRESH_MS = 45_000;
+
+export function authRefreshDue(lastAuthAt: number, now = Date.now()): boolean {
+  return now - lastAuthAt >= AUTH_REFRESH_MS;
+}
+
+export function revokeSessionSockets(sessionId: number): void {
+  if (!activeIo) return;
+  const room = `session:${sessionId}`;
+  activeIo.to(room).emit('auth.revoked');
+  activeIo.in(room).disconnectSockets(true);
+}
+
+export function revokeUserSockets(userId: number, keepSessionId = 0): void {
+  if (!activeIo) return;
+  for (const socket of activeIo.sockets.sockets.values()) {
+    const state = socket.data.state as SocketState | undefined;
+    if (!state || state.auth.userId !== userId) continue;
+    if (keepSessionId !== 0 && state.auth.sessionId === keepSessionId) continue;
+    socket.emit('auth.revoked');
+    socket.disconnect(true);
+  }
 }
 
 export interface RealtimeHandle {
@@ -149,6 +176,8 @@ async function refreshAuth(auth: SocketAuth): Promise<SocketAuth | null> {
 async function stateForSocket(socket: Socket): Promise<SocketState | null> {
   const state = socket.data.state as SocketState | undefined;
   if (!state) return null;
+  if (!authRefreshDue(state.lastAuthAt)) return state;
+  state.lastAuthAt = Date.now();
   const latest = await refreshAuth(state.auth);
   if (!latest || latest.userId !== state.auth.userId) return null;
   if (latest.roleId !== state.auth.roleId || latest.sessionId !== state.auth.sessionId) {
@@ -161,6 +190,7 @@ async function stateForSocket(socket: Socket): Promise<SocketState | null> {
     state.permissions = permissions;
     state.subtreeIds = ids;
     state.tenantIds = tenants;
+    state.lastSnapshotSig = '';
     state.lastRelaySig = '';
     state.lastConnSig = '';
     state.lastQualitySig = '';
@@ -185,10 +215,17 @@ async function sendSnapshot(
     state.subtreeIds,
     state.tenantIds
   );
+  const snapshotSig = snapshotSignature(snapshot);
   socket.emit('snapshot', snapshot);
+  state.lastSnapshotSig = snapshotSig;
   state.lastRelaySig = JSON.stringify(snapshot.relays);
   state.lastConnSig = JSON.stringify(snapshot.connections);
   state.knownAlertIds = new Set(snapshot.alerts.map((alert) => alert.id));
+}
+
+function snapshotSignature(snapshot: Snapshot): string {
+  const { ts: _ts, ...rest } = snapshot;
+  return JSON.stringify(rest);
 }
 
 function qualityOwner(data: RawData, targetType: string, targetId: number): number | null {
@@ -235,6 +272,8 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
         permissions,
         subtreeIds: ids,
         tenantIds: tenants,
+        lastAuthAt: Date.now(),
+        lastSnapshotSig: '',
         lastRelaySig: '',
         lastConnSig: '',
         lastQualitySig: '',
@@ -251,6 +290,7 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
   io.on('connection', (socket) => {
     const state = socket.data.state as SocketState;
     socket.join(`user:${state.auth.userId}`);
+    socket.join(`session:${state.auth.sessionId}`);
 
     socket.on('snapshot:request', async () => {
       try {
@@ -369,7 +409,7 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
           `SELECT * FROM quality_alerts
             WHERE resolved_at IS NULL
             ORDER BY last_seen DESC
-            LIMIT 500`
+            LIMIT 100`
         )
       ]);
 
@@ -404,81 +444,86 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
           alerts,
           state.permissions,
           state.auth.userId,
-          state.subtreeIds
+          state.subtreeIds,
+          state.tenantIds
         );
-        socket.emit('snapshot', snapshot);
+        const snapshotSig = snapshotSignature(snapshot);
+        if (snapshotSig !== state.lastSnapshotSig) {
+          state.lastSnapshotSig = snapshotSig;
+          socket.emit('snapshot', snapshot);
 
-        const relaySig = JSON.stringify(snapshot.relays);
-        if (relaySig !== state.lastRelaySig) {
-          socket.emit('relay.updated', { ts: snapshot.ts, items: snapshot.relays });
-          state.lastRelaySig = relaySig;
-        }
+          const relaySig = JSON.stringify(snapshot.relays);
+          if (relaySig !== state.lastRelaySig) {
+            socket.emit('relay.updated', { ts: snapshot.ts, items: snapshot.relays });
+            state.lastRelaySig = relaySig;
+          }
 
-        const connSig = JSON.stringify(snapshot.connections);
-        if (connSig !== state.lastConnSig) {
-          socket.emit('connection.updated', { ts: snapshot.ts, items: snapshot.connections });
-          state.lastConnSig = connSig;
-        }
+          const connSig = JSON.stringify(snapshot.connections);
+          if (connSig !== state.lastConnSig) {
+            socket.emit('connection.updated', { ts: snapshot.ts, items: snapshot.connections });
+            state.lastConnSig = connSig;
+          }
 
-        const newAlerts = snapshot.alerts.filter((alert) => !state.knownAlertIds.has(alert.id));
-        state.knownAlertIds = new Set(snapshot.alerts.map((alert) => alert.id));
-        if (newAlerts.length > 0) {
-          socket.emit('alert.created', { ts: snapshot.ts, items: newAlerts });
-        }
+          const newAlerts = snapshot.alerts.filter((alert) => !state.knownAlertIds.has(alert.id));
+          state.knownAlertIds = new Set(snapshot.alerts.map((alert) => alert.id));
+          if (newAlerts.length > 0) {
+            socket.emit('alert.created', { ts: snapshot.ts, items: newAlerts });
+          }
 
-        const qualityScope = scopeOf(state.permissions, 'quality.view');
-        const qualityIds =
-          qualityScope === 'tenant' ? state.tenantIds : state.subtreeIds;
-        const disabledStations = new Set(
-          data.stations
-            .filter((station) => !station.enabled || station.status === 'locked')
-            .map((station) => station.id)
-        );
-        const visibleQuality: QualityLive[] =
-          qualityScope === 'none'
-            ? []
-            : liveQuality.items.filter((item) => {
-                if (item.targetType === 'station' && disabledStations.has(item.targetId)) {
-                  return false;
-                }
-                return inScope(
-                  qualityScope,
-                  state.auth.userId,
-                  qualityIds,
-                  qualityOwner(data, item.targetType, item.targetId)
-                );
-              });
-        socket.emit('quality.snapshot', { ts: liveQuality.ts, items: visibleQuality });
-        const qualitySig = JSON.stringify(visibleQuality);
-        if (qualitySig !== state.lastQualitySig) {
-          socket.emit('quality.updated', { ts: liveQuality.ts, items: visibleQuality });
-          state.lastQualitySig = qualitySig;
-        }
-
-        const visibleQualityAlerts =
-          qualityScope === 'none'
-            ? []
-            : (qualityAlertRows as any[])
-                .filter((row) =>
-                  inScope(
+          const qualityScope = scopeOf(state.permissions, 'quality.view');
+          const qualityIds =
+            qualityScope === 'tenant' ? state.tenantIds : state.subtreeIds;
+          const disabledStations = new Set(
+            data.stations
+              .filter((station) => !station.enabled || station.status === 'locked')
+              .map((station) => station.id)
+          );
+          const visibleQuality: QualityLive[] =
+            qualityScope === 'none'
+              ? []
+              : liveQuality.items.filter((item) => {
+                  if (item.targetType === 'station' && disabledStations.has(item.targetId)) {
+                    return false;
+                  }
+                  return inScope(
                     qualityScope,
                     state.auth.userId,
                     qualityIds,
-                    qualityOwner(data, String(row.target_type), Number(row.target_id))
+                    qualityOwner(data, item.targetType, item.targetId)
+                  );
+                });
+          socket.emit('quality.snapshot', { ts: liveQuality.ts, items: visibleQuality });
+          const qualitySig = JSON.stringify(visibleQuality);
+          if (qualitySig !== state.lastQualitySig) {
+            socket.emit('quality.updated', { ts: liveQuality.ts, items: visibleQuality });
+            state.lastQualitySig = qualitySig;
+          }
+
+          const visibleQualityAlerts =
+            qualityScope === 'none'
+              ? []
+              : (qualityAlertRows as any[])
+                  .filter((row) =>
+                    inScope(
+                      qualityScope,
+                      state.auth.userId,
+                      qualityIds,
+                      qualityOwner(data, String(row.target_type), Number(row.target_id))
+                    )
                   )
-                )
-                .map((row) =>
-                  mapAlert(
-                    row,
-                    qualityOwner(data, String(row.target_type), Number(row.target_id))
-                  )
-                );
-        const newQualityAlerts = visibleQualityAlerts.filter(
-          (alert) => !state.knownQualityAlertIds.has(alert.id)
-        );
-        state.knownQualityAlertIds = new Set(visibleQualityAlerts.map((alert) => alert.id));
-        if (newQualityAlerts.length > 0) {
-          socket.emit('quality.alert', { ts: liveQuality.ts, items: newQualityAlerts });
+                  .map((row) =>
+                    mapAlert(
+                      row,
+                      qualityOwner(data, String(row.target_type), Number(row.target_id))
+                    )
+                  );
+          const newQualityAlerts = visibleQualityAlerts.filter(
+            (alert) => !state.knownQualityAlertIds.has(alert.id)
+          );
+          state.knownQualityAlertIds = new Set(visibleQualityAlerts.map((alert) => alert.id));
+          if (newQualityAlerts.length > 0) {
+            socket.emit('quality.alert', { ts: liveQuality.ts, items: newQualityAlerts });
+          }
         }
 
         if (newSessions.length > 0) {

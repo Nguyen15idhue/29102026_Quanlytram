@@ -1126,5 +1126,9 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   `REALTIME_BASE_CACHE_MS` 1500; `loadBaseData()` cache TTL + in-flight dùng
   chung cho tick và `snapshot:request`. Server build PASS, vitest 119/119 PASS.
   Cách chạy: `cd server; npm run build; npm test`.
-- Kế hoạch 11 đang triển khai tuần tự P11-2…P11-10; nhật ký ở
+- P11-2 DONE: cache auth 45 giây/socket, revoke ngay qua room `session:<id>`
+  (logout/đổi mật khẩu/khóa user), chỉ emit snapshot khi chữ ký đổi,
+  `quality_alerts` LIMIT 100, sửa tick dùng `tenantIds`. Build PASS,
+  vitest 19 file / 122 test PASS.
+- Kế hoạch 11 đang triển khai tuần tự P11-3…P11-10; nhật ký ở
   `docs/1/11_BAO_CAO_TOI_UU_TAI_NGUYEN.md` §12.

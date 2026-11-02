@@ -9,6 +9,7 @@ import { emailField } from '../lib/validation';
 import { requireAuth } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import { ipFrom } from '../rbac/access';
+import { revokeUserSockets } from '../realtime/socket';
 
 export const profileRouter = Router();
 profileRouter.use(requireAuth);
@@ -94,6 +95,7 @@ profileRouter.post(
       'DELETE FROM web_sessions WHERE web_user_id = ? AND id <> ?',
       [req.auth!.id, req.auth!.sessionId ?? 0]
     );
+    revokeUserSockets(req.auth!.id, req.auth!.sessionId ?? 0);
     await writeAudit(adminPool, req.auth!.id, 'change_password', 'web_user', req.auth!.id, null, null, ipFrom(req));
     res.json({ ok: true });
   })

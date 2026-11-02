@@ -9,6 +9,7 @@ import { randomToken, sha256 } from '../lib/token';
 import { requireAuth } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import { permissionsForRole } from '../rbac/permissions';
+import { revokeSessionSockets } from '../realtime/socket';
 
 export const authRouter = Router();
 
@@ -130,6 +131,7 @@ authRouter.post(
   csrfProtection,
   asyncHandler(async (req, res) => {
     await adminPool.query('DELETE FROM web_sessions WHERE id = ?', [req.auth!.sessionId]);
+    revokeSessionSockets(req.auth!.sessionId);
     res.clearCookie(config.session.cookieName, { path: '/' });
     res.status(204).send();
   })

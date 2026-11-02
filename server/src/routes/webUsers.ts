@@ -19,6 +19,7 @@ import {
 import { canAssignRole, canManageRole } from '../rbac/scope';
 import { emailField } from '../lib/validation';
 import { buildWorkbook, readSheetRows, readWorkbook, sendWorkbook } from '../lib/excel';
+import { revokeUserSockets } from '../realtime/socket';
 
 export const webUsersRouter = Router();
 webUsersRouter.use(requireAuth);
@@ -592,6 +593,7 @@ webUsersRouter.patch(
     );
     if (body.password) {
       await adminPool.query('DELETE FROM web_sessions WHERE web_user_id = ?', [id]);
+      revokeUserSockets(id);
     }
     const after = await getUser(id);
     await writeAudit(adminPool, req.auth!.id, 'update', 'web_user', id, before, after, ipFrom(req));
@@ -648,6 +650,7 @@ webUsersRouter.post(
           ]);
           if (body.action === 'lock') {
             await conn.query('DELETE FROM web_sessions WHERE web_user_id = ?', [row.id]);
+            revokeUserSockets(row.id);
           }
         }
       }
@@ -702,6 +705,7 @@ for (const action of ['lock', 'unlock'] as const) {
       await adminPool.query('UPDATE web_users SET status = ? WHERE id = ?', [status, id]);
       if (action === 'lock') {
         await adminPool.query('DELETE FROM web_sessions WHERE web_user_id = ?', [id]);
+        revokeUserSockets(id);
       }
       const after = await getUser(id);
       await writeAudit(adminPool, req.auth!.id, action, 'web_user', id, before, after, ipFrom(req));
