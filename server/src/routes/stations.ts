@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { z } from 'zod';
 import net from 'node:net';
 import tls from 'node:tls';
@@ -2262,7 +2262,15 @@ stationsRouter.get(
         ageMs: averageInt('age_ms')
       });
     }
-    res.json({ ...timeline, series, bucketSec, seriesBucketSec, range });
+    res.json({
+      ...timeline,
+      series,
+      asOf: now.toISOString(),
+      bucketSec,
+      resolutionSec,
+      seriesBucketSec,
+      range
+    });
   })
 );
 

@@ -1,4 +1,4 @@
-import { Router } from 'express';
+﻿import { Router } from 'express';
 import { z } from 'zod';
 import { RowDataPacket } from 'mysql2/promise';
 import { adminPool, query, withTransaction } from '../db/pool';
@@ -906,7 +906,16 @@ relayJobsRouter.get(
         ageMs: averageInt('age_ms')
       });
     }
-    res.json({ ...timeline, series, direction, bucketSec, seriesBucketSec, range });
+    res.json({
+      ...timeline,
+      series,
+      direction,
+      asOf: now.toISOString(),
+      bucketSec,
+      resolutionSec,
+      seriesBucketSec,
+      range
+    });
   })
 );
 

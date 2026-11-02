@@ -194,11 +194,18 @@ export interface StationActivityResponse {
 
 export type TimelineStatus = 'online' | 'offline' | 'no_data' | 'none';
 export type TimelineRange = '1h' | '24h' | '7d' | '1m';
+export type OfflineReason =
+  | 'system_down'
+  | 'source_network'
+  | 'source_silent'
+  | 'source_auth'
+  | 'disabled';
 
 export interface TimelineBucket {
   from: string;
   to: string;
   status: TimelineStatus;
+  reason?: OfflineReason;
 }
 
 export interface TimelineSeriesPoint {
@@ -216,7 +223,9 @@ export interface EntityTimelineResponse {
   createdAt: string | null;
   range: TimelineRange;
   bucketSec: number;
+  resolutionSec?: number;
   buckets: TimelineBucket[];
+  segments?: TimelineBucket[];
   series: TimelineSeriesPoint[];
   onlineSec: number;
   offlineSec: number;
@@ -225,6 +234,9 @@ export interface EntityTimelineResponse {
   totalSec: number;
   uptimePct: number;
   current: TimelineStatus;
+  currentReason?: OfflineReason | null;
+  offlineReasons?: Record<string, number>;
+  asOf?: string;
   direction?: 'upstream' | 'downstream';
 }
 

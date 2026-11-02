@@ -232,4 +232,30 @@ describe('status timeline', () => {
     expect(offlineReasonFromClose('disabled')).toBe('disabled');
     expect(offlineReasonFromClose('eof')).toBe('source_silent');
   });
+
+  it('trả contract đầy đủ segments, currentReason và tổng khung', () => {
+    const timeline = buildStatusTimeline({
+      createdAt: new Date('2026-11-01T10:00:00.000Z'),
+      rangeFrom: new Date('2026-11-01T09:00:00.000Z'),
+      now: new Date('2026-11-01T11:00:00.000Z'),
+      bucketSec: 600,
+      resolutionSec: 60,
+      hasConnectionInfo: true,
+      connections: [],
+      samples: [],
+      currentStatus: 'offline',
+      currentReason: 'system_down'
+    });
+
+    expect(timeline.segments[0].status).toBe('none');
+    expect(timeline.segments[timeline.segments.length - 1].to).toBe(
+      '2026-11-01T11:00:00.000Z'
+    );
+    expect(timeline.current).toBe('offline');
+    expect(timeline.currentReason).toBe('system_down');
+    expect(timeline.offlineReasons.system_down).toBeGreaterThan(0);
+    expect(
+      timeline.noneSec + timeline.onlineSec + timeline.offlineSec + timeline.noDataSec
+    ).toBe(7200);
+  });
 });
