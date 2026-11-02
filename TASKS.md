@@ -749,7 +749,7 @@ Tài liệu: `docs/1/10_KE_HOACH_MA_TRAN_TRANG_THAI_RELAY.md`
 | Bước | Tên | Trạng thái |
 |---|---|---|
 | P10-0 | Baseline & chốt kế hoạch | DONE (server 102/102, go test/vet PASS, FE build PASS) |
-| P10-1 | Thư viện ma trận trạng thái relay | TODO |
+| P10-1 | Thư viện ma trận trạng thái relay | DONE (12/12 test, server 114/114) |
 | P10-2 | Áp ma trận vào API relay | TODO |
 | P10-3 | Go phân biệt disabled và deleted | TODO |
 | P10-4 | Migration 035 ràng buộc bất biến | TODO |

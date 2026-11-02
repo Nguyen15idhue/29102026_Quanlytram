@@ -416,3 +416,17 @@ P10-5 0.75 · P10-6 0.5).
   frontend build PASS.
 - File: `docs/1/10_KE_HOACH_MA_TRAN_TRANG_THAI_RELAY.md`, `TASKS.md`, `SESSION.md`.
 - Sai lệch: không. Các lỗi test phiên trước đã được người dùng xử lý trước baseline.
+
+### P10-1 — Thư viện ma trận trạng thái (2026-11-02 09:42 +07:00)
+
+- Việc: tạo `server/src/lib/relayState.ts` (`deriveRelayState`, `assertTransition`,
+  `isIdempotent`, `allowedActions`, `isPending`, `isRuntimeLive`) và test thuần
+  phủ 8 trạng thái × 8 hành động.
+- Lệnh: `npx vitest run tests/relayState.test.ts`; `npm run build`; `npm test`.
+- Kết quả: PASS — relayState **12/12**; toàn server **114/114** (17 file), build PASS.
+- File: `server/src/lib/relayState.ts`, `server/tests/relayState.test.ts`.
+- Sai lệch: (1) `assertTransition` nhận **input** thay vì chỉ `state` để kiểm tra
+  chính xác `enabled`/`pending`/runtime; (2) `unlock` khi không khóa là **idempotent**
+  (không ném `RELAY_UNLOCKED`) theo bước P10-2; mã `RELAY_UNLOCKED` giữ cho bulk báo
+  `skipped`; (3) `allowedActions` loại các hành động idempotent để UI không hiện nút
+  vô nghĩa; (4) thứ tự kiểm tra `lock`/`delete`: pending trước enabled.
