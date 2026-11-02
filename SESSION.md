@@ -3,8 +3,9 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-11-01 09:27 (Asia/Ho_Chi_Minh, +07:00)
-- Fix timeline 1h/24h/7d/1m dùng chung nguồn tuổi byte cuối: bucket rộng lấy trạng thái chiếm phần lớn thời gian (không lấy midpoint), trả thêm `segments` chính xác + segment "trước khi tạo"; no_data chỉ còn 10s grace kể cả khi session còn mở; đọc lùi 1 sample để nội suy đúng đầu range; live badge/station transport đồng bộ. Server tsc PASS, vitest 90/90, FE tsc PASS.
-- Verify API job 227 + station 480: online/offline/no_data/none và mốc chuyển trạng thái khớp giữa 4 khung; 1 tháng có segment none từ rangeFrom đến createdAt.
+- Kế hoạch 09 lập: `docs/1/09_KE_HOACH_TIMELINE_TRANG_THAI.md` — no_data theo frame/60s (`xx` mặc định 10), offline theo kết nối/service/tắt-khoá, `system_down` vs `source_lost`, rolling 30d, `none` hiển thị mọi khung; chưa triển khai code.
+- P09 Phase 0 PASS: baseline `scripts/verify-timeline.ps1` tái hiện 24h/7d/30d `online` lúc 00:30/04:00 (downtime), độ phủ segment 72.371s < khung; server tsc PASS, vitest 89/90 (FAIL stationDetail.test:19 do WIP), frontend tsc PASS.
+- WIP timeline lần trước được làm lại trong P09; không giữ kết luận 90/90 cũ vì semantics đã đổi.
 - Kế hoạch 08 lập xong: `docs/1/08_KE_HOACH_TRANG_HUONG_DAN.md` (Docusaurus build-time + Playwright capture + 12 chương; trang `/guide`, menu "Hướng dẫn" giữa Relay và Hệ thống).
 - P08-0 DONE: baseline server 88/88 (14 file), frontend build PASS, navigation 1/1 PASS; compose healthy; không sửa mã nguồn.
 - P08-1 DONE: `docs-site/` Docusaurus 3.10.2 (baseUrl `/guide/`, locale vi, search local), 2 chương mẫu; build PASS, serve HTTP 200.
