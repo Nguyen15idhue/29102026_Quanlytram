@@ -20,6 +20,10 @@ function envInt(name: string, fallback: number): number {
   return parsed;
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
 export const config = {
   nodeEnv: process.env.NODE_ENV || 'development',
   port: envInt('PORT', 4000),
@@ -55,6 +59,7 @@ export const config = {
   },
   migrationsDir: process.env.MIGRATIONS_DIR || '../db/migrations',
   realtime: {
-    pollMs: Math.max(500, envInt('REALTIME_POLL_MS', 1000))
+    pollMs: clamp(envInt('REALTIME_POLL_MS', 3000), 1000, 10000),
+    baseCacheMs: clamp(envInt('REALTIME_BASE_CACHE_MS', 1500), 250, 5000)
   }
 };

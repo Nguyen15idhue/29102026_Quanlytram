@@ -1122,3 +1122,9 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   Bổ sung: jobs API merge trạng thái Go (`running`/`lastStatus`/`lastRowsDeleted`)
   qua `/internal/maintenance/status`; UI hiển thị job runtime đang chạy.
 - Realtime header: EntityStatusHeader (card Hiện tại + Trạng thái ở drawer Trạm/Relay) đồng bộ giờ máy chủ qua snapshot.ts của Socket.IO và tick 1s thay vì 30s; tiêu đề hiển thị trạng thái kết nối socket. FE tsc PASS.
+- P11-1 DONE: `REALTIME_POLL_MS` mặc định 3000 (clamp 1000–10000), thêm
+  `REALTIME_BASE_CACHE_MS` 1500; `loadBaseData()` cache TTL + in-flight dùng
+  chung cho tick và `snapshot:request`. Server build PASS, vitest 119/119 PASS.
+  Cách chạy: `cd server; npm run build; npm test`.
+- Kế hoạch 11 đang triển khai tuần tự P11-2…P11-10; nhật ký ở
+  `docs/1/11_BAO_CAO_TOI_UU_TAI_NGUYEN.md` §12.

@@ -1,4 +1,5 @@
 import { RowDataPacket } from 'mysql2/promise';
+import { config } from '../config';
 import { query } from '../db/pool';
 import { callGoInternal } from '../lib/internalApi';
 import type {
@@ -36,7 +37,31 @@ interface GoConnection {
   bytesOut: number;
 }
 
-export async function loadBaseData(): Promise<RawData> {
+let baseCache: { at: number; value: RawData } | null = null;
+let baseInflight: Promise<RawData> | null = null;
+
+export function invalidateBaseDataCache(): void {
+  baseCache = null;
+}
+
+export async function loadBaseData(force = false): Promise<RawData> {
+  const now = Date.now();
+  if (!force && baseCache && now - baseCache.at < config.realtime.baseCacheMs) {
+    return baseCache.value;
+  }
+  if (!force && baseInflight) return baseInflight;
+  const inflight = fetchBaseData();
+  baseInflight = inflight;
+  try {
+    const value = await inflight;
+    baseCache = { at: Date.now(), value };
+    return value;
+  } finally {
+    if (baseInflight === inflight) baseInflight = null;
+  }
+}
+
+async function fetchBaseData(): Promise<RawData> {
   const jobRows = await query<RowDataPacket[]>(
     `SELECT id, name, enabled, owner_web_user_id
        FROM relay_jobs
