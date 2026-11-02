@@ -1137,5 +1137,7 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - P11-4 DONE: relay upstream + probe có `IdleTimeout` 60s (read deadline mỗi
   vòng đọc), caster bật TCP keepalive 30s và trần 500 kết nối / 50 mỗi IP.
   `go build`, `go vet`, `go test ./...` PASS (+3 test idle/limit).
-- Kế hoạch 11 đang triển khai tuần tự P11-5…P11-10; nhật ký ở
+- P11-5 DONE: `getMapConfig()` cache 45 giây + in-flight, invalidate khi lưu
+  cấu hình bản đồ. Server build PASS, vitest 125/125 PASS.
+- Kế hoạch 11 đang triển khai tuần tự P11-6…P11-10; nhật ký ở
   `docs/1/11_BAO_CAO_TOI_UU_TAI_NGUYEN.md` §12.

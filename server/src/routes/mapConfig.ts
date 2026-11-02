@@ -4,6 +4,7 @@ import { writeAudit } from '../lib/audit';
 import { asyncHandler } from '../lib/http';
 import {
   getMapConfig,
+  invalidateMapConfigCache,
   MAP_MODES,
   MapMode,
   mergeMapConfig,
@@ -50,6 +51,7 @@ mapConfigRouter.put(
     }
     const before = await readRawMapConfig();
     const saved = await saveConfig(req.auth!.id, req.body);
+    invalidateMapConfigCache();
     await writeAudit(
       adminPool,
       req.auth!.id,

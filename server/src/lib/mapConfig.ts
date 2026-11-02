@@ -247,12 +247,38 @@ export function validateMapConfigInput(raw: unknown): MapConfig {
   return checkUrlSafety(parsed);
 }
 
-export async function getMapConfig(): Promise<MapConfig> {
+const MAP_CONFIG_TTL_MS = 45_000;
+
+let mapConfigCache: { at: number; value: MapConfig } | null = null;
+let mapConfigInflight: Promise<MapConfig> | null = null;
+
+export function invalidateMapConfigCache(): void {
+  mapConfigCache = null;
+}
+
+async function loadMapConfig(): Promise<MapConfig> {
   const rows = await query<RowDataPacket[]>(
     'SELECT setting_value FROM settings WHERE setting_key = ? LIMIT 1',
     ['map.config']
   );
   return normalizeMapConfig(rows[0]?.setting_value ?? null);
+}
+
+export async function getMapConfig(force = false): Promise<MapConfig> {
+  const now = Date.now();
+  if (!force && mapConfigCache && now - mapConfigCache.at < MAP_CONFIG_TTL_MS) {
+    return mapConfigCache.value;
+  }
+  if (!force && mapConfigInflight) return mapConfigInflight;
+  const inflight = loadMapConfig();
+  mapConfigInflight = inflight;
+  try {
+    const value = await inflight;
+    mapConfigCache = { at: Date.now(), value };
+    return value;
+  } finally {
+    if (mapConfigInflight === inflight) mapConfigInflight = null;
+  }
 }
 
 export async function readRawMapConfig(): Promise<unknown> {
