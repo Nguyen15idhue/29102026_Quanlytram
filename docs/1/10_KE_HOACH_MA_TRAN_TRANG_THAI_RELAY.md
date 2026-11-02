@@ -495,3 +495,36 @@ P10-5 0.75 · P10-6 0.5).
 - File: `frontend/src/pages/RelayJobs.tsx`, `frontend/src/types.ts`.
 - Sai lệch: nhãn bulk kèm số lượng thay vì chỉ tên hành động; giữ fallback
   `canDo` theo cờ `enabled/locked` khi server cũ chưa trả `allowedActions`.
+
+### P10-6 — E2E, tài liệu, graphify, bàn giao (2026-11-02 10:04 +07:00)
+
+- Việc: thêm `frontend/tests/relay-state.spec.ts` (R10–R12, tự tạo/dọn job
+  `E2E-STATE-`); rebuild binary Go (`docker compose up -d --build gnss`); thêm mục
+  “Ma trận trạng thái” vào `docs-site/docs/07-relay.md`; cập nhật README
+  (lệnh test relay-state, lưu ý build image `migrate`, bất biến 035); chạy
+  `graphify update .`.
+- Kết quả test matrix:
+
+| # | Hạng mục | Kết quả | Bằng chứng |
+|---|---|---|---|
+| R1 | Unit ma trận hành động | PASS | `relayState.test.ts` 14/14 |
+| R2 | Ưu tiên trạng thái | PASS | 5 test `deriveRelayState` |
+| R3 | Xóa khi bật/khóa/pending/online | PASS | API check + E2E R11 (409 `RELAY_ENABLED`) |
+| R4 | PATCH `enabled=true` khi khóa | PASS | API check (409 `RELAY_LOCKED`), metadata vẫn 200 |
+| R5 | Bulk mixed | PASS | E2E R12: `updated=1`, `skipped=2` |
+| R6 | Import vào job khóa | PASS | response `warnings`, `enabled=false`, `locked=true` |
+| R7 | Go locked → `disabled` | PASS | `TestLockedJobStopsWithDisabledReason` |
+| R8 | Go trạm khóa → `disabled` | PASS | `TestStationLockedStopsRelayWithDisabledReason` |
+| R9 | Row sai `locked=1&enabled=1` | PASS | `TestLockedEnabledRowNeverStreams` |
+| R10 | Khóa → badge offline, xóa disabled | PASS | E2E R10 |
+| R11 | Xóa khi bật bị chặn, sau chuỗi thì xóa được | PASS | E2E R11 |
+| R12 | Bulk đúng số updated/skipped | PASS | E2E R12 |
+| R13 | Regression | PASS | server 116/116; `go test ./...` + vet; guide 8/8; navigation 1/1; FE build |
+
+- Tổng: Playwright **12/12** (8 guide + 1 navigation + 3 relay-state); migration
+  035 version 35, 0 vi phạm; `graphify update .` → **4019 nodes / 9136 edges /
+  290 communities**.
+- File: `frontend/tests/relay-state.spec.ts`, `docs-site/docs/07-relay.md`,
+  `README.md`, `TASKS.md`, `SESSION.md`, `docs/1/10_...md`.
+- Sai lệch: `afterAll` của spec phải chờ `applied >= desired` trước khi xóa (lần chạy
+  đầu để lại 9 job test do `RELAY_PENDING`); đã dọn sạch, kiểm tra còn 0 job `E2E-STATE`.

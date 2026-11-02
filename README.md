@@ -114,6 +114,7 @@ MySQL và Go internal không public ra ngoài.
 cd gnss && go test ./... && go vet ./...
 cd server && npx tsc --noEmit && npm test
 cd frontend && npm test
+cd frontend && npx playwright test tests/relay-state.spec.ts
 ```
 
 Mock relay (không dùng caster thật, không chiếm 8081/2101):
@@ -176,3 +177,7 @@ Lưu ý:
 
 - Phase 0 không tạo mã nguồn, không chạy Docker, không cài package.
 - Không tuyên bố hoàn thành khi chưa có bằng chứng test.
+- Migration được đóng gói vào image của service `migrate`; sau khi thêm file SQL
+  mới phải chạy `docker compose build migrate` rồi `docker compose run --rm migrate`.
+- Relay job đang khóa/đã xóa mềm luôn ở trạng thái tắt (`enabled = 0`) theo ràng
+  buộc của migration 035; xóa relay yêu cầu job đã tắt, đã mở khóa và không online.

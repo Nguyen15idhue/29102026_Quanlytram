@@ -754,7 +754,7 @@ Tài liệu: `docs/1/10_KE_HOACH_MA_TRAN_TRANG_THAI_RELAY.md`
 | P10-3 | Go phân biệt disabled và deleted | DONE (go test/vet PASS, 4 test mới) |
 | P10-4 | Migration 035 ràng buộc bất biến | DONE (version 35, 0 vi phạm, 2 CHECK) |
 | P10-5 | Frontend khóa từng dòng và nhãn trạng thái | DONE (build PASS, 1440/390 PASS) |
-| P10-6 | E2E, tài liệu, graphify, bàn giao | TODO |
+| P10-6 | E2E, tài liệu, graphify, bàn giao | DONE (Playwright 12/12, graphify 4019 nodes) |
 
 ## 10. Ghi chú điều phối
 

@@ -70,6 +70,42 @@ Nếu chưa rõ caster đích hỗ trợ gì, giữ `auto`.
 Import chạy lại nhiều lần không tạo bản ghi trùng. Bản ghi đã xoá mềm được giữ
 lại trong lịch sử theo thời gian lưu trữ.
 
+## Ma trận trạng thái
+
+Mỗi relay job có thể ở một trong các trạng thái sau. Trạng thái hiển thị ưu tiên
+cấu hình, nên đổi trạng thái là thấy ngay, không phải chờ dữ liệu runtime.
+
+| Trạng thái | Ý nghĩa | Badge |
+|---|---|---|
+| `locked` | Đang khóa, không cho đổi cấu hình | offline |
+| `paused` | Tạm dừng do trạm hoặc mountpoint nguồn đang tắt | offline |
+| `disabled` | Đã tắt theo cấu hình | offline |
+| `pending` | Đã lưu nhưng chưa áp dụng xong | offline |
+| `online` | Đang truyền dữ liệu cả hai chiều | online |
+| `no_data` | Có kết nối nhưng một chiều chưa có dữ liệu | không có dữ liệu |
+| `offline` | Không có kết nối | offline |
+
+### Hành động hợp lệ
+
+| Hành động | Chỉ thực hiện được khi |
+|---|---|
+| Bật | Job không khóa và nguồn không bị tạm dừng |
+| Tắt | Job không khóa |
+| Khóa | Job đã tắt, không còn chờ áp dụng và không còn kết nối |
+| Mở khóa | Job đang khóa; sau khi mở vẫn ở trạng thái tắt |
+| Khởi động lại | Job đang bật và không khóa |
+| Kiểm tra kết nối | Job không khóa |
+| Sửa cấu hình | Luôn sửa được metadata, nhưng không được bật lại job đang khóa |
+| Xóa | Job đã tắt, đã mở khóa và không còn kết nối |
+
+Ghi chú:
+
+- Khóa relay sẽ chuyển trạng thái sang **offline** ngay trên giao diện.
+- Dịch vụ relay dừng phiên trong tối đa khoảng 10 giây; lịch sử ghi lý do `disabled`.
+- Xóa là xóa mềm: cấu hình và lịch sử vẫn được giữ để tra cứu.
+- Job bị tạm dừng do trạm/mountpoint nguồn chỉ tự chạy lại khi nguồn hoạt động
+  và job không bị khóa.
+
 ## Chống vòng lặp
 
 - Hệ thống tự phát hiện job trỏ về chính nó.

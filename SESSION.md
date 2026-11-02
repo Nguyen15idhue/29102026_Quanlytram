@@ -25,6 +25,7 @@
 - P10-3 DONE: Go nạp job khóa/trạm tắt với `Enabled=false` → lý do `disabled`; 4 test mới, `go test ./...` + vet PASS.
 - P10-4 DONE: migration 035 (2 CHECK bất biến), admin version 35, 0 vi phạm; phải build lại image `migrate`.
 - P10-5 DONE: nút khóa/mở khóa từng dòng, badge `offline` khi khóa, bulk lọc target; FE build PASS, 1440/390 PASS.
+- P10-6 DONE: `relay-state.spec.ts` 3/3, Playwright tổng 12/12, guide 8/8; go test/vet + server 116/116; graphify 4019 nodes / 9136 edges; kế hoạch 10 hoàn tất.
 - Tài liệu phân quyền đầy đủ: `docs/2/PHAN_QUYEN.md` (RBAC, company, scope, UI, realtime, audit, checklist test)
 - Kế hoạch 06 P06-0 DONE: tile providers reachable từ server + browser; chốt `tileMode=proxy`; Geoapify forward/reverse OK (không in key); fixture 480 (1005), 481 (lat/lon dự phòng), 482 (không toạ độ); backup `cors-mysql-20261101-190927.sql.zip`
 - Kế hoạch 06 P06-1 DONE: tile proxy (allowlist/cache/fallback), `GET/PUT/test /api/map/config`, overview `coordSource` + filter + field-level gate + `layersAvailable`; frontend `useMapConfig`/`MapCanvas`/`TileErrorBanner`; form trạm có “Vĩ độ/Kinh độ dự phòng”; server 71/71, FE build, Playwright smoke PASS
