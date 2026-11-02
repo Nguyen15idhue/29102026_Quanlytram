@@ -1,4 +1,4 @@
-package caster
+﻿package caster
 
 import (
 	"bufio"
@@ -699,3 +699,140 @@ func TestRepeatedListenerToggleNoGoroutineLeak(t *testing.T) {
 		t.Fatalf("goroutines = %d, baseline = %d", after, baseline)
 	}
 }
+
+type slowRuntime struct {
+	*memoryRuntime
+	delay time.Duration
+}
+
+func (r *slowRuntime) Start(ctx context.Context, info StartInfo) (int64, error) {
+	select {
+	case <-time.After(r.delay):
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	}
+	return r.memoryRuntime.Start(ctx, info)
+}
+
+func registerTestConfig(maxConnections int) *Config {
+	mountpoint := &MountpointConfig{ID: 1, Name: "M", Enabled: true}
+	return &Config{
+		Mountpoints: map[int64]*MountpointConfig{1: mountpoint},
+		Accounts: []*AccountConfig{{
+			ID:             1,
+			Username:       "register",
+			PasswordHash:   passwordHash("register"),
+			Enabled:        true,
+			MaxConnections: maxConnections,
+			ACL:            map[int64]bool{1: true},
+		}},
+		Listeners: []*ListenerConfig{
+			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth,
+				Mountpoints: map[int64]*MountpointConfig{1: mountpoint}},
+		},
+	}
+}
+
+func seedRegisterConfig(mgr *manager, cfg *Config) {
+	mgr.mu.Lock()
+	defer mgr.mu.Unlock()
+	for _, account := range cfg.Accounts {
+		mgr.accounts[account.Username] = account
+		mgr.accountsByID[account.ID] = account
+	}
+	for id, mountpoint := range cfg.Mountpoints {
+		mgr.mountpoints[id] = mountpoint
+	}
+	for _, listener := range cfg.Listeners {
+		mgr.listenerCfgs[listener.ID] = listener
+	}
+}
+
+func testConnection() *connection {
+	return &connection{
+		direction:    DirectionRover,
+		listenerID:   1,
+		mountpointID: 1,
+		remoteAddr:   "127.0.0.1:5000",
+		start:        time.Now().UTC(),
+	}
+}
+
+func TestRegisterDoesNotHoldLockDuringRuntimeStart(t *testing.T) {
+	cfg := registerTestConfig(4)
+	mgr := NewManager(&memoryStore{cfg: cfg}, &slowRuntime{memoryRuntime: &memoryRuntime{}, delay: 150 * time.Millisecond}, Options{
+		DBTimeout:  time.Second,
+		ReadBuffer: 1024,
+		QueueSize:  4,
+	})
+	seedRegisterConfig(mgr, cfg)
+	defer func() {
+		mgr.mu.Lock()
+		mgr.conns = make(map[int64]*connection)
+		mgr.mu.Unlock()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		mgr.Shutdown(ctx)
+	}()
+
+	done := make(chan error, 1)
+	go func() { done <- mgr.register(testConnection(), cfg.Accounts[0]) }()
+	time.Sleep(30 * time.Millisecond)
+
+	probeStart := time.Now()
+	_ = mgr.Connections()
+	if elapsed := time.Since(probeStart); elapsed > 80*time.Millisecond {
+		t.Fatalf("Connections blocked %v while runtime.Start runs", elapsed)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("register: %v", err)
+	}
+	if got := len(mgr.Connections()); got != 1 {
+		t.Fatalf("connections = %d, want 1", got)
+	}
+}
+
+func TestRegisterReservesSlotsConcurrently(t *testing.T) {
+	cfg := registerTestConfig(2)
+	mgr := NewManager(&memoryStore{cfg: cfg}, &slowRuntime{memoryRuntime: &memoryRuntime{}, delay: 80 * time.Millisecond}, Options{
+		DBTimeout:  time.Second,
+		ReadBuffer: 1024,
+		QueueSize:  4,
+	})
+	seedRegisterConfig(mgr, cfg)
+	defer func() {
+		mgr.mu.Lock()
+		mgr.conns = make(map[int64]*connection)
+		mgr.mu.Unlock()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		mgr.Shutdown(ctx)
+	}()
+
+	var wg sync.WaitGroup
+	results := make(chan error, 3)
+	for i := 0; i < 3; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results <- mgr.register(testConnection(), cfg.Accounts[0])
+		}()
+	}
+	wg.Wait()
+	close(results)
+	accepted, rejected := 0, 0
+	for err := range results {
+		switch {
+		case err == nil:
+			accepted++
+		case err == errMaxConns:
+			rejected++
+		default:
+			t.Fatalf("unexpected error: %v", err)
+		}
+	}
+	if accepted != 2 || rejected != 1 {
+		t.Fatalf("accepted = %d, rejected = %d", accepted, rejected)
+	}
+}
+

@@ -1130,5 +1130,9 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   (logout/đổi mật khẩu/khóa user), chỉ emit snapshot khi chữ ký đổi,
   `quality_alerts` LIMIT 100, sửa tick dùng `tenantIds`. Build PASS,
   vitest 19 file / 122 test PASS.
-- Kế hoạch 11 đang triển khai tuần tự P11-3…P11-10; nhật ký ở
+- P11-3 DONE: `caster.register()` giữ chỗ slot bằng `pending` rồi gọi
+  `runtime.Start` ngoài `manager.mu`; thêm 2 test khoá/đồng thời. `go build`,
+  `go vet`, `go test ./...` PASS. Lưu ý: host Windows không có cgo/gcc nên
+  `go test -race` chưa chạy được, cần bổ sung trên CI Linux.
+- Kế hoạch 11 đang triển khai tuần tự P11-4…P11-10; nhật ký ở
   `docs/1/11_BAO_CAO_TOI_UU_TAI_NGUYEN.md` §12.

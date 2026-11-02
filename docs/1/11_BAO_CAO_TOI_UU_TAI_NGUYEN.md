@@ -178,7 +178,7 @@ Các mẫu tương ứng đều đã được xử lý đúng (xem §8).
 |---|---|---|---|---|
 | 1 | P11-1 | Nâng `REALTIME_POLL_MS` ≥ 2000–5000; cache `loadBaseData` 1–2 giây | Giảm mạnh query/giây và CPU Node | DONE |
 | 2 | P11-2 | Chỉ `refreshAuth` mỗi 30–60 giây/socket; chỉ phát `snapshot` khi dữ liệu đổi | Bỏ O(socket) query/giây; giảm payload mạng | DONE |
-| 3 | P11-3 | Chuyển `runtime.Start` ra ngoài `manager.mu` trong `caster/manager.go` | Không serialize kết nối theo latency DB | CHƯA |
+| 3 | P11-3 | Chuyển `runtime.Start` ra ngoài `manager.mu` trong `caster/manager.go` | Không serialize kết nối theo latency DB | DONE |
 | 4 | P11-4 | Thêm idle read deadline + keepalive cho relay upstream, probe, rover; thêm trần tổng connection/IP cho caster | Không treo goroutine/socket vô hạn; chống flood | CHƯA |
 | 5 | P11-5 | Cache `getMapConfig` TTL 30–60 giây | Giảm 20–40 query admin mỗi khung bản đồ | CHƯA |
 | 6 | P11-6 | `AsyncStore` dùng context timeout 3–5 giây | Không giữ connection vô hạn khi MySQL treo | CHƯA |
@@ -221,4 +221,5 @@ Các mẫu tương ứng đều đã được xử lý đúng (xem §8).
 | Bước | Trạng thái | Commit | Thay đổi chính | Test (lệnh → kết quả) | Ghi chú |
 |---|---|---|---|---|---|
 | P11-1 | DONE | `61492d3` | `REALTIME_POLL_MS` mặc định 3000 (clamp 1000–10000); thêm `REALTIME_BASE_CACHE_MS` (mặc định 1500, clamp 250–5000); `loadBaseData()` cache TTL + chia sẻ in-flight, có `invalidateBaseDataCache()` | `npm run build` PASS; `npm test` → 18 file / 119 test PASS (thêm 3 test cache) | Payload/schema socket không đổi; `snapshot:request` dùng chung cache |
-| P11-2 | DONE | `__P11_2__` | Cache auth 45 giây/socket (`authRefreshDue`); revoke tức thì qua room `session:<id>` và `revokeUserSockets` (logout, đổi mật khẩu, khóa user); chỉ emit `snapshot` + sự kiện con khi chữ ký đổi (bỏ `ts` khỏi chữ ký); `quality_alerts` LIMIT 100; sửa tick dùng `tenantIds` khi build snapshot | `npm run build` PASS; `npm test` → 19 file / 122 test PASS (thêm 3 test auth) | Dữ liệu không đổi ⇒ 0 emit; logout/khóa phiên bị ngắt ngay |
+| P11-2 | DONE | `89dc165` | Cache auth 45 giây/socket (`authRefreshDue`); revoke tức thì qua room `session:<id>` và `revokeUserSockets` (logout, đổi mật khẩu, khóa user); chỉ emit `snapshot` + sự kiện con khi chữ ký đổi (bỏ `ts` khỏi chữ ký); `quality_alerts` LIMIT 100; sửa tick dùng `tenantIds` khi build snapshot | `npm run build` PASS; `npm test` → 19 file / 122 test PASS (thêm 3 test auth) | Dữ liệu không đổi ⇒ 0 emit; logout/khóa phiên bị ngắt ngay |
+| P11-3 | DONE | `__P11_3__` | `register()` giữ chỗ slot theo tài khoản (`pending`) dưới lock, gọi `runtime.Start` **ngoài** `manager.mu`, ghi lại conn sau khi DB xong; xử lý `stopping` giữa chừng (đóng runtime `service_stopping`); `syntheticID` vẫn bảo vệ bằng lock | `go build ./...` + `go vet ./...` PASS; `go test ./...` PASS (thêm 2 test: `Connections()` không block khi Start 150ms, 3 register đồng thời với MaxConnections=2 → 2 nhận/1 `errMaxConns`) | Host Windows không có cgo/gcc nên không chạy được `-race`; đã ghi nhận, CI Linux cần chạy bổ sung |

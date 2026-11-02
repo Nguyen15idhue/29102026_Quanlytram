@@ -94,6 +94,7 @@ type manager struct {
 	listenerCfgs  map[int64]*ListenerConfig
 	listenerError map[int64]string
 	conns         map[int64]*connection
+	pending       map[int64]int
 	syntheticID   int64
 }
 
@@ -110,6 +111,7 @@ func NewManager(store ConfigStore, runtime RuntimeStore, opts Options) *manager 
 		listenerCfgs:  make(map[int64]*ListenerConfig),
 		listenerError: make(map[int64]string),
 		conns:         make(map[int64]*connection),
+		pending:       make(map[int64]int),
 	}
 }
 
@@ -337,24 +339,24 @@ func (m *manager) register(conn *connection, account *AccountConfig) error {
 		return errStopping
 	}
 	if account != nil {
-		count := 0
-		for _, existing := range m.conns {
-			if existing.accountID != nil && *existing.accountID == account.ID {
-				count++
-			}
-		}
+		count := m.accountConnsLocked(account.ID) + m.pending[account.ID]
 		if count >= account.MaxConnections {
 			m.mu.Unlock()
 			return errMaxConns
 		}
+		m.pending[account.ID]++
 		accountID := account.ID
 		conn.accountID = &accountID
 		conn.accountUsername = account.Username
 	}
 	if m.isInvalidLocked(conn, m.listenerCfgs) {
+		if account != nil {
+			m.releasePendingLocked(account.ID)
+		}
 		m.mu.Unlock()
 		return errInvalidConfig
 	}
+	m.mu.Unlock()
 
 	startCtx, cancel := context.WithTimeout(baseCtx, m.opts.DBTimeout)
 	startID, err := m.runtime.Start(startCtx, StartInfo{
@@ -371,13 +373,56 @@ func (m *manager) register(conn *connection, account *AccountConfig) error {
 		log.Printf("[caster] runtime start failed: %v", err)
 	}
 	if startID <= 0 {
+		m.mu.Lock()
 		m.syntheticID++
 		startID = -m.syntheticID
+		m.mu.Unlock()
 	}
 	conn.id = startID
+
+	m.mu.Lock()
+	if account != nil {
+		m.releasePendingLocked(account.ID)
+	}
+	if m.stopping {
+		m.mu.Unlock()
+		if startID > 0 {
+			endInfo := EndInfo{
+				ID:               startID,
+				End:              time.Now().UTC(),
+				DisconnectReason: "service_stopping",
+			}
+			go func() {
+				endCtx, endCancel := context.WithTimeout(context.Background(), m.opts.DBTimeout)
+				defer endCancel()
+				if endErr := m.runtime.End(endCtx, endInfo); endErr != nil {
+					log.Printf("[caster] runtime end failed for connection %d: %v", endInfo.ID, endErr)
+				}
+			}()
+		}
+		return errStopping
+	}
 	m.conns[conn.id] = conn
 	m.mu.Unlock()
 	return nil
+}
+
+func (m *manager) accountConnsLocked(accountID int64) int {
+	count := 0
+	for _, existing := range m.conns {
+		if existing.accountID != nil && *existing.accountID == accountID {
+			count++
+		}
+	}
+	return count
+}
+
+func (m *manager) releasePendingLocked(accountID int64) {
+	if m.pending[accountID] <= 1 {
+		delete(m.pending, accountID)
+		return
+	}
+	m.pending[accountID]--
 }
 
 func (m *manager) optsContext() context.Context {
