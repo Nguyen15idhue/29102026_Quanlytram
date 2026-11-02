@@ -4,6 +4,8 @@ services:
   mysql:
     image: mysql:8.0
     restart: unless-stopped
+    mem_limit: 2g
+    cpus: 2.0
     logging:
       driver: json-file
       options:
@@ -13,6 +15,8 @@ services:
       - --default-time-zone=+00:00
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
+      - --innodb-buffer-pool-size=1G
+      - --max-connections=200
     env_file:
       - .env.local
     ports:
@@ -44,6 +48,8 @@ services:
   server:
     image: node:22-alpine
     working_dir: /app
+    mem_limit: 1g
+    cpus: 1.0
     env_file:
       - .env.local
     logging:
@@ -88,6 +94,8 @@ services:
     build:
       context: ./gnss
     restart: unless-stopped
+    mem_limit: 1g
+    cpus: 1.0
     env_file:
       - .env.local
     logging:
@@ -116,6 +124,11 @@ services:
   web:
     image: node:22-alpine
     working_dir: /app
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     environment:
       VITE_PROXY_TARGET: http://server:4000
       VITE_HMR_CLIENT_PORT: "3000"

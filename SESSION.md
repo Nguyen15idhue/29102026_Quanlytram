@@ -1150,5 +1150,12 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - P11-9 DONE: export trạm/người dùng chặn 20.000 dòng, geocode cache LRU
   1.000 entry, dashboard ops gộp COUNT theo nhóm, pool có connectTimeout.
   Server build PASS, vitest 21 file / 128 test PASS.
-- Kế hoạch 11 còn P11-10 (hạ tầng compose + MySQL tuning); nhật ký ở
+- P11-10 DONE: compose có `mem_limit`/`cpus` cho mysql/server/gnss, MySQL
+  buffer pool 1G + max_connections 200, log rotation cho web. Kiểm tra:
+  `docker compose config --quiet` → OK (không chạy `up`).
+- Kế hoạch 11 hoàn tất 10/10 bước; nhật ký đầy đủ ở
   `docs/1/11_BAO_CAO_TOI_UU_TAI_NGUYEN.md` §12.
+- Việc cần làm thêm: chạy `go test -race` trên CI Linux (host Windows thiếu
+  cgo/gcc); chạy Playwright với biến E2E khi cần nghiệm thu UI.
+- Cách chạy kiểm tra nhanh: `cd gnss; go build ./...; go vet ./...; go test ./...`
+  và `cd server; npm run build; npm test` và `cd frontend; npm run build`.
