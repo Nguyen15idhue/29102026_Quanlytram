@@ -12,6 +12,7 @@ interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE';
   body?: unknown;
   csrfToken?: string | null;
+  signal?: AbortSignal;
 }
 
 export async function apiFetch<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -24,6 +25,7 @@ export async function apiFetch<T>(path: string, options: RequestOptions = {}): P
     method,
     credentials: 'include',
     headers,
+    signal: options.signal,
     body: options.body === undefined ? undefined : JSON.stringify(options.body)
   });
 

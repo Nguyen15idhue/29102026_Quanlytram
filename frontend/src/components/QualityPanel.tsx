@@ -100,7 +100,7 @@ export function QualityPanel({ targetType, targetId, mountpointId }: QualityPane
         : apiFetch<QualityResponse>(
             `/api/relay-jobs/${targetId}/quality?window=60&direction=${direction}`
           ),
-    refetchInterval: 15_000
+    refetchInterval: 60_000
   });
 
   const activeLive = quality.filter(

@@ -1,4 +1,13 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode
+} from 'react';
 import { CheckCircle2, Info, X, XCircle } from 'lucide-react';
 
 type ToastKind = 'success' | 'error' | 'info';
@@ -17,8 +26,14 @@ const ToastContext = createContext<ToastContextValue | null>(null);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const nextId = useRef(1);
+  const timers = useRef(new Map<number, number>());
 
   const remove = useCallback((id: number) => {
+    const timer = timers.current.get(id);
+    if (timer !== undefined) {
+      window.clearTimeout(timer);
+      timers.current.delete(id);
+    }
     setItems((current) => current.filter((item) => item.id !== id));
   }, []);
 
@@ -26,10 +41,19 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     (message: string, kind: ToastKind = 'info') => {
       const id = nextId.current++;
       setItems((current) => [...current.slice(-3), { id, kind, message }]);
-      window.setTimeout(() => remove(id), 4500);
+      const timer = window.setTimeout(() => remove(id), 4500);
+      timers.current.set(id, timer);
     },
     [remove]
   );
+
+  useEffect(() => {
+    const pending = timers.current;
+    return () => {
+      for (const timer of pending.values()) window.clearTimeout(timer);
+      pending.clear();
+    };
+  }, []);
 
   const value = useMemo(() => ({ push }), [push]);
 

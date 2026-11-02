@@ -1143,5 +1143,9 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   trả thêm `storeFailures`. Go build/vet/test quality PASS.
 - P11-7 DONE: analyzer giới hạn queue theo byte (16 MB) và dọn target theo TTL
   600s; `Feed` không copy khi queue đầy. Go build/vet/test PASS (+2 test).
-- Kế hoạch 11 đang triển khai tuần tự P11-8…P11-10; nhật ký ở
+- P11-8 DONE: frontend bỏ state chết `qualityAlerts`, poll trùng giảm/loại,
+  marker map cập nhật theo diff, thêm `staleTime` 30s, `AbortSignal`, clear
+  timeout toast. `npm run build` PASS; Playwright 3 spec liên quan bị skip do
+  thiếu biến E2E (không FAIL).
+- Kế hoạch 11 đang triển khai tuần tự P11-9…P11-10; nhật ký ở
   `docs/1/11_BAO_CAO_TOI_UU_TAI_NGUYEN.md` §12.

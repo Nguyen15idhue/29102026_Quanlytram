@@ -136,6 +136,8 @@ export function MapCanvas({
   const tileRef = useRef<L.TileLayer | null>(null);
   const markerLayerRef = useRef<L.LayerGroup | null>(null);
   const stationMarkersRef = useRef(new Map<number, L.Marker>());
+  const accountMarkersRef = useRef(new Map<number, L.Marker[]>());
+  const markerSignaturesRef = useRef(new Map<number, string>());
   const tempRef = useRef<L.CircleMarker | null>(null);
   const onTileErrorRef = useRef(onTileError);
   const onSelectRef = useRef(onSelect);
@@ -161,6 +163,9 @@ export function MapCanvas({
       mapRef.current = null;
       tileRef.current = null;
       markerLayerRef.current = null;
+      stationMarkersRef.current.clear();
+      accountMarkersRef.current.clear();
+      markerSignaturesRef.current.clear();
       tempRef.current = null;
     };
   }, []);
@@ -196,14 +201,45 @@ export function MapCanvas({
   useEffect(() => {
     const layerGroup = markerLayerRef.current;
     if (!layerGroup) return;
-    layerGroup.clearLayers();
-    stationMarkersRef.current.clear();
+
+    const removeStation = (id: number) => {
+      const marker = stationMarkersRef.current.get(id);
+      if (marker) {
+        layerGroup.removeLayer(marker);
+        stationMarkersRef.current.delete(id);
+      }
+      for (const extra of accountMarkersRef.current.get(id) ?? []) {
+        layerGroup.removeLayer(extra);
+      }
+      accountMarkersRef.current.delete(id);
+      markerSignaturesRef.current.delete(id);
+    };
+
+    const seen = new Set<number>();
     for (const item of items) {
       if (item.lat === null || item.lon === null) continue;
-      const selected = item.id === selectedId;
+      const accounts = permissions.online ? item.connectedAccounts : [];
+      const popup = buildPopup(item, permissions);
+      const signature = [
+        item.lat,
+        item.lon,
+        item.name,
+        markerHtml(item, false),
+        popup,
+        accounts.map((account) => `${account.username}:${account.fixType}`).join('|')
+      ].join('~');
+      seen.add(item.id);
+      if (
+        stationMarkersRef.current.has(item.id) &&
+        markerSignaturesRef.current.get(item.id) === signature
+      ) {
+        continue;
+      }
+      removeStation(item.id);
+
       const icon = L.divIcon({
         className: 'map-pin-wrapper',
-        html: markerHtml(item, selected),
+        html: markerHtml(item, item.id === selectedId),
         iconSize: [24, 24],
         iconAnchor: [12, 12],
         popupAnchor: [0, -12]
@@ -215,17 +251,19 @@ export function MapCanvas({
         opacity: 0.95,
         className: 'map-tooltip'
       });
-      marker.bindPopup(buildPopup(item, permissions), { minWidth: 180 });
+      marker.bindPopup(popup, { minWidth: 180 });
       marker.on('click', () => {
         marker.closeTooltip();
         onSelectRef.current(item.id);
       });
       marker.addTo(layerGroup);
       stationMarkersRef.current.set(item.id, marker);
+      markerSignaturesRef.current.set(item.id, signature);
 
-      if (permissions.online && item.connectedAccounts.length > 0) {
-        const total = item.connectedAccounts.length;
-        item.connectedAccounts.forEach((account, index) => {
+      if (accounts.length > 0) {
+        const total = accounts.length;
+        const extras: L.Marker[] = [];
+        accounts.forEach((account, index) => {
           const offsetX = (index - (total - 1) / 2) * 20;
           const accountIcon = L.divIcon({
             className: 'map-account-wrapper',
@@ -251,10 +289,16 @@ export function MapCanvas({
             onSelectRef.current(item.id);
           });
           accountMarker.addTo(layerGroup);
+          extras.push(accountMarker);
         });
+        accountMarkersRef.current.set(item.id, extras);
       }
     }
-  }, [items, permissions]);
+
+    for (const id of [...stationMarkersRef.current.keys()]) {
+      if (!seen.has(id)) removeStation(id);
+    }
+  }, [items, permissions, selectedId]);
 
   useEffect(() => {
     for (const item of items) {

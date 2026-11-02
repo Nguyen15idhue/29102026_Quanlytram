@@ -41,8 +41,7 @@ export function OnlineList() {
     queryFn: () =>
       apiFetch<ConnectionList>(
         `/api/connections?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
-      ),
-    refetchInterval: 5000
+      )
   });
 
   const disconnect = useMutation({

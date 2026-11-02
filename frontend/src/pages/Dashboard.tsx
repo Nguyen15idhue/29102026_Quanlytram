@@ -149,7 +149,7 @@ export function Dashboard() {
   const ops = useQuery({
     queryKey: ['ops-dashboard', 60],
     queryFn: () => apiFetch<OpsDashboard>('/api/ops/dashboard?window=60'),
-    refetchInterval: 10_000
+    refetchInterval: 30_000
   });
   const data = ops.data;
 
