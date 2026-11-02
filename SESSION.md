@@ -9,6 +9,7 @@
 - P09 Phase 1 PASS: `statusTimeline` mới dùng frame/60s (`timeline.minFramesPerWindow`, mặc định 10), `offline` khi không kết nối, `no_data` khi kết nối nhưng frame thấp, bỏ nối gap >120s, `segments` gồm `none`; server tsc PASS, vitest 92/92.
 - P09 Phase 2 PASS: migration runtime 007 `service_runs`; Go lifecycle heartbeat/start/stop; Node `serviceDowntime` + reason `system_down`; Go test/vet PASS, server 97/97 PASS; fixture ca 02/11 cho kết quả 00:30/04:00 offline system_down, 08:20 online, 4 khung PASS.
 - P09 Phase 3 PASS: API timeline trả `asOf`, `resolutionSec`, `segments` gồm `none`, `currentReason`, `offlineReasons`; frontend types cập nhật; server 98/98 PASS.
+- P09 Phase 4 PASS: UI `none` nền xám ở 4 khung, nhãn `30 ngày`, reason trong tooltip/dòng, footer `resolutionSec`+`asOf`; frontend build PASS; Playwright timeline 3/3 PASS (1440/768/390), ảnh `frontend/test-results/p09-timeline-*.png`.
 - Kế hoạch 08 lập xong: `docs/1/08_KE_HOACH_TRANG_HUONG_DAN.md` (Docusaurus build-time + Playwright capture + 12 chương; trang `/guide`, menu "Hướng dẫn" giữa Relay và Hệ thống).
 - P08-0 DONE: baseline server 88/88 (14 file), frontend build PASS, navigation 1/1 PASS; compose healthy; không sửa mã nguồn.
 - P08-1 DONE: `docs-site/` Docusaurus 3.10.2 (baseUrl `/guide/`, locale vi, search local), 2 chương mẫu; build PASS, serve HTTP 200.

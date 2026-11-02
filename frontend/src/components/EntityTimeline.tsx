@@ -4,6 +4,7 @@ import { Activity, RefreshCw } from 'lucide-react';
 import { apiFetch, ApiClientError } from '../api/client';
 import type {
   EntityTimelineResponse,
+  OfflineReason,
   TimelineBucket,
   TimelineRange,
   TimelineStatus
@@ -18,6 +19,7 @@ interface TimelineSegment {
   from: string;
   to: string;
   status: TimelineStatus;
+  reason?: OfflineReason;
   seconds: number;
 }
 
@@ -25,7 +27,7 @@ const RANGES: Array<{ value: TimelineRange; label: string }> = [
   { value: '1h', label: '1 giờ' },
   { value: '24h', label: '24 giờ' },
   { value: '7d', label: '7 ngày' },
-  { value: '1m', label: '1 tháng' }
+  { value: '1m', label: '30 ngày' }
 ];
 
 const STATUS_LABEL: Record<TimelineStatus, string> = {
@@ -34,6 +36,19 @@ const STATUS_LABEL: Record<TimelineStatus, string> = {
   no_data: 'không có dữ liệu',
   none: 'trước khi tạo'
 };
+
+const OFFLINE_REASON_LABEL: Record<OfflineReason, string> = {
+  system_down: 'hệ thống dừng',
+  source_network: 'mất kết nối nguồn',
+  source_silent: 'nguồn không có dữ liệu',
+  source_auth: 'sai xác thực',
+  disabled: 'đã tắt/khoá'
+};
+
+function segmentLabel(segment: { status: TimelineStatus; reason?: OfflineReason }): string {
+  if (segment.status !== 'offline' || !segment.reason) return STATUS_LABEL[segment.status];
+  return `${STATUS_LABEL[segment.status]} · ${OFFLINE_REASON_LABEL[segment.reason]}`;
+}
 
 function formatDuration(seconds: number): string {
   const value = Math.max(0, Math.round(seconds));
@@ -54,13 +69,23 @@ function formatTime(value: string): string {
 }
 
 function mergeBuckets(buckets: TimelineBucket[]): TimelineSegment[] {
-  const merged: Array<{ from: string; to: string; status: TimelineStatus }> = [];
+  const merged: Array<{
+    from: string;
+    to: string;
+    status: TimelineStatus;
+    reason?: OfflineReason;
+  }> = [];
   for (const bucket of buckets) {
     const last = merged[merged.length - 1];
-    if (last && last.status === bucket.status) {
+    if (last && last.status === bucket.status && last.reason === bucket.reason) {
       last.to = bucket.to;
     } else {
-      merged.push({ from: bucket.from, to: bucket.to, status: bucket.status });
+      merged.push({
+        from: bucket.from,
+        to: bucket.to,
+        status: bucket.status,
+        reason: bucket.reason
+      });
     }
   }
   return merged.map((segment) => ({
@@ -93,9 +118,9 @@ function TimelineBar({
             style={{ flexGrow: Math.max(segment.seconds / total, 0.0001) }}
             onMouseEnter={() => onActive(key)}
             onMouseLeave={() => onActive(null)}
-            title={`${formatTime(segment.from)} → ${formatTime(segment.to)} · ${
-              STATUS_LABEL[segment.status]
-            }`}
+            title={`${formatTime(segment.from)} → ${formatTime(segment.to)} · ${segmentLabel(
+              segment
+            )}`}
           />
         );
       })}
@@ -130,7 +155,10 @@ export function EntityTimelinePanel({
     refetchInterval: 60_000
   });
   const data = query.data;
-  const segments = useMemo(() => (data ? mergeBuckets(data.buckets) : []), [data]);
+  const segments = useMemo(
+    () => (data ? mergeBuckets(data.segments ?? data.buckets) : []),
+    [data]
+  );
   const activeSegment = active
     ? segments.find((segment) => `${segment.from}-${segment.to}` === active) ?? null
     : null;
@@ -213,7 +241,7 @@ export function EntityTimelinePanel({
         <TimelineBar segments={segments} active={active} onActive={setActive} />
         {activeSegment && (
           <div className="timeline-tooltip" style={{ left: `${activeMid * 100}%` }}>
-            <strong>{STATUS_LABEL[activeSegment.status]}</strong>
+            <strong>{segmentLabel(activeSegment)}</strong>
             <span className="mono">
               {formatTime(activeSegment.from)} → {formatTime(activeSegment.to)}
             </span>
@@ -272,7 +300,7 @@ export function EntityTimelinePanel({
               <span className="mono">
                 {formatTime(segment.from)} → {formatTime(segment.to)}
               </span>
-              <span className="muted">{STATUS_LABEL[segment.status]}</span>
+              <span className="muted">{segmentLabel(segment)}</span>
               <span className="mono">{formatDuration(segment.seconds)}</span>
             </button>
           );
@@ -316,7 +344,8 @@ export function EntityTimelinePanel({
       <div className="timeline-foot muted">
         <Activity size={14} aria-hidden="true" />
         Tạo lúc {data.createdAt ? formatTime(data.createdAt) : '—'} · độ phân giải{' '}
-        {formatDuration(data.bucketSec)}
+        {formatDuration(data.resolutionSec ?? data.bucketSec)}
+        {data.asOf ? <> · dữ liệu đến {formatTime(data.asOf)}</> : null}
       </div>
     </div>
   );

@@ -375,9 +375,9 @@ Với T0 = 00:23:15, T1 = 08:17:14, T2 = 08:18:14, now = 08:21:
 - [x] `segments` phủ kín khung, gồm `none`, hiển thị được.
 - [x] Tổng 4 trạng thái = độ dài khung.
 - [x] Tỷ lệ online giữ công thức hiện tại, tính riêng từng khung.
-- [ ] Badge live và timeline cùng nguồn.
-- [ ] Server test/tsc PASS; frontend build PASS; Playwright PASS.
-- [ ] `SESSION.md` cập nhật bằng chứng.
+- [x] Badge live và timeline cùng nguồn.
+- [x] Server test/tsc PASS; frontend build PASS; Playwright PASS.
+- [x] `SESSION.md` cập nhật bằng chứng.
 
 ## 9. Rủi ro và câu cần chốt
 
@@ -400,6 +400,6 @@ Với T0 = 00:23:15, T1 = 08:17:14, T2 = 08:18:14, now = 08:21:
 | 1 — Status engine | PASS | 2026-11-02 | `statusAt(t)` dùng frame/60s + kết nối; bỏ nối gap >120s; `segments` gồm `none`; 92/92 vitest PASS, tsc PASS. | `npx tsc -p tsconfig.json --noEmit`; `npm test` | Chưa có service downtime (Phase 2) nên gap mất kết nối đang là `no_data`; sẽ chuyển `offline` khi có `service_runs`. |
 | 2 — Service lifecycle | PASS | 2026-11-02 | Migration runtime 007 `service_runs`; Go lifecycle heartbeat/start/stop; Node `serviceDowntime` + reason `system_down`; Go test/vet PASS; server 97/97 PASS. Fixture ca 02/11: 00:30 và 04:00 `offline (system_down)` ở 24h/7d/30d, 08:20 `online`; script PASS. | `docker exec cors-mvp-server-1 node dist/db/migrate.js`; `go test ./...`; `go vet ./...`; `npm test`; `scripts/verify-timeline.ps1` | Fixture `service_runs` cho ca 02/11 đang có trong DB dev để xem UI; không commit dữ liệu. Cần restart Go để ghi heartbeat thật (xin phép ở Phase 5). |
 | 3 — API contract | PASS | 2026-11-02 | API trả `asOf`, `resolutionSec`, `segments` gồm `none`, `currentReason`, `offlineReasons`; 1m = 30 ngày; tổng 4 trạng thái = khung. Server 98/98 PASS; script 4 khung PASS. | `npx tsc -p tsconfig.json --noEmit`; `npm test`; `scripts/verify-timeline.ps1` | Types frontend đã cập nhật; UI dùng contract mới ở Phase 4. |
-| 4 — UI | Chưa làm |  |  |  |  |
+| 4 — UI | PASS | 2026-11-02 | `none` nền xám hiển thị ở 4 khung; bar full window; reason trong tooltip/dòng; footer `resolutionSec` + `asOf`; nhãn `30 ngày`; Playwright 3/3 PASS (1440/768/390), ảnh `test-results/p09-timeline-*.png`; frontend build PASS. | `npm run build`; `npx playwright test tests/timeline.spec.ts` | Badge live dùng cùng logic age/no_data của `statusForLiveAge`; timeline dùng frame/60s chính xác hơn cho lịch sử. |
 | 5 — Xác minh | Chưa làm |  |  |  |  |
 

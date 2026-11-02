@@ -34,6 +34,7 @@
   --timeline-online: #7ccf9a;
   --timeline-offline: #e24b45;
   --timeline-nodata: #f0a72e;
+  --timeline-none: #c9ced1;
   --band-1: #d94b4b;
   --band-2: #e0a72e;
   --band-3: #5aa64b;
@@ -69,6 +70,7 @@
   --timeline-online: #63c98d;
   --timeline-offline: #f05f58;
   --timeline-nodata: #f2b44d;
+  --timeline-none: #5a646b;
   --band-1: #f07a7a;
   --band-2: #e8bd5c;
   --band-3: #78c46a;
@@ -3626,7 +3628,7 @@ label.check input {
 }
 
 .timeline-segment.none {
-  background: transparent;
+  background: var(--timeline-none);
 }
 
 .timeline-legend,
@@ -3666,7 +3668,7 @@ label.check input {
 }
 
 .legend-dot.none {
-  background: var(--border-strong);
+  background: var(--timeline-none);
 }
 
 .timeline-summary {
