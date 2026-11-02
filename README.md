@@ -32,6 +32,7 @@ Dashboard
 Trạm: Bản đồ trạm | Danh sách trạm
 CORS: Bản đồ online | Danh sách online | Tài khoản NTRIP | Mountpoint | Caster
 Relay
+Hướng dẫn: Hướng dẫn sử dụng (/guide)
 Hệ thống: Phân quyền | Người dùng | Lịch sử | Cảnh báo
 (Ẩn) Trang cá nhân — mở bằng avatar/tên người dùng
 ```
@@ -129,6 +130,47 @@ Kiểm thử UI bằng Taste Skill (app screen):
 ```bash
 node ~/.config/opencode/skills/design-taste-frontend/scripts/inspect.mjs <url> --app
 ```
+
+## 9b. Trang hướng dẫn sử dụng
+
+Tài liệu người dùng nằm ở `docs-site/` (Docusaurus 3, chỉ dùng lúc build) và được
+phục vụ tĩnh tại `/guide/`, mở từ menu **Hướng dẫn** (giữa Relay và Hệ thống).
+
+```bash
+cd docs-site && npm install && npm run build
+node scripts/build-guide.mjs           # build + copy sang frontend/public/guide
+node scripts/build-guide.mjs --check   # kiểm tra ảnh/route/chương (nghiêm ngặt)
+```
+
+Seed dữ liệu minh họa (chỉ môi trường dev):
+
+```powershell
+node scripts/seed-docs-fixtures.mjs                         # chạy thử
+$env:ALLOW_DOCS_SEED='1'; node scripts/seed-docs-fixtures.mjs --apply
+powershell -File scripts/reset-docs-fixtures.ps1 -DryRun     # xem trước khi xoá
+powershell -File scripts/reset-docs-fixtures.ps1 -Apply
+```
+
+Chụp lại ảnh minh họa (cần app đang chạy, `E2E_PASSWORD` và `SEED_*_PASSWORD`):
+
+```powershell
+node frontend/scripts/capture-guide-shots.mjs
+```
+
+Test trang hướng dẫn:
+
+```bash
+cd frontend && npx playwright test tests/guide.spec.ts
+```
+
+Lưu ý:
+
+- `frontend/public/guide/` là sản phẩm build, đã gitignore.
+- Với Docker dev, chạy `docker compose restart web` sau khi build guide để Vite
+  nhận thư mục mới.
+- Build guide **trước** `docker build frontend/` để tài liệu có trong image.
+- Fixture `DOCS` ảnh hưởng các test đếm dữ liệu toàn hệ thống; reset fixture trước
+  khi chạy regression đầy đủ, sau đó seed lại nếu cần chụp ảnh.
 
 ## 10. Ghi chú
 

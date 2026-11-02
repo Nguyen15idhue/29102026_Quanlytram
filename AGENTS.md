@@ -118,6 +118,7 @@ giám sát realtime và cấu hình hệ thống.
 AGENTS.md  TASKS.md  SESSION.md  README.md  .env.example  .gitignore
 docker-compose.yml
 docs/0/
+docs-site/           Docusaurus 3: nguồn trang hướng dẫn (build-time)
 frontend/            React + Vite + TS
 server/              Node + Express + TS + Socket.IO
 gnss/                Go: caster + bridge + monitor
@@ -139,6 +140,18 @@ cd server && npm test
 cd frontend && npm test
 node ~/.config/opencode/skills/design-taste-frontend/scripts/inspect.mjs <url> --app
 graphify update .
+```
+
+Trang hướng dẫn (`/guide`, menu "Hướng dẫn" giữa Relay và Hệ thống):
+
+```bash
+cd docs-site && npm install && npm run build
+node scripts/build-guide.mjs            # build + copy frontend/public/guide
+node scripts/build-guide.mjs --check    # ảnh/route/chương nghiêm ngặt
+node frontend/scripts/capture-guide-shots.mjs
+cd frontend && npx playwright test tests/guide.spec.ts
+node scripts/seed-docs-fixtures.mjs     # dry-run; --apply khi ALLOW_DOCS_SEED=1
+powershell -File scripts/reset-docs-fixtures.ps1 -DryRun
 ```
 
 ## 12. Quy trình làm việc

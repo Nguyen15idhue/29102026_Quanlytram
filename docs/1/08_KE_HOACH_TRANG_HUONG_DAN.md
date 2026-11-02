@@ -593,3 +593,14 @@ Các bước cho mỗi trang:
   `reset-docs-fixtures.ps1 -Apply`, sau đó seed lại; (3) G8 bỏ qua thông báo
   "Failed to load resource" của trình duyệt nhưng vẫn fail nếu bất kỳ response
   `/guide/*` trả ≥ 400.
+
+### P08-6 — Tài liệu hoá và bàn giao (2026-11-02 08:40 +07:00)
+
+- Việc: thêm mục "Trang hướng dẫn sử dụng" vào `README.md` (lệnh build/check/seed/
+  capture/test, lưu ý restart Vite và reset fixture); cập nhật `AGENTS.md` (cây thư
+  mục có `docs-site/`, nhóm menu 8 mục, bộ lệnh guide); `TASKS.md` và `SESSION.md`
+  ghi nhận hoàn thành P08; chạy `graphify update .` một lần.
+- Lệnh: `graphify update .`; `node scripts/build-guide.mjs --check`.
+- Kết quả: PASS — graphify cập nhật thành công; check 13/13 chương, 19/19 route.
+- File: `README.md`, `AGENTS.md`, `TASKS.md`, `SESSION.md`, `docs/1/08_...md`.
+- Sai lệch: không.
