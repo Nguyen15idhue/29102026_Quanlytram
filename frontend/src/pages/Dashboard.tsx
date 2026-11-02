@@ -60,6 +60,7 @@ interface OpsDashboard {
     other: number;
   };
   incidentsCount: { total: number; critical: number; warning: number; info: number };
+  incidentsToday: { total: number; critical: number; warning: number };
   summary: {
     stations: number;
     mountpoints: number;
@@ -222,11 +223,10 @@ export function Dashboard() {
               </span>
             </div>
             <div className="kpi kpi-incidents">
-              <span className="kpi-label">Sự cố mở</span>
-              <strong className="kpi-value">{data.incidentsCount.total}</strong>
+              <span className="kpi-label">Lỗi phát sinh trong ngày</span>
+              <strong className="kpi-value">{data.incidentsToday.total}</strong>
               <span className="muted kpi-sub">
-                {data.incidentsCount.critical} critical · {data.incidentsCount.warning} cảnh báo ·{' '}
-                {data.incidentsCount.info} info
+                {data.incidentsToday.warning} cảnh báo · {data.incidentsToday.critical} lỗi
               </span>
             </div>
           </div>

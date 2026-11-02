@@ -34,6 +34,14 @@ function qualityWhere(stationIds: number[], relayIds: number[]): { sql: string; 
   };
 }
 
+function todayRange(): { start: Date; end: Date } {
+  const offsetMs = 7 * 3600_000;
+  const local = new Date(Date.now() + offsetMs);
+  const startLocal = Date.UTC(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate());
+  const start = new Date(startLocal - offsetMs);
+  return { start, end: new Date(start.getTime() + 24 * 3600_000) };
+}
+
 opsRouter.get(
   '/dashboard',
   asyncHandler(async (req, res) => {
@@ -63,6 +71,23 @@ opsRouter.get(
     const qualityScope = scopeOf(perms, 'quality.view');
     let qualityRows: RowDataPacket[] = [];
     let qualityOpen = 0;
+    const incidentsToday = { total: 0, critical: 0, warning: 0 };
+    const day = todayRange();
+    const alertScope = scopeOf(perms, 'alerts.view');
+    if (alertScope !== 'none') {
+      const alertRows = await adminQuery<RowDataPacket[]>(
+        `SELECT severity, owner_web_user_id FROM alerts
+          WHERE created_at >= ? AND created_at < ? AND severity <> 'info'`,
+        [day.start, day.end]
+      );
+      const alertIds = idsFor(alertScope);
+      for (const row of alertRows) {
+        if (!inScope(alertScope, auth.id, alertIds, row.owner_web_user_id)) continue;
+        incidentsToday.total += 1;
+        if (String(row.severity) === 'critical') incidentsToday.critical += 1;
+        else incidentsToday.warning += 1;
+      }
+    }
     if (qualityScope !== 'none') {
       const qualityIds = idsFor(qualityScope);
       const stationIds = raw.stations
@@ -72,7 +97,8 @@ opsRouter.get(
         .filter((item) => inScope(qualityScope, auth.id, qualityIds, item.ownerId))
         .map((item) => item.id);
       const where = qualityWhere(stationIds, relayIds);
-      [qualityRows, [{ count: qualityOpen }]] = await Promise.all([
+      let qualityTodayRows: RowDataPacket[] = [];
+      [qualityRows, [{ count: qualityOpen }], qualityTodayRows] = await Promise.all([
         runtimeQuery<RowDataPacket[]>(
           `SELECT id, target_type, target_id, mountpoint_id, event_type, code, level,
                   first_seen, last_seen
@@ -86,8 +112,18 @@ opsRouter.get(
           `SELECT COUNT(*) AS count FROM quality_alerts
             WHERE resolved_at IS NULL AND ${where.sql}`,
           where.params
+        ),
+        runtimeQuery<RowDataPacket[]>(
+          `SELECT id, level FROM quality_alerts
+            WHERE first_seen >= ? AND first_seen < ? AND level <> 'info' AND ${where.sql}`,
+          [day.start, day.end, ...where.params]
         )
       ]);
+      for (const row of qualityTodayRows) {
+        incidentsToday.total += 1;
+        if (String(row.level) === 'critical') incidentsToday.critical += 1;
+        else incidentsToday.warning += 1;
+      }
     }
 
     const incidents: any[] = snapshot.alerts.map((alert) => ({
@@ -257,6 +293,7 @@ opsRouter.get(
       ntripAccounts,
       relays,
       incidentsCount: incidentCounts,
+      incidentsToday,
       summary: {
         stations: snapshot.summary.stations,
         mountpoints,
