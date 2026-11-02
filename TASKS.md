@@ -752,7 +752,7 @@ Tài liệu: `docs/1/10_KE_HOACH_MA_TRAN_TRANG_THAI_RELAY.md`
 | P10-1 | Thư viện ma trận trạng thái relay | DONE (12/12 test, server 114/114) |
 | P10-2 | Áp ma trận vào API relay | DONE (server 116/116, API guard PASS) |
 | P10-3 | Go phân biệt disabled và deleted | DONE (go test/vet PASS, 4 test mới) |
-| P10-4 | Migration 035 ràng buộc bất biến | TODO |
+| P10-4 | Migration 035 ràng buộc bất biến | DONE (version 35, 0 vi phạm, 2 CHECK) |
 | P10-5 | Frontend khóa từng dòng và nhãn trạng thái | TODO |
 | P10-6 | E2E, tài liệu, graphify, bàn giao | TODO |
 

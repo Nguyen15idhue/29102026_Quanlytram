@@ -468,3 +468,16 @@ P10-5 0.75 · P10-6 0.5).
   phiên đóng với `disabled`, không có `deleted`, và row `locked=1&enabled=1` không stream.
 - File: `gnss/internal/relay/store.go`, `types.go`, `manager_test.go`.
 - Sai lệch: không. E2E dùng binary mới cần `docker compose up -d --build gnss` ở P10-6.
+
+### P10-4 — Migration 035 ràng buộc bất biến (2026-11-02 09:56 +07:00)
+
+- Việc: tạo `035_relay_state_invariants.sql` (backfill `enabled=0` cho row khóa/đã
+  xóa, thêm 2 CHECK `chk_relay_locked_disabled`, `chk_relay_deleted_disabled`).
+- Lệnh: `docker compose build migrate`; `docker compose run --rm migrate`; kiểm tra
+  `schema_migrations`, vi phạm, constraint, phiên bản MySQL.
+- Kết quả: PASS — `admin 035_relay_state_invariants.sql applied` (admin=1);
+  `schema_migrations` có version **35**; vi phạm **0**; 2 CHECK tồn tại; MySQL **8.0.46**
+  (CHECK được thực thi).
+- File: `db/migrations/admin/035_relay_state_invariants.sql`.
+- Sai lệch: migrations được **bake vào image** của service `migrate` (không mount
+  volume) nên phải `docker compose build migrate` trước khi chạy; ghi vào README ở P10-6.
