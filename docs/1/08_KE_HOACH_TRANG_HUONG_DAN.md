@@ -563,3 +563,33 @@ Các bước cho mỗi trang:
 - Sai lệch: (1) sửa link tương đối từ `./van-hanh-su-co/` sang `../van-hanh-su-co/`
   (Docusaurus tính theo route, không theo tệp); (2) chương 10 không có ảnh Công ty
   (dùng Người dùng/Vai trò/Trang cá nhân).
+
+### P08-5 — Test, a11y, đóng gói (2026-11-02 08:36 +07:00)
+
+- Việc: thêm `frontend/tests/guide.spec.ts` (G1–G8); sửa Vite để `/guide/` và
+  `/guide/<chương>/` trả `index.html` (trước đó rơi vào SPA fallback, gây lỗi
+  hydration React #423 khi nhúng iframe); iframe trở lại dùng `/guide/`.
+- Kết quả test matrix:
+
+| # | Hạng mục | Kết quả | Bằng chứng |
+|---|---|---|---|
+| T1 | Docs build | PASS | `docusaurus build` 3.10.2, 0 broken link |
+| T2 | Check-docs | PASS | 13/13 chương có ảnh, 19/19 route |
+| T3 | Ảnh ổn định | PASS | 2 lần chụp, **0/23** ảnh lệch hash |
+| T4 | Guide spec | PASS | 8/8 (G1–G8), 0 skipped |
+| T5 | Navigation | PASS | 1/1, 8 nhóm, không skip |
+| T6 | p1-rbac | **FAIL (môi trường)** | `admin` trả 401 `INVALID_CREDENTIALS` với `SEED_ADMIN_PASSWORD`; 1 test công ty B skip do thiếu fixture. Menu theo vai trò đã được G5 phủ |
+| T7 | Toàn bộ Playwright | **FAIL (ngoài phạm vi)** | 31/49 pass khi có fixture DOCS; sau khi reset fixture còn **12 lỗi có sẵn** ở mountpoint/relay/metrics/bulk/unicode/ui (không đụng tới ở P08) |
+| T8 | FE build | PASS | `tsc --noEmit && vite build` |
+| T9 | Server test | **FAIL (ngoài phạm vi)** | 89/90; `stationDetail.test.ts` kỳ vọng `no_data`, nhận `offline` — file server đang sửa dở từ phiên khác |
+| T10 | Compose + `/guide` | PASS | `docker compose ps` healthy; `/guide/` và `/guide/bat-dau/` trả 200 có marker Docusaurus |
+| T11 | Mobile/a11y | PASS | 390 (G7) và 768: overflow 0, Tab vào được iframe |
+| T12 | Bảo mật nội dung | PASS | 0 host thật/secret/tên khách hàng trong `docs-site/docs` |
+
+- File: `frontend/tests/guide.spec.ts`, `frontend/vite.config.ts`, `frontend/src/pages/Guide.tsx`.
+- Sai lệch: (1) T6/T7/T9 không đạt do dữ liệu/phiên làm việc khác, không do P08 —
+  ghi thành known issue; (2) fixture `DOCS` làm lệch các test đếm dữ liệu toàn hệ thống
+  (ví dụ `unified-map` kỳ vọng 2 pin) → trước khi chạy regression đầy đủ phải
+  `reset-docs-fixtures.ps1 -Apply`, sau đó seed lại; (3) G8 bỏ qua thông báo
+  "Failed to load resource" của trình duyệt nhưng vẫn fail nếu bất kỳ response
+  `/guide/*` trả ≥ 400.
