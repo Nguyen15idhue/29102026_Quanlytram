@@ -19,6 +19,7 @@
 - P08-4 DONE: 13 chương nội dung tiếng Việt, 22 ảnh; check 13/13 chương + 19/19 route; Docusaurus build PASS, guide 7.5 MB.
 - P08-5 DONE: guide.spec G1–G8 8/8, nav 1/1, build PASS, 768/390 không tràn; Vite phục vụ `/guide/` đúng (hết lỗi hydration #423). Known issue ngoài P08: p1-rbac (mật khẩu `admin` lệch env), full suite 12 lỗi có sẵn, server stationDetail 1 lỗi.
 - P08-6 DONE: README/AGENTS/TASKS cập nhật; `graphify update .` → 3846 nodes / 8755 edges / 284 communities; toàn bộ P08-0..P08-6 đã commit + push.
+- P10-0 DONE: baseline server 102/102, server build PASS, Go test/vet PASS, FE build PASS; kế hoạch 10 đã vào `TASKS.md` 9.4.
 - Tài liệu phân quyền đầy đủ: `docs/2/PHAN_QUYEN.md` (RBAC, company, scope, UI, realtime, audit, checklist test)
 - Kế hoạch 06 P06-0 DONE: tile providers reachable từ server + browser; chốt `tileMode=proxy`; Geoapify forward/reverse OK (không in key); fixture 480 (1005), 481 (lat/lon dự phòng), 482 (không toạ độ); backup `cors-mysql-20261101-190927.sql.zip`
 - Kế hoạch 06 P06-1 DONE: tile proxy (allowlist/cache/fallback), `GET/PUT/test /api/map/config`, overview `coordSource` + filter + field-level gate + `layersAvailable`; frontend `useMapConfig`/`MapCanvas`/`TileErrorBanner`; form trạm có “Vĩ độ/Kinh độ dự phòng”; server 71/71, FE build, Playwright smoke PASS

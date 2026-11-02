@@ -742,6 +742,20 @@ Tài liệu: `docs/1/08_KE_HOACH_TRANG_HUONG_DAN.md`
 | P08-5 | Test, a11y, đóng gói | DONE (G1–G8 8/8; T6/T7/T9 known issue ngoài phạm vi) |
 | P08-6 | Tài liệu hoá & bàn giao | DONE (README/AGENTS/SESSION, graphify update) |
 
+## 9.4. Kế hoạch 10 — Ma trận trạng thái relay (2026-11-02)
+
+Tài liệu: `docs/1/10_KE_HOACH_MA_TRAN_TRANG_THAI_RELAY.md`
+
+| Bước | Tên | Trạng thái |
+|---|---|---|
+| P10-0 | Baseline & chốt kế hoạch | DONE (server 102/102, go test/vet PASS, FE build PASS) |
+| P10-1 | Thư viện ma trận trạng thái relay | TODO |
+| P10-2 | Áp ma trận vào API relay | TODO |
+| P10-3 | Go phân biệt disabled và deleted | TODO |
+| P10-4 | Migration 035 ràng buộc bất biến | TODO |
+| P10-5 | Frontend khóa từng dòng và nhãn trạng thái | TODO |
+| P10-6 | E2E, tài liệu, graphify, bàn giao | TODO |
+
 ## 10. Ghi chú điều phối
 
 - Không chuyển phase nếu checklist chưa PASS.
