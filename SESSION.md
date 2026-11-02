@@ -1166,3 +1166,7 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   `rssPercent`, `memoryLimitBytes`; HealthTab/OptimizeTab hiển thị RSS và
   heap tuyệt đối. Test: server 21 file / 128 PASS, FE build PASS, compose
   config OK. Chi tiết: `docs/1/11_...md` §13.
+- Hotfix: HealthTab/OptimizeTab coi các trường mới là tùy chọn (fallback
+  `heapPercent`/`—`) để không crash khi frontend mới gặp backend cũ; đã
+  `docker compose restart server` để nạp payload có `rssPercent`. Xác minh
+  trong container: số liệu thực trả `ok`.

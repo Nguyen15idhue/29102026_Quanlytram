@@ -56,12 +56,12 @@ interface OptimizeResponse {
     relay: { jobId: number; state: string; monitorDrops: number; crcErrors: number; retries: number }[];
   };
   node: {
-    heapUsedBytes: number;
-    heapTotalBytes: number;
+    heapUsedBytes?: number;
+    heapTotalBytes?: number;
     heapPercent: number;
     rssBytes: number;
-    rssPercent: number;
-    memoryLimitBytes: number;
+    rssPercent?: number;
+    memoryLimitBytes?: number;
     eventLoopLagMs: number;
     socketClients: number;
   };
@@ -282,14 +282,21 @@ export function OptimizeTab() {
                 <div>
                   <dt>Heap</dt>
                   <dd className="mono">
-                    {formatBytes(data.node.heapUsedBytes)} / {formatBytes(data.node.heapTotalBytes)}
+                    {data.node.heapUsedBytes === undefined
+                      ? `${(data.node.heapPercent ?? 0).toFixed(1)}%`
+                      : `${formatBytes(data.node.heapUsedBytes)} / ${formatBytes(
+                          data.node.heapTotalBytes
+                        )}`}
                   </dd>
                 </div>
                 <div><dt>Event-loop</dt><dd className="mono">{data.node.eventLoopLagMs.toFixed(1)} ms</dd></div>
                 <div>
                   <dt>RSS</dt>
                   <dd className="mono">
-                    {formatBytes(data.node.rssBytes)} · {data.node.rssPercent.toFixed(1)}%
+                    {formatBytes(data.node.rssBytes)} · {(data.node.rssPercent ?? 0).toFixed(1)}%
+                    {data.node.memoryLimitBytes
+                      ? ` / ${formatBytes(data.node.memoryLimitBytes)}`
+                      : ''}
                   </dd>
                 </div>
                 <div><dt>Socket clients</dt><dd className="mono">{data.node.socketClients}</dd></div>

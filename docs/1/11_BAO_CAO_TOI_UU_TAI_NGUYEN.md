@@ -257,3 +257,5 @@ Giới hạn bộ nhớ lấy theo thứ tự: `NODE_MEMORY_LIMIT_MB` → cgroup
 | Test | `healthStatus.test.ts` 7 trường hợp; `systemOptimize.test.ts` dùng heapUsed/rssPercent |
 
 Kiểm tra: server build PASS, `npm test` 21 file / 128 test PASS; frontend build PASS; `docker compose config` OK. Với số liệu đã nêu (heap 38.4 MB, RSS 122 MB / 1024 MB ≈ 11.9%, lag 0.4 ms) trạng thái mới là **ok**.
+
+**Hotfix hiển thị:** HealthTab/OptimizeTab đọc `rssPercent`, `memoryLimitBytes`, `heapUsedBytes`, `heapTotalBytes` dạng **tùy chọn** và fallback về `heapPercent`/`—`. Trước đó, khi frontend mới gặp backend cũ (payload chưa có trường mới trong lúc deploy), `rssPercent.toFixed()` làm crash cả trang; đã sửa và xác minh lại trong container: `nodeHealthStatus` trả `ok` cho số liệu thực (38.4 MB heap, RSS 11.9%, lag 0.4 ms). Server container đã restart để nạp payload mới.

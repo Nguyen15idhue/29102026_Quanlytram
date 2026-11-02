@@ -18,8 +18,8 @@ interface HealthResponse {
     nodeVersion: string;
     cpuPercent: number;
     rssBytes: number;
-    rssPercent: number;
-    memoryLimitBytes: number;
+    rssPercent?: number;
+    memoryLimitBytes?: number;
     heapUsedBytes: number;
     heapTotalBytes: number;
     heapPercent: number;
@@ -194,8 +194,10 @@ export function HealthTab() {
                 <div>
                   <dt>RSS</dt>
                   <dd className="mono">
-                    {formatBytes(data.node.rssBytes)} · {data.node.rssPercent.toFixed(1)}% /{' '}
-                    {formatBytes(data.node.memoryLimitBytes)}
+                    {formatBytes(data.node.rssBytes)} · {(data.node.rssPercent ?? 0).toFixed(1)}%
+                    {data.node.memoryLimitBytes
+                      ? ` / ${formatBytes(data.node.memoryLimitBytes)}`
+                      : ''}
                   </dd>
                 </div>
                 <div>
