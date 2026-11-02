@@ -492,12 +492,35 @@ export interface RelayJobMetrics {
   lastError: string | null;
 }
 
+export type RelayUiState =
+  | 'deleted'
+  | 'locked'
+  | 'paused'
+  | 'disabled'
+  | 'pending'
+  | 'online'
+  | 'no_data'
+  | 'offline';
+
+export type RelayAllowedAction =
+  | 'enable'
+  | 'disable'
+  | 'lock'
+  | 'unlock'
+  | 'restart'
+  | 'test'
+  | 'delete'
+  | 'patch_enable';
+
 export interface RelayJob {
   id: number;
   externalKey?: string | null;
   name: string;
   enabled: boolean;
   locked: boolean;
+  relayState?: RelayUiState;
+  relayStateLabel?: string;
+  allowedActions?: RelayAllowedAction[];
   streamStatus: RelayStreamStatus;
   directionStatus?: {
     upstream: 'online' | 'offline' | 'no_data';

@@ -82,6 +82,36 @@ function streamLabel(value: RelayStreamStatus): string {
   return '—';
 }
 
+const RELAY_STATE_BADGE: Record<string, { label: string; kind: 'ok' | 'warn' | 'error' | 'neutral' }> = {
+  online: { label: 'online', kind: 'ok' },
+  no_data: { label: 'không có dữ liệu', kind: 'warn' },
+  pending: { label: 'offline', kind: 'error' },
+  locked: { label: 'offline', kind: 'error' },
+  paused: { label: 'offline', kind: 'error' },
+  disabled: { label: 'offline', kind: 'error' },
+  offline: { label: 'offline', kind: 'error' },
+  deleted: { label: 'đã xóa', kind: 'neutral' }
+};
+
+function jobStateBadge(job: RelayJob): { label: string; kind: 'ok' | 'warn' | 'error' | 'neutral' } {
+  if (job.relayState && RELAY_STATE_BADGE[job.relayState]) {
+    return RELAY_STATE_BADGE[job.relayState];
+  }
+  return { label: streamLabel(job.streamStatus), kind: streamKind(job.streamStatus) };
+}
+
+function canDo(job: RelayJob, action: string): boolean {
+  if (job.allowedActions) return job.allowedActions.includes(action as never);
+  if (action === 'enable') return !job.locked && !job.enabled;
+  if (action === 'disable') return !job.locked && job.enabled;
+  if (action === 'lock') return !job.locked && !job.enabled;
+  if (action === 'unlock') return job.locked;
+  if (action === 'restart') return !job.locked && job.enabled;
+  if (action === 'test') return !job.locked;
+  if (action === 'delete') return !job.locked && !job.enabled;
+  return true;
+}
+
 function formatLocal(value: string | null | undefined): string {
   if (!value) return '—';
   const date = new Date(value);
@@ -273,15 +303,16 @@ export function RelayJobs() {
   });
 
   const bulk = useMutation({
-    mutationFn: (bulkAction: string) =>
-      sendBulk('/api/relay-jobs/bulk', bulkAction, [...selected], csrfToken),
-    onSuccess: async (result, bulkAction) => {
+    mutationFn: (input: { action: string; ids: number[] }) =>
+      sendBulk('/api/relay-jobs/bulk', input.action, input.ids, csrfToken),
+    onSuccess: async (result, input) => {
       setSelected(new Set());
       setBulkDeleteOpen(false);
       closeDetail();
       push(bulkMessage(result), result.forbidden || result.notFound ? 'error' : 'success');
-      if (bulkAction === 'delete') push('Đã xóa các relay job đã chọn', 'success');
+      if (input.action === 'delete') push('Đã xóa các relay job đã chọn', 'success');
       await queryClient.invalidateQueries({ queryKey: ['relay-jobs'] });
+      await queryClient.invalidateQueries({ queryKey: ['relay-job-status'] });
     },
     onError: (err) =>
       push(err instanceof ApiClientError ? err.message : 'Thao tác hàng loạt thất bại', 'error')
@@ -290,6 +321,19 @@ export function RelayJobs() {
   useEffect(() => {
     setSelected(new Set());
   }, [page, pageSize, q, enabled]);
+
+  const bulkTargets = useMemo(() => {
+    const jobs = (list.data?.items ?? []).filter((job) => selected.has(job.id));
+    const pick = (action: string) => jobs.filter((job) => canDo(job, action)).map((job) => job.id);
+    return {
+      enable: pick('enable'),
+      disable: pick('disable'),
+      lock: pick('lock'),
+      unlock: pick('unlock'),
+      restart: pick('restart'),
+      delete: pick('delete')
+    };
+  }, [list.data, selected]);
 
   const action = useMutation({
     mutationFn: ({
@@ -308,10 +352,16 @@ export function RelayJobs() {
         const value = result as { result?: { ok?: boolean; error?: string } };
         push(value.result?.ok ? 'Test kết nối: OK' : `Test thất bại: ${value.result?.error ?? ''}`, value.result?.ok ? 'success' : 'error');
       } else {
-        push('Đã cập nhật relay job', 'success');
+        const value = result as { reconcile?: 'ok' | 'pending' | 'failed' };
+        if (value.reconcile && value.reconcile !== 'ok') {
+          push('Đã lưu, đang chờ áp dụng (tối đa 10 giây)', 'info');
+        } else {
+          push('Đã cập nhật relay job', 'success');
+        }
       }
       setDeleteTarget(null);
       await queryClient.invalidateQueries({ queryKey: ['relay-jobs'] });
+      await queryClient.invalidateQueries({ queryKey: ['relay-job-status'] });
     },
     onError: (err) => push(err instanceof ApiClientError ? err.message : 'Thao tác thất bại', 'error')
   });
@@ -430,18 +480,39 @@ export function RelayJobs() {
           actions={[
             ...(can('relay', 'edit')
               ? [
-                  { label: 'Bật', onClick: () => bulk.mutate('enable') },
-                  { label: 'Tắt', onClick: () => bulk.mutate('disable') },
-                  { label: 'Khóa', onClick: () => bulk.mutate('lock') },
-                  { label: 'Mở khóa', onClick: () => bulk.mutate('unlock') },
-                  { label: 'Restart', onClick: () => bulk.mutate('restart') }
+                  {
+                    label: `Bật (${bulkTargets.enable.length})`,
+                    disabled: bulkTargets.enable.length === 0,
+                    onClick: () => bulk.mutate({ action: 'enable', ids: bulkTargets.enable })
+                  },
+                  {
+                    label: `Tắt (${bulkTargets.disable.length})`,
+                    disabled: bulkTargets.disable.length === 0,
+                    onClick: () => bulk.mutate({ action: 'disable', ids: bulkTargets.disable })
+                  },
+                  {
+                    label: `Khóa (${bulkTargets.lock.length})`,
+                    disabled: bulkTargets.lock.length === 0,
+                    onClick: () => bulk.mutate({ action: 'lock', ids: bulkTargets.lock })
+                  },
+                  {
+                    label: `Mở khóa (${bulkTargets.unlock.length})`,
+                    disabled: bulkTargets.unlock.length === 0,
+                    onClick: () => bulk.mutate({ action: 'unlock', ids: bulkTargets.unlock })
+                  },
+                  {
+                    label: `Restart (${bulkTargets.restart.length})`,
+                    disabled: bulkTargets.restart.length === 0,
+                    onClick: () => bulk.mutate({ action: 'restart', ids: bulkTargets.restart })
+                  }
                 ]
               : []),
             ...(can('relay', 'delete')
               ? [
                   {
-                    label: 'Xóa',
+                    label: `Xóa (${bulkTargets.delete.length})`,
                     variant: 'danger' as const,
+                    disabled: bulkTargets.delete.length === 0,
                     onClick: () => setBulkDeleteOpen(true)
                   }
                 ]
@@ -523,15 +594,19 @@ export function RelayJobs() {
               cell: (job) => (
                 <div>
                   <StatusBadge
-                    label={streamLabel(job.streamStatus)}
-                    kind={streamKind(job.streamStatus)}
+                    label={jobStateBadge(job).label}
+                    kind={jobStateBadge(job).kind}
                   />
                   <div className="muted table-subline">
-                    {job.locked
-                      ? 'locked'
-                      : job.metrics?.state ?? job.state?.runtimeState ?? 'pending'}
+                    {job.relayStateLabel ??
+                      (job.locked
+                        ? 'đã khóa'
+                        : job.metrics?.state ?? job.state?.runtimeState ?? 'pending')}
+                    {job.relayState === 'pending' && (
+                      <> · {job.state?.appliedRevision ?? 0}/{job.desiredRevision}</>
+                    )}
                   </div>
-                  {job.metrics?.lastError && (
+                  {job.metrics?.lastError && job.relayState !== 'locked' && (
                     <div className="muted table-subline">{job.metrics.lastError}</div>
                   )}
                 </div>
@@ -559,61 +634,91 @@ export function RelayJobs() {
               key: 'actions',
               header: '',
               align: 'right',
-              cell: (job) => (
-                <div className="row-actions">
-                  {can('relay', 'edit') && (
-                    <>
+              cell: (job) => {
+                const toggleAction = job.enabled ? 'disable' : 'enable';
+                const canToggle = canDo(job, toggleAction);
+                return (
+                  <div className="row-actions">
+                    {can('relay', 'edit') && (
+                      <>
+                        <IconButton
+                          label={`Sửa ${job.name}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openEdit(job);
+                          }}
+                        >
+                          <Pencil size={16} aria-hidden="true" />
+                        </IconButton>
+                        <IconButton
+                          label={job.enabled ? `Tắt ${job.name}` : `Bật ${job.name}`}
+                          disabled={!canToggle}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            action.mutate({ job, action: toggleAction });
+                          }}
+                        >
+                          {job.enabled ? <Square size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
+                        </IconButton>
+                        {canDo(job, 'lock') && (
+                          <IconButton
+                            label={`Khóa ${job.name}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              action.mutate({ job, action: 'lock' });
+                            }}
+                          >
+                            <Lock size={16} aria-hidden="true" />
+                          </IconButton>
+                        )}
+                        {canDo(job, 'unlock') && (
+                          <IconButton
+                            label={`Mở khóa ${job.name}`}
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              action.mutate({ job, action: 'unlock' });
+                            }}
+                          >
+                            <LockOpen size={16} aria-hidden="true" />
+                          </IconButton>
+                        )}
+                        <IconButton
+                          label={`Restart ${job.name}`}
+                          disabled={!canDo(job, 'restart')}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            action.mutate({ job, action: 'restart' });
+                          }}
+                        >
+                          <RotateCw size={16} aria-hidden="true" />
+                        </IconButton>
+                        <IconButton
+                          label={`Test ${job.name}`}
+                          disabled={!canDo(job, 'test')}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            action.mutate({ job, action: 'test' });
+                          }}
+                        >
+                          <FlaskConical size={16} aria-hidden="true" />
+                        </IconButton>
+                      </>
+                    )}
+                    {can('relay', 'delete') && (
                       <IconButton
-                        label={`Sửa ${job.name}`}
+                        label={`Xóa ${job.name}`}
+                        disabled={!canDo(job, 'delete')}
                         onClick={(event) => {
                           event.stopPropagation();
-                          openEdit(job);
+                          setDeleteTarget(job);
                         }}
                       >
-                        <Pencil size={16} aria-hidden="true" />
+                        <Trash2 size={16} aria-hidden="true" />
                       </IconButton>
-                      <IconButton
-                        label={job.enabled ? `Tắt ${job.name}` : `Bật ${job.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          action.mutate({ job, action: job.enabled ? 'disable' : 'enable' });
-                        }}
-                      >
-                        {job.enabled ? <Square size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}
-                      </IconButton>
-                      <IconButton
-                        label={`Restart ${job.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          action.mutate({ job, action: 'restart' });
-                        }}
-                      >
-                        <RotateCw size={16} aria-hidden="true" />
-                      </IconButton>
-                      <IconButton
-                        label={`Test ${job.name}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          action.mutate({ job, action: 'test' });
-                        }}
-                      >
-                        <FlaskConical size={16} aria-hidden="true" />
-                      </IconButton>
-                    </>
-                  )}
-                  {can('relay', 'delete') && (
-                    <IconButton
-                      label={`Xóa ${job.name}`}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        setDeleteTarget(job);
-                      }}
-                    >
-                      <Trash2 size={16} aria-hidden="true" />
-                    </IconButton>
-                  )}
-                </div>
-              )
+                    )}
+                  </div>
+                );
+              }
             }
           ]}
         />
@@ -1079,7 +1184,7 @@ export function RelayJobs() {
         title="Xóa các relay job đã chọn?"
         description={`${selected.size} relay job sẽ dừng và bị xóa mềm; history được giữ.`}
         pending={bulk.isPending}
-        onConfirm={() => bulk.mutate('delete')}
+        onConfirm={() => bulk.mutate({ action: 'delete', ids: bulkTargets.delete })}
       />
     </section>
   );

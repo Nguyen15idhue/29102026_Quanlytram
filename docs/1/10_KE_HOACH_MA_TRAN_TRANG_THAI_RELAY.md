@@ -481,3 +481,17 @@ P10-5 0.75 · P10-6 0.5).
 - File: `db/migrations/admin/035_relay_state_invariants.sql`.
 - Sai lệch: migrations được **bake vào image** của service `migrate` (không mount
   volume) nên phải `docker compose build migrate` trước khi chạy; ghi vào README ở P10-6.
+
+### P10-5 — Frontend khóa từng dòng và nhãn trạng thái (2026-11-02 09:59 +07:00)
+
+- Việc: thêm `relayState`, `relayStateLabel`, `allowedActions` vào type `RelayJob`;
+  badge dùng `relayState` (locked/paused/disabled/pending → `offline`); thêm nút
+  **Khóa/Mở khóa** từng dòng; disable nút theo `allowedActions`; bulk bar lọc target
+  hợp lệ và hiện số lượng (`Bật (2)`, `Xóa (0)`…); toast thông tin khi
+  `reconcile !== 'ok'`; invalidate thêm `['relay-job-status']`.
+- Lệnh: `frontend npm run build`; kiểm tra Playwright tạm ở 1440 và 390.
+- Kết quả: PASS — build PASS; có nút Khóa từng dòng; sau khóa badge `offline`,
+  nút Xóa bị vô hiệu; mobile 390 không tràn ngang (overflow 0).
+- File: `frontend/src/pages/RelayJobs.tsx`, `frontend/src/types.ts`.
+- Sai lệch: nhãn bulk kèm số lượng thay vì chỉ tên hành động; giữ fallback
+  `canDo` theo cờ `enabled/locked` khi server cũ chưa trả `allowedActions`.
