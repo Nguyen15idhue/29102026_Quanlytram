@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { RowDataPacket } from 'mysql2/promise';
 import { config } from '../config';
+import { mustChangePasswordAllowed } from '../lib/passwordPolicy';
 import { query } from '../db/pool';
 import { ApiError } from '../lib/http';
 import { sha256 } from '../lib/token';
@@ -15,6 +16,7 @@ export interface AuthUser {
   roleLevel: number;
   parentUserId: number | null;
   companyId: number | null;
+  mustChangePassword: boolean;
   csrfToken: string;
   sessionId: number;
 }
@@ -41,6 +43,7 @@ export async function requireAuth(
     const rows = await query<RowDataPacket[]>(
       `SELECT s.id AS session_id, s.csrf_token,
               u.id, u.username, u.display_name, u.role_id, u.parent_user_id, u.company_id,
+              u.must_change_password,
               r.code AS role_code, r.level AS role_level
          FROM web_sessions s
          JOIN web_users u ON u.id = s.web_user_id
@@ -66,9 +69,17 @@ export async function requireAuth(
       roleLevel: Number(row.role_level),
       parentUserId: row.parent_user_id === null ? null : Number(row.parent_user_id),
       companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
+      mustChangePassword: Boolean(Number(row.must_change_password)),
       csrfToken: String(row.csrf_token),
       sessionId: Number(row.session_id)
     };
+
+    if (req.auth.mustChangePassword) {
+      const path = req.originalUrl.split('?')[0];
+      if (!mustChangePasswordAllowed(path)) {
+        throw new ApiError(403, 'MUST_CHANGE_PASSWORD', 'Cần đổi mật khẩu trước khi tiếp tục');
+      }
+    }
     next();
   } catch (err) {
     next(err);

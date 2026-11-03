@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './auth/AuthProvider';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
@@ -29,8 +29,12 @@ const Guide = lazy(() =>
 
 function Protected() {
   const { user, loading } = useAuth();
+  const location = useLocation();
   if (loading) return <div className="page-loading">Đang tải...</div>;
   if (!user) return <Navigate to="/login" replace />;
+  if (user.mustChangePassword && location.pathname !== '/profile') {
+    return <Navigate to="/profile" replace />;
+  }
   return <Layout />;
 }
 

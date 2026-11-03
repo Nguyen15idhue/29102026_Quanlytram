@@ -17,6 +17,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refresh: () => Promise<void>;
   can: (module: string, action: string) => boolean;
 }
 
@@ -77,6 +78,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [csrfToken]);
 
+  const refresh = useCallback(async () => {
+    const data = await apiFetch<MeResponse>('/api/auth/me');
+    setUser(data.user);
+    setPermissions(data.permissions);
+    setCsrfToken(data.csrfToken);
+  }, []);
+
   const can = useCallback(
     (module: string, action: string) =>
       permissions.some(
@@ -86,8 +94,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ user, permissions, csrfToken, loading, login, logout, can }),
-    [user, permissions, csrfToken, loading, login, logout, can]
+    () => ({ user, permissions, csrfToken, loading, login, logout, refresh, can }),
+    [user, permissions, csrfToken, loading, login, logout, refresh, can]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

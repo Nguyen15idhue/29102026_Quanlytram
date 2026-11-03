@@ -17,8 +17,8 @@
 | 7 | 2 | C4 | SEC-F02 | DONE | C4 | seedUser test PASS; không ghi đè cột nghiệp vụ | — |
 | 8 | 2 | C4 | SEC-F04 | DONE | C4 | outbound/sourceTarget PASS; live chặn 169.254.169.254 | — |
 | 9 | 2 | C4 | SEC-F07 | DONE | C4 | assertCanTarget từng dòng; server 138 PASS | — |
-| 10 | 2 | C5 | SEC-F01 | ĐANG LÀM | — | — | — |
-| 11 | 3 | C6 | SEC-F10 | TODO | — | — | — |
+| 10 | 2 | C5 | SEC-F01 | DONE | C5 | migration admin 36; live 403 → đổi MK → 200 | — |
+| 11 | 3 | C6 | SEC-F10 | ĐANG LÀM | — | — | — |
 | 12 | 3 | C6 | SEC-F13 | TODO | — | — | — |
 | 13 | 3 | C6 | SEC-F09 | TODO | — | — | — |
 | 14 | 3 | C6 | SEC-F18 | TODO | — | — | — |
@@ -54,8 +54,8 @@
 - 2026-11-03 17:16 +07: Gate Đợt 1: server 130 PASS, FE build PASS,
   Playwright mountpoint-explorer PASS; station-source FAIL do fixture thiếu
   trạm "THA Hậu Lộc" (pre-existing, đã ghi SESSION).
-- 2026-11-03 17:22 +07: SEC-F02/04/07 DONE (C4); SEC-F01 đang hoàn tất (C5).
-  Tiếp theo: SEC-F10 (C6).
+- 2026-11-03 17:22 +07: SEC-F02/04/07 DONE (C4); SEC-F01 DONE (C5): migration
+  admin 36, live 403 → đổi mật khẩu → 200. Sang Đợt 3 — SEC-F10 (C6).
 
 ## Việc phát sinh
 

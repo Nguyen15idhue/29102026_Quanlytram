@@ -30,6 +30,7 @@ function userPayload(row: RowDataPacket) {
     companyStatus: row.company_status === null || row.company_status === undefined
       ? null
       : String(row.company_status),
+    mustChangePassword: Boolean(Number(row.must_change_password)),
     role: {
       id: Number(row.role_id),
       code: String(row.role_code),

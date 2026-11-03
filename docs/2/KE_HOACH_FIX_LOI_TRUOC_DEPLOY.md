@@ -81,6 +81,7 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | SEC-F02 | Đã sửa | C4 | 2026-11-03 | `ON DUPLICATE KEY UPDATE id=id`; `seedUser.test.ts` PASS |
 | SEC-F04 | Đã sửa | C4 | 2026-11-03 | credential gắn host/port/TLS; chặn SSRF; test outbound/sourceTarget PASS |
 | SEC-F07 | Đã sửa | C4 | 2026-11-03 | `assertCanTarget` từng dòng + giới hạn field + audit diff |
+| SEC-F01 | Đã sửa | C5 | 2026-11-03 | migration admin 36; live 403 → đổi mật khẩu → 200 (`qa_mustchange`) |
 
 ---
 
@@ -486,6 +487,15 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - **Còn tồn tại:** đúng đặc tả import nhưng chưa có `must_change_password`.
 - **Cách sửa:** thêm cột `must_change_password` (migration mới), chặn API nghiệp vụ cho tới khi đổi (trừ `/profile`), audit; hiển thị banner UI.
 - **Nghiệm thu:** user import đăng nhập → chỉ vào được trang đổi mật khẩu; đổi xong mới dùng hệ thống.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C5.**
+- Migration `036_must_change_password.sql` thêm cột `must_change_password`
+  (schema admin 36).
+- `requireAuth` trả 403 `MUST_CHANGE_PASSWORD` cho mọi API nghiệp vụ, chỉ mở
+  `/api/auth/me|login|logout` và `/api/profile*`; đổi mật khẩu thành công xoá cờ.
+- Import user tạo mới đặt cờ 1; UI chuyển về `/profile` và hiện banner.
+- Live: user QA login → `/api/stations` 403; đổi mật khẩu → 200; đã xoá user QA.
+- Test: `passwordPolicy.test.ts` PASS; server 26 file/138 PASS; FE build PASS.
 
 ### 3.2. Nhóm ưu tiên 2 — production hardening
 

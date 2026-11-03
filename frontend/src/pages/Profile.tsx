@@ -27,7 +27,7 @@ interface SessionItem {
 }
 
 export function Profile() {
-  const { csrfToken } = useAuth();
+  const { csrfToken, user, refresh } = useAuth();
   const { push } = useToast();
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState('');
@@ -74,10 +74,11 @@ export function Profile() {
         body: { current_password: currentPassword, new_password: newPassword },
         csrfToken
       }),
-    onSuccess: () => {
+    onSuccess: async () => {
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
+      await refresh();
       push('Đã đổi mật khẩu', 'success');
     },
     onError: (err) => push(err instanceof ApiClientError ? err.message : 'Đổi mật khẩu thất bại', 'error')
@@ -104,6 +105,14 @@ export function Profile() {
         description="Cập nhật hồ sơ và đổi mật khẩu."
         actions={<UserRound size={20} className="muted" aria-hidden="true" />}
       />
+      {user?.mustChangePassword && (
+        <div className="panel" role="alert">
+          <h2>Cần đổi mật khẩu</h2>
+          <p className="muted">
+            Tài khoản đang dùng mật khẩu mặc định. Đổi mật khẩu bên dưới để tiếp tục sử dụng hệ thống.
+          </p>
+        </div>
+      )}
       <div className="panel">
         <h2>Hồ sơ</h2>
         {current && (

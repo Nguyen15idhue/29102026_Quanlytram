@@ -1208,3 +1208,7 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   trạm chỉ dùng lại khi trùng host/port/TLS, chặn loopback/link-local/multicast,
   kết nối bằng IP đã kiểm tra; import gọi `assertCanTarget` từng dòng, audit
   diff quyền. Test: server 26 file/138 PASS; live chặn `169.254.169.254` (400).
+- SEC-F01 DONE (lô C5): migration admin 36 `must_change_password`; import đặt
+  cờ, middleware chặn 403 ngoài auth/profile, đổi mật khẩu xoá cờ, UI chuyển
+  `/profile` + banner. Live: QA login → stations 403 → đổi MK → 200; đã xoá
+  user QA. Test: passwordPolicy PASS, server 138 PASS, FE build PASS.

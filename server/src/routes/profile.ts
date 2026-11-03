@@ -87,7 +87,7 @@ profileRouter.post(
     if (!rows[0] || !(await verifyPassword(String(rows[0].password_hash), body.current_password))) {
       throw new ApiError(400, 'INVALID_PASSWORD', 'Mật khẩu hiện tại không đúng');
     }
-    await adminPool.query('UPDATE web_users SET password_hash = ? WHERE id = ?', [
+    await adminPool.query('UPDATE web_users SET password_hash = ?, must_change_password = 0 WHERE id = ?', [
       await hashPassword(body.new_password),
       req.auth!.id
     ]);

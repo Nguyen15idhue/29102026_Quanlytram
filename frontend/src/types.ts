@@ -31,6 +31,7 @@ export interface User {
     level: number;
   };
   status?: string;
+  mustChangePassword?: boolean;
 }
 
 export interface Station {
