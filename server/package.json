@@ -11,6 +11,7 @@
     "import:relay": "node dist/db/importRelay.js",
     "import:legacy": "node dist/db/importLegacyCaster.js",
     "rotate:secrets": "node dist/db/rotateSecrets.js",
+    "db:import-legacy": "node dist/db/importLegacyV2.js",
     "test": "vitest run"
   },
   "dependencies": {

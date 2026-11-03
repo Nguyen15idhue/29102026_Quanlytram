@@ -1399,6 +1399,10 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
   NTRIP account + ACL. UI trạm thêm `v1 (nguồn không xác thực)`.
   Gate: Go build/vet/test; server+frontend tsc; frontend build; Playwright
   `station-source` PASS; gnss rebuild healthy.
+- Bước 2 DONE: `db:import-legacy` dry-run đọc `db/data` → 36 trạm, 31
+  mountpoint, 32 mapping (26×1509 + 6×1508), 67 relay disabled, 3 account,
+  0 cảnh báo; checksum `23a18b37…369ae`. Test 4 case; server 184 PASS.
+  Đã sửa số liệu kế hoạch từ 35/36 về 31/32.
 
 ## Form tài khoản NTRIP — Công ty dạng select (2026-11-03)
 
