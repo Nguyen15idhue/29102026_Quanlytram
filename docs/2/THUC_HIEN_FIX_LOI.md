@@ -14,10 +14,10 @@
 | 4 | 1 | C3 | FIX-04 | DONE | C3 | `TestWaitJobDone*` PASS; StopTimeout 15s | — |
 | 5 | 1 | C3 | FIX-05 | DONE | C3 | per-IP 200/trần 500; test PASS | — |
 | 6 | 1 | C3 | FIX-06 | DONE | C3 | rover 1KB + idle 5m + recover; 2 test PASS | — |
-| 7 | 2 | C4 | SEC-F02 | ĐANG LÀM | — | — | — |
-| 8 | 2 | C4 | SEC-F04 | TODO | — | — | — |
-| 9 | 2 | C4 | SEC-F07 | TODO | — | — | — |
-| 10 | 2 | C5 | SEC-F01 | TODO | — | — | — |
+| 7 | 2 | C4 | SEC-F02 | DONE | C4 | seedUser test PASS; không ghi đè cột nghiệp vụ | — |
+| 8 | 2 | C4 | SEC-F04 | DONE | C4 | outbound/sourceTarget PASS; live chặn 169.254.169.254 | — |
+| 9 | 2 | C4 | SEC-F07 | DONE | C4 | assertCanTarget từng dòng; server 138 PASS | — |
+| 10 | 2 | C5 | SEC-F01 | ĐANG LÀM | — | — | — |
 | 11 | 3 | C6 | SEC-F10 | TODO | — | — | — |
 | 12 | 3 | C6 | SEC-F13 | TODO | — | — | — |
 | 13 | 3 | C6 | SEC-F09 | TODO | — | — | — |
@@ -54,6 +54,8 @@
 - 2026-11-03 17:16 +07: Gate Đợt 1: server 130 PASS, FE build PASS,
   Playwright mountpoint-explorer PASS; station-source FAIL do fixture thiếu
   trạm "THA Hậu Lộc" (pre-existing, đã ghi SESSION).
+- 2026-11-03 17:22 +07: SEC-F02/04/07 DONE (C4); SEC-F01 đang hoàn tất (C5).
+  Tiếp theo: SEC-F10 (C6).
 
 ## Việc phát sinh
 

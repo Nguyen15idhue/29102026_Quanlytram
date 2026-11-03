@@ -78,6 +78,9 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | FIX-04 | Đã sửa | C3 | 2026-11-03 | `TestWaitJobDone*` PASS; `StopTimeout` 15s, hoãn start khi phiên cũ chưa đóng |
 | FIX-05 | Đã sửa | C3 | 2026-11-03 | per-IP mặc định 200, trần tổng 500; `TestDefaultPerIPLimitAllowsValidFanIn` PASS |
 | FIX-06 | Đã sửa | C3 | 2026-11-03 | rover 1 KB, idle 5 phút, `recover()`; 2 test rover PASS |
+| SEC-F02 | Đã sửa | C4 | 2026-11-03 | `ON DUPLICATE KEY UPDATE id=id`; `seedUser.test.ts` PASS |
+| SEC-F04 | Đã sửa | C4 | 2026-11-03 | credential gắn host/port/TLS; chặn SSRF; test outbound/sourceTarget PASS |
+| SEC-F07 | Đã sửa | C4 | 2026-11-03 | `assertCanTarget` từng dòng + giới hạn field + audit diff |
 
 ---
 
@@ -441,6 +444,12 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - **Cách sửa:** chỉ `INSERT ... ON DUPLICATE KEY UPDATE id=id` (không đụng cột nghiệp vụ), hoặc gate seed bằng `SEED_ENABLED=true` + `NODE_ENV!=='production'`; audit khi tạo mới.
 - **Nghiệm thu:** lock `user1` → chạy seed → vẫn `locked`; đổi role → chạy seed → không đổi.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C4.**
+- Tách `server/src/db/seedUser.ts` với `ON DUPLICATE KEY UPDATE id = id`;
+  không còn ghi đè status/role/parent/company/display_name/email.
+- Audit `seed.user.create` khi tạo mới (không ghi mật khẩu/hash).
+- Test: `server/tests/seedUser.test.ts` PASS.
+
 #### SEC-F04 [High] Tái dùng credential trạm cho host khác
 - **Vị trí:** `server/src/routes/stations.ts` (`POST /source/mountpoints`, đoạn decrypt `client_password_enc`).
 - **Còn tồn tại:** khi có `stationId`, password lấy từ DB và gửi Basic tới `body.host` bất kỳ.
@@ -448,12 +457,29 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - **Cách sửa:** chỉ dùng credential đã lưu khi `host/port/tls` trùng bản ghi `station_sources`; nếu khác, bắt nhập lại mật khẩu. Chặn `169.254.0.0/16`, `127.0.0.0/8`, `::1`, multicast; giữ RFC1918 cho upstream nội bộ. Resolve DNS và kiểm tra toàn bộ IP (chống rebinding). Audit + throttle theo user.
 - **Nghiệm thu:** host B khác host A → không gửi credential cũ; `169.254.169.254` bị chặn; RFC1918 vẫn hoạt động.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C4.**
+- Chỉ dùng lại credential khi host/port/TLS trùng `station_sources`
+  (`lib/sourceTarget.ts`); khác thì trả 400 `SOURCE_CREDENTIAL_MISMATCH`.
+- `lib/outbound.ts` chặn loopback/link-local (gồm `169.254.169.254`)/multicast,
+  cho phép RFC1918; kết nối bằng chính IP đã kiểm tra (chống rebinding).
+- Thêm rate-limit 10/phút theo user, audit `station.source.mountpoints`
+  (không ghi mật khẩu).
+- Test: `outbound.test.ts`, `sourceTarget.test.ts` PASS; live chặn
+  `169.254.169.254` trả 400.
+
 #### SEC-F07 [High] Import người dùng bỏ qua kiểm soát cấp bậc
 - **Vị trí:** `server/src/routes/webUsers.ts:397-430`.
 - **Còn tồn tại:** nhánh update chỉ kiểm tra công ty/admin/super_admin cuối; không gọi `assertCanTarget`; `UPDATE` cho đổi `role_id/status/parent_user_id/company_id`.
 - **Tác động:** actor cấp thấp import file có thể hạ cấp/khóa user cấp cao hơn (không phải admin), đổi parent/company trong cùng công ty.
 - **Cách sửa:** gọi `assertCanTarget(req, target)` từng dòng trước UPDATE; chỉ cho import cập nhật `display_name/email` nếu không đủ quyền; audit per-row/diff.
 - **Nghiệm thu:** level 40 sửa user level 60 → 403/skip; own import ngoài subtree → skip.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C4.**
+- Gọi `assertCanTarget(req, target)` từng dòng trước UPDATE; lỗi quyền thì
+  ghi lỗi theo dòng và bỏ qua, không abort cả file.
+- Không đủ quyền đổi role/status/parent/company thì chỉ cập nhật
+  `display_name/email`; audit per-row `import.update` kèm diff quyền.
+- Test: server build + 138 test PASS (RBAC hiện có).
 
 #### SEC-F01 [Medium] Mật khẩu mặc định `123456` không buộc đổi
 - **Vị trí:** `server/src/routes/webUsers.ts:397`; `server/src/db/seed.ts:230`.

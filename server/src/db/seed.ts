@@ -3,6 +3,8 @@ import { createStationResources } from '../lib/stationResources';
 import { adminPool } from './pool';
 import { config } from '../config';
 import { roleMatrix } from '../rbac/matrix';
+import { SEED_USER_UPSERT_SQL } from './seedUser';
+import { writeAudit } from '../lib/audit';
 
 const permissions = [
   ['web_users.view', 'web_users', 'view'],
@@ -125,16 +127,22 @@ async function main(): Promise<void> {
   ): Promise<number> => {
     const role = await roleId(roleCode);
     const passwordHash = await hashPassword(password);
-    await adminPool.query(
-      `INSERT INTO web_users
-         (username, password_hash, display_name, email, role_id, parent_user_id, company_id, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         role_id = VALUES(role_id), parent_user_id = VALUES(parent_user_id),
-         display_name = VALUES(display_name), email = VALUES(email),
-         company_id = VALUES(company_id), status = 'active'`,
+    const [result] = await adminPool.query<any>(
+      SEED_USER_UPSERT_SQL,
       [username, passwordHash, displayName, email, role, parentId, companyId, createdBy]
     );
+    if (result?.affectedRows === 1) {
+      await writeAudit(
+        adminPool,
+        null,
+        'seed.user.create',
+        'web_user',
+        result.insertId,
+        null,
+        { username, role: roleCode },
+        'system'
+      );
+    }
     const [rows] = await adminPool.query<any[]>(
       'SELECT id FROM web_users WHERE username = ?',
       [username]

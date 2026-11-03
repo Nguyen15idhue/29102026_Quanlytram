@@ -2,6 +2,7 @@
 import { z } from 'zod';
 import net from 'node:net';
 import tls from 'node:tls';
+import rateLimit from 'express-rate-limit';
 import { RowDataPacket } from 'mysql2/promise';
 import { adminPool, query, withTransaction } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
@@ -13,6 +14,8 @@ import { asyncHandler, ApiError } from '../lib/http';
 import { ecefToGeodetic, geodeticToVn2000 } from '../lib/geo';
 import { decryptSecret, encryptSecret } from '../lib/crypto';
 import { callGoInternal } from '../lib/internalApi';
+import { resolveSafeHost } from '../lib/outbound';
+import { sameSourceTarget } from '../lib/sourceTarget';
 import { reconcileAffected } from '../lib/reconcile';
 import { hashPassword } from '../lib/password';
 import { createStationResources } from '../lib/stationResources';
@@ -64,6 +67,15 @@ stationsRouter.use(requireAuth);
 stationsRouter.use(csrfProtection);
 
 export const EXPORT_MAX_ROWS = 20000;
+
+const sourceProbeLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => String(req.auth?.id ?? req.ip),
+  message: { error: { code: 'RATE_LIMITED', message: 'Thử nguồn quá nhiều lần, thử lại sau' } }
+});
 
 const text = (max: number) => z.string().max(max).optional();
 const nullableNumber = (min: number, max: number) =>
@@ -2397,6 +2409,7 @@ stationsRouter.get(
 stationsRouter.post(
   '/source/mountpoints',
   requirePermission('stations', 'add'),
+  sourceProbeLimiter,
   asyncHandler(async (req, res) => {
     const body = z
       .object({
@@ -2408,18 +2421,28 @@ stationsRouter.post(
         stationId: z.number().int().positive().optional()
       })
       .parse(req.body);
+    const targetIp = await resolveSafeHost(body.host);
     let password = body.password;
     if (!password && body.stationId) {
       const station = await getStation(body.stationId);
       if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
-  await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
+      await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
       const rows = await query<RowDataPacket[]>(
-        'SELECT client_password_enc FROM station_sources WHERE station_id = ?',
+        `SELECT client_host, client_port, client_tls, client_password_enc
+           FROM station_sources WHERE station_id = ?`,
         [body.stationId]
       );
-      if (rows[0]?.client_password_enc) {
+      const saved = rows[0];
+      if (!sameSourceTarget(saved, { host: body.host, port: body.port, tls: body.tls })) {
+        throw new ApiError(
+          400,
+          'SOURCE_CREDENTIAL_MISMATCH',
+          'Host/port/TLS khác nguồn đã lưu, cần nhập lại mật khẩu'
+        );
+      }
+      if (saved.client_password_enc) {
         try {
-          password = decryptSecret(rows[0].client_password_enc);
+          password = decryptSecret(saved.client_password_enc);
         } catch {
           password = '';
         }
@@ -2427,8 +2450,8 @@ stationsRouter.post(
     }
     const items = await new Promise<Array<{ name: string }>>((resolve, reject) => {
       const socket = body.tls
-        ? tls.connect({ host: body.host, port: body.port, servername: body.host })
-        : net.connect({ host: body.host, port: body.port });
+        ? tls.connect({ host: targetIp, port: body.port, servername: body.host })
+        : net.connect({ host: targetIp, port: body.port });
       let data = '';
       let settled = false;
       const finish = (err?: Error) => {
@@ -2478,6 +2501,16 @@ stationsRouter.post(
         );
       });
     });
+    await writeAudit(
+      adminPool,
+      req.auth?.id ?? null,
+      'station.source.mountpoints',
+      'station',
+      body.stationId ?? 0,
+      null,
+      { host: body.host, port: body.port, tls: body.tls, mountpoints: items.length },
+      ipFrom(req)
+    );
     res.json({ items });
   })
 );

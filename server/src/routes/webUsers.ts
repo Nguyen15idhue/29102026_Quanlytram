@@ -397,21 +397,17 @@ webUsersRouter.post(
     const passwordHash = await hashPassword('123456');
     for (const item of normalized) {
       const [existing] = await adminPool.query<any[]>(
-        'SELECT u.id, u.role_id, u.company_id, r.code AS role_code, r.level AS role_level FROM web_users u JOIN roles r ON r.id = u.role_id WHERE u.username = ?',
+        `SELECT u.id, u.role_id, u.company_id, u.parent_user_id, u.status, r.code AS role_code, r.level AS role_level
+           FROM web_users u JOIN roles r ON r.id = u.role_id WHERE u.username = ?`,
         [item.username]
       );
       if (existing[0]) {
         const target = existing[0];
-        if (!superAdmin) {
-          const targetCompany = target.company_id === null ? null : Number(target.company_id);
-          if (targetCompany !== Number(req.auth!.companyId)) {
-            errors.push(`Line ${item.line} tài khoản khác công ty: ${item.username}`);
-            continue;
-          }
-          if (target.role_code === 'admin' && Number(target.id) !== req.auth!.id) {
-            errors.push(`Line ${item.line} không được sửa admin cùng công ty: ${item.username}`);
-            continue;
-          }
+        try {
+          await assertCanTarget(req, target);
+        } catch (err) {
+          errors.push(`Line ${item.line} ${err instanceof Error ? err.message : String(err)}: ${item.username}`);
+          continue;
         }
         if (
           target.role_code === 'super_admin' &&
@@ -421,16 +417,51 @@ webUsersRouter.post(
           errors.push(`Line ${item.line} không được hạ cấp super_admin cuối cùng: ${item.username}`);
           continue;
         }
+        const privilegedChange =
+          Number(target.role_id) !== item.roleId ||
+          String(target.status) !== item.status ||
+          (target.parent_user_id === null ? null : Number(target.parent_user_id)) !== item.parentId ||
+          (target.company_id === null ? null : Number(target.company_id)) !== item.companyId;
+        if (!superAdmin && privilegedChange) {
+          // Không đủ quyền đổi role/status/parent/company: chỉ cập nhật hồ sơ.
+          await adminPool.query('UPDATE web_users SET display_name=?, email=? WHERE id=?', [
+            item.displayName,
+            item.email,
+            target.id
+          ]);
+          updated += 1;
+          continue;
+        }
         await adminPool.query(
           'UPDATE web_users SET display_name=?, email=?, role_id=?, parent_user_id=?, status=?, company_id=? WHERE id=?',
           [item.displayName, item.email, item.roleId, item.parentId, item.status, item.companyId, target.id]
+        );
+        await writeAudit(
+          adminPool,
+          req.auth!.id,
+          'import.update',
+          'web_user',
+          target.id,
+          {
+            role_id: target.role_id,
+            status: target.status,
+            parent_user_id: target.parent_user_id,
+            company_id: target.company_id
+          },
+          {
+            role_id: item.roleId,
+            status: item.status,
+            parent_user_id: item.parentId,
+            company_id: item.companyId
+          },
+          ipFrom(req)
         );
         updated += 1;
       } else {
         await adminPool.query(
           `INSERT INTO web_users
-             (username, password_hash, display_name, email, role_id, parent_user_id, status, company_id, created_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             (username, password_hash, display_name, email, role_id, parent_user_id, status, company_id, created_by, must_change_password)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
           [
             item.username, passwordHash, item.displayName, item.email, item.roleId,
             item.parentId, item.status, item.companyId, req.auth!.id

@@ -1204,3 +1204,7 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   `mountpoint-explorer` PASS, `station-source` FAIL do dữ liệu mẫu không có
   trạm "THA Hậu Lộc" (DB đang là `TestHauLoc`) — lỗi fixture có sẵn, không do
   thay đổi đợt 1.
+- SEC-F02/04/07 DONE (lô C4): seed không ghi đè cột nghiệp vụ; credential
+  trạm chỉ dùng lại khi trùng host/port/TLS, chặn loopback/link-local/multicast,
+  kết nối bằng IP đã kiểm tra; import gọi `assertCanTarget` từng dòng, audit
+  diff quyền. Test: server 26 file/138 PASS; live chặn `169.254.169.254` (400).
