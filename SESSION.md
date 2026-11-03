@@ -1415,6 +1415,13 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
 - Bước 5 DONE: `--apply-relays` tạo 67 relay disabled (giữ host cũ), 129
   credential v2+AAD; chạy lại idempotent (0 tạo/67 cập nhật); Go
   `relayDegraded=false`; superadmin và wally đều thấy 36/31/67/3.
+- Bước 6 DONE: full Playwright trên DB fixture **60 passed/1 skipped**
+  (`legacy-migration` skip theo env); reset + import lại trạng thái cuối rồi
+  chạy `E2E_LEGACY_ONLY=1` → PASS. Counts cuối 1 company/2 user/36 trạm/
+  31 mountpoint/32 mapping/67 relay (0 bật)/3 account/27 ACL/2 listener;
+  server 184 test PASS; `relayDegraded=false`. Graphify 4510 node/10302 cạnh.
+- Bước 7 DONE: cập nhật `docs/OPS.md` §10 (backup → reset → import → verify →
+  rollback, relay disabled đến cutover), `SESSION.md`, `TASKS.md`.
 
 ## Form tài khoản NTRIP — Công ty dạng select (2026-11-03)
 

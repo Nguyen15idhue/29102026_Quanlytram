@@ -1,7 +1,7 @@
 # Kế hoạch 13 — Chuyển dữ liệu hệ thống cũ sang hệ thống mới
 
 - Ngày: 2026-11-03
-- Trạng thái: kế hoạch, chưa thực thi (không sửa code ở bước này)
+- Trạng thái: DONE (2026-11-03)
 - Nguồn dữ liệu: `db/data/` (config.json, caster_stations.*, caster_mountpoints.*,
   sourcetable_1508/1509.txt, caster_scan_summary.md)
 - Đích: hệ thống hiện tại (MySQL `cors_admin`/`cors_runtime`, Go caster 1508/1509)
@@ -343,3 +343,14 @@ Cần xác nhận khi duyệt:
 - Go reconcile: `/health` `relayDegraded=false`, log không có job lỗi credential.
 - API: superadmin và wally đều thấy 36 trạm / 31 mountpoint / 67 relay /
   3 account; 0 relay bật.
+
+### Bước 6 — Kiểm chứng tổng + E2E
+
+- Full Playwright trên DB có fixture test: **60 passed, 1 skipped**
+  (`legacy-migration` chỉ chạy khi `E2E_LEGACY_ONLY=1` để tránh lẫn fixture).
+- Sau khi reset + import lại trạng thái cuối: Playwright `legacy-migration`
+  PASS; server 184 test PASS (gồm 6 case relayStation, 4 case importLegacy).
+- Counts cuối: 1 company, 2 user, 36 trạm, 31 mountpoint, 32 mapping
+  (1508=6/1509=26), 67 relay (0 bật), 3 account/27 ACL, 2 listener,
+  `/health` `relayDegraded=false`.
+- Graphify: 4510 node, 10302 cạnh, 314 community.

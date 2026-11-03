@@ -98,8 +98,16 @@ describe('relayStation', () => {
     expect(resolved.credential).toEqual({ username: 'ext-user', password: 'ext-pass' });
   });
 
-  it('trạm đích không có mountpoint bị từ chối', async () => {
-    mockQueries([{ ...baseStation, listener_port: null, client_host: '', client_mount: '' }], []);
+  it('trạm đích có nguồn no-auth thì không cần credential', async () => {
+    mockQueries([{ ...baseStation, caster_requires_auth: 0 }], [mountpoint]);
+
+    const resolved = await resolveStationEndpoint(SCOPE, 5, 9, 'destination');
+
+    expect(resolved.endpoint).toMatchObject({ host: '127.0.0.1', mount: 'HL_RTCM' });
+    expect(resolved.credential).toBeNull();
+  });
+
+  it('trạm đích không có mountpoint bị từ chối', async () => {    mockQueries([{ ...baseStation, listener_port: null, client_host: '', client_mount: '' }], []);
 
     await expect(resolveStationEndpoint(SCOPE, 5, null, 'destination')).rejects.toMatchObject({
       code: 'STATION_NO_ENDPOINT'

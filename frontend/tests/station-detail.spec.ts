@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+﻿import { expect, test } from '@playwright/test';
 
 const password = process.env.E2E_PASSWORD ?? '';
 
@@ -18,7 +18,7 @@ test.describe('Phase 1 station detail', () => {
 
     const list = await (
       await page.request.get(
-        `/api/stations?page=1&pageSize=1&q=${encodeURIComponent('Trạm test Hà Nội 01')}`
+        `/api/stations?page=1&pageSize=1&q=${encodeURIComponent('DOCS-Trạm Hậu Lộc')}`
       )
     ).json();
     const station = list.items?.[0];

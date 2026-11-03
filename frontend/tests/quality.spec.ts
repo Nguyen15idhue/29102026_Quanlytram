@@ -22,10 +22,10 @@ test.describe('Phase 6 quality', () => {
 
     await nav.getByRole('link', { name: 'Danh sách trạm' }).click();
     await expect(page.getByRole('heading', { name: 'Danh sách trạm' })).toBeVisible();
-    await page.getByPlaceholder('Tìm mã, tên, địa chỉ').fill('Trạm test Hà Nội 01');
+    await page.getByPlaceholder('Tìm mã, tên, địa chỉ').fill('DOCS-Trạm Hậu Lộc');
 
     await page
-      .getByRole('row', { name: /Trạm test Hà Nội 01/ })
+      .getByRole('row', { name: /DOCS-Trạm Hậu Lộc/ })
       .first()
       .locator('.link-btn')
       .click();
@@ -57,9 +57,9 @@ test.describe('Phase 6 quality', () => {
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/stations');
-    await page.getByPlaceholder('Tìm mã, tên, địa chỉ').fill('Trạm test Hà Nội 01');
+    await page.getByPlaceholder('Tìm mã, tên, địa chỉ').fill('DOCS-Trạm Hậu Lộc');
     await page
-      .getByRole('row', { name: /Trạm test Hà Nội 01/ })
+      .getByRole('row', { name: /DOCS-Trạm Hậu Lộc/ })
       .first()
       .locator('.link-btn')
       .click();
@@ -72,9 +72,9 @@ test.describe('Phase 6 quality', () => {
 
     await page.setViewportSize({ width: 768, height: 1024 });
     await page.goto('/stations');
-    await page.getByPlaceholder('Tìm mã, tên, địa chỉ').fill('Trạm test Hà Nội 01');
+    await page.getByPlaceholder('Tìm mã, tên, địa chỉ').fill('DOCS-Trạm Hậu Lộc');
     await page
-      .getByRole('row', { name: /Trạm test Hà Nội 01/ })
+      .getByRole('row', { name: /DOCS-Trạm Hậu Lộc/ })
       .first()
       .locator('.link-btn')
       .click();

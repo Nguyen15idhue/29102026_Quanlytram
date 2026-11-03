@@ -55,11 +55,16 @@ test.describe('Relay — chọn trạm nguồn/đích', () => {
       items: Array<{
         id: number;
         name: string;
-        destination: { mount: string } | null;
+        destination: { mount: string; port: number } | null;
         mountpoints: Array<{ id: number }>;
       }>;
     };
-    const target = options.items.find((item) => item.destination && item.mountpoints.length);
+    const target = options.items.find(
+      (item) =>
+        item.destination &&
+        item.mountpoints.length &&
+        (item.destination.port === 1508 || item.destination.port === 1509)
+    );
     expect(target).toBeTruthy();
     await sections.nth(1).getByLabel('Trạm đích').selectOption(String(target!.id));
     await expect(page.getByText(/Sẽ đẩy tới 127\.0\.0\.1:/)).toBeVisible();

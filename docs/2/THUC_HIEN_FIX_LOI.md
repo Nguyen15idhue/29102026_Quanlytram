@@ -114,3 +114,8 @@
 - Hotfix zoom 2026-11-03: tile bị 429 khi zoom nhanh do hạn mức 240/phút; nâng
   1200/phút và vượt hạn mức trả tile trong suốt thay vì 429; banner lỗi tile
   chờ 1s và tự huỷ khi có tile tải được.
+- Kế hoạch 13 DONE: chuyển dữ liệu hệ thống cũ sang Wally — caster hỗ trợ nguồn
+  V1 không xác thực (đọc vẫn cần account+ACL), reset sạch dữ liệu test, import
+  36 trạm/31 mountpoint/32 mapping/67 relay disabled/3 account/27 ACL; Wally +
+  wally (12345678); full Playwright 60 pass/1 skip (legacy chạy riêng PASS),
+  server 184 test; OPS §10 có quy trình backup/reset/import/rollback.

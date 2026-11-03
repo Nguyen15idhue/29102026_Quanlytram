@@ -145,3 +145,41 @@ docker exec cors-mvp-server-1 node dist/db/rotateSecrets.js          # phải c�
 
 - `socket.io`, `socket.io-client`: MIT.
 - Các thư viện Phase 1–4 giữ nguyên; Phase 6 sẽ dùng `go-gnss/rtcm` (Apache-2.0).
+
+## 10. Chuyển dữ liệu hệ thống cũ (legacy)
+
+Nguồn: `db/data` (config.json, caster_stations.json, caster_mountpoints.csv).
+Quy trình đã chạy 2026-11-03, có thể lặp lại (idempotent):
+
+```bash
+# 0) Backup trước khi xoá (ngoài repo)
+docker exec cors-mvp-mysql-1 sh -lc \
+  'mysqldump -uroot -p"$MYSQL_ROOT_PASSWORD" --single-transaction --no-tablespaces cors_admin > /tmp/admin.sql'
+docker cp cors-mvp-mysql-1:/tmp/admin.sql <backup-dir>/admin.sql
+
+# 1) Copy dữ liệu nguồn vào container
+docker cp db/data cors-mvp-server-1:/tmp/legacy-data
+
+# 2) Xoá dữ liệu test, giữ superadmin + listener 1508/1509, tạo WALLY/wally
+docker exec cors-mvp-server-1 node dist/db/resetLegacyV2.js            # dry-run
+docker exec cors-mvp-server-1 node dist/db/resetLegacyV2.js --apply
+
+# 3) Import trạm/mountpoint/source/account, sau đó relay (disabled)
+docker exec cors-mvp-server-1 node dist/db/importLegacyV2.js --data /tmp/legacy-data --apply-core
+docker exec cors-mvp-server-1 node dist/db/importLegacyV2.js --data /tmp/legacy-data --apply-relays
+
+# 4) Nạp lại cấu hình caster/relay và kiểm tra
+docker compose restart gnss
+curl -s http://127.0.0.1:7080/health
+```
+
+Lưu ý:
+
+- Runtime xoá bằng user `cors_migrator` (cors_app chỉ SELECT `cors_runtime`).
+- Nguồn trạm legacy dùng `caster_requires_auth=0`: publish không cần account,
+  nhưng đọc mountpoint vẫn cần NTRIP account + ACL.
+- 67 relay import ở trạng thái **disabled**, giữ host/port cũ (`rtktk.online`);
+  chỉ bật theo nhóm sau cutover, sau khi trạm online.
+- Import idempotent theo `external_key`/tên trạm; chạy lại không tạo trùng.
+- Rollback: dừng server/gnss, restore dump `cors_admin` + `cors_runtime` bằng
+  root/migrator, sau đó `docker compose restart server gnss`.

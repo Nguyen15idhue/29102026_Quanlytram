@@ -66,6 +66,7 @@ interface StationRow extends RowDataPacket {
   caster_username: string | null;
   caster_password_enc: string | null;
   caster_version: 'v1' | 'v2' | null;
+  caster_requires_auth: number | null;
   ntrip_version: 'v1' | 'v2' | null;
   listener_port: number | null;
 }
@@ -75,6 +76,7 @@ const STATION_SELECT = `
          ss.source_role, ss.client_host, ss.client_port, ss.client_mount, ss.client_tls,
          ss.client_username, ss.client_password_enc,
          ss.caster_username, ss.caster_password_enc, ss.caster_version,
+         COALESCE(ss.caster_requires_auth, 1) AS caster_requires_auth,
          cl.port AS listener_port
     FROM stations s
     LEFT JOIN companies c ON c.id = s.company_id
@@ -234,6 +236,13 @@ export async function resolveStationEndpoint(
     username = String(row.caster_username ?? '');
     encrypted = row.caster_password_enc;
     requiresAuth = selected.requiresAuth;
+    // Trạm nguồn no-auth: đẩy dữ liệu vào mountpoint local không cần credential
+    // (chiều đọc vẫn do requires_auth của mountpoint quyết định).
+    if (direction === 'destination' && Number(row.caster_requires_auth ?? 1) === 0) {
+      requiresAuth = false;
+      username = '';
+      encrypted = null;
+    }
   } else if (direction === 'source') {
     const client = clientEndpoint(row);
     if (!client) {
