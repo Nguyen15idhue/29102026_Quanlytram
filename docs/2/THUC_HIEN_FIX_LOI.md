@@ -108,3 +108,6 @@
   mountpoint nội bộ hoặc `client_*`, copy mật khẩu kín; migration admin 038;
   relay do superadmin tạo có `company_id NULL` nên cấp thấp không thấy. Gate:
   server 37 file/179 test, Playwright 59/59.
+- Bản đồ 2026-11-03: mở trang dùng đúng zoom/tâm cấu hình (không auto-fit lần
+  đầu); nút Về mặc định theo cấu hình; thêm tùy chọn nhãn quần đảo + ngưỡng
+  zoom; phủ nhãn Quần đảo Hoàng Sa/Trường Sa thay tên tiếng Trung.

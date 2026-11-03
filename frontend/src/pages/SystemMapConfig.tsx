@@ -198,6 +198,24 @@ export function SystemMapConfig() {
               onChange={(event) => update({ zoom: Number(event.target.value) })}
             />
           </Field>
+          <Field label="Hiện nhãn quần đảo" hint="Ghi đè tên quần đảo Hoàng Sa/Trường Sa trên nền bản đồ.">
+            <Select
+              value={form.archipelagoLabels ? '1' : '0'}
+              onChange={(event) => update({ archipelagoLabels: event.target.value === '1' })}
+            >
+              <option value="1">Có</option>
+              <option value="0">Không</option>
+            </Select>
+          </Field>
+          <Field label="Zoom tối thiểu hiện nhãn">
+            <Input
+              type="number"
+              min={3}
+              max={12}
+              value={form.archipelagoMinZoom}
+              onChange={(event) => update({ archipelagoMinZoom: Number(event.target.value) })}
+            />
+          </Field>
           <Field label="Center lat">
             <Input
               type="number"

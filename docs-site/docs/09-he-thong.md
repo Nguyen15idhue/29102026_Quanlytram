@@ -51,6 +51,8 @@ Các nhóm cấu hình:
 | Nhóm | Nội dung |
 |---|---|
 | Nhà cung cấp ảnh nền | Chọn nguồn ảnh nền và chế độ tải |
+| Chế độ xem mặc định | Zoom và tâm bản đồ khi mở trang; nút **Về mặc định** dùng lại giá trị này |
+| Nhãn quần đảo | Bật/tắt nhãn **Quần đảo Hoàng Sa**, **Quần đảo Trường Sa** và zoom tối thiểu để hiện |
 | Khoá dịch vụ | Khoá của dịch vụ địa chỉ (không hiển thị lại sau khi lưu) |
 | Kiểm tra kết nối | Thử từng nhà cung cấp trước khi lưu |
 

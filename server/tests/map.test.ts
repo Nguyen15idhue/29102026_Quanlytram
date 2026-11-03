@@ -11,6 +11,21 @@ import {
 import { resolveStationCoords } from '../src/lib/mapCoords';
 
 describe('map config', () => {
+  it('bật nhãn quần đảo mặc định từ zoom 6 và cấu hình được', () => {
+    expect(DEFAULT_MAP_CONFIG.archipelagoLabels).toBe(true);
+    expect(DEFAULT_MAP_CONFIG.archipelagoMinZoom).toBe(6);
+    const normalized = normalizeMapConfig({
+      ...DEFAULT_MAP_CONFIG,
+      archipelagoLabels: false,
+      archipelagoMinZoom: 8
+    });
+    expect(normalized.archipelagoLabels).toBe(false);
+    expect(normalized.archipelagoMinZoom).toBe(8);
+    expect(() =>
+      validateMapConfigInput({ ...DEFAULT_MAP_CONFIG, archipelagoMinZoom: 2 })
+    ).toThrow();
+  });
+
   it('uses allowlisted providers and never the OSM root', () => {
     expect(new URL(MODE_PROVIDERS.streets.template).hostname).toBe('tile.openstreetmap.de');
     expect(new URL(MODE_PROVIDERS.streets.fallbackTemplate!).hostname).toBe(
@@ -25,8 +40,7 @@ describe('map config', () => {
     }
   });
 
-  it('strips secret-like keys from stored config', () => {
-    const normalized = normalizeMapConfig({ ...DEFAULT_MAP_CONFIG, apiKey: 'secret-value' });
+  it('strips secret-like keys from stored config', () => {    const normalized = normalizeMapConfig({ ...DEFAULT_MAP_CONFIG, apiKey: 'secret-value' });
     expect((normalized as Record<string, unknown>).apiKey).toBeUndefined();
     expect(JSON.stringify(sanitizeMapConfig(normalized))).not.toContain('secret-value');
   });

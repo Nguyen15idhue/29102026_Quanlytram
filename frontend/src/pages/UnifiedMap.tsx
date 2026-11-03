@@ -44,10 +44,12 @@ export function UnifiedMap() {
   const [tileError, setTileError] = useState<string | null>(null);
   const [retrySignal, setRetrySignal] = useState(0);
   const [fitSignal, setFitSignal] = useState(0);
+  const [resetSignal, setResetSignal] = useState(0);
   const [tempMarker, setTempMarker] = useState<MapTempMarker | null>(null);
   const [panel, setPanel] = useState<MapPanel>(null);
   const [legendOpen, setLegendOpen] = useState(initialLegendOpen);
   const lastQuery = useRef('');
+  const initialFitRef = useRef(true);
   const triggerRef = useRef<HTMLElement | null>(null);
   const skipDrawerRef = useRef(false);
 
@@ -143,6 +145,11 @@ export function UnifiedMap() {
 
   useEffect(() => {
     if (!overview.data) return;
+    if (initialFitRef.current) {
+      initialFitRef.current = false;
+      lastQuery.current = query;
+      return;
+    }
     if (lastQuery.current === query) return;
     lastQuery.current = query;
     setFitSignal((value) => value + 1);
@@ -205,6 +212,7 @@ export function UnifiedMap() {
       layer: 'stations',
       station: null
     });
+    setResetSignal((value) => value + 1);
   }
 
   function handlePickAddress(item: AddressResult) {
@@ -240,6 +248,7 @@ export function UnifiedMap() {
             permissions={permissions}
             tempMarker={tempMarker}
             fitSignal={fitSignal}
+            resetSignal={resetSignal}
             retrySignal={retrySignal}
             onSelect={(id) => {
               skipDrawerRef.current = true;

@@ -30,6 +30,7 @@ interface MapCanvasProps {
   permissions: MapPermissions;
   tempMarker?: MapTempMarker | null;
   fitSignal?: number;
+  resetSignal?: number;
   retrySignal?: number;
   onSelect: (id: number) => void;
   onTileError: (message: string | null) => void;
@@ -127,6 +128,7 @@ export function MapCanvas({
   permissions,
   tempMarker,
   fitSignal = 0,
+  resetSignal = 0,
   retrySignal = 0,
   onSelect,
   onTileError
@@ -139,6 +141,7 @@ export function MapCanvas({
   const accountMarkersRef = useRef(new Map<number, L.Marker[]>());
   const markerSignaturesRef = useRef(new Map<number, string>());
   const tempRef = useRef<L.CircleMarker | null>(null);
+  const archipelagoRef = useRef<L.LayerGroup | null>(null);
   const onTileErrorRef = useRef(onTileError);
   const onSelectRef = useRef(onSelect);
   const initialView = useRef({ center: config.center, zoom: config.zoom });
@@ -199,8 +202,51 @@ export function MapCanvas({
   }, [config, mode, retrySignal]);
 
   useEffect(() => {
-    const layerGroup = markerLayerRef.current;
-    if (!layerGroup) return;
+    const map = mapRef.current;
+    if (!map) return;
+    if (!config.archipelagoLabels) {
+      archipelagoRef.current?.remove();
+      archipelagoRef.current = null;
+      return;
+    }
+    const layer = L.layerGroup();
+    const labels = [
+      { pos: [17.0, 112.35] as [number, number], text: 'Quần đảo Hoàng Sa' },
+      { pos: [9.95, 114.4] as [number, number], text: 'Quần đảo Trường Sa' }
+    ];
+    for (const label of labels) {
+      layer.addLayer(
+        L.marker(label.pos, {
+          interactive: false,
+          keyboard: false,
+          icon: L.divIcon({
+            className: 'map-archipelago-wrap',
+            html: `<span class="map-archipelago">${label.text}</span>`,
+            iconSize: [176, 32],
+            iconAnchor: [88, 16]
+          })
+        })
+      );
+    }
+    const sync = () => {
+      if (map.getZoom() >= config.archipelagoMinZoom) {
+        if (!map.hasLayer(layer)) layer.addTo(map);
+      } else if (map.hasLayer(layer)) {
+        map.removeLayer(layer);
+      }
+    };
+    sync();
+    map.on('zoomend', sync);
+    archipelagoRef.current = layer;
+    return () => {
+      map.off('zoomend', sync);
+      map.removeLayer(layer);
+      archipelagoRef.current = null;
+    };
+  }, [config.archipelagoLabels, config.archipelagoMinZoom]);
+
+  useEffect(() => {
+    const layerGroup = markerLayerRef.current;    if (!layerGroup) return;
 
     const removeStation = (id: number) => {
       const marker = stationMarkersRef.current.get(id);
@@ -321,6 +367,12 @@ export function MapCanvas({
     }
     map.fitBounds(L.latLngBounds(coords), { padding: [32, 32], maxZoom: 12 });
   }, [fitSignal]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || resetSignal === 0) return;
+    map.setView([config.center.lat, config.center.lng], config.zoom);
+  }, [resetSignal, config.center.lat, config.center.lng, config.zoom]);
 
   useEffect(() => {
     const map = mapRef.current;

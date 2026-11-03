@@ -1153,6 +1153,8 @@ export interface MapConfig {
   maxZoom: number;
   maxNativeZoom: number;
   retina: boolean;
+  archipelagoLabels: boolean;
+  archipelagoMinZoom: number;
   center: { lat: number; lng: number };
   zoom: number;
   modes: Record<MapMode, MapModeConfig>;

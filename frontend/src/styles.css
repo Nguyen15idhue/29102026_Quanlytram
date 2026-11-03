@@ -2189,6 +2189,26 @@ label.check input {
   border: 0;
 }
 
+.map-archipelago-wrap {
+  background: transparent;
+  border: 0;
+}
+
+.map-archipelago {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid rgba(31, 41, 55, 0.35);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.94);
+  color: #1f2937;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
 .map-pin {
   width: 16px;
   height: 16px;
@@ -2199,8 +2219,7 @@ label.check input {
 }
 
 .map-pin.selected {
-  width: 23px;
-  height: 23px;
+  width: 23px;  height: 23px;
   border-width: 3px;
   box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.65), 0 3px 10px rgba(0, 0, 0, 0.45);
 }

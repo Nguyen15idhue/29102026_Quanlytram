@@ -60,5 +60,9 @@ Bấm một điểm trên bản đồ để mở thanh chi tiết.
 ## Lưu ý
 
 - Bản đồ dùng ảnh nền công cộng, cần kết nối mạng để tải ảnh.
+- Khi mở trang, bản đồ dùng đúng zoom/tâm trong **Hệ thống → Cấu hình bản đồ**;
+  nút **Về mặc định** đưa về đúng giá trị đó.
+- Nhãn **Quần đảo Hoàng Sa** và **Quần đảo Trường Sa** được phủ lên nền bản đồ
+  từ mức zoom cấu hình (mặc định 6), ẩn ở zoom nhỏ hơn để không che dữ liệu.
 - Nếu ảnh nền không tải được, bảng và danh sách vẫn hoạt động bình thường.
 - Vị trí hiển thị theo toạ độ trong hồ sơ trạm hoặc toạ độ dự phòng.

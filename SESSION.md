@@ -1367,3 +1367,17 @@ Kế hoạch: `docs/1/12_KE_HOACH_RELAY_CHON_TRAM.md`.
   `relay-station-mode.spec.ts` (3 section, đổi mode, banner, tạo relay bằng
   trạm). Gate: server **37 file/179 test**, frontend tsc/build, Playwright toàn
   bộ (ghi ở mục dưới).
+
+## Bản đồ — zoom mặc định & nhãn quần đảo (2026-11-03)
+
+- Bỏ auto-fit khi mở trang: bản đồ dùng đúng `center`/`zoom` trong cấu hình
+  (mặc định 16.0/106.0, zoom 6); auto-fit chỉ chạy khi đổi bộ lọc/tìm kiếm.
+- Nút **Về mặc định** đưa bản đồ về đúng center/zoom cấu hình thay vì chỉ xoá
+  bộ lọc.
+- Cấu hình bản đồ thêm **Hiện nhãn quần đảo** và **Zoom tối thiểu hiện nhãn**
+  (mặc định bật, zoom 6, cho phép 3–12); API `map.config` tự điền mặc định cho
+  dữ liệu cũ.
+- Phủ nhãn **Quần đảo Hoàng Sa** / **Quần đảo Trường Sa** lên nền tile (che
+  tên tiếng Trung), chỉ hiện khi zoom >= ngưỡng cấu hình.
+- Test: server `map.test.ts` 11 case; Playwright `map-archipelago.spec.ts`
+  (2 nhãn ở zoom 6, ẩn khi zoom ra 2 mức, hiện lại khi zoom vào).

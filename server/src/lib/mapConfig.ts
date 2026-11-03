@@ -26,6 +26,8 @@ export interface MapConfig {
   maxZoom: number;
   maxNativeZoom: number;
   retina: boolean;
+  archipelagoLabels: boolean;
+  archipelagoMinZoom: number;
   center: { lat: number; lng: number };
   zoom: number;
   modes: Record<MapMode, MapModeConfig>;
@@ -91,6 +93,8 @@ export const DEFAULT_MAP_CONFIG: MapConfig = {
   maxZoom: 19,
   maxNativeZoom: 19,
   retina: false,
+  archipelagoLabels: true,
+  archipelagoMinZoom: 6,
   center: { lat: 16.0, lng: 106.0 },
   zoom: 6,
   modes: {
@@ -138,6 +142,8 @@ const configSchema = z
     maxZoom: z.number().int().min(0).max(22),
     maxNativeZoom: z.number().int().min(0).max(22),
     retina: z.boolean(),
+    archipelagoLabels: z.boolean().default(true),
+    archipelagoMinZoom: z.number().int().min(3).max(12).default(6),
     center: z
       .object({ lat: z.number().min(-90).max(90), lng: z.number().min(-180).max(180) })
       .strict(),
