@@ -1,6 +1,7 @@
 import { execFileSync, spawn, type ChildProcess } from 'node:child_process';
 import path from 'node:path';
 import { expect, test, type APIRequestContext } from '@playwright/test';
+import { pickCompanyId } from './support/company';
 
 const password = process.env.E2E_PASSWORD ?? '';
 const root = path.resolve(process.cwd(), '..');
@@ -48,6 +49,7 @@ test.describe('Station metrics realtime', () => {
 
       const me = await (await page.request.get('/api/auth/me')).json();
       const headers = { 'X-CSRF-Token': me.csrfToken };
+      const companyId = await pickCompanyId(page.request);
       const listeners = await (
         await page.request.get('/api/caster/listeners?page=1&pageSize=20')
       ).json();
@@ -64,7 +66,8 @@ test.describe('Station metrics realtime', () => {
           caster_listener_id: listener.id,
           caster_username: username,
           caster_password: secret,
-          enabled: true
+          enabled: true,
+          company_id: companyId
         }
       });
       expect(created.status()).toBe(201);
@@ -135,7 +138,8 @@ test.describe('Station metrics realtime', () => {
         page.getByRole('dialog').getByText('offline', { exact: true }).first()
       ).toBeVisible();
 
-      await new Promise((resolve) => setTimeout(resolve, 11_000));
+      // Go resetSession chỉ khi gap > ResetAfter (30s); chờ lâu hơn mốc đó.
+      await new Promise((resolve) => setTimeout(resolve, 32_000));
       push = startSource();
       const reconnected = await poll(async () => {
         const quality = await (
@@ -168,7 +172,7 @@ test.describe('Relay metrics realtime', () => {
   test.skip(!password, 'E2E_PASSWORD is required');
   test.setTimeout(60_000);
 
-  test('online only when both source and destination receive data; lock nulls status', async ({ page }) => {
+  test('online only when both source and destination receive data; lock shows offline', async ({ page }) => {
     execFileSync('go', ['build', '-o', mockExe, '.'], {
       cwd: path.join(root, 'scripts', 'mock-ntrip'),
       stdio: 'ignore'
@@ -183,6 +187,7 @@ test.describe('Relay metrics realtime', () => {
       await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
       const me = await (await page.request.get('/api/auth/me')).json();
       const headers = { 'X-CSRF-Token': me.csrfToken };
+      const companyId = await pickCompanyId(page.request);
 
       mock = spawn(
         mockExe,
@@ -223,7 +228,8 @@ test.describe('Relay metrics realtime', () => {
             mount: `DOWN_${suffix}`,
             ntripVersion: 'v2'
           },
-          downstreamMode: 'source'
+          downstreamMode: 'source',
+          companyId
         }
       });
       expect(created.status()).toBe(201);
@@ -260,12 +266,20 @@ test.describe('Relay metrics realtime', () => {
         await page.request.get(`/api/relay-jobs/${jobId}/status`)
       ).json();
       expect(disabled.item.streamStatus).toBe('offline');
-      await page.request.post(`/api/relay-jobs/${jobId}/lock`, { headers });
+      // Go cần áp dụng cấu hình disable xong mới cho lock (409 khi còn pending/online).
+      const lockDeadline = Date.now() + 20_000;
+      let lockResponse = await page.request.post(`/api/relay-jobs/${jobId}/lock`, { headers });
+      while (!lockResponse.ok() && lockResponse.status() === 409 && Date.now() < lockDeadline) {
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        lockResponse = await page.request.post(`/api/relay-jobs/${jobId}/lock`, { headers });
+      }
+      expect(lockResponse.status(), await lockResponse.text()).toBe(200);
       const locked = await (
         await page.request.get(`/api/relay-jobs/${jobId}/status`)
       ).json();
       expect(locked.item.locked).toBe(true);
-      expect(locked.item.streamStatus).toBeNull();
+      // Ma trận trạng thái P10-2: job khóa hiển thị badge offline, không null.
+      expect(locked.item.streamStatus).toBe('offline');
     } finally {
       if (mock) mock.kill('SIGTERM');
       if (jobId) {

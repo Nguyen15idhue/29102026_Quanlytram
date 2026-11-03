@@ -1,4 +1,5 @@
 import { expect, request as api, test, type APIRequestContext } from '@playwright/test';
+import { pickCompanyId } from './support/company';
 
 const password = process.env.E2E_PASSWORD ?? '';
 const baseURL = 'http://127.0.0.1:3000';
@@ -21,6 +22,7 @@ test.describe('P1.8 relay import JSON', () => {
     try {
       const auth = await login(context);
       const headers = { 'X-CSRF-Token': auth.csrfToken };
+      const companyId = await pickCompanyId(context);
       const name = `E2E Import Relay ${suffix}`;
       const raw = {
         name,
@@ -30,7 +32,8 @@ test.describe('P1.8 relay import JSON', () => {
         dst_host: 'example.invalid',
         dst_port: 1509,
         dst_mount: `DST_${suffix}`,
-        enabled: false
+        enabled: false,
+        company_id: companyId
       };
 
       const dry = await context.post('/api/relay-jobs/import', {

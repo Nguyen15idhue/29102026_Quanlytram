@@ -1,4 +1,5 @@
 import { expect, request as api, test, type APIRequestContext } from '@playwright/test';
+import { pickCompanyId } from './support/company';
 
 const password = process.env.E2E_PASSWORD ?? '';
 const baseURL = 'http://127.0.0.1:3000';
@@ -21,11 +22,16 @@ test.describe('P1.7 NTRIP account listener ACL', () => {
     try {
       const auth = await login(context);
       const headers = { 'X-CSRF-Token': auth.csrfToken };
+      const companyId = await pickCompanyId(context);
       const mountpointIds: number[] = [];
       for (const label of ['M1', 'M2']) {
         const response = await context.post('/api/mountpoints', {
           headers,
-          data: { name: `E2E_ACL_${label}_${suffix}`, enabled: true }
+          data: {
+            name: `E2E_ACL_${label}_${suffix}`,
+            enabled: true,
+            company_id: companyId
+          }
         });
         expect(response.status()).toBe(201);
         const id = (await response.json()).item.id;
@@ -52,7 +58,8 @@ test.describe('P1.7 NTRIP account listener ACL', () => {
           username: `e2e_acl_${suffix}`,
           password: 'Secret123!',
           listenerIds: [listenerId],
-          mountpointIds
+          mountpointIds,
+          company_id: companyId
         }
       });
       expect(accountResponse.status()).toBe(201);

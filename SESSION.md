@@ -1254,3 +1254,29 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - Việc còn lại: `go test -race` trên CI Linux; cập nhật fixture Playwright;
   chuyển dần secret v1 → v2 khi có recordId; theo dõi `relayDegraded`.
 - Bảng tiến độ: `docs/2/THUC_HIEN_FIX_LOI.md` (34/34 DONE).
+
+## Follow-up 2026-11-03 (5 lô)
+
+Board: `docs/2/TODOS_FOLLOWUP.md`.
+
+- Lô A DONE — Playwright fixtures & hạ tầng test:
+  - `frontend/playwright.config.ts` tự nạp `.env.local`, map `SEED_*` →
+    `E2E_*`; admin test mặc định `docs.admin` (tài khoản `admin` đã bị đổi
+    mật khẩu khỏi `SEED_ADMIN_PASSWORD`).
+  - `auth-password-only.spec.ts` viết lại thành test đổi mật khẩu thật ở
+    `/profile`: đổi → đăng nhập lại bằng mật khẩu mới → khôi phục.
+  - `scripts/seed-docs-fixtures.mjs` thêm trạm `DOCS-Trạm Hậu Lộc`,
+    mountpoint `DOCS_HL_RTCM`, relay job `DOCS-Relay Hậu Lộc` (disabled);
+    `station-source.spec.ts` dùng fixture thay vì tên cũ.
+  - Sửa 15 lỗi có sẵn: thiếu `company_id` (p1-bulk, p1-mountpoint,
+    p1-ntrip-acl, p1-relay-import, p1-station-fix, metrics-health), đếm
+    pin/list cứng (map, map-upgrade, unified-map), admin lệch mật khẩu
+    (company, p1-rbac), trạm 79 không còn (p1-unicode), form thiếu chọn công
+    ty + assert xoá (ui), fixture/khôi phục trạng thái (entity-realtime).
+  - Sản phẩm: relay import nhận `company_id`/`owner_web_user_id` trong dòng
+    phẳng; resolve/purge `quality_alerts` qua internal API Go
+    (`/internal/quality/resolve`, `/internal/quality/purge-orphans`) vì
+    `cors_app` chỉ có SELECT trên `cors_runtime`.
+  - Bằng chứng: Playwright **55/55 PASS** (31 file); server **33 file/160
+    test PASS**; `server tsc --noEmit` PASS; `frontend npm run build` PASS;
+    `go build ./...` PASS; Docker `server` + `gnss` rebuild/restart healthy.

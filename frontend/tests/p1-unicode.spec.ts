@@ -12,10 +12,24 @@ test.describe('P1.9 Unicode và hiển thị', () => {
     await page.getByRole('button', { name: 'Đăng nhập' }).click();
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
-    const station = await (await page.request.get('/api/stations/79')).json();
-    expect(station.item.name).toContain('Mộc Châu');
-    expect(station.item.notes).toBe('Trạm thật SLA Mộc Châu');
-    expect(station.item.notes).not.toMatch(/[�Ã]/);
+    // Fixture Unicode do scripts/seed-docs-fixtures.mjs tạo (DB dev có thể đã
+    // đổi id nên không hard-code id trạm thật như trước).
+    const fixtureName = 'DOCS-Trạm Hậu Lộc';
+    const list = await (
+      await page.request.get(
+        `/api/stations?page=1&pageSize=10&q=${encodeURIComponent(fixtureName)}`
+      )
+    ).json();
+    const station = list.items.find(
+      (item: { name: string }) => item.name === fixtureName
+    );
+    expect(
+      station,
+      `Thiếu fixture "${fixtureName}", chạy scripts/seed-docs-fixtures.mjs --apply`
+    ).toBeTruthy();
+    expect(station.name).toContain('Hậu Lộc');
+    expect(station.name).not.toMatch(/[�Ã]/);
+    expect(station.notes ?? '').not.toMatch(/[�Ã]/);
 
     for (const route of ['/stations', '/alerts', '/history']) {
       await page.goto(route);

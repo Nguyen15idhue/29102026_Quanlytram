@@ -1,4 +1,5 @@
 import { expect, request as api, test, type APIRequestContext } from '@playwright/test';
+import { pickCompanyId } from './support/company';
 
 const password = process.env.E2E_PASSWORD ?? '';
 const baseURL = 'http://127.0.0.1:3000';
@@ -20,6 +21,7 @@ test.describe('P1 station connection/coordinate/geo fixes', () => {
     try {
       const auth = await login(context);
       const headers = { 'X-CSRF-Token': auth.csrfToken };
+      const companyId = await pickCompanyId(context);
       const listeners = await (await context.get('/api/caster/listeners?page=1&pageSize=10')).json();
       const listener = listeners.items[0];
       const created = await context.post('/api/stations', {
@@ -32,7 +34,8 @@ test.describe('P1 station connection/coordinate/geo fixes', () => {
           source_role: 'ntrip_caster',
           caster_listener_id: listener.id,
           caster_username: `p1_source_${Date.now()}`,
-          caster_password: 'P1Source123!'
+          caster_password: 'P1Source123!',
+          company_id: companyId
         }
       });
       expect(created.status()).toBe(201);

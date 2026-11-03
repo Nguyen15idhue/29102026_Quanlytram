@@ -1,4 +1,5 @@
 import { expect, request as api, test, type APIRequestContext } from '@playwright/test';
+import { pickCompanyId } from './support/company';
 
 const password = process.env.E2E_PASSWORD ?? '';
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? '';
@@ -88,6 +89,7 @@ test.describe('P1.3 bulk action và shared table', () => {
     try {
       const auth = await loginApi(superCtx, 'superadmin', password);
       const headers = { 'X-CSRF-Token': auth.csrfToken };
+      const companyId = await pickCompanyId(superCtx);
       const listeners = await (
         await superCtx.get('/api/caster/listeners?page=1&pageSize=10')
       ).json();
@@ -103,7 +105,8 @@ test.describe('P1.3 bulk action và shared table', () => {
             caster_listener_id: listener.id,
             caster_username: `bulk_${Date.now()}_${index}`,
             caster_password: 'BulkPass123!',
-            enabled: true
+            enabled: true,
+            company_id: companyId
           }
         });
         expect(response.status()).toBe(201);
@@ -128,7 +131,8 @@ test.describe('P1.3 bulk action và shared table', () => {
         ).toBe(false);
       }
 
-      await loginApi(adminCtx, 'admin', adminPassword);
+      // docs.admin thuộc công ty DOCS_DEMO, không có quyền xoá trạm công ty khác.
+      await loginApi(adminCtx, 'docs.admin', adminPassword);
       const adminMe = await (await adminCtx.get('/api/auth/me')).json();
       const denied = await adminCtx.post('/api/stations/bulk', {
         headers: { 'X-CSRF-Token': adminMe.csrfToken },

@@ -302,6 +302,18 @@ const stations = [
     region: 'Hồ Chí Minh',
     enabled: false,
     status: 'disabled'
+  },
+  {
+    // Fixture cho frontend/tests/station-source.spec.ts (nguồn dữ liệu relay + 1005).
+    name: 'DOCS-Trạm Hậu Lộc',
+    slug: 'HL',
+    lat: 19.930000,
+    lon: 105.750000,
+    province: 'Thanh Hóa',
+    ward: 'Hậu Lộc',
+    region: 'Thanh Hóa',
+    enabled: true,
+    status: 'active'
   }
 ].map((item) => ({ ...item, companyId, ownerId: adminId }));
 
@@ -312,7 +324,8 @@ const mountpoints = [
   { name: 'DOCS_HN_RTCM', stationId: stationIds[0], enabled: true },
   { name: 'DOCS_DN_RTCM', stationId: stationIds[1], enabled: true },
   { name: 'DOCS_HCM_RTCM', stationId: stationIds[2], enabled: false },
-  { name: 'DOCS_HN_TEST', stationId: stationIds[0], enabled: false }
+  { name: 'DOCS_HN_TEST', stationId: stationIds[0], enabled: false },
+  { name: 'DOCS_HL_RTCM', stationId: stationIds[3], enabled: true }
 ].map((item) => ({ ...item, companyId, ownerId: adminId }));
 
 for (const mountpoint of mountpoints) await ensureMountpoint(mountpoint);
@@ -349,6 +362,16 @@ const relayJobs = [
     downstreamMount: 'DOCS_OUT_DN',
     lat: 16.0544,
     lon: 108.2022
+  },
+  {
+    // Gắn vào mountpoint của trạm Hậu Lộc để drawer hiện nguồn "NTRIP caster (relay)".
+    name: 'DOCS-Relay Hậu Lộc',
+    upstreamHost: 'example.invalid',
+    upstreamMount: 'DOCS_HL_RTCM',
+    downstreamHost: 'caster.example.invalid',
+    downstreamMount: 'DOCS_OUT_HL',
+    lat: 19.93,
+    lon: 105.75
   }
 ].map((item) => ({ ...item, companyId, ownerId: adminId }));
 

@@ -26,13 +26,23 @@ test.describe('Phase 8 maps', () => {
     await page.getByRole('button', { name: 'Đăng nhập' }).click();
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
+    // Số pin phụ thuộc dữ liệu DB; tính kỳ vọng từ chính API của trang.
+    const overview = await (
+      await page.request.get('/api/map/overview?layer=stations')
+    ).json();
+    const expectedPins = overview.items.filter(
+      (item: { lat: number | null; lon: number | null }) =>
+        item.lat !== null && item.lon !== null
+    ).length;
+    expect(expectedPins).toBeGreaterThan(0);
+
     await page.goto('/stations/map');
     await expect(page).toHaveURL(/\/map\?layer=stations/);
     await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
     await expect(page.locator('.leaflet-container')).toBeVisible();
     await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');
     await expect(page.locator('.map-legend-card')).toBeVisible();
-    await expect(page.locator('.map-pin')).toHaveCount(2, { timeout: 10_000 });
+    await expect(page.locator('.map-pin')).toHaveCount(expectedPins, { timeout: 10_000 });
 
     await page.goto('/online');
     await expect(page.getByRole('heading', { name: 'Danh sách online' })).toBeVisible();

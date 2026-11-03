@@ -33,6 +33,8 @@ test.describe('Phase 3.5 UI', () => {
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     await dialog.getByLabel('Tên trạm').fill(`UI test ${suffix}`);
+    // super_admin phải chọn công ty (server trả COMPANY_REQUIRED nếu bỏ trống).
+    await dialog.getByLabel('Công ty').selectOption({ index: 1 });
     await dialog.getByLabel('Listener / port').selectOption({ index: 1 });
     await dialog.getByLabel('Caster username').fill(`ui_${suffix}`);
     await dialog.getByLabel('Caster password').fill('UIStation123!');
@@ -54,7 +56,10 @@ test.describe('Phase 3.5 UI', () => {
     await page.getByRole('button', { name: `Xóa UI test ${suffix}` }).click();
     await expect(page.getByRole('alertdialog')).toBeVisible();
     await page.getByRole('alertdialog').getByRole('button', { name: 'Xóa' }).click();
-    await expect(page.getByText(`UI test ${suffix}`)).toHaveCount(0);
+    await expect(page.locator('.data-table').getByText(`UI test ${suffix}`)).toHaveCount(0);
+    await expect(
+      page.getByRole('row', { name: new RegExp(`UI test ${suffix}`) })
+    ).toHaveCount(0);
 
     for (const route of ['/mountpoints', '/relay-jobs', '/caster', '/ntrip-accounts', '/web-users', '/roles']) {
       await page.goto(route);

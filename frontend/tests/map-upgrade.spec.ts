@@ -41,11 +41,28 @@ test.describe('P06-2 map filters, address search and interactions', () => {
 
     await page.setViewportSize({ width: 1440, height: 900 });
     await login(page);
+
+    type MapItem = { lat: number | null; lon: number | null };
+    const overview = async (query: string) =>
+      (await (await page.request.get(`/api/map/overview?${query}`)).json()) as {
+        items: MapItem[];
+      };
+    const pinCount = (items: MapItem[]) =>
+      items.filter((item) => item.lat !== null && item.lon !== null).length;
+    const stationsView = await overview('layer=stations');
+    const allItems = stationsView.items.length;
+    const allPins = pinCount(stationsView.items);
+    const onlineView = await overview('layer=online');
+    const onlinePins = pinCount(onlineView.items);
+    const hnView = await overview(`layer=stations&q=${encodeURIComponent('Hà Nội')}`);
+    expect(allItems).toBeGreaterThan(0);
+    expect(allPins).toBeGreaterThan(0);
+
     await page.goto('/map?layer=stations');
 
     await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
     await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');
-    await expect(page.locator('.map-pin')).toHaveCount(2, { timeout: 15_000 });
+    await expect(page.locator('.map-pin')).toHaveCount(allPins, { timeout: 15_000 });
     await expect(page.locator('.marker-cluster')).toHaveCount(0);
 
     await page.getByRole('button', { name: 'Lớp bản đồ' }).click();
@@ -55,24 +72,24 @@ test.describe('P06-2 map filters, address search and interactions', () => {
       .selectOption('online');
     await page.keyboard.press('Escape');
     await expect(page).toHaveURL(/layer=online/);
-    await expect(page.locator('.map-pin')).toHaveCount(1);
+    await expect(page.locator('.map-pin')).toHaveCount(onlinePins);
 
     await page.getByRole('button', { name: 'Bộ lọc' }).click();
     await page.getByRole('button', { name: /Xoá lọc/ }).click();
     await page.keyboard.press('Escape');
     await expect(page).toHaveURL(/layer=stations/);
-    await expect(page.locator('.map-pin')).toHaveCount(2);
+    await expect(page.locator('.map-pin')).toHaveCount(allPins);
 
     await page.getByLabel('Tìm trạm hoặc địa chỉ').fill('Hà Nội');
     await expect(page).toHaveURL(/[?&]q=/);
     await page.getByRole('button', { name: 'Danh sách trạm' }).click();
-    await expect(page.locator('.map-list-item')).toHaveCount(2);
+    await expect(page.locator('.map-list-item')).toHaveCount(hnView.items.length);
 
     await page.getByRole('button', { name: 'Bộ lọc' }).click();
     await page.getByRole('button', { name: /Xoá lọc/ }).click();
     await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Danh sách trạm' }).click();
-    await expect(page.locator('.map-list-item')).toHaveCount(4);
+    await expect(page.locator('.map-list-item')).toHaveCount(allItems);
 
     await page.locator('.map-list-item').first().click();
     await expect(page).toHaveURL(/station=/);

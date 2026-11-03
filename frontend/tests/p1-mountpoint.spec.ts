@@ -1,4 +1,5 @@
 import { expect, request as api, test, type APIRequestContext } from '@playwright/test';
+import { pickCompanyId } from './support/company';
 
 const password = process.env.E2E_PASSWORD ?? '';
 const baseURL = 'http://127.0.0.1:3000';
@@ -22,10 +23,11 @@ test.describe('P1.6 mountpoint và listener', () => {
     try {
       const auth = await login(context);
       const headers = { 'X-CSRF-Token': auth.csrfToken };
+      const companyId = await pickCompanyId(context);
       const name = `E2E_MP_${suffix}`;
       const mountpoint = await context.post('/api/mountpoints', {
         headers,
-        data: { name, enabled: true, description: 'P1.6 test' }
+        data: { name, enabled: true, description: 'P1.6 test', company_id: companyId }
       });
       expect(mountpoint.status()).toBe(201);
       const mp = (await mountpoint.json()).item;

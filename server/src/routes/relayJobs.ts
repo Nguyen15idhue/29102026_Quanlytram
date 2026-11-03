@@ -1581,6 +1581,8 @@ function normalizeImportItem(raw: any): any {
   return {
     id: raw.id,
     externalKey: raw.external_key ?? raw.externalKey ?? null,
+    companyId: raw.company_id ?? raw.companyId,
+    ownerWebUserId: raw.owner_web_user_id ?? raw.ownerWebUserId,
     name: raw.name ?? raw.external_key ?? `Import ${Date.now()}`,
     enabled: Boolean(raw.enabled ?? false),
     upstream: {

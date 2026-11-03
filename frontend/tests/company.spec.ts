@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test';
 
 const superPassword = process.env.E2E_PASSWORD ?? '';
 const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? '';
+const adminUsername = process.env.E2E_ADMIN_USERNAME ?? 'docs.admin';
 
 async function login(page: any, username: string, password: string) {
   await page.goto('/login');
@@ -62,7 +63,7 @@ test.describe('P05 UI công ty', () => {
   test('admin không thấy menu Công ty và không có CRUD listener', async ({ page }) => {
     test.skip(!adminPassword, 'E2E_ADMIN_PASSWORD is required');
     await page.setViewportSize({ width: 1440, height: 900 });
-    await login(page, 'admin', adminPassword);
+    await login(page, adminUsername, adminPassword);
     await expect(page.getByRole('link', { name: 'Công ty' })).toHaveCount(0);
     await page.goto('/caster');
     await expect(page.getByRole('heading', { name: 'Caster' })).toBeVisible();

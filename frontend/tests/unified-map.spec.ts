@@ -27,12 +27,24 @@ test.describe('P0 Phase 3 unified map', () => {
     await page.getByRole('button', { name: 'Đăng nhập' }).click();
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
+    type MapItem = { lat: number | null; lon: number | null };
+    const overview = async (query: string) =>
+      (await (await page.request.get(`/api/map/overview?${query}`)).json()) as {
+        items: MapItem[];
+      };
+    const pinCount = (items: MapItem[]) =>
+      items.filter((item) => item.lat !== null && item.lon !== null).length;
+    const stationsView = await overview('layer=stations');
+    const allPins = pinCount(stationsView.items);
+    const hnView = await overview(`layer=stations&q=${encodeURIComponent('Hà Nội')}`);
+    expect(allPins).toBeGreaterThan(0);
+
     await page.goto('/stations/map');
     await expect(page).toHaveURL(/\/map\?layer=stations/);
     await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
     await expect(page.locator('.leaflet-container')).toBeVisible();
     await expect(page.locator('.leaflet-control-attribution')).toContainText('OpenStreetMap');
-    await expect(page.locator('.map-pin')).toHaveCount(2, { timeout: 15_000 });
+    await expect(page.locator('.map-pin')).toHaveCount(allPins, { timeout: 15_000 });
 
     await page.goto('/online/map');
     await expect(page).toHaveURL(/\/map\?layer=online/);
@@ -47,7 +59,8 @@ test.describe('P0 Phase 3 unified map', () => {
     await page.getByLabel('Tìm trạm hoặc địa chỉ').fill('Hà Nội');
     await expect(page).toHaveURL(/[?&]q=/);
     await page.getByRole('button', { name: 'Danh sách trạm' }).click();
-    await expect(page.locator('.map-list-item')).toHaveCount(2);
+    await expect(page.locator('.map-list-item')).toHaveCount(hnView.items.length);
+    const selectedName = (await page.locator('.map-list-item strong').first().innerText()).trim();
     await page.locator('.map-list-item').first().click();
     await expect(page).toHaveURL(/station=/);
     await expect(page.getByRole('button', { name: /Mở chi tiết trạm/ })).toBeVisible();
@@ -55,7 +68,7 @@ test.describe('P0 Phase 3 unified map', () => {
 
     await page.getByRole('button', { name: /Mở chi tiết trạm/ }).click();
     await expect(page).toHaveURL(/\/stations\/\d+/);
-    await expect(page.getByText('Trạm test Hà Nội 01').first()).toBeVisible();
+    await expect(page.getByText(selectedName).first()).toBeVisible();
     await page.goBack();
     await expect(page.getByRole('heading', { name: 'Bản đồ vận hành' })).toBeVisible();
 

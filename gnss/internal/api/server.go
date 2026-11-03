@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -115,6 +116,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/internal/caster/listeners", s.requireSignature(s.handleCasterListeners, http.MethodGet))
 	mux.HandleFunc("/internal/rtcm/snapshot", s.requireSignature(s.handleQualitySnapshot, http.MethodGet))
 	mux.HandleFunc("/internal/rtcm/health", s.requireSignature(s.handleQualityHealth, http.MethodGet))
+	mux.HandleFunc("/internal/quality/resolve", s.requireSignature(s.handleQualityResolve, http.MethodPost))
+	mux.HandleFunc("/internal/quality/purge-orphans", s.requireSignature(s.handleQualityPurgeOrphans, http.MethodPost))
 	mux.HandleFunc("/internal/maintenance/status", s.requireSignature(s.handleMaintenanceStatus, http.MethodGet))
 	mux.HandleFunc("/internal/maintenance/prune", s.requireSignature(s.handleMaintenancePrune, http.MethodPost))
 	mux.HandleFunc("/internal/maintenance/reconcile", s.requireSignature(s.handleMaintenanceReconcile, http.MethodPost))
@@ -493,6 +496,61 @@ func (s *Server) handleMaintenanceReconcile(w http.ResponseWriter, r *http.Reque
 		"reloaded": true,
 		"jobs":     len(status.Jobs),
 	})
+}
+
+// handleQualityResolve closes open quality alerts of a deleted target.
+// Node calls this instead of writing cors_runtime directly: only Go writes
+// runtime tables, and cors_app has SELECT-only grants on cors_runtime.
+func (s *Server) handleQualityResolve(w http.ResponseWriter, r *http.Request, body []byte) {
+	var request struct {
+		TargetType string `json:"targetType"`
+		TargetID   int64  `json:"targetId"`
+	}
+	if err := json.Unmarshal(body, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid body")
+		return
+	}
+	if request.TargetID <= 0 || (request.TargetType != "station" && request.TargetType != "relay_job") {
+		writeError(w, http.StatusBadRequest, "targetType must be station or relay_job and targetId > 0")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
+	defer cancel()
+	result, err := s.db.ExecContext(ctx,
+		`UPDATE quality_alerts
+		    SET resolved_at = UTC_TIMESTAMP(3)
+		  WHERE target_type = ? AND target_id = ? AND resolved_at IS NULL`,
+		request.TargetType, request.TargetID,
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "resolve quality alerts failed")
+		return
+	}
+	affected, _ := result.RowsAffected()
+	writeJSON(w, http.StatusOK, map[string]any{"resolved": affected})
+}
+
+// handleQualityPurgeOrphans closes alerts whose station/relay job no longer
+// exists. Same reasoning as handleQualityResolve: the write stays in Go.
+func (s *Server) handleQualityPurgeOrphans(w http.ResponseWriter, r *http.Request, _ []byte) {
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+	query := fmt.Sprintf(`UPDATE quality_alerts qa
+		LEFT JOIN `+"`%s`"+`.stations s
+		       ON qa.target_type = 'station' AND s.id = qa.target_id
+		LEFT JOIN `+"`%s`"+`.relay_jobs r
+		       ON qa.target_type = 'relay_job' AND r.id = qa.target_id AND r.deleted_at IS NULL
+		SET qa.resolved_at = UTC_TIMESTAMP(3)
+		WHERE qa.resolved_at IS NULL
+		  AND ((qa.target_type = 'station' AND s.id IS NULL)
+		    OR (qa.target_type = 'relay_job' AND r.id IS NULL))`, s.adminDB, s.adminDB)
+	result, err := s.db.ExecContext(ctx, query)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "purge quality alerts failed")
+		return
+	}
+	affected, _ := result.RowsAffected()
+	writeJSON(w, http.StatusOK, map[string]any{"resolved": affected})
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

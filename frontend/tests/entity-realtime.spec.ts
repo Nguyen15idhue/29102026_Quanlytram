@@ -15,26 +15,36 @@ test.describe('Realtime entity invalidation', () => {
     await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
 
     const me = await (await page.request.get('/api/auth/me')).json();
+    // Fixture do scripts/seed-docs-fixtures.mjs tạo; tránh tên cũ đã bị xoá khỏi DB.
+    const stationName = 'DOCS-Trạm Hà Nội';
     const stations = await (
       await page.request.get(
-        '/api/stations?page=1&pageSize=30&q=E2E%20Caster%20Ingest'
+        `/api/stations?page=1&pageSize=30&q=${encodeURIComponent(stationName)}`
       )
     ).json();
-    const station = stations.items[0];
-    expect(station).toBeTruthy();
+    const station = stations.items.find(
+      (item: { name: string }) => item.name === stationName
+    );
+    expect(station, `Thiếu fixture "${stationName}", chạy scripts/seed-docs-fixtures.mjs --apply`).toBeTruthy();
 
     const headers = { 'X-CSRF-Token': me.csrfToken };
-    await page.request.post(`/api/stations/${station.id}/disable`, { headers });
-    await page.goto('/stations');
-    const row = page.getByRole('row', { name: new RegExp(station.name) }).first();
-    await expect(row).toBeVisible();
-    await expect(row.getByText('offline')).toBeVisible();
+    const wasEnabled = Boolean(station.enabled);
+    try {
+      await page.request.post(`/api/stations/${station.id}/disable`, { headers });
+      await page.goto('/stations');
+      const row = page.getByRole('row', { name: new RegExp(station.name) }).first();
+      await expect(row).toBeVisible();
+      await expect(row.getByRole('button', { name: `Bật ${station.name}` })).toBeVisible();
 
-    await page.request.post(`/api/stations/${station.id}/enable`, { headers });
-    await expect(row.getByText('offline')).toHaveCount(0, { timeout: 2500 });
-
-    await page.request.post(`/api/stations/${station.id}/disable`, { headers });
-    await expect(row.getByText('offline')).toBeVisible({ timeout: 2500 });
+      await page.request.post(`/api/stations/${station.id}/enable`, { headers });
+      await expect(row.getByRole('button', { name: `Tắt ${station.name}` })).toBeVisible({
+        timeout: 2500
+      });
+    } finally {
+      if (!wasEnabled) {
+        await page.request.post(`/api/stations/${station.id}/disable`, { headers });
+      }
+    }
     expect(errors).toEqual([]);
   });
 });
