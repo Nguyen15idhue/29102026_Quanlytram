@@ -332,3 +332,14 @@ Cần xác nhận khi duyệt:
 - Mock TCP: publish 1509/1508 không Basic → `ICY 200 OK`; đọc không account →
   `401`; đọc bằng `nguyen` → `200`; đọc mountpoint 1509 qua 1508 → `404`.
 - Audit ghi 1 entry `legacy_core` (không chứa secret).
+
+### Bước 5 — Import relay + credential (disabled)
+
+- `--apply-relays`: tạo 67 relay job `external_key` = id cũ, giữ nguyên host/
+  port/mount nguồn & đích, `enabled=0`, tags `{legacyEnabled, legacyId}`,
+  owner/company Wally, origin `import`.
+- Credential: 129 bản ghi (67 upstream + 62 downstream), mã hoá v2 + AAD;
+  chạy lại lần 2 = tạo 0/cập nhật 67 (idempotent).
+- Go reconcile: `/health` `relayDegraded=false`, log không có job lỗi credential.
+- API: superadmin và wally đều thấy 36 trạm / 31 mountpoint / 67 relay /
+  3 account; 0 relay bật.
