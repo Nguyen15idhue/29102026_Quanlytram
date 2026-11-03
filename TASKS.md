@@ -768,6 +768,10 @@ bảng tiến độ: `docs/2/THUC_HIEN_FIX_LOI.md`.
 | 3 | Production hardening SEC-F03/06/09/10/13/18 | DONE (gộp C6+C7) |
 | 4 | Trung bình FIX-07..14 | DONE |
 | 5 | Low/hardening FIX-15/16 + SEC-F05/08/11/12/14/15/19/21 | DONE |
+| 6 | Follow-up 2026-11-03: Playwright fixtures, relayDegraded, race CI, AAD relay, rotate secret | DONE |
+
+Gate chốt đợt 6: Playwright 56/56; server 36 file/174 test; Go build/vet/test
++ `go test -race`; FE build; DB secret 100% v2 (relay 5/5, station source 1/1).
 
 Gate chốt: server 32 file/157 test; Go build/vet/test; FE build; compose dev +
 production OK; secret scan 0; Playwright 9 PASS/3 skip/1 FAIL có sẵn (fixture).

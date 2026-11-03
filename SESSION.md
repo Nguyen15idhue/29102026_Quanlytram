@@ -1280,3 +1280,36 @@ Board: `docs/2/TODOS_FOLLOWUP.md`.
   - Bằng chứng: Playwright **55/55 PASS** (31 file); server **33 file/160
     test PASS**; `server tsc --noEmit` PASS; `frontend npm run build` PASS;
     `go build ./...` PASS; Docker `server` + `gnss` rebuild/restart healthy.
+- Lô B DONE — `relayDegraded`:
+  - Go `/health` luôn phát `relayDegraded` + helper có 4 case test;
+    `systemHealth` gọi `/health` song song, degraded → Go metric `warn`.
+  - `useSystemHealth` dùng chung; `HealthTab` thêm card Relay; `Layout` banner
+    `--warn` chỉ cho `system_health.view`.
+  - Bằng chứng: Playwright **56/56 PASS** (3.3 phút); server **34 file/163
+    test**; Go build/vet/test PASS; ảnh mobile 390 không tràn.
+- Lô C DONE — race + CI:
+  - `go test -race ./...` trong `golang:1.24`: toàn bộ package `ok`, không
+    race (Windows thiếu gcc nên chạy bằng container).
+  - `.github/workflows/gnss-race.yml` (push `main` + PR khi `gnss/**` đổi);
+    cách chạy ghi ở `docs/OPS.md` §6.1.
+- Lô D DONE — AAD read-path:
+  - `relay/probe store` select id credential và giải mã bằng
+    `secret.DecryptRecord` (AAD `relay_credentials:password_enc:<id>`; v1 vẫn
+    đọc được); Node ghi v2 qua `lib/relayCredentials.ts` (INSERT lấy id rồi
+    UPDATE trong transaction), route + CLI import dùng chung.
+  - Sửa `relay/station_source.go`: trước đó dùng `DecryptWithAAD` nên secret
+    v1 của `station_sources` không đọc được (station 480 lỗi
+    "secret authentication failed"); nay stream lại.
+  - Bằng chứng: Go test mới cho `DecryptRecord` + `scanJob` (v1/v2/sai id);
+    server **35 file/170 test**; smoke tạo credential → DB `v2:0:`, decrypt
+    đúng AAD; Playwright relay 4/4; `/health` `relayDegraded:false`.
+- Lô E DONE — rotate secret:
+  - `npm run rotate:secrets` (dry-run) + `--apply`; phạm vi
+    `relay_credentials.password_enc`, `station_sources.client_password_enc`;
+    fallback `APP_ENC_KEY_PREVIOUS`; verify từng dòng trong transaction.
+  - Backup `cors_admin` 3.065.100 bytes ra `%TEMP%\opencode\db-backup\`
+    (ngoài repo); apply 6/6; DB 5/5 + 1/1 v2; chạy lại dry-run = 0; restart
+    gnss healthy, station 480 stream bằng v2.
+  - Server **36 file/174 test**; quy trình ghi ở `docs/OPS.md` §6.2.
+- Lưu ý: trạm 480 (`TestHauLoc`) trỏ caster công khai `rtktk.online` đang
+  stream trong dev; không dùng cho test tự động (mock-first).

@@ -84,3 +84,15 @@
 - SEC-F11: nginx production đổi cổng nội bộ 80 → 8080 để chạy non-root.
 - Playwright: 2 spec phụ thuộc fixture/quyền của superadmin cần cập nhật dữ
   liệu E2E trước khi dùng làm cổng chặn release.
+
+## Follow-up 2026-11-03
+
+- Lô A DONE: Playwright 56/56, fixture `DOCS-Trạm Hậu Lộc`, đổi mật khẩu thật.
+- Lô B DONE: Go `/health` phát `relayDegraded`; card Relay + banner topbar.
+- Lô C DONE: `go test -race` sạch; workflow `.github/workflows/gnss-race.yml`.
+- Lô D DONE: `relay_credentials` đọc/ghi v2 + AAD `relay_credentials:password_enc:<id>`;
+  sửa `station_source` để secret v1 còn đọc được (station 480 stream lại).
+- Lô E DONE: `rotate:secrets` dry-run/`--apply`; đã backup `cors_admin` và
+  rotate 6/6 secret sang v2, chạy lại dry-run = 0; `docs/OPS.md` §6.2.
+- Còn theo dõi: trạm 480 (`TestHauLoc`) trỏ caster công khai `rtktk.online`
+  đang stream trong dev; không dùng làm test tự động.
