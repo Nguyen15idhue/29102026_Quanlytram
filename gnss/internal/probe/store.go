@@ -40,7 +40,7 @@ func NewMySQLStore(db *sql.DB, encKey string) *MySQLStore {
 const query = `
 SELECT p.id, p.station_id, COALESCE(p.mountpoint_id, 0),
        CAST(s.id AS CHAR), s.host, s.port, COALESCE(m.name, ''),
-       COALESCE(rc.username, ''), COALESCE(rc.password_enc, ''),
+       COALESCE(rc.username, ''), COALESCE(rc.password_enc, ''), COALESCE(rc.id, 0),
        p.probe_interval_sec, s.lat, s.lon
   FROM station_probes p
   JOIN stations s ON s.id = p.station_id
@@ -48,6 +48,15 @@ SELECT p.id, p.station_id, COALESCE(p.mountpoint_id, 0),
   LEFT JOIN relay_credentials rc ON rc.id = p.credential_id
  WHERE p.enabled = 1 AND s.enabled = 1 AND s.status <> 'locked'
  ORDER BY p.id`
+
+// credentialAAD là AAD của secret trong relay_credentials, khớp với Node
+// (`relay_credentials:password_enc:<id>`).
+func credentialAAD(credentialID int64) string {
+	if credentialID <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("relay_credentials:password_enc:%d", credentialID)
+}
 
 func (s *MySQLStore) LoadAll(ctx context.Context) ([]*Config, error) {
 	rows, err := s.db.QueryContext(ctx, query)
@@ -62,6 +71,7 @@ func (s *MySQLStore) LoadAll(ctx context.Context) ([]*Config, error) {
 			cfg                Config
 			intervalSec        int
 			username, password string
+			credentialID       int64
 			lat, lon           sql.NullFloat64
 		)
 		if err := rows.Scan(
@@ -74,6 +84,7 @@ func (s *MySQLStore) LoadAll(ctx context.Context) ([]*Config, error) {
 			&cfg.Mount,
 			&username,
 			&password,
+			&credentialID,
 			&intervalSec,
 			&lat,
 			&lon,
@@ -82,7 +93,7 @@ func (s *MySQLStore) LoadAll(ctx context.Context) ([]*Config, error) {
 		}
 		cfg.Username = username
 		if password != "" {
-			plain, err := secret.Decrypt(password, s.encKey)
+			plain, err := secret.DecryptRecord(password, s.encKey, credentialAAD(credentialID))
 			if err != nil {
 				return nil, fmt.Errorf("probe %d credential: %w", cfg.ID, err)
 			}

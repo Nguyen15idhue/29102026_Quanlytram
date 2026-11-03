@@ -5,12 +5,12 @@ import { adminPool, query, withTransaction } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
 import { writeAudit } from '../lib/audit';
 import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
-import { encryptSecret } from '../lib/crypto';
 import { endpointKey } from '../lib/endpointKey';
 import { asyncHandler, ApiError } from '../lib/http';
 import { callGoInternal } from '../lib/internalApi';
 import { dataUptime } from '../lib/dataUptime';
 import { resolveQualityAlerts } from '../lib/qualityAlerts';
+import { upsertRelayCredential, type CredentialInput } from '../lib/relayCredentials';
 import { historyDirection } from '../lib/historyDirection';
 import {
   buildStatusTimeline,
@@ -121,11 +121,6 @@ const JOB_SELECT = `
     LEFT JOIN relay_credentials dc ON dc.id = j.downstream_credential_id
     LEFT JOIN web_users u ON u.id = j.owner_web_user_id
     LEFT JOIN companies c ON c.id = j.company_id`;
-
-interface CredentialInput {
-  username: string;
-  password?: string;
-}
 
 function publicJob(row: any, state: any) {
   return {
@@ -335,48 +330,6 @@ function attachRuntime(row: any, state: any, metrics: GoRelayMetrics | undefined
         }
       : null
   };
-}
-
-async function upsertCredential(
-  conn: any,
-  input: CredentialInput | null | undefined,
-  existingId: number | null,
-  name: string,
-  ownerId: number,
-  actorId: number,
-  companyId: number | null = null
-): Promise<number | null> {
-  if (input === undefined) return existingId;
-  if (input === null) return null;
-
-  if (existingId) {
-    const [rows] = await conn.query('SELECT id FROM relay_credentials WHERE id = ?', [existingId]);
-    if (rows.length > 0) {
-      if (input.password) {
-        await conn.query(
-          'UPDATE relay_credentials SET name = ?, username = ?, password_enc = ? WHERE id = ?',
-          [name, input.username, encryptSecret(input.password), existingId]
-        );
-      } else {
-        await conn.query('UPDATE relay_credentials SET name = ?, username = ? WHERE id = ?', [
-          name,
-          input.username,
-          existingId
-        ]);
-      }
-      return existingId;
-    }
-  }
-
-  if (!input.password) {
-    throw new ApiError(400, 'CREDENTIAL_PASSWORD_REQUIRED', 'Cần mật khẩu cho credential mới');
-  }
-  const [result]: any = await conn.query(
-    `INSERT INTO relay_credentials (name, username, password_enc, owner_web_user_id, company_id, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [name, input.username, encryptSecret(input.password), ownerId, companyId, actorId]
-  );
-  return Number(result.insertId);
 }
 
 async function assertNoCycles(proposed: {
@@ -1222,7 +1175,7 @@ relayJobsRouter.post(
     let jobId: number;
     try {
       jobId = await withTransaction(async (conn) => {
-        const upstreamCredentialId = await upsertCredential(
+        const upstreamCredentialId = await upsertRelayCredential(
           conn,
           body.upstreamCredential,
           null,
@@ -1231,7 +1184,7 @@ relayJobsRouter.post(
           req.auth!.id,
           companyId
         );
-        const downstreamCredentialId = await upsertCredential(
+        const downstreamCredentialId = await upsertRelayCredential(
           conn,
           body.downstreamCredential,
           null,
@@ -1372,7 +1325,7 @@ relayJobsRouter.patch(
 
     try {
       await withTransaction(async (conn) => {
-        const upstreamCredentialId = await upsertCredential(
+        const upstreamCredentialId = await upsertRelayCredential(
           conn,
           body.upstreamCredential,
           before.upstream_credential_id === null
@@ -1383,7 +1336,7 @@ relayJobsRouter.patch(
           req.auth!.id,
           companyId
         );
-        const downstreamCredentialId = await upsertCredential(
+        const downstreamCredentialId = await upsertRelayCredential(
           conn,
           body.downstreamCredential,
           before.downstream_credential_id === null
@@ -1694,7 +1647,7 @@ relayJobsRouter.post(
             ownerId = ownership.ownerId;
             companyId = ownership.companyId;
           }
-          const upstreamCredentialId = await upsertCredential(
+          const upstreamCredentialId = await upsertRelayCredential(
             conn,
             bodyItem.upstreamCredential,
             existing?.upstream_credential_id
@@ -1705,7 +1658,7 @@ relayJobsRouter.post(
             req.auth!.id,
             companyId
           );
-          const downstreamCredentialId = await upsertCredential(
+          const downstreamCredentialId = await upsertRelayCredential(
             conn,
             bodyItem.downstreamCredential,
             existing?.downstream_credential_id

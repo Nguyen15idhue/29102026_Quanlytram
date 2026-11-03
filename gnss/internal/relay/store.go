@@ -34,9 +34,9 @@ func (s *MySQLStore) Degraded() bool {
 const jobColumns = `
   j.id, COALESCE(j.external_key, ''), j.name, j.enabled, j.desired_revision,
   j.upstream_host, j.upstream_port, j.upstream_mount, j.upstream_proxy, j.upstream_ssl, j.upstream_ntrip_version,
-  COALESCE(uc.username, ''), COALESCE(uc.password_enc, ''),
+  COALESCE(uc.username, ''), COALESCE(uc.password_enc, ''), IFNULL(j.upstream_credential_id, 0),
   j.downstream_host, j.downstream_port, j.downstream_mount, j.downstream_proxy, j.downstream_ssl, j.downstream_ntrip_version,
-  COALESCE(dc.username, ''), COALESCE(dc.password_enc, ''),
+  COALESCE(dc.username, ''), COALESCE(dc.password_enc, ''), IFNULL(j.downstream_credential_id, 0),
   j.downstream_mode, j.lat, j.lon, j.ua_prefix, j.nmea_interval_sec, j.origin,
   j.upstream_key, j.downstream_key,
   j.deleted_at, j.locked, IFNULL(s.enabled, 1), IFNULL(s.status, '')
@@ -50,17 +50,28 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
+// credentialAAD là AAD dùng cho secret của bảng relay_credentials, đồng nhất
+// với Node (`relay_credentials:password_enc:<id>`). id <= 0 nghĩa là job
+// không tham chiếu credential nên không có AAD.
+func credentialAAD(credentialID int64) string {
+	if credentialID <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("relay_credentials:password_enc:%d", credentialID)
+}
+
 func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 	var (
-		job                                       JobConfig
-		enabled, upstreamSSL, downstreamSSL       int
-		lat, lon                                  sql.NullFloat64
-		upstreamUsername, upstreamPasswordEnc     string
-		downstreamUsername, downstreamPasswordEnc string
-		dbUpstreamKey, dbDownstreamKey            string
-		deletedAt                                 sql.NullTime
-		locked, stationEnabled                    int
-		stationStatus                             string
+		job                                          JobConfig
+		enabled, upstreamSSL, downstreamSSL          int
+		lat, lon                                     sql.NullFloat64
+		upstreamUsername, upstreamPasswordEnc        string
+		downstreamUsername, downstreamPasswordEnc    string
+		upstreamCredentialID, downstreamCredentialID int64
+		dbUpstreamKey, dbDownstreamKey               string
+		deletedAt                                    sql.NullTime
+		locked, stationEnabled                       int
+		stationStatus                                string
 	)
 	err := scanner.Scan(
 		&job.ID,
@@ -76,6 +87,7 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 		&job.Upstream.NtripVersion,
 		&upstreamUsername,
 		&upstreamPasswordEnc,
+		&upstreamCredentialID,
 		&job.Downstream.Host,
 		&job.Downstream.Port,
 		&job.Downstream.Mount,
@@ -84,6 +96,7 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 		&job.Downstream.NtripVersion,
 		&downstreamUsername,
 		&downstreamPasswordEnc,
+		&downstreamCredentialID,
 		&job.DownstreamMode,
 		&lat,
 		&lon,
@@ -123,14 +136,22 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 	job.Downstream.HasCredential = downstreamUsername != "" || downstreamPasswordEnc != ""
 
 	if upstreamPasswordEnc != "" {
-		password, err := secret.Decrypt(upstreamPasswordEnc, s.encKey)
+		password, err := secret.DecryptRecord(
+			upstreamPasswordEnc,
+			s.encKey,
+			credentialAAD(upstreamCredentialID),
+		)
 		if err != nil {
 			return nil, fmt.Errorf("job %d upstream credential: %w", job.ID, err)
 		}
 		job.Upstream.Password = password
 	}
 	if downstreamPasswordEnc != "" {
-		password, err := secret.Decrypt(downstreamPasswordEnc, s.encKey)
+		password, err := secret.DecryptRecord(
+			downstreamPasswordEnc,
+			s.encKey,
+			credentialAAD(downstreamCredentialID),
+		)
 		if err != nil {
 			return nil, fmt.Errorf("job %d downstream credential: %w", job.ID, err)
 		}

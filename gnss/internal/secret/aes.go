@@ -40,6 +40,16 @@ func DecryptWithAAD(payload, keyBase64, aad string) (string, error) {
 	return decrypt(payload, keyBase64, aad)
 }
 
+// DecryptRecord giải mã secret gắn với một bản ghi: v2 (có AAD) hoặc v1
+// (không AAD, dữ liệu cũ). Giai đoạn chuyển tiếp v1 → v2 dùng hàm này để
+// không phải rotate toàn bộ trước khi deploy.
+func DecryptRecord(payload, keyBase64, aad string) (string, error) {
+	if strings.HasPrefix(payload, formatPrefixV2+":") {
+		return decrypt(payload, keyBase64, aad)
+	}
+	return decrypt(payload, keyBase64, "")
+}
+
 func decrypt(payload, keyBase64, aad string) (string, error) {
 	key, err := decodeKey(keyBase64)
 	if err != nil {

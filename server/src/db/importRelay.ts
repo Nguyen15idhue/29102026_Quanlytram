@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { adminPool, closePool, withTransaction } from './pool';
-import { encryptSecret } from '../lib/crypto';
+import { encryptRelayPassword } from '../lib/relayCredentials';
 import { endpointKey } from '../lib/endpointKey';
 import { TOMBSTONE_KEY_SQL } from '../lib/tombstone';
 
@@ -157,7 +157,7 @@ async function upsertCredential(
   if (existingId) {
     await conn.query(
       'UPDATE relay_credentials SET name = ?, username = ?, password_enc = ?, owner_web_user_id = ? WHERE id = ?',
-      [name, credential.username, encryptSecret(credential.password), ownerId, existingId]
+      [name, credential.username, encryptRelayPassword(credential.password, existingId), ownerId, existingId]
     );
     return Number(existingId);
   }
@@ -166,17 +166,26 @@ async function upsertCredential(
     [name, ownerId]
   );
   if (rows.length > 0) {
-    await conn.query(
-      'UPDATE relay_credentials SET username = ?, password_enc = ? WHERE id = ?',
-      [credential.username, encryptSecret(credential.password), rows[0].id]
-    );
-    return Number(rows[0].id);
+    const credentialId = Number(rows[0].id);
+    await conn.query('UPDATE relay_credentials SET username = ?, password_enc = ? WHERE id = ?', [
+      credential.username,
+      encryptRelayPassword(credential.password, credentialId),
+      credentialId
+    ]);
+    return credentialId;
   }
+  // INSERT trước với password_enc rỗng để biết id, rồi UPDATE secret v2 gắn
+  // AAD `relay_credentials:password_enc:<id>` trong cùng transaction.
   const [result]: any = await conn.query(
-    'INSERT INTO relay_credentials (name, username, password_enc, owner_web_user_id, company_id, created_by) VALUES (?, ?, ?, ?, (SELECT company_id FROM web_users WHERE id = ?), NULL)',
-    [name, credential.username, encryptSecret(credential.password), ownerId, ownerId]
+    'INSERT INTO relay_credentials (name, username, password_enc, owner_web_user_id, company_id, created_by) VALUES (?, ?, \'\', ?, (SELECT company_id FROM web_users WHERE id = ?), NULL)',
+    [name, credential.username, ownerId, ownerId]
   );
-  return Number(result.insertId);
+  const credentialId = Number(result.insertId);
+  await conn.query('UPDATE relay_credentials SET password_enc = ? WHERE id = ?', [
+    encryptRelayPassword(credential.password, credentialId),
+    credentialId
+  ]);
+  return credentialId;
 }
 
 async function importJobs(options: ImportOptions): Promise<ImportSummary> {

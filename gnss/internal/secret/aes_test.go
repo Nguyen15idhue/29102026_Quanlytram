@@ -70,3 +70,31 @@ func TestEncryptDecryptWithAAD(t *testing.T) {
 		t.Fatal("v2 thiếu AAD phải fail")
 	}
 }
+
+func TestDecryptRecordAcceptsV1AndV2(t *testing.T) {
+	key := testKey(11)
+	aad := "relay_credentials:password_enc:12"
+
+	v1, err := Encrypt("mat-khau-cu", key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain, err := DecryptRecord(v1, key, aad); err != nil || plain != "mat-khau-cu" {
+		t.Fatalf("v1 DecryptRecord = %q, %v; want plaintext", plain, err)
+	}
+
+	v2, err := EncryptWithAAD("mat-khau-moi", key, aad)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain, err := DecryptRecord(v2, key, aad); err != nil || plain != "mat-khau-moi" {
+		t.Fatalf("v2 DecryptRecord = %q, %v; want plaintext", plain, err)
+	}
+
+	if _, err := DecryptRecord(v2, key, "relay_credentials:password_enc:13"); err == nil {
+		t.Fatal("v2 với AAD của record khác phải fail")
+	}
+	if _, err := DecryptRecord(v2, key, ""); err == nil {
+		t.Fatal("v2 không có AAD phải fail")
+	}
+}

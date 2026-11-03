@@ -77,11 +77,35 @@ Trạng thái: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong · `[!]` lỗi
 
 ## Lô D — AAD read-path
 
-- [ ] D1. Go relay store: select credential id + `DecryptWithAAD`
-- [ ] D2. Go probe store: id + `DecryptWithAAD`
-- [ ] D3. Node ghi AAD cho `relay_credentials` (route + import)
-- [ ] D4. Test Go + Node, gates, rebuild/restart gnss
-- [ ] D5. Commit lô D
+- [x] D1. Go relay store: select credential id + `DecryptRecord`
+  - `jobColumns` thêm `IFNULL(j.upstream_credential_id,0)` /
+    `IFNULL(j.downstream_credential_id,0)`; `scanJob` giải mã bằng
+    `secret.DecryptRecord(payload, key, credentialAAD(id))` với AAD
+    `relay_credentials:password_enc:<id>` (id <= 0 → không AAD).
+- [x] D2. Go probe store: id + `DecryptRecord`
+  - Query thêm `COALESCE(rc.id,0)`; giải mã theo cùng AAD.
+- [x] D3. Node ghi AAD cho `relay_credentials` (route + import)
+  - `server/src/lib/relayCredentials.ts`: `relayCredentialAad`,
+    `encryptRelayPassword`, `upsertRelayCredential` (INSERT
+    `password_enc=''` lấy id rồi UPDATE secret v2 trong cùng transaction).
+  - `routes/relayJobs.ts` bỏ helper local, dùng lib (6 call site);
+    `db/importRelay.ts` dùng `encryptRelayPassword` cho cả 3 nhánh.
+- [x] D4. Test Go + Node, gates, rebuild/restart gnss
+  - Go: `secret` test cho `DecryptRecord` (v1 + AAD vẫn đọc, v2 đúng AAD,
+    v2 sai/thiếu AAD fail); `relay/store_test.go` fake row cho v2 đúng id,
+    v1 tương thích, sai id fail.
+  - Node: `tests/relayCredentialAad.test.ts` 7 test (AAD, update, insert
+    2 bước, giữ password, undefined/null, thiếu password).
+  - Sửa lỗi phát hiện khi deploy: `relay/station_source.go` dùng
+    `DecryptWithAAD` nên secret v1 của `station_sources` không đọc được
+    (station 480 báo "secret authentication failed"); chuyển sang
+    `DecryptRecord` → station 480 stream lại bình thường.
+  - Smoke thật: tạo credential qua `upsertRelayCredential` trong container
+    → DB `v2:0:`, decrypt bằng AAD đúng, đã xoá row test.
+  - Gate: server **35 file/170 test PASS**; `tsc --noEmit` PASS;
+    Go `build`/`vet`/`test ./...` PASS; Playwright relay (4 test) PASS;
+    gnss + server rebuild/restart healthy, `/health` `relayDegraded:false`.
+- [x] D5. Commit lô D
 
 ## Lô E — rotate-secrets
 

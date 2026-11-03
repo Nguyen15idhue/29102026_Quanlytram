@@ -173,7 +173,7 @@ func (s *stationSourceMySQLStore) LoadAll(ctx context.Context) ([]*StationSource
 		cfg.Endpoint.Username = username
 		cfg.Endpoint.HasCredential = username != "" || passwordEnc != ""
 		if passwordEnc != "" {
-			password, err := secret.DecryptWithAAD(
+			password, err := secret.DecryptRecord(
 				passwordEnc, s.encKey,
 				fmt.Sprintf("station_sources:client_password_enc:%d", cfg.StationID))
 			if err != nil {
