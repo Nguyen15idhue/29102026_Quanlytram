@@ -21,6 +21,7 @@ import { callGoInternal } from '../lib/internalApi';
 import { reconcileAffected } from '../lib/reconcile';
 import { publicConnection, type GoConnection } from '../lib/caster';
 import { mountpointSourceState } from '../lib/mountpointExplorer';
+import { mountpointCountSql } from '../lib/mountpointList';
 import { publishEntityChange } from '../lib/entityChange';
 
 export const mountpointsRouter = Router();
@@ -443,7 +444,7 @@ mountpointsRouter.get(
       [...params, pageSize, offset]
     );
     const [countRows] = await adminPool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) AS total FROM mountpoints m WHERE ${where}`,
+      mountpointCountSql(where),
       params
     );
     res.json({

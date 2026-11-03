@@ -1170,3 +1170,25 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   `heapPercent`/`—`) để không crash khi frontend mới gặp backend cũ; đã
   `docker compose restart server` để nạp payload có `rssPercent`. Xác minh
   trong container: số liệu thực trả `ok`.
+- Khảo sát 02/11 (read-only): `graphify update .` → 4109 nodes / 9409 edges
+  / 288 communities (commit `5f349fe`); server build + vitest 128/128,
+  Go build/vet/test, FE build PASS. Chạy lại Docker Compose để kiểm chứng:
+  schema 35/7, 7 trạm/8 mountpoint/208 relay job (205 soft-delete),
+  692 quality alert chưa resolve. Phát hiện live: `GET /api/mountpoints?q=...`
+  trả 500 (`Unknown column 's.name'`); relay 227 `streaming` nhưng 0 frame;
+  trạm 480 timeout/reconnect mỗi 30s (nhịp dữ liệu ~60s).
+- Lập `docs/2/KE_HOACH_FIX_LOI_TRUOC_DEPLOY.md`: 16 lỗi chức năng
+  (FIX-01..16) + rà soát lại `BAO_MAT_MA_NGUON.md` tại `5f349fe`
+  (F-02/F-04/F-07/F-01/F-06/F-03/F-10/F-13/F-09 còn phải sửa; F-16 đã đóng;
+  bỏ qua mục Info/Low không chặn deploy). Không sửa mã nguồn; stack Docker
+  vẫn đang chạy sau khảo sát.
+- Lập `docs/2/PROMPT_THUC_HIEN_KE_HOACH_FIX_LOI.md`: bộ prompt thi hành
+  34 mục (16 FIX + 18 SEC, gồm SEC-F18) theo 5 đợt; quy trình 7 bước/mục
+  (check tài liệu → code → test/fix → cập nhật tài liệu → cập nhật todo →
+  commit → push), commit gộp 14 lô (C1–C14) thay vì 34 commit lẻ; bảng
+  tiến độ bền `docs/2/THUC_HIEN_FIX_LOI.md`, chuẩn script PowerShell tiếng
+  Việt UTF-8 BOM, quy tắc graphify tiết kiệm token. Chưa sửa mã nguồn.
+- FIX-01 DONE (lô C1): tách `server/src/lib/mountpointList.ts` để câu COUNT
+  mountpoint có `LEFT JOIN stations`, sửa 500 khi `?q=` tham chiếu `s.name`.
+  Test: `cd server; npm run build; npm test` → 22 file/130 PASS. Live:
+  `GET /api/mountpoints?q=DOCS` → 200/total=4; không `q` → total=8.
