@@ -1403,6 +1403,11 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
   mountpoint, 32 mapping (26×1509 + 6×1508), 67 relay disabled, 3 account,
   0 cảnh báo; checksum `23a18b37…369ae`. Test 4 case; server 184 PASS.
   Đã sửa số liệu kế hoạch từ 35/36 về 31/32.
+- Bước 3 DONE: `db:reset-legacy --apply` xoá runtime (10 bảng qua migrator) +
+  alerts/audit/relay/station/mountpoint/account/session/user/company, bỏ
+  listener ngoài 1508/1509; tạo WALLY + wally; listeners gán owner wally.
+  Kết quả: 2 user, 1 company, 0 trạm/mountpoint/relay/account, 2 listener,
+  audit 0; superadmin + wally login 200.
 
 ## Form tài khoản NTRIP — Công ty dạng select (2026-11-03)
 

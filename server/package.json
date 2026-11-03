@@ -12,6 +12,7 @@
     "import:legacy": "node dist/db/importLegacyCaster.js",
     "rotate:secrets": "node dist/db/rotateSecrets.js",
     "db:import-legacy": "node dist/db/importLegacyV2.js",
+    "db:reset-legacy": "node dist/db/resetLegacyV2.js",
     "test": "vitest run"
   },
   "dependencies": {

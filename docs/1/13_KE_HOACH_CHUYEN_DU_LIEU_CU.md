@@ -293,3 +293,32 @@ Cần xác nhận khi duyệt:
   "Yêu cầu xác thực" trùng lặp; hint cảnh báo.
 - Gate: Go build/vet/test PASS; server/frontend tsc PASS; frontend build PASS;
   Playwright `station-source` PASS; gnss rebuild healthy, `/health` OK.
+
+### Bước 2 — Script import dry-run
+
+- `server/src/db/importLegacyV2.ts` + `npm run db:import-legacy`; mặc định
+  dry-run, `--apply` bật ở bước sau.
+- Đọc `caster_stations.json`, `caster_mountpoints.csv`, `config.json`; chuẩn hoá
+  `BG.TP → BG_TP`, gộp trùng hoa-thường, giữ `TNN_TpThaiNguyen` 2 port, bỏ 5
+  mountpoint `in_caster=0`, toạ độ giả định theo prefix.
+- Kết quả dry-run: **36 trạm, 31 mountpoint, 32 mapping (26×1509 + 6×1508),
+  67 relay (66 bật cũ, import disabled), 3 account**, 0 cảnh báo; checksum
+  `23a18b37…369ae`.
+- Sửa số liệu kế hoạch: thực tế 31 mountpoint trong caster và 32 mapping
+  (trước ghi 35/36).
+- Test: `server/tests/importLegacyV2.test.ts` 4 case; server 184 test PASS.
+
+### Bước 3 — Reset dữ liệu test + Wally
+
+- `server/src/db/resetLegacyV2.ts` + `npm run db:reset-legacy` (dry-run mặc định).
+  Runtime xoá bằng user migrator (cors_app chỉ SELECT runtime); admin xoá
+  trong transaction.
+- Đã xoá: runtime 10 bảng (caster_connections, quality_*, relay_*,
+  service_runs, station_source_sessions); admin alerts/audit/relay/station/
+  mountpoint/account/session/user/company + listener ngoài 1508/1509 +
+  maintenance_runs.
+- Tạo `WALLY` (id 74) + `wally` (id 646, role admin, company 74); listener
+  1508/1509 gán owner wally.
+- Kết quả: web_users=2, companies=1, stations=0, mountpoints=0, relay_jobs=0,
+  ntrip_accounts=0, caster_listeners=2, audit_logs=0; đăng nhập superadmin và
+  wally đều 200.
