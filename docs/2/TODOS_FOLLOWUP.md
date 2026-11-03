@@ -150,3 +150,13 @@ Trạng thái: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong · `[!]` lỗi
   khi `user.id` đổi.
 - [x] Test Playwright `p1-rbac.spec.ts` yêu cầu danh sách đúng công ty trong
   2s sau khi đổi tài khoản.
+
+## Kế hoạch 12 — Relay chọn trạm (2026-11-03)
+
+- [x] Migration admin 038: lưu station/mountpoint id cho 2 phía.
+- [x] API `station-options` + resolve trạm (mountpoint nội bộ hoặc `client_*`),
+  copy credential kín; chặn chọn trạm cả 2 phía (`RELAY_SAME_STATION`).
+- [x] Form 3 section, Mode select, banner + khóa mode đối diện, checkbox GGA.
+- [x] Relay superadmin tạo: `company_id NULL`; ẩn khỏi list/detail/relay của
+  trạm/mountpoint explorer của cấp thấp.
+- [x] Gate: server 37 file/179 test; frontend tsc/build; Playwright **59/59**.

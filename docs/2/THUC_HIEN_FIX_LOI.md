@@ -103,3 +103,8 @@
   admin/user thấy dữ liệu toàn hệ thống vài giây sau khi đổi tài khoản; xoá
   cache trong `AuthProvider` khi phiên đổi + reset realtime snapshot; test
   Playwright `p1-rbac` kiểm tra bảng về đúng công ty trong 2s.
+- Kế hoạch 12 (relay chọn trạm): form 3 section, Mode select
+  `Nhập thủ công`/`Chọn trạm`, chỉ chọn trạm một phía + banner; server resolve
+  mountpoint nội bộ hoặc `client_*`, copy mật khẩu kín; migration admin 038;
+  relay do superadmin tạo có `company_id NULL` nên cấp thấp không thấy. Gate:
+  server 37 file/179 test, Playwright 59/59.

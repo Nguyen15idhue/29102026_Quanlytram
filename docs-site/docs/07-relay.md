@@ -32,13 +32,26 @@ Mở menu **Relay → Relay jobs**.
 
 ## Thêm relay job
 
+Form chia 3 phần: **Nguồn dữ liệu**, **Đích đến dữ liệu**, **Thông tin khác**.
+
 1. Bấm **Thêm relay job**.
-2. Nhập tên và external key (nếu có).
-3. Nhập thông tin nguồn: host, cổng, mountpoint, proxy, SSL, phiên bản NTRIP,
-   username và mật khẩu.
-4. Nhập thông tin đích tương tự.
-5. Chọn chế độ gửi dữ liệu sang đích.
+2. **Nguồn dữ liệu**: chọn Mode
+   - `Nhập thủ công` (mặc định): nhập host, cổng, mountpoint, proxy, SSL,
+     phiên bản NTRIP, username, mật khẩu.
+   - `Chọn trạm`: chọn một trạm có sẵn trong phạm vi quyền. Hệ thống tự dùng
+     mountpoint của trạm trên caster (hoặc cấu hình nguồn NTRIP của trạm) và
+     mật khẩu đã lưu; form chỉ hiện dòng tóm tắt để kiểm tra.
+3. **Đích đến dữ liệu**: cấu trúc tương tự, kèm **Đích mode** (`auto`/`post`/
+   `source`). Nếu trạm có nhiều mountpoint thì chọn thêm mountpoint.
+4. Chỉ được chọn trạm ở **một phía**. Khi một phía dùng `Chọn trạm`, phía còn
+   lại bị khóa ở `Nhập thủ công` và form hiện banner giải thích — tránh relay
+   vòng một trạm về chính nó.
+5. **Thông tin khác**: tên (bắt buộc), external key, tick **Có gửi GGA** (hiện
+   vĩ độ, kinh độ, NMEA interval), UA prefix, tick **Bật relay job**.
 6. Bấm **Thêm**.
+
+Trạm hiển thị theo quyền `stations.view`: superadmin thấy mọi trạm, admin/user
+chỉ thấy trạm thuộc công ty mình. Relay do superadmin tạo chỉ superadmin thấy.
 
 ![Hộp thoại thêm relay job](/img/docs/relay/form-light.png)
 

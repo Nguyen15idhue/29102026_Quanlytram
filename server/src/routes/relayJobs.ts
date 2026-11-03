@@ -35,6 +35,7 @@ import {
   scopeIdsFor
 } from '../rbac/access';
 import { TOMBSTONE_KEY_SQL } from '../lib/tombstone';
+import { loadStationOptions, resolveStationEndpoint } from '../lib/relayStation';
 import {
   allowedActions,
   assertTransition,
@@ -61,12 +62,20 @@ const endpointSchema = z.object({
   ntripVersion: z.enum(['v1', 'v2']).optional().default('v2')
 });
 
+const stationSchema = {
+  upstreamStationId: z.number().int().positive().nullable().optional(),
+  downstreamStationId: z.number().int().positive().nullable().optional(),
+  upstreamMountpointId: z.number().int().positive().nullable().optional(),
+  downstreamMountpointId: z.number().int().positive().nullable().optional()
+};
+
 const createSchema = z.object({
   externalKey: z.string().max(128).nullable().optional(),
   name: z.string().min(1).max(160),
   enabled: z.boolean().optional().default(false),
-  upstream: endpointSchema,
-  downstream: endpointSchema,
+  upstream: endpointSchema.optional(),
+  downstream: endpointSchema.optional(),
+  ...stationSchema,
   upstreamCredential: credentialPatch.nullable().optional(),
   downstreamCredential: credentialPatch.nullable().optional(),
   downstreamMode: z.enum(['auto', 'post', 'source']).optional().default('auto'),
@@ -96,6 +105,7 @@ const updateSchema = z.object({
   enabled: z.boolean().optional(),
   upstream: endpointPatch.optional(),
   downstream: endpointPatch.optional(),
+  ...stationSchema,
   upstreamCredential: credentialPatch.nullable().optional(),
   downstreamCredential: credentialPatch.nullable().optional(),
   downstreamMode: z.enum(['auto', 'post', 'source']).optional(),
@@ -138,6 +148,9 @@ function publicJob(row: any, state: any) {
       ssl: Boolean(row.upstream_ssl),
       ntripVersion: row.upstream_ntrip_version,
       key: row.upstream_key,
+      stationId: row.upstream_station_id == null ? null : Number(row.upstream_station_id),
+      mountpointId:
+        row.upstream_mountpoint_id == null ? null : Number(row.upstream_mountpoint_id),
       credential: row.upstream_credential_id
         ? {
             id: Number(row.upstream_credential_id),
@@ -154,6 +167,9 @@ function publicJob(row: any, state: any) {
       ssl: Boolean(row.downstream_ssl),
       ntripVersion: row.downstream_ntrip_version,
       key: row.downstream_key,
+      stationId: row.downstream_station_id == null ? null : Number(row.downstream_station_id),
+      mountpointId:
+        row.downstream_mountpoint_id == null ? null : Number(row.downstream_mountpoint_id),
       credential: row.downstream_credential_id
         ? {
             id: Number(row.downstream_credential_id),
@@ -440,6 +456,16 @@ relayJobsRouter.get(
       pageSize,
       offset
     });
+  })
+);
+
+relayJobsRouter.get(
+  '/station-options',
+  requirePermission('stations', 'view'),
+  asyncHandler(async (req, res) => {
+    const ids = await scopeIdsFor(req);
+    const scope = listScope(req, ids, 's.owner_web_user_id', { companyColumn: 's.company_id' });
+    res.json({ items: await loadStationOptions(scope) });
   })
 );
 
@@ -1160,11 +1186,53 @@ relayJobsRouter.post(
   requirePermission('relay', 'add'),
   asyncHandler(async (req, res) => {
     const body = createSchema.parse(req.body);
-    const ownership = await resolveWriteOwnership(req, body.ownerWebUserId, body.companyId);
+    if (body.upstreamStationId && body.downstreamStationId) {
+      throw new ApiError(
+        400,
+        'RELAY_SAME_STATION',
+        'Chỉ được chọn trạm ở một phía để tránh relay vòng'
+      );
+    }
+    const stationMode = Boolean(body.upstreamStationId || body.downstreamStationId);
+    const scopeIds = stationMode ? await scopeIdsFor(req) : [];
+    const stationScope = stationMode
+      ? listScope(req, scopeIds, 's.owner_web_user_id', { companyColumn: 's.company_id' })
+      : null;
+    const upstreamResolved =
+      body.upstreamStationId && stationScope
+        ? await resolveStationEndpoint(
+            stationScope,
+            body.upstreamStationId,
+            body.upstreamMountpointId ?? null,
+            'source'
+          )
+        : null;
+    const downstreamResolved =
+      body.downstreamStationId && stationScope
+        ? await resolveStationEndpoint(
+            stationScope,
+            body.downstreamStationId,
+            body.downstreamMountpointId ?? null,
+            'destination'
+          )
+        : null;
+    const upstreamEndpoint = upstreamResolved?.endpoint ?? body.upstream;
+    const downstreamEndpoint = downstreamResolved?.endpoint ?? body.downstream;
+    if (!upstreamEndpoint || !downstreamEndpoint) {
+      throw new ApiError(
+        400,
+        'RELAY_ENDPOINT_REQUIRED',
+        'Phải nhập endpoint hoặc chọn trạm cho cả nguồn và đích'
+      );
+    }
+    const isSuper = req.auth!.roleCode === 'super_admin';
+    const ownership = isSuper
+      ? { ownerId: req.auth!.id, companyId: null }
+      : await resolveWriteOwnership(req, body.ownerWebUserId, body.companyId);
     const ownerId = ownership.ownerId;
     const companyId = ownership.companyId;
-    const upstreamKey = endpointKey(body.upstream);
-    const downstreamKey = endpointKey(body.downstream);
+    const upstreamKey = endpointKey(upstreamEndpoint);
+    const downstreamKey = endpointKey(downstreamEndpoint);
     await assertNoCycles({
       id: null,
       upstreamKey,
@@ -1177,7 +1245,7 @@ relayJobsRouter.post(
       jobId = await withTransaction(async (conn) => {
         const upstreamCredentialId = await upsertRelayCredential(
           conn,
-          body.upstreamCredential,
+          upstreamResolved ? upstreamResolved.credential : body.upstreamCredential,
           null,
           `${body.name} upstream`,
           ownerId,
@@ -1186,7 +1254,7 @@ relayJobsRouter.post(
         );
         const downstreamCredentialId = await upsertRelayCredential(
           conn,
-          body.downstreamCredential,
+          downstreamResolved ? downstreamResolved.credential : body.downstreamCredential,
           null,
           `${body.name} downstream`,
           ownerId,
@@ -1198,30 +1266,36 @@ relayJobsRouter.post(
              external_key, name, enabled,
              upstream_host, upstream_port, upstream_mount, upstream_credential_id,
              upstream_proxy, upstream_ssl, upstream_ntrip_version,
+             upstream_station_id, upstream_mountpoint_id,
              downstream_host, downstream_port, downstream_mount, downstream_credential_id,
              downstream_proxy, downstream_ssl, downstream_ntrip_version, downstream_mode,
+             downstream_station_id, downstream_mountpoint_id,
              lat, lon, ua_prefix, nmea_interval_sec, origin, origin_ref, tags,
              desired_revision, upstream_key, downstream_key, owner_web_user_id, company_id, created_by
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
           [
             body.externalKey ?? null,
             body.name,
             body.enabled,
-            body.upstream.host,
-            body.upstream.port,
-            body.upstream.mount,
+            upstreamEndpoint.host,
+            upstreamEndpoint.port,
+            upstreamEndpoint.mount,
             upstreamCredentialId,
-            body.upstream.proxy,
-            body.upstream.ssl,
-            body.upstream.ntripVersion,
-            body.downstream.host,
-            body.downstream.port,
-            body.downstream.mount,
+            upstreamEndpoint.proxy,
+            upstreamEndpoint.ssl,
+            upstreamEndpoint.ntripVersion,
+            body.upstreamStationId ?? null,
+            upstreamResolved?.mountpointId ?? null,
+            downstreamEndpoint.host,
+            downstreamEndpoint.port,
+            downstreamEndpoint.mount,
             downstreamCredentialId,
-            body.downstream.proxy,
-            body.downstream.ssl,
-            body.downstream.ntripVersion,
+            downstreamEndpoint.proxy,
+            downstreamEndpoint.ssl,
+            downstreamEndpoint.ntripVersion,
             body.downstreamMode,
+            body.downstreamStationId ?? null,
+            downstreamResolved?.mountpointId ?? null,
             body.lat ?? null,
             body.lon ?? null,
             body.uaPrefix,
@@ -1276,22 +1350,75 @@ relayJobsRouter.patch(
       );
     }
 
-    const upstream = {
-      host: body.upstream?.host ?? before.upstream_host,
-      port: body.upstream?.port ?? Number(before.upstream_port),
-      mount: body.upstream?.mount ?? before.upstream_mount,
-      proxy: body.upstream?.proxy ?? before.upstream_proxy,
-      ssl: body.upstream?.ssl ?? Boolean(before.upstream_ssl),
-      ntripVersion: body.upstream?.ntripVersion ?? before.upstream_ntrip_version
-    };
-    const downstream = {
-      host: body.downstream?.host ?? before.downstream_host,
-      port: body.downstream?.port ?? Number(before.downstream_port),
-      mount: body.downstream?.mount ?? before.downstream_mount,
-      proxy: body.downstream?.proxy ?? before.downstream_proxy,
-      ssl: body.downstream?.ssl ?? Boolean(before.downstream_ssl),
-      ntripVersion: body.downstream?.ntripVersion ?? before.downstream_ntrip_version
-    };
+    const stationScopeIds = await scopeIdsFor(req);
+    const stationScope = listScope(req, stationScopeIds, 's.owner_web_user_id', {
+      companyColumn: 's.company_id'
+    });
+    const nextUpstreamStationId =
+      body.upstreamStationId === undefined
+        ? before.upstream_station_id === null || before.upstream_station_id === undefined
+          ? null
+          : Number(before.upstream_station_id)
+        : body.upstreamStationId;
+    const nextDownstreamStationId =
+      body.downstreamStationId === undefined
+        ? before.downstream_station_id === null || before.downstream_station_id === undefined
+          ? null
+          : Number(before.downstream_station_id)
+        : body.downstreamStationId;
+    if (nextUpstreamStationId && nextDownstreamStationId) {
+      throw new ApiError(
+        400,
+        'RELAY_SAME_STATION',
+        'Chỉ được chọn trạm ở một phía để tránh relay vòng'
+      );
+    }
+    const upstreamResolved = nextUpstreamStationId
+      ? await resolveStationEndpoint(
+          stationScope,
+          nextUpstreamStationId,
+          body.upstreamMountpointId === undefined
+            ? before.upstream_mountpoint_id === null ||
+              before.upstream_mountpoint_id === undefined
+              ? null
+              : Number(before.upstream_mountpoint_id)
+            : body.upstreamMountpointId,
+          'source'
+        )
+      : null;
+    const downstreamResolved = nextDownstreamStationId
+      ? await resolveStationEndpoint(
+          stationScope,
+          nextDownstreamStationId,
+          body.downstreamMountpointId === undefined
+            ? before.downstream_mountpoint_id === null ||
+              before.downstream_mountpoint_id === undefined
+              ? null
+              : Number(before.downstream_mountpoint_id)
+            : body.downstreamMountpointId,
+          'destination'
+        )
+      : null;
+    const upstream = upstreamResolved
+      ? upstreamResolved.endpoint
+      : {
+          host: body.upstream?.host ?? before.upstream_host,
+          port: body.upstream?.port ?? Number(before.upstream_port),
+          mount: body.upstream?.mount ?? before.upstream_mount,
+          proxy: body.upstream?.proxy ?? before.upstream_proxy,
+          ssl: body.upstream?.ssl ?? Boolean(before.upstream_ssl),
+          ntripVersion: body.upstream?.ntripVersion ?? before.upstream_ntrip_version
+        };
+    const downstream = downstreamResolved
+      ? downstreamResolved.endpoint
+      : {
+          host: body.downstream?.host ?? before.downstream_host,
+          port: body.downstream?.port ?? Number(before.downstream_port),
+          mount: body.downstream?.mount ?? before.downstream_mount,
+          proxy: body.downstream?.proxy ?? before.downstream_proxy,
+          ssl: body.downstream?.ssl ?? Boolean(before.downstream_ssl),
+          ntripVersion: body.downstream?.ntripVersion ?? before.downstream_ntrip_version
+        };
     const upstreamKey = endpointKey(upstream);
     const downstreamKey = endpointKey(downstream);
     const enabled = body.enabled ?? Boolean(before.enabled);
@@ -1327,7 +1454,7 @@ relayJobsRouter.patch(
       await withTransaction(async (conn) => {
         const upstreamCredentialId = await upsertRelayCredential(
           conn,
-          body.upstreamCredential,
+          upstreamResolved ? upstreamResolved.credential : body.upstreamCredential,
           before.upstream_credential_id === null
             ? null
             : Number(before.upstream_credential_id),
@@ -1338,7 +1465,7 @@ relayJobsRouter.patch(
         );
         const downstreamCredentialId = await upsertRelayCredential(
           conn,
-          body.downstreamCredential,
+          downstreamResolved ? downstreamResolved.credential : body.downstreamCredential,
           before.downstream_credential_id === null
             ? null
             : Number(before.downstream_credential_id),
@@ -1353,8 +1480,10 @@ relayJobsRouter.patch(
              paused_by_station_id = ?, paused_by_mountpoint_id = ?,
              upstream_host = ?, upstream_port = ?, upstream_mount = ?, upstream_credential_id = ?,
              upstream_proxy = ?, upstream_ssl = ?, upstream_ntrip_version = ?,
+             upstream_station_id = ?, upstream_mountpoint_id = ?,
              downstream_host = ?, downstream_port = ?, downstream_mount = ?, downstream_credential_id = ?,
              downstream_proxy = ?, downstream_ssl = ?, downstream_ntrip_version = ?, downstream_mode = ?,
+             downstream_station_id = ?, downstream_mountpoint_id = ?,
              lat = ?, lon = ?, ua_prefix = ?, nmea_interval_sec = ?, origin = ?, origin_ref = ?, tags = ?,
              upstream_key = ?, downstream_key = ?, owner_web_user_id = ?,
              desired_revision = desired_revision + 1
@@ -1372,6 +1501,8 @@ relayJobsRouter.patch(
             upstream.proxy,
             upstream.ssl,
             upstream.ntripVersion,
+            nextUpstreamStationId,
+            upstreamResolved?.mountpointId ?? null,
             downstream.host,
             downstream.port,
             downstream.mount,
@@ -1380,6 +1511,8 @@ relayJobsRouter.patch(
             downstream.ssl,
             downstream.ntripVersion,
             body.downstreamMode ?? before.downstream_mode,
+            nextDownstreamStationId,
+            downstreamResolved?.mountpointId ?? null,
             body.lat === undefined ? before.lat : body.lat,
             body.lon === undefined ? before.lon : body.lon,
             body.uaPrefix ?? before.ua_prefix,
@@ -1585,6 +1718,9 @@ relayJobsRouter.post(
             throw new ApiError(404, 'NOT_FOUND', 'Relay job không tồn tại');
           }
           await assertRecordScope(req, existing.owner_web_user_id, 'owner_web_user_id', existing.company_id);
+        }
+        if (!item.upstream || !item.downstream) {
+          throw new ApiError(400, 'RELAY_ENDPOINT_REQUIRED', 'Thiếu endpoint nguồn hoặc đích');
         }
         await assertNoCycles({
           id: id > 0 ? id : null,

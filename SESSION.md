@@ -1345,3 +1345,25 @@ Board: `docs/2/TODOS_FOLLOWUP.md`.
 - Test: Playwright `p1-rbac.spec.ts` "đổi tài khoản không lộ dữ liệu công ty
   khác từ cache" (yêu cầu bảng về đúng số dòng trong 2s; trước fix là 10s).
 - Graphify: `graphify update .` → 4402 node, 10098 cạnh, 311 community.
+
+## Kế hoạch 12 — Relay chọn trạm (2026-11-03)
+
+Kế hoạch: `docs/1/12_KE_HOACH_RELAY_CHON_TRAM.md`.
+
+- Migration admin **038**: thêm `upstream_station_id`, `downstream_station_id`,
+  `upstream_mountpoint_id`, `downstream_mountpoint_id` (không FK).
+- Form relay chia 3 section; Mode là select `Nhập thủ công`/`Chọn trạm`;
+  chọn trạm chỉ hiện đúng select trạm (+ mountpoint khi >1) và dòng tóm tắt.
+- Chỉ chọn trạm ở một phía: phía còn lại tự về nhập thủ công, option bị khóa và
+  form hiện banner; server trả `400 RELAY_SAME_STATION` nếu gọi thẳng.
+- `GET /api/relay-jobs/station-options` trả trạm theo `stations.view`, kèm
+  endpoint 2 hướng, không trả mật khẩu.
+- Server resolve trạm: ưu tiên mountpoint nội bộ (`127.0.0.1` + port listener +
+  tên mountpoint, credential `caster_*`), fallback `client_*` cho `ntrip_client`;
+  copy mật khẩu kín sang `relay_credentials` (AAD mới).
+- Relay do superadmin tạo có `company_id = NULL` (owner superadmin) nên scope
+  tenant tự loại; đã lọc thêm ở relay của trạm và mountpoint explorer.
+- Test: `server/tests/relayStation.test.ts` 5 case; Playwright
+  `relay-station-mode.spec.ts` (3 section, đổi mode, banner, tạo relay bằng
+  trạm). Gate: server **37 file/179 test**, frontend tsc/build, Playwright toàn
+  bộ (ghi ở mục dưới).

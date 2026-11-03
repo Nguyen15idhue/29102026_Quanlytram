@@ -446,7 +446,36 @@ export interface RelayEndpoint {
   ssl?: boolean;
   ntripVersion?: string;
   key?: string;
+  stationId?: number | null;
+  mountpointId?: number | null;
   credential?: { id: number; username: string; hasSecret: boolean } | null;
+}
+
+export interface RelayStationMountpoint {
+  id: number;
+  name: string;
+  port: number | null;
+  requiresAuth: boolean;
+}
+
+export interface RelayStationOption {
+  id: number;
+  name: string;
+  companyId: number | null;
+  companyName: string | null;
+  sourceRole: 'ntrip_client' | 'ntrip_caster';
+  mountpoints: RelayStationMountpoint[];
+  source: {
+    host: string;
+    port: number;
+    mount: string;
+    ssl: boolean;
+    ntripVersion: 'v1' | 'v2';
+    username: string;
+    hasPassword: boolean;
+    mountpointId: number | null;
+  } | null;
+  destination: RelayStationOption['source'];
 }
 
 export interface RelayJobState {

@@ -266,7 +266,7 @@ async function qualityMap(ids: number[]): Promise<Map<number, any>> {
   return map;
 }
 
-async function relayMap(ids: number[]): Promise<Map<number, any>> {
+async function relayMap(ids: number[], includeSuperadminRelays: boolean): Promise<Map<number, any>> {
   const map = new Map<number, any>();
   if (ids.length === 0) return map;
   const placeholders = ids.map(() => '?').join(',');
@@ -282,6 +282,7 @@ async function relayMap(ids: number[]): Promise<Map<number, any>> {
        FROM relay_jobs r
        JOIN mountpoints m ON m.name = r.upstream_mount
       WHERE r.deleted_at IS NULL AND m.station_id IN (${placeholders})
+        AND (${includeSuperadminRelays ? '1=1' : 'r.company_id IS NOT NULL'})
       ORDER BY r.enabled DESC, r.id DESC`,
     ids
   );
@@ -835,7 +836,7 @@ stationsRouter.get(
     const idsForMeta = rows.map((row) => Number(row.id));
     const [quality, relays, probes, connectedStations, live] = await Promise.all([
       qualityMap(idsForMeta),
-      relayMap(idsForMeta),
+      relayMap(idsForMeta, req.auth?.roleCode === 'super_admin'),
       probeMap(idsForMeta),
       stationConnectionSet(idsForMeta),
       liveStationMap()
@@ -1088,7 +1089,7 @@ stationsRouter.get(
     const id = Number(station.id);
     const [quality, relays, probes, samples, live, connectedStations] = await Promise.all([
       qualityMap([id]),
-      relayMap([id]),
+      relayMap([id], req.auth?.roleCode === 'super_admin'),
       probeMap([id]),
       stationSampleRows(id),
       latestLiveStation(id),
@@ -1144,6 +1145,7 @@ stationsRouter.get(
            FROM relay_jobs r
            JOIN mountpoints m ON m.name = r.upstream_mount
           WHERE m.station_id = ? AND r.deleted_at IS NULL
+            AND (${req.auth?.roleCode === 'super_admin' ? '1=1' : 'r.company_id IS NOT NULL'})
           ORDER BY r.id`,
         [stationId]
       ),
@@ -1453,7 +1455,9 @@ stationsRouter.get(
     );
     const stationRelayJobs = (
       await query<RowDataPacket[]>(
-        `SELECT id, name, upstream_mount FROM relay_jobs WHERE deleted_at IS NULL`
+        `SELECT id, name, upstream_mount FROM relay_jobs
+          WHERE deleted_at IS NULL
+            AND (${req.auth?.roleCode === 'super_admin' ? '1=1' : 'company_id IS NOT NULL'})`
       )
     ).filter((row) => mountNameSet.has(String(row.upstream_mount).toLowerCase()));
     const relayJobNames = new Map<number, string>();

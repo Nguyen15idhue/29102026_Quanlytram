@@ -163,7 +163,7 @@ async function loadGoConnections(): Promise<{ available: boolean; items: GoConne
   }
 }
 
-async function enrichExplorer(rows: RowDataPacket[]): Promise<{
+async function enrichExplorer(rows: RowDataPacket[], includeSuperadminRelays = false): Promise<{
   items: any[];
   casterAvailable: boolean;
 }> {
@@ -213,6 +213,7 @@ async function enrichExplorer(rows: RowDataPacket[]): Promise<{
                 upstream_credential_id, downstream_credential_id
            FROM relay_jobs
           WHERE deleted_at IS NULL AND upstream_mount IN (${placeholdersForNames})
+            AND (${includeSuperadminRelays ? '1=1' : 'company_id IS NOT NULL'})
           ORDER BY name`,
         names
       ),
@@ -496,7 +497,7 @@ mountpointsRouter.get(
         ORDER BY m.name`,
       params
     );
-    const enriched = await enrichExplorer(rows);
+    const enriched = await enrichExplorer(rows, req.auth?.roleCode === 'super_admin');
     const state = String(req.query.state || '').trim();
     const alertsOnly = String(req.query.alerts || '') === '1';
     const filtered = enriched.items.filter((item) => {
@@ -538,7 +539,7 @@ mountpointsRouter.get(
     );
     if (rows.length === 0) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
     await assertRecordScope(req, rows[0].owner_web_user_id, 'owner_web_user_id', rows[0].company_id);
-    const enriched = await enrichExplorer(rows);
+    const enriched = await enrichExplorer(rows, req.auth?.roleCode === 'super_admin');
     res.json({ item: enriched.items[0], casterAvailable: enriched.casterAvailable });
   })
 );
@@ -568,7 +569,8 @@ mountpointsRouter.get(
       ),
       query<RowDataPacket[]>(
         `SELECT id, name, enabled FROM relay_jobs
-          WHERE deleted_at IS NULL AND (upstream_mount = ? OR downstream_mount = ?)`,
+          WHERE deleted_at IS NULL AND (upstream_mount = ? OR downstream_mount = ?)
+            AND (${req.auth?.roleCode === 'super_admin' ? '1=1' : 'company_id IS NOT NULL'})`,
         [item.name, item.name]
       )
     ]);

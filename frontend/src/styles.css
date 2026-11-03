@@ -997,6 +997,37 @@ textarea.input {
   gap: 14px;
 }
 
+.relay-form-section {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.relay-form-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.form-hint {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.form-banner {
+  padding: 8px 10px;
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 12px;
+}
+
 .form-grid .span-2,
 .form-grid .form-actions {
   grid-column: 1 / -1;

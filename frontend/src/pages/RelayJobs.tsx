@@ -7,7 +7,13 @@ import { useAuth } from '../auth/AuthProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
-import type { Company, RelayJob, RelayJobStatusResponse, RelayStreamStatus } from '../types';
+import type {
+  Company,
+  RelayJob,
+  RelayJobStatusResponse,
+  RelayStationOption,
+  RelayStreamStatus
+} from '../types';
 import {
   BulkActionBar,
   Button,
@@ -45,6 +51,9 @@ const emptyForm = {
   externalKey: '',
   name: '',
   enabled: false,
+  upstreamMode: 'manual' as 'manual' | 'station',
+  upstreamStationId: 0,
+  upstreamMountpointId: 0,
   upstreamHost: '',
   upstreamPort: 1509,
   upstreamMount: '',
@@ -53,6 +62,10 @@ const emptyForm = {
   upstreamVersion: 'v2' as 'v1' | 'v2',
   upstreamUser: '',
   upstreamPass: '',
+  downstreamMode: 'manual' as 'manual' | 'station',
+  downstreamStationId: 0,
+  downstreamMountpointId: 0,
+  downstreamTargetMode: 'auto' as 'auto' | 'post' | 'source',
   downstreamHost: '',
   downstreamPort: 1509,
   downstreamMount: '',
@@ -61,7 +74,7 @@ const emptyForm = {
   downstreamVersion: 'v2' as 'v1' | 'v2',
   downstreamUser: '',
   downstreamPass: '',
-  downstreamMode: 'auto',
+  sendGga: false,
   lat: '',
   lon: '',
   uaPrefix: '',
@@ -175,6 +188,45 @@ export function RelayJobs() {
     queryFn: () => apiFetch<{ items: Company[] }>('/api/companies?pageSize=100'),
     enabled: isSuper
   });
+  const stationOptions = useQuery({
+    queryKey: ['relay-station-options'],
+    queryFn: () => apiFetch<{ items: RelayStationOption[] }>('/api/relay-jobs/station-options'),
+    enabled: formOpen
+  });
+  const stationItems = stationOptions.data?.items ?? [];
+  const upstreamStation = stationItems.find((item) => item.id === form.upstreamStationId) ?? null;
+  const downstreamStation =
+    stationItems.find((item) => item.id === form.downstreamStationId) ?? null;
+
+  function changeSourceMode(value: 'manual' | 'station') {
+    setDirty(true);
+    setForm((current) =>
+      value === 'station'
+        ? {
+            ...current,
+            upstreamMode: 'station',
+            downstreamMode: current.downstreamMode === 'station' ? 'manual' : current.downstreamMode,
+            downstreamStationId: 0,
+            downstreamMountpointId: 0
+          }
+        : { ...current, upstreamMode: 'manual' }
+    );
+  }
+
+  function changeDestinationMode(value: 'manual' | 'station') {
+    setDirty(true);
+    setForm((current) =>
+      value === 'station'
+        ? {
+            ...current,
+            downstreamMode: 'station',
+            upstreamMode: current.upstreamMode === 'station' ? 'manual' : current.upstreamMode,
+            upstreamStationId: 0,
+            upstreamMountpointId: 0
+          }
+        : { ...current, downstreamMode: 'manual' }
+    );
+  }
   const detailStatus = useQuery({
     queryKey: ['relay-job-status', detail?.id],
     queryFn: () =>
@@ -211,47 +263,68 @@ export function RelayJobs() {
 
   const save = useMutation({
     mutationFn: async () => {
+      const useStationUpstream = form.upstreamMode === 'station' && form.upstreamStationId > 0;
+      const useStationDownstream =
+        form.downstreamMode === 'station' && form.downstreamStationId > 0;
       const body = {
         externalKey: form.externalKey || null,
         name: form.name,
         enabled: form.enabled,
-        downstreamMode: form.downstreamMode,
-        upstream: {
-          host: form.upstreamHost,
-          port: Number(form.upstreamPort),
-          mount: form.upstreamMount,
-          proxy: form.upstreamProxy,
-          ssl: form.upstreamSsl,
-          ntripVersion: form.upstreamVersion
-        },
-        downstream: {
-          host: form.downstreamHost,
-          port: Number(form.downstreamPort),
-          mount: form.downstreamMount,
-          proxy: form.downstreamProxy,
-          ssl: form.downstreamSsl,
-          ntripVersion: form.downstreamVersion
-        },
-        ...(form.upstreamUser
+        downstreamMode: form.downstreamTargetMode,
+        ...(useStationUpstream
           ? {
-              upstreamCredential: {
-                username: form.upstreamUser,
-                ...(form.upstreamPass ? { password: form.upstreamPass } : {})
-              }
+              upstreamStationId: form.upstreamStationId,
+              upstreamMountpointId: form.upstreamMountpointId || null
             }
-          : {}),
-        ...(form.downstreamUser
+          : {
+              upstreamStationId: null,
+              upstreamMountpointId: null,
+              upstream: {
+                host: form.upstreamHost,
+                port: Number(form.upstreamPort),
+                mount: form.upstreamMount,
+                proxy: form.upstreamProxy,
+                ssl: form.upstreamSsl,
+                ntripVersion: form.upstreamVersion
+              },
+              ...(form.upstreamUser
+                ? {
+                    upstreamCredential: {
+                      username: form.upstreamUser,
+                      ...(form.upstreamPass ? { password: form.upstreamPass } : {})
+                    }
+                  }
+                : {})
+            }),
+        ...(useStationDownstream
           ? {
-              downstreamCredential: {
-                username: form.downstreamUser,
-                ...(form.downstreamPass ? { password: form.downstreamPass } : {})
-              }
+              downstreamStationId: form.downstreamStationId,
+              downstreamMountpointId: form.downstreamMountpointId || null
             }
-          : {}),
-        lat: form.lat === '' ? null : Number(form.lat),
-        lon: form.lon === '' ? null : Number(form.lon),
+          : {
+              downstreamStationId: null,
+              downstreamMountpointId: null,
+              downstream: {
+                host: form.downstreamHost,
+                port: Number(form.downstreamPort),
+                mount: form.downstreamMount,
+                proxy: form.downstreamProxy,
+                ssl: form.downstreamSsl,
+                ntripVersion: form.downstreamVersion
+              },
+              ...(form.downstreamUser
+                ? {
+                    downstreamCredential: {
+                      username: form.downstreamUser,
+                      ...(form.downstreamPass ? { password: form.downstreamPass } : {})
+                    }
+                  }
+                : {})
+            }),
+        lat: form.sendGga && form.lat !== '' ? Number(form.lat) : null,
+        lon: form.sendGga && form.lon !== '' ? Number(form.lon) : null,
         uaPrefix: form.uaPrefix,
-        nmeaIntervalSec: Number(form.nmeaIntervalSec)
+        nmeaIntervalSec: form.sendGga ? Number(form.nmeaIntervalSec) : 0
       };
       if (editing) {
         return apiFetch(`/api/relay-jobs/${editing.id}`, { method: 'PATCH', body, csrfToken });
@@ -380,6 +453,9 @@ export function RelayJobs() {
       externalKey: job.externalKey ?? '',
       name: job.name,
       enabled: job.enabled,
+      upstreamMode: job.upstream.stationId ? 'station' : 'manual',
+      upstreamStationId: job.upstream.stationId ?? 0,
+      upstreamMountpointId: job.upstream.mountpointId ?? 0,
       upstreamHost: job.upstream.host,
       upstreamPort: job.upstream.port,
       upstreamMount: job.upstream.mount,
@@ -388,6 +464,10 @@ export function RelayJobs() {
       upstreamVersion: (job.upstream.ntripVersion as 'v1' | 'v2') ?? 'v2',
       upstreamUser: job.upstream.credential?.username ?? '',
       upstreamPass: '',
+      downstreamMode: job.downstream.stationId ? 'station' : 'manual',
+      downstreamStationId: job.downstream.stationId ?? 0,
+      downstreamMountpointId: job.downstream.mountpointId ?? 0,
+      downstreamTargetMode: job.downstreamMode,
       downstreamHost: job.downstream.host,
       downstreamPort: job.downstream.port,
       downstreamMount: job.downstream.mount,
@@ -396,7 +476,7 @@ export function RelayJobs() {
       downstreamVersion: (job.downstream.ntripVersion as 'v1' | 'v2') ?? 'v2',
       downstreamUser: job.downstream.credential?.username ?? '',
       downstreamPass: '',
-      downstreamMode: job.downstreamMode,
+      sendGga: Boolean(job.nmeaIntervalSec && job.nmeaIntervalSec > 0),
       lat: job.lat == null ? '' : String(job.lat),
       lon: job.lon == null ? '' : String(job.lon),
       uaPrefix: job.uaPrefix ?? '',
@@ -760,195 +840,383 @@ export function RelayJobs() {
           onSubmit={submit}
           onChange={() => setDirty(true)}
         >
-          <Field label="External key">
-            <Input
-              value={form.externalKey}
-              onChange={(event) => setForm({ ...form, externalKey: event.target.value })}
-            />
-          </Field>
-          <Field label="Tên" error={error || undefined}>
-            <Input
-              value={form.name}
-              onChange={(event) => setForm({ ...form, name: event.target.value })}
-              required
-            />
-          </Field>
-          <Field label="Đích mode">
-            <Select
-              value={form.downstreamMode}
-              onChange={(event) => setForm({ ...form, downstreamMode: event.target.value })}
-            >
-              <option value="auto">auto</option>
-              <option value="post">post</option>
-              <option value="source">source</option>
-            </Select>
-          </Field>
-          <Field label="Nguồn host">
-            <Input
-              value={form.upstreamHost}
-              onChange={(event) => setForm({ ...form, upstreamHost: event.target.value })}
-              required
-            />
-          </Field>
-          <Field label="Nguồn port">
-            <Input
-              type="number"
-              min={1}
-              max={65535}
-              value={form.upstreamPort}
-              onChange={(event) => setForm({ ...form, upstreamPort: Number(event.target.value) })}
-            />
-          </Field>
-          <Field label="Nguồn mount">
-            <Input
-              value={form.upstreamMount}
-              onChange={(event) => setForm({ ...form, upstreamMount: event.target.value })}
-              required
-            />
-          </Field>
-          <Field label="Nguồn proxy">
-            <Input
-              value={form.upstreamProxy}
-              onChange={(event) => setForm({ ...form, upstreamProxy: event.target.value })}
-            />
-          </Field>
-          <Field label="Nguồn SSL">
-            <Select
-              value={form.upstreamSsl ? '1' : '0'}
-              onChange={(event) => setForm({ ...form, upstreamSsl: event.target.value === '1' })}
-            >
-              <option value="0">Không</option>
-              <option value="1">Có</option>
-            </Select>
-          </Field>
-          <Field label="Nguồn NTRIP version">
-            <Select
-              value={form.upstreamVersion}
-              onChange={(event) =>
-                setForm({ ...form, upstreamVersion: event.target.value as 'v1' | 'v2' })
-              }
-            >
-              <option value="v2">v2</option>
-              <option value="v1">v1</option>
-            </Select>
-          </Field>
-          <Field label="Nguồn username">
-            <Input
-              value={form.upstreamUser}
-              onChange={(event) => setForm({ ...form, upstreamUser: event.target.value })}
-            />
-          </Field>
-          <Field label="Nguồn password">
-            <Input
-              type="password"
-              value={form.upstreamPass}
-              placeholder={editing?.upstream.credential?.hasSecret ? 'Đã đặt mật khẩu' : ''}
-              onChange={(event) => setForm({ ...form, upstreamPass: event.target.value })}
-            />
-          </Field>
-          <Field label="Đích host">
-            <Input
-              value={form.downstreamHost}
-              onChange={(event) => setForm({ ...form, downstreamHost: event.target.value })}
-              required
-            />
-          </Field>
-          <Field label="Đích port">
-            <Input
-              type="number"
-              min={1}
-              max={65535}
-              value={form.downstreamPort}
-              onChange={(event) => setForm({ ...form, downstreamPort: Number(event.target.value) })}
-            />
-          </Field>
-          <Field label="Đích mount">
-            <Input
-              value={form.downstreamMount}
-              onChange={(event) => setForm({ ...form, downstreamMount: event.target.value })}
-              required
-            />
-          </Field>
-          <Field label="Đích proxy">
-            <Input
-              value={form.downstreamProxy}
-              onChange={(event) => setForm({ ...form, downstreamProxy: event.target.value })}
-            />
-          </Field>
-          <Field label="Đích SSL">
-            <Select
-              value={form.downstreamSsl ? '1' : '0'}
-              onChange={(event) => setForm({ ...form, downstreamSsl: event.target.value === '1' })}
-            >
-              <option value="0">Không</option>
-              <option value="1">Có</option>
-            </Select>
-          </Field>
-          <Field label="Đích NTRIP version">
-            <Select
-              value={form.downstreamVersion}
-              onChange={(event) =>
-                setForm({ ...form, downstreamVersion: event.target.value as 'v1' | 'v2' })
-              }
-            >
-              <option value="v2">v2</option>
-              <option value="v1">v1</option>
-            </Select>
-          </Field>
-          <Field label="Đích username">
-            <Input
-              value={form.downstreamUser}
-              onChange={(event) => setForm({ ...form, downstreamUser: event.target.value })}
-            />
-          </Field>
-          <Field label="Đích password">
-            <Input
-              type="password"
-              value={form.downstreamPass}
-              placeholder={editing?.downstream.credential?.hasSecret ? 'Đã đặt mật khẩu' : ''}
-              onChange={(event) => setForm({ ...form, downstreamPass: event.target.value })}
-            />
-          </Field>
-          <Field label="Vĩ độ">
-            <Input
-              type="number"
-              step="0.000001"
-              value={form.lat}
-              onChange={(event) => setForm({ ...form, lat: event.target.value })}
-            />
-          </Field>
-          <Field label="Kinh độ">
-            <Input
-              type="number"
-              step="0.000001"
-              value={form.lon}
-              onChange={(event) => setForm({ ...form, lon: event.target.value })}
-            />
-          </Field>
-          <Field label="UA prefix">
-            <Input
-              value={form.uaPrefix}
-              onChange={(event) => setForm({ ...form, uaPrefix: event.target.value })}
-            />
-          </Field>
-          <Field label="NMEA interval (giây)">
-            <Input
-              type="number"
-              min={0}
-              value={form.nmeaIntervalSec}
-              onChange={(event) =>
-                setForm({ ...form, nmeaIntervalSec: Number(event.target.value) })
-              }
-            />
-          </Field>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={form.enabled}
-              onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
-            />
-            Bật relay job
-          </label>
+          <div className="relay-form-section">
+            <h3 className="relay-form-title">Nguồn dữ liệu</h3>
+            <div className="form-grid">
+              <Field label="Mode">
+                <Select
+                  value={form.upstreamMode}
+                  onChange={(event) => changeSourceMode(event.target.value as 'manual' | 'station')}
+                >
+                  <option value="manual">Nhập thủ công</option>
+                  <option value="station" disabled={form.downstreamMode === 'station'}>
+                    Chọn trạm
+                  </option>
+                </Select>
+              </Field>
+              {form.upstreamMode === 'station' ? (
+                <>
+                  <Field label="Trạm nguồn">
+                    <Select
+                      value={form.upstreamStationId}
+                      onChange={(event) => {
+                        const stationId = Number(event.target.value);
+                        const station = stationItems.find((item) => item.id === stationId);
+                        setForm({
+                          ...form,
+                          upstreamStationId: stationId,
+                          upstreamMountpointId: station?.mountpoints[0]?.id ?? 0
+                        });
+                      }}
+                    >
+                      <option value={0}>Chọn trạm</option>
+                      {stationItems.map((station) => (
+                        <option key={station.id} value={station.id} disabled={!station.source}>
+                          {station.name}
+                          {station.companyName ? ` · ${station.companyName}` : ''}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  {upstreamStation && upstreamStation.mountpoints.length > 1 && (
+                    <Field label="Mountpoint nguồn">
+                      <Select
+                        value={form.upstreamMountpointId}
+                        onChange={(event) =>
+                          setForm({ ...form, upstreamMountpointId: Number(event.target.value) })
+                        }
+                      >
+                        {upstreamStation.mountpoints.map((mountpoint) => (
+                          <option key={mountpoint.id} value={mountpoint.id}>
+                            {mountpoint.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  )}
+                  <p className="form-hint">
+                    {upstreamStation?.source
+                      ? `Sẽ dùng ${upstreamStation.source.host}:${upstreamStation.source.port}/${upstreamStation.source.mount} · NTRIP ${upstreamStation.source.ntripVersion.toUpperCase()} · ${
+                          upstreamStation.source.username || 'không tài khoản'
+                        }`
+                      : 'Trạm này chưa có listener hoặc cấu hình nguồn NTRIP.'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Field label="Nguồn host">
+                    <Input
+                      value={form.upstreamHost}
+                      onChange={(event) => setForm({ ...form, upstreamHost: event.target.value })}
+                      required
+                    />
+                  </Field>
+                  <Field label="Nguồn port">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={65535}
+                      value={form.upstreamPort}
+                      onChange={(event) =>
+                        setForm({ ...form, upstreamPort: Number(event.target.value) })
+                      }
+                    />
+                  </Field>
+                  <Field label="Nguồn mount">
+                    <Input
+                      value={form.upstreamMount}
+                      onChange={(event) => setForm({ ...form, upstreamMount: event.target.value })}
+                      required
+                    />
+                  </Field>
+                  <Field label="Nguồn proxy">
+                    <Input
+                      value={form.upstreamProxy}
+                      onChange={(event) => setForm({ ...form, upstreamProxy: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Nguồn SSL">
+                    <Select
+                      value={form.upstreamSsl ? '1' : '0'}
+                      onChange={(event) =>
+                        setForm({ ...form, upstreamSsl: event.target.value === '1' })
+                      }
+                    >
+                      <option value="0">Không</option>
+                      <option value="1">Có</option>
+                    </Select>
+                  </Field>
+                  <Field label="Nguồn NTRIP version">
+                    <Select
+                      value={form.upstreamVersion}
+                      onChange={(event) =>
+                        setForm({ ...form, upstreamVersion: event.target.value as 'v1' | 'v2' })
+                      }
+                    >
+                      <option value="v2">v2</option>
+                      <option value="v1">v1</option>
+                    </Select>
+                  </Field>
+                  <Field label="Nguồn username">
+                    <Input
+                      value={form.upstreamUser}
+                      onChange={(event) => setForm({ ...form, upstreamUser: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Nguồn password">
+                    <Input
+                      type="password"
+                      value={form.upstreamPass}
+                      placeholder={editing?.upstream.credential?.hasSecret ? 'Đã đặt mật khẩu' : ''}
+                      onChange={(event) => setForm({ ...form, upstreamPass: event.target.value })}
+                    />
+                  </Field>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="relay-form-section">
+            <h3 className="relay-form-title">Đích đến dữ liệu</h3>
+            <div className="form-grid">
+              <Field label="Mode">
+                <Select
+                  value={form.downstreamMode}
+                  onChange={(event) =>
+                    changeDestinationMode(event.target.value as 'manual' | 'station')
+                  }
+                >
+                  <option value="manual">Nhập thủ công</option>
+                  <option value="station" disabled={form.upstreamMode === 'station'}>
+                    Chọn trạm
+                  </option>
+                </Select>
+              </Field>
+              <Field label="Đích mode">
+                <Select
+                  value={form.downstreamTargetMode}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      downstreamTargetMode: event.target.value as 'auto' | 'post' | 'source'
+                    })
+                  }
+                >
+                  <option value="auto">auto</option>
+                  <option value="post">post</option>
+                  <option value="source">source</option>
+                </Select>
+              </Field>
+              {form.downstreamMode === 'station' ? (
+                <>
+                  <Field label="Trạm đích">
+                    <Select
+                      value={form.downstreamStationId}
+                      onChange={(event) => {
+                        const stationId = Number(event.target.value);
+                        const station = stationItems.find((item) => item.id === stationId);
+                        setForm({
+                          ...form,
+                          downstreamStationId: stationId,
+                          downstreamMountpointId: station?.mountpoints[0]?.id ?? 0
+                        });
+                      }}
+                    >
+                      <option value={0}>Chọn trạm</option>
+                      {stationItems.map((station) => (
+                        <option
+                          key={station.id}
+                          value={station.id}
+                          disabled={!station.destination}
+                        >
+                          {station.name}
+                          {station.companyName ? ` · ${station.companyName}` : ''}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  {downstreamStation && downstreamStation.mountpoints.length > 1 && (
+                    <Field label="Mountpoint đích">
+                      <Select
+                        value={form.downstreamMountpointId}
+                        onChange={(event) =>
+                          setForm({ ...form, downstreamMountpointId: Number(event.target.value) })
+                        }
+                      >
+                        {downstreamStation.mountpoints.map((mountpoint) => (
+                          <option key={mountpoint.id} value={mountpoint.id}>
+                            {mountpoint.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                  )}
+                  <p className="form-hint">
+                    {downstreamStation?.destination
+                      ? `Sẽ đẩy tới ${downstreamStation.destination.host}:${downstreamStation.destination.port}/${downstreamStation.destination.mount} · NTRIP ${downstreamStation.destination.ntripVersion.toUpperCase()} · ${
+                          downstreamStation.destination.username || 'không tài khoản'
+                        }`
+                      : 'Trạm này chưa có mountpoint trên caster.'}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <Field label="Đích host">
+                    <Input
+                      value={form.downstreamHost}
+                      onChange={(event) => setForm({ ...form, downstreamHost: event.target.value })}
+                      required
+                    />
+                  </Field>
+                  <Field label="Đích port">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={65535}
+                      value={form.downstreamPort}
+                      onChange={(event) =>
+                        setForm({ ...form, downstreamPort: Number(event.target.value) })
+                      }
+                    />
+                  </Field>
+                  <Field label="Đích mount">
+                    <Input
+                      value={form.downstreamMount}
+                      onChange={(event) => setForm({ ...form, downstreamMount: event.target.value })}
+                      required
+                    />
+                  </Field>
+                  <Field label="Đích proxy">
+                    <Input
+                      value={form.downstreamProxy}
+                      onChange={(event) => setForm({ ...form, downstreamProxy: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Đích SSL">
+                    <Select
+                      value={form.downstreamSsl ? '1' : '0'}
+                      onChange={(event) =>
+                        setForm({ ...form, downstreamSsl: event.target.value === '1' })
+                      }
+                    >
+                      <option value="0">Không</option>
+                      <option value="1">Có</option>
+                    </Select>
+                  </Field>
+                  <Field label="Đích NTRIP version">
+                    <Select
+                      value={form.downstreamVersion}
+                      onChange={(event) =>
+                        setForm({ ...form, downstreamVersion: event.target.value as 'v1' | 'v2' })
+                      }
+                    >
+                      <option value="v2">v2</option>
+                      <option value="v1">v1</option>
+                    </Select>
+                  </Field>
+                  <Field label="Đích username">
+                    <Input
+                      value={form.downstreamUser}
+                      onChange={(event) => setForm({ ...form, downstreamUser: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Đích password">
+                    <Input
+                      type="password"
+                      value={form.downstreamPass}
+                      placeholder={editing?.downstream.credential?.hasSecret ? 'Đã đặt mật khẩu' : ''}
+                      onChange={(event) => setForm({ ...form, downstreamPass: event.target.value })}
+                    />
+                  </Field>
+                </>
+              )}
+            </div>
+            {(form.upstreamMode === 'station' || form.downstreamMode === 'station') && (
+              <div className="form-banner" role="status">
+                {form.upstreamMode === 'station'
+                  ? 'Đã chọn trạm ở Nguồn dữ liệu nên Đích đến dữ liệu chỉ dùng Nhập thủ công.'
+                  : 'Đã chọn trạm ở Đích đến dữ liệu nên Nguồn dữ liệu chỉ dùng Nhập thủ công.'}{' '}
+                Quy tắc này tránh relay vòng một trạm về chính nó.
+              </div>
+            )}
+          </div>
+
+          <div className="relay-form-section">
+            <h3 className="relay-form-title">Thông tin khác</h3>
+            <div className="form-grid">
+              <Field label="Tên" error={error || undefined}>
+                <Input
+                  value={form.name}
+                  onChange={(event) => setForm({ ...form, name: event.target.value })}
+                  required
+                />
+              </Field>
+              <Field label="External key">
+                <Input
+                  value={form.externalKey}
+                  onChange={(event) => setForm({ ...form, externalKey: event.target.value })}
+                />
+              </Field>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={form.sendGga}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      sendGga: event.target.checked,
+                      ...(event.target.checked ? {} : { lat: '', lon: '', nmeaIntervalSec: 0 })
+                    })
+                  }
+                />
+                Có gửi GGA
+              </label>
+              {form.sendGga && (
+                <>
+                  <Field label="Vĩ độ">
+                    <Input
+                      type="number"
+                      step="0.000001"
+                      value={form.lat}
+                      onChange={(event) => setForm({ ...form, lat: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="Kinh độ">
+                    <Input
+                      type="number"
+                      step="0.000001"
+                      value={form.lon}
+                      onChange={(event) => setForm({ ...form, lon: event.target.value })}
+                    />
+                  </Field>
+                  <Field label="NMEA interval (giây)">
+                    <Input
+                      type="number"
+                      min={0}
+                      value={form.nmeaIntervalSec}
+                      onChange={(event) =>
+                        setForm({ ...form, nmeaIntervalSec: Number(event.target.value) })
+                      }
+                    />
+                  </Field>
+                </>
+              )}
+              <Field label="UA prefix">
+                <Input
+                  value={form.uaPrefix}
+                  onChange={(event) => setForm({ ...form, uaPrefix: event.target.value })}
+                />
+              </Field>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={form.enabled}
+                  onChange={(event) => setForm({ ...form, enabled: event.target.checked })}
+                />
+                Bật relay job
+              </label>
+            </div>
+          </div>
         </form>
       </Modal>
 
