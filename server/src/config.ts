@@ -1,4 +1,5 @@
 import dotenv from 'dotenv';
+import { useMysqlTls } from './lib/mysqlTls';
 
 dotenv.config({ path: process.env.ENV_FILE || '.env.local' });
 dotenv.config({ path: process.env.ENV_FILE || '../.env.local' });
@@ -38,7 +39,8 @@ export const config = {
     appPassword: env('MYSQL_APP_PASSWORD'),
     relayUser: env('MYSQL_RELAY_USER'),
     migratorUser: env('MYSQL_MIGRATOR_USER'),
-    migratorPassword: env('MYSQL_MIGRATOR_PASSWORD')
+    migratorPassword: env('MYSQL_MIGRATOR_PASSWORD'),
+    ssl: useMysqlTls(env('MYSQL_HOST', '127.0.0.1'), process.env.MYSQL_TLS)
   },
   session: {
     cookieName: process.env.SESSION_COOKIE_NAME || 'cors_sid',

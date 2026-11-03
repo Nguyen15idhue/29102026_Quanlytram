@@ -16,7 +16,8 @@ export const adminPool: Pool = mysql.createPool({
   charset: 'utf8mb4',
   timezone: 'Z',
   dateStrings: false,
-  decimalNumbers: true
+  decimalNumbers: true,
+  ...(config.mysql.ssl ? { ssl: { rejectUnauthorized: true } } : {})
 });
 
 export async function query<T extends RowDataPacket[] = RowDataPacket[]>(

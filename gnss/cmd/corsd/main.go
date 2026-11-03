@@ -150,6 +150,10 @@ func main() {
 		Addr:              ":" + cfg.Port,
 		Handler:           api.New(runtimeDB, cfg.AdminDB, manager, casterManager, analyzer, probeManager, stationSourceManager, maintenanceRunner, cfg.InternalHMACSecret).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    16 * 1024,
 	}
 
 	go func() {

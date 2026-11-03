@@ -102,6 +102,8 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | SEC-F15 | Đã sửa | C11 | 2026-11-03 | tile cần `map.view` + rate-limit 240/phút |
 | SEC-F19 | Đã sửa | C11 | 2026-11-03 | `/health` không trả `err.message` |
 | SEC-F21 | Đã sửa | C11 | 2026-11-03 | `idsForScope('own')` = `[userId]`; test PASS |
+| SEC-F14 | Đã sửa | C12 | 2026-11-03 | HTTP Go có Read/Write/Idle/MaxHeader |
+| SEC-F12 | Đã sửa | C12 | 2026-11-03 | TLS auto theo host + `MYSQL_TLS`; test PASS |
 
 ---
 
@@ -671,7 +673,11 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - SEC-F15 (C11): tile yêu cầu `requirePermission('map','view')` + rate-limit
   240/phút theo user.
 - SEC-F21 (C11): `idsForScope()` trả `[userId]` cho `own`; test PASS.
-- Test: server build + 30 file/150 PASS.
+- SEC-F14 (C12): HTTP server Go có `ReadTimeout 10s`, `WriteTimeout 30s`,
+  `IdleTimeout 60s`, `MaxHeaderBytes 16KB`.
+- SEC-F12 (C12): TLS MySQL tự bật khi host public/FQDN, tắt với loopback/
+  RFC1918/docker service; ép bằng `MYSQL_TLS=true|false`.
+- Test: server build + 31 file/153 PASS; Go config test PASS.
 
 ### 3.4. Mục đã đóng
 - **F-16** (realtime tick dùng `tenantIds`) — đã sửa tại `server/src/realtime/socket.ts` (tick truyền `state.tenantIds`). Đóng, không cần làm lại.

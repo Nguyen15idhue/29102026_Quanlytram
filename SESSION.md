@@ -1233,3 +1233,6 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - SEC-F08/15/19/21 DONE (lô C11): CSRF cho mapConfig; tile yêu cầu quyền
   `map.view` + rate-limit theo user; `/health` không lộ `err.message`; audit
   scope `own` chỉ trả id chính actor. Test: server 30 file/150 PASS.
+- SEC-F14/12 DONE (lô C12): HTTP server Go có Read/Write/Idle timeout và
+  MaxHeaderBytes; MySQL TLS tự bật với host public/FQDN, tắt nội bộ, ép bằng
+  `MYSQL_TLS`. Test: server 31 file/153 PASS; Go config test PASS.

@@ -15,7 +15,8 @@ export const runtimePool: Pool = mysql.createPool({
   queueLimit: 0,
   timezone: 'Z',
   dateStrings: false,
-  decimalNumbers: true
+  decimalNumbers: true,
+  ...(config.mysql.ssl ? { ssl: { rejectUnauthorized: true } } : {})
 });
 
 export async function runtimeQuery<T extends RowDataPacket[] = RowDataPacket[]>(

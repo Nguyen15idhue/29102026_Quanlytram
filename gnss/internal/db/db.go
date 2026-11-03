@@ -33,6 +33,9 @@ func openDatabase(ctx context.Context, cfg config.Config, databaseName string, m
 			"charset": "utf8mb4",
 		},
 	}
+	if cfg.UseDBTLS() {
+		mysqlConfig.TLSConfig = "true"
+	}
 	dsn := mysqlConfig.FormatDSN()
 
 	database, err := sql.Open("mysql", dsn)

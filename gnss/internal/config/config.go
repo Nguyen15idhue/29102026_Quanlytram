@@ -14,6 +14,7 @@ type Config struct {
 	DBPassword string
 	RuntimeDB  string
 	AdminDB    string
+	DBTLS      string
 
 	AppEncKey          string
 	InternalHMACSecret string
@@ -112,6 +113,7 @@ func Load() Config {
 		DBPassword: getenv("MYSQL_RELAY_PASSWORD", ""),
 		RuntimeDB:  getenv("MYSQL_RUNTIME_DATABASE", "cors_runtime"),
 		AdminDB:    getenv("MYSQL_ADMIN_DATABASE", "cors_admin"),
+		DBTLS:      os.Getenv("MYSQL_TLS"),
 
 		AppEncKey:          os.Getenv("APP_ENC_KEY"),
 		InternalHMACSecret: os.Getenv("INTERNAL_HMAC_SECRET"),

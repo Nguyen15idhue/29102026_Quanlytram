@@ -38,9 +38,9 @@
 | 28 | 5 | C11 | SEC-F15 | DONE | C11 | map.view + rate-limit tile | — |
 | 29 | 5 | C11 | SEC-F19 | DONE | C11 | health bỏ err.message | — |
 | 30 | 5 | C11 | SEC-F21 | DONE | C11 | own = [userId]; test PASS | — |
-| 31 | 5 | C12 | SEC-F14 | ĐANG LÀM | — | — | — |
-| 32 | 5 | C12 | SEC-F12 | TODO | — | — | — |
-| 33 | 5 | C13 | SEC-F05 | TODO | — | — | — |
+| 31 | 5 | C12 | SEC-F14 | DONE | C12 | HTTP Go timeout/header | — |
+| 32 | 5 | C12 | SEC-F12 | DONE | C12 | TLS MySQL auto + override | — |
+| 33 | 5 | C13 | SEC-F05 | ĐANG LÀM | — | — | — |
 | 34 | 5 | C14 | SEC-F11 | TODO | — | — | — |
 
 ## Nhật ký quyết định
@@ -63,6 +63,7 @@
 - 2026-11-03 17:38 +07: FIX-11..14 DONE (C9). Sang Đợt 5 — FIX-15 (C10).
 - 2026-11-03 17:41 +07: FIX-15/16 DONE (C10). Sang SEC-F08 (C11).
 - 2026-11-03 17:43 +07: SEC-F08/15/19/21 DONE (C11). Sang SEC-F14 (C12).
+- 2026-11-03 17:45 +07: SEC-F14/12 DONE (C12). Sang SEC-F05 (C13).
 
 ## Việc phát sinh
 
