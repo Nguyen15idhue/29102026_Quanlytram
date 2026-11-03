@@ -37,7 +37,7 @@ interface MountpointList {
 
 const emptyForm = {
   username: '', password: '', enabled: true, max_connections: 1,
-  company: '', contact_name: '', email: '', phone: '',
+  company_id: '' as string | number, contact_name: '', email: '', phone: '',
   valid_from: '', valid_to: '', available_area: '',
   notes: ''
 };
@@ -125,7 +125,6 @@ export function NtripAccounts() {
         username: form.username,
         enabled: form.enabled,
         max_connections: Number(form.max_connections),
-        company: form.company,
         contact_name: form.contact_name,
         email: form.email,
         phone: form.phone,
@@ -135,6 +134,9 @@ export function NtripAccounts() {
         notes: form.notes
       };
       if (form.password) body.password = form.password;
+      if (isSuper && !editing && form.company_id) {
+        body.company_id = Number(form.company_id);
+      }
       if (editing) {
         return apiFetch(`/api/ntrip-accounts/${editing.id}`, { method: 'PATCH', body, csrfToken });
       }
@@ -230,7 +232,7 @@ export function NtripAccounts() {
       password: '',
       enabled: account.enabled,
       max_connections: account.maxConnections,
-      company: account.company ?? '',
+      company_id: account.companyId ?? '',
       contact_name: account.contactName ?? '',
       email: account.email ?? '',
       phone: account.phone ?? '',
@@ -374,14 +376,14 @@ export function NtripAccounts() {
               cell: (account) => account.availableArea || 'Không giới hạn'
             },
             {
-              key: 'company',
-              header: 'Đơn vị',
+              key: 'contact',
+              header: 'Liên hệ',
               hideOnMobile: true,
               cell: (account) => (
                 <div>
-                  <div>{account.company || '—'}</div>
+                  <div>{account.contactName || '—'}</div>
                   <div className="muted table-subline">
-                    {account.contactName || account.email || account.phone || '—'}
+                    {account.email || account.phone || '—'}
                   </div>
                 </div>
               )
@@ -525,9 +527,22 @@ export function NtripAccounts() {
               }
             />
           </Field>
-          <Field label="Công ty">
-            <Input value={form.company} onChange={(event) => setForm({ ...form, company: event.target.value })} />
-          </Field>
+          {isSuper && (
+            <Field label="Công ty">
+              <Select
+                value={form.company_id}
+                onChange={(event) => setForm({ ...form, company_id: event.target.value })}
+                disabled={Boolean(editing)}
+              >
+                <option value="">Chọn công ty</option>
+                {(companies.data?.items ?? []).map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
           <Field label="Người liên hệ">
             <Input value={form.contact_name} onChange={(event) => setForm({ ...form, contact_name: event.target.value })} />
           </Field>
@@ -599,10 +614,6 @@ export function NtripAccounts() {
               <div>
                 <dt>Công ty</dt>
                 <dd>{detail.companyName ?? (detail.companyId ? `#${detail.companyId}` : '—')}</dd>
-              </div>
-              <div>
-                <dt>Đơn vị</dt>
-                <dd>{detail.company || '—'}</dd>
               </div>
               <div>
                 <dt>Liên hệ</dt>
