@@ -1423,6 +1423,20 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
 - Bước 7 DONE: cập nhật `docs/OPS.md` §10 (backup → reset → import → verify →
   rollback, relay disabled đến cutover), `SESSION.md`, `TASKS.md`.
 
+### Dashboard — trạng thái trạm (2026-11-04)
+
+- KPI Trạm đổi từ đếm cấu hình (`hoạt động/tắt/khóa`) sang trạng thái vận hành:
+  **online / offline / khác**.
+  - `online`: trạm bật, status active và có kết nối nguồn (`direction=source`) tới
+    một mountpoint của trạm.
+  - `offline`: trạm bật nhưng không có nguồn kết nối.
+  - `khác`: trạm tắt hoặc khóa.
+- Thêm `server/src/lib/stationHealth.ts` + test 3 case; `RawMountpoint` có
+  `stationId`; ops dashboard dùng helper.
+- Kiểm chứng: dashboard API `36 total/0 online/36 offline/0 khác`; mock publish
+  `YBI_VanYen` → `1 online/35 offline`; server 188 test PASS; Playwright
+  dashboard + legacy PASS; frontend build PASS.
+
 ## Form tài khoản NTRIP — Công ty dạng select (2026-11-03)
 
 - `frontend/src/pages/NtripAccounts.tsx`: trường **Công ty** chuyển thành `Select`

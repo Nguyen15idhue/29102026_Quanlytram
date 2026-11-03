@@ -17,6 +17,7 @@ export interface RawStation {
 
 export interface RawMountpoint {
   id: number;
+  stationId: number | null;
   ownerId: number | null;
 }
 

@@ -86,10 +86,11 @@ async function fetchBaseData(): Promise<RawData> {
   }));
 
   const mountpointRows = await query<RowDataPacket[]>(
-    'SELECT id, owner_web_user_id FROM mountpoints'
+    'SELECT id, station_id, owner_web_user_id FROM mountpoints'
   );
   const mountpoints: RawMountpoint[] = mountpointRows.map((row) => ({
     id: Number(row.id),
+    stationId: row.station_id === null ? null : Number(row.station_id),
     ownerId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id)
   }));
 

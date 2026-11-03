@@ -44,7 +44,7 @@ interface OpsIncident {
 interface OpsDashboard {
   generatedAt: string;
   windowMinutes: number;
-  stations: { total: number; active: number; disabled: number; locked: number; other: number };
+  stations: { total: number; online: number; offline: number; other: number };
   ntripAccounts: {
     total: number;
     active: number;
@@ -202,8 +202,8 @@ export function Dashboard() {
               <span className="kpi-label">Trạm</span>
               <strong className="kpi-value">{data.stations.total}</strong>
               <span className="muted kpi-sub">
-                {data.stations.active} hoạt động · {data.stations.disabled} tắt ·{' '}
-                {data.stations.locked} khóa
+                {data.stations.online} online · {data.stations.offline} offline ·{' '}
+                {data.stations.other} khác
               </span>
             </div>
             <div className="kpi kpi-online">

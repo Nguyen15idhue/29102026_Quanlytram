@@ -119,3 +119,6 @@
   36 trạm/31 mountpoint/32 mapping/67 relay disabled/3 account/27 ACL; Wally +
   wally (12345678); full Playwright 60 pass/1 skip (legacy chạy riêng PASS),
   server 184 test; OPS §10 có quy trình backup/reset/import/rollback.
+- Dashboard 2026-11-04: KPI Trạm hiển thị **online/offline/khác** theo kết nối
+  nguồn thay vì trạng thái cấu hình; thêm `stationHealth` + test 3 case; server
+  188 test, Playwright dashboard + legacy PASS.

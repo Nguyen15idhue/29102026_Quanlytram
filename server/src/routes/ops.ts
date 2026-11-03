@@ -13,6 +13,7 @@ import { inScope, subtreeIds, tenantIds } from '../rbac/scope';
 import { idsForScope } from '../lib/scopeIds';
 import { loadBaseData, loadOpenAlerts } from '../realtime/data';
 import { buildSnapshot, permissionMap, scopeOf } from '../realtime/filter';
+import { countStationStatuses } from '../lib/stationHealth';
 
 export const opsRouter = Router();
 opsRouter.use(requireAuth);
@@ -187,19 +188,23 @@ opsRouter.get(
     const stationRows = await adminQuery<RowDataPacket[]>(
       'SELECT id, status, enabled, owner_web_user_id FROM stations'
     );
-    const stations = { total: 0, active: 0, disabled: 0, locked: 0, other: 0 };
+    let visibleStations: RowDataPacket[] = [];
     if (stationScope !== 'none') {
       const stationIds = idsFor(stationScope);
-      for (const row of stationRows) {
-        if (!inScope(stationScope, auth.id, stationIds, row.owner_web_user_id)) continue;
-        stations.total += 1;
-        const status = String(row.status ?? (row.enabled ? 'active' : 'disabled'));
-        if (status === 'active') stations.active += 1;
-        else if (status === 'disabled') stations.disabled += 1;
-        else if (status === 'locked') stations.locked += 1;
-        else stations.other += 1;
-      }
+      visibleStations = stationRows.filter((row) =>
+        inScope(stationScope, auth.id, stationIds, row.owner_web_user_id)
+      );
     }
+    const stations = countStationStatuses(
+      visibleStations.map((row) => ({
+        id: Number(row.id),
+        enabled: Boolean(row.enabled),
+        status: String(row.status ?? ''),
+        ownerId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id)
+      })),
+      raw.mountpoints,
+      raw.connections
+    );
 
     const accountScope = scopeOf(perms, 'ntrip_accounts.view');
     const accountRows = await adminQuery<RowDataPacket[]>(
