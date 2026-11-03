@@ -102,6 +102,25 @@ docker run --rm \
   trên `ubuntu-latest` khi `gnss/**` thay đổi (push `main` hoặc pull request).
 - Kết quả dev 2026-11-03: toàn bộ package `ok`, không phát hiện race.
 
+### 6.2. Rotate secret v1 → v2
+
+Chỉ chạy sau khi đã deploy bản đọc được v2 (relay/probe/station-source dùng
+`DecryptRecord`) và **đã backup** `cors_admin`.
+
+```bash
+docker exec cors-mvp-server-1 npm run build
+docker exec cors-mvp-server-1 node dist/db/rotateSecrets.js          # dry-run
+docker exec cors-mvp-server-1 node dist/db/rotateSecrets.js --apply  # ghi DB
+docker exec cors-mvp-server-1 node dist/db/rotateSecrets.js          # phải còn 0
+```
+
+- Phạm vi: `relay_credentials.password_enc` (AAD `relay_credentials:password_enc:<id>`)
+  và `station_sources.client_password_enc` (AAD `station_sources:client_password_enc:<station_id>`).
+- Đọc v1 bằng `APP_ENC_KEY` hiện tại, fallback `APP_ENC_KEY_PREVIOUS`;
+  mỗi dòng ghi lại trong transaction rồi đọc/giải mã để verify.
+- Idempotent: chạy lại chỉ rotate dòng chưa phải `v2:`. Sau rotate nên restart
+  `gnss` để nạp lại secret đã đổi.
+
 ## 7. API Phase 5
 
 - `GET /api/snapshot`: snapshot lọc quyền cho reconnect.

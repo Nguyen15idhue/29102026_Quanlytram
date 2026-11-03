@@ -109,9 +109,24 @@ Trạng thái: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong · `[!]` lỗi
 
 ## Lô E — rotate-secrets
 
-- [ ] E1. Script `server/src/db/rotateSecrets.ts` + npm script + test
-- [ ] E2. Backup + dry-run + `--apply` + verify trên DB dev
-- [ ] E3. Docs + commit
+- [x] E1. Script `server/src/db/rotateSecrets.ts` + npm script + test
+  - `npm run rotate:secrets` (mặc định dry-run, `--apply` mới ghi); phạm vi
+    `relay_credentials.password_enc` + `station_sources.client_password_enc`;
+    đọc v1 bằng key hiện tại, fallback `APP_ENC_KEY_PREVIOUS`; mỗi dòng ghi
+    trong transaction rồi đọc lại + giải mã để verify; idempotent (bỏ qua v2).
+  - `server/tests/rotateSecrets.test.ts` 4 test (needsRotation, v1→v2 + AAD,
+    fallback key cũ, danh sách target).
+- [x] E2. Backup + dry-run + `--apply` + verify trên DB dev
+  - Backup `cors_admin` (3.065.100 bytes) ra
+    `%TEMP%\opencode\db-backup\cors_admin_20261103.sql` (ngoài repo).
+  - Dry-run: 5 relay + 1 station source cần rotate. `--apply`: rotate 6/6;
+    DB còn `relay_credentials` 5/5 v2, `station_sources` 1/1 v2; chạy lại
+    dry-run = 0 cần rotate.
+  - Restart `gnss`: healthy, `/health` `relayDegraded:false`, station 480
+    stream lại bằng secret v2, không lỗi credential.
+- [x] E3. Docs + commit
+  - `docs/OPS.md` §6.2 quy trình rotate (thứ tự backup → dry-run → apply →
+    verify → restart gnss).
 
 ## Đóng đợt
 
