@@ -41,10 +41,25 @@ Trạng thái: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong · `[!]` lỗi
 
 ## Lô B — relayDegraded (A+B)
 
-- [ ] B1. `systemHealth.ts` gọi Go `/health`, trả `relayDegraded`
-- [ ] B2. `HealthTab` card + `Layout` banner
-- [ ] B3. Test server + test Go, gates build/test FE
-- [ ] B4. Commit lô B
+- [x] B1. `systemHealth.ts` gọi Go `/health`, trả `relayDegraded`
+  - `goMetric` gọi thêm `/health` (public, không HMAC) song song; trả
+    `relayDegraded: true|false|null` + `relayHealthStatus`; degraded → Go metric
+    `warn`. Go `/health` luôn phát `relayDegraded` (trước đây chỉ phát khi true).
+- [x] B2. `HealthTab` card + `Layout` banner
+  - Tách type + hook `frontend/src/lib/useSystemHealth.ts` (query key chung,
+    cache 12s); `HealthTab` thêm card "Relay"; `Layout` hiện banner
+    `.relay-degraded-banner` cho tài khoản có `system_health.view`, có link mở
+    Relay; màu `--warn`, không gradient.
+- [x] B3. Test server + test Go, gates build/test FE
+  - `server/tests/systemHealth.test.ts` 3 test (degraded / khỏe /
+    không đọc được `/health`); `gnss/internal/api/health_test.go` 4 case cho
+    `relayDegraded()` (nil, healthy, degraded, manager không hỗ trợ).
+  - Playwright `system-health.spec.ts`: 5 card + test banner dựng response
+    `relayDegraded: true` (desktop + 390 không tràn, có ảnh), bỏ route thì
+    banner biến mất.
+  - Gate: server **34 file/163 test PASS**; Go `build`/`vet`/`test ./...` PASS;
+    frontend build PASS; Playwright toàn suite **56/56 PASS** (3.3 phút).
+- [x] B4. Commit lô B
 
 ## Lô C — race + CI
 

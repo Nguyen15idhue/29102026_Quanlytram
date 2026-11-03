@@ -5,7 +5,7 @@ const password = process.env.E2E_PASSWORD ?? '';
 test.describe('P0 Phase 4 system health', () => {
   test.skip(!password, 'E2E_PASSWORD is required');
 
-  test('four cards, fallback text, refresh and responsive', async ({ page }) => {
+  test('five cards, relay degraded banner, fallback text, refresh and responsive', async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -23,6 +23,7 @@ test.describe('P0 Phase 4 system health', () => {
     await expect(page.getByRole('heading', { name: 'Host / VPS' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'MySQL' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Go runtime' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Relay', exact: true })).toBeVisible();
     await expect(page.getByText('tự làm mới 12s')).toBeVisible();
     await expect(page.getByText('Không thu thập network metric ở P0')).toBeVisible();
     await expect(page.getByText(/cache 12s/)).toBeVisible();
@@ -52,6 +53,57 @@ test.describe('P0 Phase 4 system health', () => {
     await page.goto('/system/health');
     await expect(page).toHaveURL(/\/system\?tab=health$/);
     await expect(page.getByRole('tab', { name: 'Sức khỏe' })).toHaveAttribute('aria-selected', 'true');
+
+    expect(errors).toEqual([]);
+  });
+
+  test('relayDegraded hiện banner topbar và card Relay khi Go báo suy giảm', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(error.message));
+
+    await page.goto('/login');
+    await page.getByLabel('Tên đăng nhập').fill('superadmin');
+    await page.getByLabel('Mật khẩu').fill(password);
+    await page.getByRole('button', { name: 'Đăng nhập' }).click();
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+
+    const base = await (await page.request.get('/api/system/health')).json();
+    await page.route('**/api/system/health*', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...base,
+          go: { ...base.go, relayDegraded: true, relayHealthStatus: 'ok' }
+        })
+      })
+    );
+
+    await page.goto('/');
+    await expect(page.locator('.relay-degraded-banner')).toBeVisible();
+    await expect(page.locator('.relay-degraded-banner')).toContainText('Relay đang suy giảm');
+
+    await page.goto('/system/health');
+    const relayCard = page
+      .locator('.health-card')
+      .filter({ has: page.getByRole('heading', { name: 'Relay', exact: true }) });
+    await expect(relayCard).toBeVisible();
+    await expect(relayCard.getByText('Có', { exact: true })).toBeVisible();
+    await expect(relayCard.getByText('warn', { exact: true })).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expect(page.locator('.relay-degraded-banner')).toBeVisible();
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+    );
+    expect(overflow).toBe(false);
+    await page.screenshot({ path: 'test-results/system-health-banner-mobile.png' });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.unroute('**/api/system/health*');
+    await page.goto('/');
+    await expect(page.locator('.relay-degraded-banner')).toHaveCount(0);
 
     expect(errors).toEqual([]);
   });

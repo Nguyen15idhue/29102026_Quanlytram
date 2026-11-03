@@ -1,86 +1,10 @@
 import type { ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { Activity, RefreshCw } from 'lucide-react';
-import { apiFetch } from '../../api/client';
 import { Button, PageHeader, StatusBadge } from '../../components/ui';
-
-type HealthStatus = 'ok' | 'warn' | 'error' | 'unknown';
-
-interface HealthResponse {
-  status: HealthStatus;
-  generatedAt: string;
-  cacheTtlSec: number;
-  cached: boolean;
-  node: {
-    status: HealthStatus;
-    uptimeSec: number;
-    pid: number;
-    nodeVersion: string;
-    cpuPercent: number;
-    rssBytes: number;
-    rssPercent?: number;
-    memoryLimitBytes?: number;
-    heapUsedBytes: number;
-    heapTotalBytes: number;
-    heapPercent: number;
-    eventLoopLagMs: number;
-    socketClients: number;
-  };
-  host: {
-    status: HealthStatus;
-    platform: string;
-    release: string;
-    architecture: string;
-    cpuCount: number;
-    cpuPercent: number;
-    loadavg: number[] | null;
-    loadavgReason: string | null;
-    uptimeSec: number;
-    memory: { totalBytes: number; usedBytes: number; freeBytes: number; usedPercent: number };
-    disk:
-      | {
-          status: HealthStatus;
-          totalBytes: number;
-          usedBytes: number;
-          freeBytes: number;
-          usedPercent: number;
-        }
-      | { status: HealthStatus; reason: string };
-    network: { status: HealthStatus; reason: string };
-  };
-  mysql: {
-    status: HealthStatus;
-    latencyMs: number;
-    schemaVersion: number | null;
-    pool: {
-      totalConnections: number | null;
-      freeConnections: number | null;
-      queue: number | null;
-      connectionLimit: number | null;
-    } | null;
-    error?: string;
-  };
-  go: {
-    status: HealthStatus;
-    reachable: boolean;
-    latencyMs: number;
-    error: string | null;
-    quality: {
-      queueDepth?: number;
-      queueSize?: number;
-      dropped?: number;
-      parseErrors?: number;
-      targets?: number;
-      alertsOpen?: number;
-      storeDrops?: number;
-      time?: string;
-      status?: string;
-    } | null;
-    relayJobs: number | null;
-    casterConnections: number | null;
-    casterListeners: number | null;
-  };
-}
+import {
+  useSystemHealth,
+  type HealthStatus
+} from '../../lib/useSystemHealth';
 
 function kind(status: HealthStatus): 'ok' | 'warn' | 'error' | 'neutral' {
   if (status === 'ok') return 'ok';
@@ -143,11 +67,7 @@ function Card({
 }
 
 export function HealthTab() {
-  const health = useQuery({
-    queryKey: ['system-health'],
-    queryFn: () => apiFetch<HealthResponse>('/api/system/health'),
-    refetchInterval: 12_000
-  });
+  const health = useSystemHealth();
   const data = health.data;
 
   return (
@@ -284,6 +204,33 @@ export function HealthTab() {
                 <div><dt>Dropped</dt><dd className="mono">{data.go.quality?.dropped ?? '—'}</dd></div>
                 <div><dt>Parse errors</dt><dd className="mono">{data.go.quality?.parseErrors ?? '—'}</dd></div>
                 <div><dt>Store drops</dt><dd className="mono">{data.go.quality?.storeDrops ?? '—'}</dd></div>
+              </dl>
+            </Card>
+
+            <Card
+              title="Relay"
+              status={
+                data.go.relayDegraded === null
+                  ? 'unknown'
+                  : data.go.relayDegraded
+                    ? 'warn'
+                    : 'ok'
+              }
+              note="Go báo relayDegraded khi lần reconcile gần nhất không giữ được toàn bộ relay job. Cảnh báo cũng hiện ở topbar cho tài khoản có quyền xem sức khỏe."
+            >
+              <dl className="health-facts">
+                <div>
+                  <dt>Degraded</dt>
+                  <dd>
+                    {data.go.relayDegraded === null
+                      ? '—'
+                      : data.go.relayDegraded
+                        ? 'Có'
+                        : 'Không'}
+                  </dd>
+                </div>
+                <div><dt>Go /health</dt><dd>{data.go.relayHealthStatus ?? '—'}</dd></div>
+                <div><dt>Relay job</dt><dd className="mono">{data.go.relayJobs ?? '—'}</dd></div>
               </dl>
             </Card>
           </div>

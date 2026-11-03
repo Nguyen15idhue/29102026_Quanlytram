@@ -170,11 +170,20 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"db":            dbStatus,
 		"schemaVersion": version,
 		"time":          time.Now().UTC().Format(time.RFC3339),
-	}
-	if reporter, ok := s.manager.(interface{ Degraded() bool }); ok && reporter.Degraded() {
-		payload["relayDegraded"] = true
+		"relayDegraded": relayDegraded(s.manager),
 	}
 	_ = json.NewEncoder(w).Encode(payload)
+}
+
+// relayDegraded reports whether the relay manager is missing jobs it should be
+// running. The manager is optional in tests/older wiring, so an absent
+// reporter counts as healthy.
+func relayDegraded(manager RelayManager) bool {
+	if manager == nil {
+		return false
+	}
+	reporter, ok := manager.(interface{ Degraded() bool })
+	return ok && reporter.Degraded()
 }
 
 type signedHandler func(http.ResponseWriter, *http.Request, []byte)

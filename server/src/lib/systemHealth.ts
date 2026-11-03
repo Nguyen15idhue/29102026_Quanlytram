@@ -140,11 +140,12 @@ async function goCall<T>(path: string): Promise<{ ok: boolean; latencyMs: number
 }
 
 async function goMetric() {
-  const [health, snapshot, connections, listeners] = await Promise.all([
+  const [health, snapshot, connections, listeners, healthDoc] = await Promise.all([
     goCall<any>('/internal/rtcm/health'),
     goCall<{ items: unknown[] }>('/internal/snapshot'),
     goCall<{ items: unknown[] }>('/internal/caster/connections'),
-    goCall<{ items: unknown[] }>('/internal/caster/listeners')
+    goCall<{ items: unknown[] }>('/internal/caster/listeners'),
+    goCall<{ status?: string; relayDegraded?: boolean }>('/health')
   ]);
   if (!health.ok) {
     return {
@@ -155,19 +156,30 @@ async function goMetric() {
       quality: null,
       relayJobs: null,
       casterConnections: null,
-      casterListeners: null
+      casterListeners: null,
+      relayDegraded: null,
+      relayHealthStatus: null
     };
   }
   const quality = health.data;
+  // `/health` là endpoint công khai của Go: báo `relayDegraded` khi hàng đợi
+  // reconcile không giữ được toàn bộ job. Null = chưa đọc được, không đoán.
+  const relayDegraded =
+    healthDoc.ok && typeof healthDoc.data?.relayDegraded === 'boolean'
+      ? healthDoc.data.relayDegraded
+      : null;
+  const degraded = quality?.status === 'disabled' || relayDegraded === true;
   return {
-    status: (quality?.status === 'disabled' ? 'warn' : 'ok') as Status,
+    status: (degraded ? 'warn' : 'ok') as Status,
     reachable: true,
     latencyMs: health.latencyMs,
     error: null,
     quality,
     relayJobs: snapshot.ok ? snapshot.data?.items?.length ?? 0 : null,
     casterConnections: connections.ok ? connections.data?.items?.length ?? 0 : null,
-    casterListeners: listeners.ok ? listeners.data?.items?.length ?? 0 : null
+    casterListeners: listeners.ok ? listeners.data?.items?.length ?? 0 : null,
+    relayDegraded,
+    relayHealthStatus: healthDoc.ok ? healthDoc.data?.status ?? null : null
   };
 }
 

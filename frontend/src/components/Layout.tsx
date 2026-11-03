@@ -17,11 +17,13 @@ import {
   RadioTower,
   Settings,
   ShieldCheck,
+  TriangleAlert,
   Users,
   X
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
 import { useRealtime } from '../realtime/RealtimeProvider';
+import { useSystemHealth } from '../lib/useSystemHealth';
 import { IconButton } from './ui';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -52,6 +54,9 @@ export function Layout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
+  const canViewHealth = can('system_health', 'view');
+  const health = useSystemHealth(canViewHealth);
+  const relayDegraded = health.data?.go.relayDegraded === true;
   const pageTitle = /^\/stations\/\d+$/.test(location.pathname)
     ? 'Chi tiết trạm'
     : titles[location.pathname] ?? 'Quản lý CORS';
@@ -194,6 +199,15 @@ export function Layout() {
             </IconButton>
           </div>
         </header>
+        {relayDegraded && (
+          <div className="relay-degraded-banner" role="status">
+            <TriangleAlert size={16} aria-hidden="true" />
+            <span>
+              Relay đang suy giảm: Go không giữ được toàn bộ relay job. Kiểm tra Relay và log Go.
+            </span>
+            <NavLink to="/relay-jobs">Mở Relay</NavLink>
+          </div>
+        )}
         <main className={location.pathname === '/guide' ? 'content content-flush' : 'content'}>
           {snapshot?.stale && (
             <div className="panel" role="status">

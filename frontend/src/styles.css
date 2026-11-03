@@ -322,6 +322,28 @@ p {
   font-size: 13px;
 }
 
+.relay-degraded-banner {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--warn);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-size: 13px;
+}
+
+.relay-degraded-banner a {
+  margin-left: auto;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
 .menu-toggle {
   display: none !important;
 }
