@@ -756,7 +756,23 @@ Tài liệu: `docs/1/10_KE_HOACH_MA_TRAN_TRANG_THAI_RELAY.md`
 | P10-5 | Frontend khóa từng dòng và nhãn trạng thái | DONE (build PASS, 1440/390 PASS) |
 | P10-6 | E2E, tài liệu, graphify, bàn giao | DONE (Playwright 12/12, graphify 4019 nodes) |
 
-## 10. Ghi chú điều phối
+## 10. Sửa lỗi trước deploy (docs/2) — DONE 34/34
+
+Tài liệu: `docs/2/KE_HOACH_FIX_LOI_TRUOC_DEPLOY.md`;
+bảng tiến độ: `docs/2/THUC_HIEN_FIX_LOI.md`.
+
+| Đợt | Nội dung | Trạng thái |
+|---|---|---|
+| 1 | Blocker vận hành FIX-01..06 | DONE (13 commit lô C1–C14) |
+| 2 | Bảo mật tài khoản SEC-F01/02/04/07 | DONE |
+| 3 | Production hardening SEC-F03/06/09/10/13/18 | DONE (gộp C6+C7) |
+| 4 | Trung bình FIX-07..14 | DONE |
+| 5 | Low/hardening FIX-15/16 + SEC-F05/08/11/12/14/15/19/21 | DONE |
+
+Gate chốt: server 32 file/157 test; Go build/vet/test; FE build; compose dev +
+production OK; secret scan 0; Playwright 9 PASS/3 skip/1 FAIL có sẵn (fixture).
+
+## 11. Ghi chú điều phối
 
 - Không chuyển phase nếu checklist chưa PASS.
 - Mỗi task cập nhật trạng thái vào file này.

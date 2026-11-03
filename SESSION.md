@@ -1244,3 +1244,13 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   `frontend/Dockerfile`, nginx non-root uid 101, read_only + tmpfs, bind
   127.0.0.1:8080, CSP/XFO/nosniff/Referrer/HSTS. Đã build và `curl -I` xác
   nhận header + user; sau test đã stop container web-prod.
+- HOÀN TẤT 34/34 mục kế hoạch trước deploy (13 commit, 5f349fe..HEAD):
+  FIX-01..16 + SEC-F01..F21 (trừ các mục Info/Low đã loại). Gate chốt:
+  server build + 32 file/157 test PASS; Go build/vet/test PASS; FE build PASS;
+  compose dev + production config OK; secret scan 0; graphify 4286 nodes/9817
+  edges. Playwright: 9 PASS, 3 skip, 1 FAIL có sẵn (`auth-password-only`:
+  superadmin chưa chọn công ty → 400 COMPANY_REQUIRED) và `station-source`
+  cần fixture "THA Hậu Lộc" — cần cập nhật fixture E2E trước release.
+- Việc còn lại: `go test -race` trên CI Linux; cập nhật fixture Playwright;
+  chuyển dần secret v1 → v2 khi có recordId; theo dõi `relayDegraded`.
+- Bảng tiến độ: `docs/2/THUC_HIEN_FIX_LOI.md` (34/34 DONE).

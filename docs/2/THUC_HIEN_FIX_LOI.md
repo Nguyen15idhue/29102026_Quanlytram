@@ -66,7 +66,21 @@
 - 2026-11-03 17:45 +07: SEC-F14/12 DONE (C12). Sang SEC-F05 (C13).
 - 2026-11-03 17:47 +07: SEC-F05 DONE (C13). Sang SEC-F11 (C14).
 - 2026-11-03 17:50 +07: SEC-F11 DONE (C14). Đủ 34/34 mục; chuyển sang gate chốt.
+- 2026-11-03 17:52 +07: Gate chốt PASS — server 32 file/157 test; Go
+  build/vet/test; FE build; compose dev + production config OK; secret scan 0;
+  graphify 4286 nodes/9817 edges.
+- 2026-11-03 17:52 +07: Playwright 9 PASS / 3 skip / 1 FAIL có sẵn
+  (`auth-password-only`: superadmin chưa chọn công ty → API 400
+  COMPANY_REQUIRED; `station-source` cần fixture "THA Hậu Lộc"). Không do
+  thay đổi của đợt fix.
+- 2026-11-03 17:52 +07: Gộp C6+C7 thành một commit (cùng Đợt 3, chạy chung
+  gate) → tổng 13 commit thay vì 14; các lô còn lại giữ nguyên.
 
 ## Việc phát sinh
 
-- (chưa có)
+- FIX-05: chỉ nâng trần per-IP 200; throttle xác thực sai tách sang SEC-F06.
+- SEC-F05: AAD áp dụng cho `station_sources.client_password_enc`; các secret
+  khác vẫn v1 (tương thích ngược), sẽ chuyển dần khi có recordId thuận tiện.
+- SEC-F11: nginx production đổi cổng nội bộ 80 → 8080 để chạy non-root.
+- Playwright: 2 spec phụ thuộc fixture/quyền của superadmin cần cập nhật dữ
+  liệu E2E trước khi dùng làm cổng chặn release.
