@@ -1212,3 +1212,8 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   cờ, middleware chặn 403 ngoài auth/profile, đổi mật khẩu xoá cờ, UI chuyển
   `/profile` + banner. Live: QA login → stations 403 → đổi MK → 200; đã xoá
   user QA. Test: passwordPolicy PASS, server 138 PASS, FE build PASS.
+- SEC-F10/13/09/18 + SEC-F06/03 DONE (gộp C6+C7): fail-fast production,
+  cookie `__Host-`, HSTS; audit retry/fail-closed + audit login; `TRUST_PROXY`
+  mặc định tắt; dummy Argon2 chống dò tài khoản; throttle xác thực sai caster;
+  compose bind 127.0.0.1, TLS listener tùy chọn. Test: server 145 PASS,
+  Go build/vet/test PASS.

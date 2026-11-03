@@ -1,6 +1,12 @@
 import { Pool } from 'mysql2/promise';
+import { ApiError } from './http';
 
 const SECRET_KEY = /pass|password|token|secret|hash|dsn|authorization|cookie/i;
+const SENSITIVE_ACTION = /(^|\.)(delete|lock|unlock|import|change_password|role|permission|seed)(\.|$)/i;
+
+export function isSensitiveAudit(action: string): boolean {
+  return SENSITIVE_ACTION.test(action);
+}
 
 export function redact(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(redact);
@@ -32,27 +38,39 @@ export async function writeAudit(
   after: unknown,
   ip: string
 ): Promise<void> {
-  try {
-    const explicitCompany = companyFrom(after) ?? companyFrom(before);
-    await pool.query(
-      `INSERT INTO audit_logs
-         (actor_web_user_id, company_id, action, entity_type, entity_id,
-          before_redacted, after_redacted, ip)
-       SELECT ?, COALESCE(?, (SELECT company_id FROM web_users WHERE id = ?)),
-              ?, ?, ?, ?, ?, ?`,
-      [
-        actorWebUserId,
-        explicitCompany,
-        actorWebUserId,
-        action,
-        entityType,
-        String(entityId),
-        before === undefined ? null : JSON.stringify(redact(before)),
-        after === undefined ? null : JSON.stringify(redact(after)),
-        ip
-      ]
-    );
-  } catch (err) {
-    console.error('[audit] write failed', err instanceof Error ? err.message : err);
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      const explicitCompany = companyFrom(after) ?? companyFrom(before);
+      await pool.query(
+        `INSERT INTO audit_logs
+           (actor_web_user_id, company_id, action, entity_type, entity_id,
+            before_redacted, after_redacted, ip)
+         SELECT ?, COALESCE(?, (SELECT company_id FROM web_users WHERE id = ?)),
+                ?, ?, ?, ?, ?, ?`,
+        [
+          actorWebUserId,
+          explicitCompany,
+          actorWebUserId,
+          action,
+          entityType,
+          String(entityId),
+          before === undefined ? null : JSON.stringify(redact(before)),
+          after === undefined ? null : JSON.stringify(redact(after)),
+          ip
+        ]
+      );
+      return;
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  console.error(
+    '[audit] write failed sau 2 lần thử',
+    action,
+    lastError instanceof Error ? lastError.message : lastError
+  );
+  if (isSensitiveAudit(action)) {
+    throw new ApiError(500, 'AUDIT_WRITE_FAILED', 'Không ghi được nhật ký kiểm toán');
   }
 }

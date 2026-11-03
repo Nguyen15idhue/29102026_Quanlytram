@@ -1,7 +1,7 @@
 import type { Server as HttpServer } from 'node:http';
 import { Server as SocketServer, type Socket } from 'socket.io';
 import { RowDataPacket } from 'mysql2/promise';
-import { config } from '../config';
+import { config, sessionCookieName } from '../config';
 import { query } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
 import { evaluateAlerts } from '../lib/alerts';
@@ -258,7 +258,7 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
   io.use(async (socket, next) => {
     try {
       const cookie = parseCookieHeader(socket.handshake.headers.cookie);
-      const token = cookie[config.session.cookieName];
+      const token = cookie[sessionCookieName()];
       if (!token) return next(new Error('UNAUTHENTICATED'));
       const auth = await loadSessionByToken(token);
       if (!auth) return next(new Error('UNAUTHENTICATED'));

@@ -33,6 +33,8 @@ type Config struct {
 	CasterWriteTimeout        time.Duration
 	CasterSourceIdleTimeout   time.Duration
 	CasterRoverIdleTimeout    time.Duration
+	CasterTLSCert             string
+	CasterTLSKey              string
 	CasterQueueSize           int
 	CasterReadBuffer          int
 	CasterMaxHeaderBytes      int
@@ -128,6 +130,8 @@ func Load() Config {
 		CasterWriteTimeout:        getenvSeconds("CASTER_WRITE_TIMEOUT_SEC", 10*time.Second),
 		CasterSourceIdleTimeout:   getenvSeconds("CASTER_SOURCE_IDLE_TIMEOUT_SEC", 60*time.Second),
 		CasterRoverIdleTimeout:    getenvSeconds("CASTER_ROVER_IDLE_TIMEOUT_SEC", 5*time.Minute),
+		CasterTLSCert:             os.Getenv("CASTER_TLS_CERT"),
+		CasterTLSKey:              os.Getenv("CASTER_TLS_KEY"),
 		CasterQueueSize:           getenvInt("CASTER_QUEUE_SIZE", 64),
 		CasterReadBuffer:          getenvInt("CASTER_READ_BUFFER", 32*1024),
 		CasterMaxHeaderBytes:      getenvInt("CASTER_MAX_HEADER_BYTES", 16*1024),

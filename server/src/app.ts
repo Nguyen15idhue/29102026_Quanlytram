@@ -51,7 +51,12 @@ const logger = pino({
 export const app = express();
 
 app.disable('x-powered-by');
-app.set('trust proxy', 1);
+// Chỉ tin X-Forwarded-For khi triển khai thật sự sau reverse proxy.
+// Mặc định tắt để limiter/session dùng socket IP, tránh giả mạo header.
+const trustProxy = process.env.TRUST_PROXY?.trim();
+if (trustProxy) {
+  app.set('trust proxy', /^\d+$/.test(trustProxy) ? Number(trustProxy) : trustProxy);
+}
 app.use(
   pinoHttp({
     logger,

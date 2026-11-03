@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { RowDataPacket } from 'mysql2/promise';
-import { config } from '../config';
+import { config, sessionCookieName } from '../config';
 import { adminPool, query } from '../db/pool';
 import { asyncHandler, ApiError, clientIp } from '../lib/http';
+import { writeAudit } from '../lib/audit';
 import { verifyPassword } from '../lib/password';
 import { randomToken, sha256 } from '../lib/token';
 import { requireAuth } from '../middleware/auth';
@@ -17,6 +18,11 @@ const loginSchema = z.object({
   username: z.string().min(1).max(64),
   password: z.string().min(1).max(200)
 });
+
+// Hash Argon2id của một mật khẩu ngẫu nhiên cố định: dùng để tiêu tốn thời gian
+// tương đương khi username không tồn tại, tránh lộ tài khoản qua timing.
+const DUMMY_ARGON2_HASH =
+  '$argon2id$v=19$m=19456,t=2,p=1$0w51WxdMfHTpCOCLNlHnEw$UBUsXlJyS+IUmplYLuHsF6jvW93S57XXxD0MuciwLsw';
 
 function userPayload(row: RowDataPacket) {
   return {
@@ -53,19 +59,36 @@ authRouter.post(
       [body.username]
     );
     if (rows.length === 0) {
+      await verifyPassword(DUMMY_ARGON2_HASH, body.password);
+      await writeAudit(adminPool, null, 'login_failed', 'auth', body.username, null, { reason: 'unknown_user' }, clientIp(req));
       throw new ApiError(401, 'INVALID_CREDENTIALS', 'Sai tên đăng nhập hoặc mật khẩu');
     }
     const user = rows[0];
     if (user.status !== 'active') {
-      throw new ApiError(403, 'ACCOUNT_LOCKED', 'Tài khoản đã bị khóa');
+      await verifyPassword(DUMMY_ARGON2_HASH, body.password);
+      await writeAudit(adminPool, null, 'login_failed', 'auth', body.username, null, { reason: 'locked' }, clientIp(req));
+      throw new ApiError(401, 'INVALID_CREDENTIALS', 'Sai tên đăng nhập hoặc mật khẩu');
     }
     if (user.company_status === 'disabled') {
-      throw new ApiError(403, 'COMPANY_DISABLED', 'Công ty đã bị vô hiệu hóa');
+      await verifyPassword(DUMMY_ARGON2_HASH, body.password);
+      await writeAudit(
+        adminPool,
+        null,
+        'login_failed',
+        'auth',
+        body.username,
+        null,
+        { reason: 'company_disabled' },
+        clientIp(req)
+      );
+      throw new ApiError(401, 'INVALID_CREDENTIALS', 'Sai tên đăng nhập hoặc mật khẩu');
     }
     const valid = await verifyPassword(String(user.password_hash), body.password);
     if (!valid) {
+      await writeAudit(adminPool, null, 'login_failed', 'auth', body.username, null, { reason: 'bad_password' }, clientIp(req));
       throw new ApiError(401, 'INVALID_CREDENTIALS', 'Sai tên đăng nhập hoặc mật khẩu');
     }
+    await writeAudit(adminPool, Number(user.id), 'login_success', 'auth', user.id, null, null, clientIp(req));
 
     const token = randomToken();
     const csrfToken = randomToken();
@@ -88,7 +111,7 @@ authRouter.post(
     ]);
     await adminPool.query('DELETE FROM web_sessions WHERE expires_at < UTC_TIMESTAMP(3)');
 
-    res.cookie(config.session.cookieName, token, {
+    res.cookie(sessionCookieName(), token, {
       httpOnly: true,
       sameSite: 'lax',
       secure: config.session.secure,
@@ -133,7 +156,8 @@ authRouter.post(
   asyncHandler(async (req, res) => {
     await adminPool.query('DELETE FROM web_sessions WHERE id = ?', [req.auth!.sessionId]);
     revokeSessionSockets(req.auth!.sessionId);
-    res.clearCookie(config.session.cookieName, { path: '/' });
+    await writeAudit(adminPool, req.auth!.id, 'logout', 'auth', req.auth!.id, null, null, clientIp(req));
+    res.clearCookie(sessionCookieName(), { path: '/' });
     res.status(204).send();
   })
 );

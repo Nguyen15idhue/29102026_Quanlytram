@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -288,10 +289,10 @@ func TestListenerACLAndSourcetable(t *testing.T) {
 	manager, _ := newTestManager(t, cfg)
 	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("ok:secret123"))
 
-	if _, code, _ := manager.authorize(&request{Authorization: auth}, m2, 2); code != 403 {
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, m2, 2, "127.0.0.1"); code != 403 {
 		t.Fatalf("listener acl code = %d, want 403", code)
 	}
-	if _, code, _ := manager.authorize(&request{Authorization: auth}, m1, 1); code != 0 {
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, m1, 1, "127.0.0.1"); code != 0 {
 		t.Fatalf("allowed listener code = %d, want 0", code)
 	}
 	allowed := manager.sourcetableMountpoints(&request{Authorization: auth}, cfg.Listeners[0])
@@ -911,7 +912,7 @@ func TestSourceReadLoopClosesIdleSource(t *testing.T) {
 	select {
 	case <-conn.done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("source im láº·ng khĂ´ng bá»‹ Ä‘Ă³ng")
+		t.Fatal("source im lĂ¡ÂºÂ·ng khÄ‚Â´ng bĂ¡Â»â€¹ Ă„â€˜Ä‚Â³ng")
 	}
 	if got := conn.closeReason(); got != "timeout" {
 		t.Fatalf("closeReason = %q, want timeout", got)
@@ -931,14 +932,14 @@ func TestSourceReadLoopKeepsActiveSource(t *testing.T) {
 	}
 	select {
 	case <-conn.done:
-		t.Fatal("source cĂ²n gá»­i dá»¯ liá»‡u nhÆ°ng bá»‹ Ä‘Ă³ng")
+		t.Fatal("source cÄ‚Â²n gĂ¡Â»Â­i dĂ¡Â»Â¯ liĂ¡Â»â€¡u nhĂ†Â°ng bĂ¡Â»â€¹ Ă„â€˜Ä‚Â³ng")
 	default:
 	}
 	client.Close()
 	select {
 	case <-conn.done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("source Ä‘Ă³ng khĂ´ng giáº£i phĂ³ng káº¿t ná»‘i")
+		t.Fatal("source Ă„â€˜Ä‚Â³ng khÄ‚Â´ng giĂ¡ÂºÂ£i phÄ‚Â³ng kĂ¡ÂºÂ¿t nĂ¡Â»â€˜i")
 	}
 	if got := conn.closeReason(); got != "source_closed" {
 		t.Fatalf("closeReason = %q, want source_closed", got)
@@ -948,10 +949,10 @@ func TestSourceReadLoopKeepsActiveSource(t *testing.T) {
 func TestDefaultPerIPLimitAllowsValidFanIn(t *testing.T) {
 	opts := DefaultOptions()
 	if opts.MaxConnectionsPerIP < 200 {
-		t.Fatalf("MaxConnectionsPerIP máº·c Ä‘á»‹nh = %d, cáº§n >= 200 cho fan-in 100 tráº¡m", opts.MaxConnectionsPerIP)
+		t.Fatalf("MaxConnectionsPerIP mĂ¡ÂºÂ·c Ă„â€˜Ă¡Â»â€¹nh = %d, cĂ¡ÂºÂ§n >= 200 cho fan-in 100 trĂ¡ÂºÂ¡m", opts.MaxConnectionsPerIP)
 	}
 	if opts.MaxConnections < 500 {
-		t.Fatalf("MaxConnections máº·c Ä‘á»‹nh = %d, cáº§n >= 500", opts.MaxConnections)
+		t.Fatalf("MaxConnections mĂ¡ÂºÂ·c Ă„â€˜Ă¡Â»â€¹nh = %d, cĂ¡ÂºÂ§n >= 500", opts.MaxConnections)
 	}
 }
 
@@ -970,7 +971,7 @@ func TestRoverReadLoopRejectsOversizedLine(t *testing.T) {
 	select {
 	case <-conn.done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("dĂ²ng quĂ¡ dĂ i khĂ´ng bá»‹ Ä‘Ă³ng")
+		t.Fatal("dÄ‚Â²ng quÄ‚Â¡ dÄ‚Â i khÄ‚Â´ng bĂ¡Â»â€¹ Ă„â€˜Ä‚Â³ng")
 	}
 	if got := conn.closeReason(); got != "protocol_error" {
 		t.Fatalf("closeReason = %q, want protocol_error", got)
@@ -1001,6 +1002,36 @@ func TestRoverReadLoopUpdatesFixType(t *testing.T) {
 	select {
 	case <-conn.done:
 	case <-time.After(time.Second):
-		t.Fatal("khĂ´ng Ä‘Ă³ng sau khi client Ä‘Ă³ng")
+		t.Fatal("khÄ‚Â´ng Ă„â€˜Ä‚Â³ng sau khi client Ă„â€˜Ä‚Â³ng")
+	}
+}
+
+func TestAuthFailureThrottleBlocksOnlyFailedPair(t *testing.T) {
+	mgr := NewManager(&memoryStore{}, &memoryRuntime{}, Options{DBTimeout: time.Second})
+	for i := 0; i < authFailThreshold; i++ {
+		mgr.recordAuthFailure("nguyen", "203.0.113.5")
+	}
+	if got := mgr.authBlockedFor("nguyen", "203.0.113.5"); got <= 0 {
+		t.Fatalf("cáº·p sai chÆ°a bá»‹ cháº·n: %s", got)
+	}
+	if got := mgr.authBlockedFor("nguyen", "203.0.113.6"); got != 0 {
+		t.Fatalf("IP khĂ¡c bá»‹ cháº·n nháº§m: %s", got)
+	}
+	if got := mgr.authBlockedFor("khac", "203.0.113.5"); got != 0 {
+		t.Fatalf("username khĂ¡c bá»‹ cháº·n nháº§m: %s", got)
+	}
+	mgr.clearAuthFailure("nguyen", "203.0.113.5")
+	if got := mgr.authBlockedFor("nguyen", "203.0.113.5"); got != 0 {
+		t.Fatalf("clear khĂ´ng giáº£i phĂ³ng: %s", got)
+	}
+}
+
+func TestAuthFailureGlobalThrottle(t *testing.T) {
+	mgr := NewManager(&memoryStore{}, &memoryRuntime{}, Options{DBTimeout: time.Second})
+	for i := 0; i < authFailGlobalMax; i++ {
+		mgr.recordAuthFailure("u"+strconv.Itoa(i), "198.51.100."+strconv.Itoa(i%200))
+	}
+	if got := mgr.authBlockedFor("bat-ky", "192.0.2.1"); got <= 0 {
+		t.Fatal("chÆ°a cháº·n toĂ n cá»¥c sau ngÆ°á»¡ng sai")
 	}
 }

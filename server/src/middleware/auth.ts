@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import { RowDataPacket } from 'mysql2/promise';
-import { config } from '../config';
+import { config, sessionCookieName } from '../config';
 import { mustChangePasswordAllowed } from '../lib/passwordPolicy';
 import { query } from '../db/pool';
 import { ApiError } from '../lib/http';
@@ -37,7 +37,7 @@ export async function requireAuth(
   next: NextFunction
 ): Promise<void> {
   try {
-    const token = req.cookies?.[config.session.cookieName];
+    const token = req.cookies?.[sessionCookieName()];
     if (!token) throw new ApiError(401, 'UNAUTHENTICATED', 'Chưa đăng nhập');
 
     const rows = await query<RowDataPacket[]>(

@@ -63,3 +63,13 @@ export const config = {
     baseCacheMs: clamp(envInt('REALTIME_BASE_CACHE_MS', 1500), 250, 5000)
   }
 };
+
+export function sessionCookieName(): string {
+  const base = config.session.cookieName;
+  if (!config.session.secure) return base;
+  return base.startsWith('__Host-') ? base : `__Host-${base}`;
+}
+
+if (config.nodeEnv === 'production' && !config.session.secure) {
+  throw new Error('SESSION_COOKIE_SECURE phải là true khi NODE_ENV=production');
+}

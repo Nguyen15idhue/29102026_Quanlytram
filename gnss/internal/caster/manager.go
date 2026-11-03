@@ -2,6 +2,7 @@ package caster
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log"
@@ -27,6 +28,8 @@ type Options struct {
 	MaxHeader           int
 	MaxConnections      int
 	MaxConnectionsPerIP int
+	TLSCert             string
+	TLSKey              string
 	Quality             *quality.Analyzer
 }
 
@@ -115,6 +118,11 @@ type manager struct {
 	pendingIP     map[string]int
 	pendingTotal  int
 	syntheticID   int64
+
+	authFailures     map[string]*authFailure
+	authGlobalCount  int
+	authGlobalUntil  time.Time
+	authGlobalWindow time.Time
 }
 
 func NewManager(store ConfigStore, runtime RuntimeStore, opts Options) *manager {
@@ -132,6 +140,7 @@ func NewManager(store ConfigStore, runtime RuntimeStore, opts Options) *manager 
 		conns:         make(map[int64]*connection),
 		pending:       make(map[int64]int),
 		pendingIP:     make(map[string]int),
+		authFailures:  make(map[string]*authFailure),
 	}
 }
 
@@ -276,6 +285,17 @@ func (m *manager) startListener(cfg *ListenerConfig) error {
 	listener, err := net.Listen("tcp", address)
 	if err != nil {
 		return err
+	}
+	if m.opts.TLSCert != "" && m.opts.TLSKey != "" {
+		cert, certErr := tls.LoadX509KeyPair(m.opts.TLSCert, m.opts.TLSKey)
+		if certErr != nil {
+			_ = listener.Close()
+			return fmt.Errorf("load TLS cert: %w", certErr)
+		}
+		listener = tls.NewListener(listener, &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			MinVersion:   tls.VersionTLS12,
+		})
 	}
 	runtime := newListenerRuntime(m, cfg, listener)
 	m.mu.Lock()

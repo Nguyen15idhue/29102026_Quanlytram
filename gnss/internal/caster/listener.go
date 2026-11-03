@@ -101,7 +101,7 @@ func (lr *listenerRuntime) handleRover(conn net.Conn, br *bufio.Reader, req *req
 		_ = writeRequestError(conn, req, 404, "Not Found")
 		return
 	}
-	account, code, reason := lr.mgr.authorize(req, mountpoint, cfg.ID)
+	account, code, reason := lr.mgr.authorize(req, mountpoint, cfg.ID, remoteHost(conn.RemoteAddr().String()))
 	if code != 0 {
 		if code == 401 {
 			_ = writeAuthRequired(conn, req)
@@ -163,7 +163,7 @@ func (lr *listenerRuntime) handleSource(conn net.Conn, br *bufio.Reader, req *re
 		_ = writeRequestError(conn, req, 404, "Not Found")
 		return
 	}
-	account, code, reason := lr.mgr.authorize(req, mountpoint, cfg.ID)
+	account, code, reason := lr.mgr.authorize(req, mountpoint, cfg.ID, remoteHost(conn.RemoteAddr().String()))
 	if code != 0 {
 		if code == 401 {
 			_ = writeAuthRequired(conn, req)
@@ -300,15 +300,21 @@ func (m *manager) sourcetableMountpoints(req *request, cfg *ListenerConfig) []*M
 	return out
 }
 
-func (m *manager) authorize(req *request, mountpoint *MountpointConfig, listenerID int64) (*AccountConfig, int, string) {
+func (m *manager) authorize(req *request, mountpoint *MountpointConfig, listenerID int64, remoteIP string) (*AccountConfig, int, string) {
 	username, password, ok := ParseBasic(req.Authorization)
 	if !ok {
+		m.recordAuthFailure("", remoteIP)
 		return nil, 401, "Unauthorized"
+	}
+	if retryAfter := m.authBlockedFor(username, remoteIP); retryAfter > 0 {
+		return nil, 429, "Too Many Requests"
 	}
 	account := m.accountByUsername(username)
 	if account == nil || !account.Enabled || !VerifyPassword(account.PasswordHash, password) {
+		m.recordAuthFailure(username, remoteIP)
 		return nil, 401, "Unauthorized"
 	}
+	m.clearAuthFailure(username, remoteIP)
 	if !account.ACL[mountpoint.ID] {
 		return nil, 403, "Forbidden"
 	}
@@ -316,4 +322,79 @@ func (m *manager) authorize(req *request, mountpoint *MountpointConfig, listener
 		return nil, 403, "Forbidden"
 	}
 	return account, 0, ""
+}
+
+// authFailure theo dõi số lần sai liên tiếp của cặp (username, IP).
+type authFailure struct {
+	count int
+	until time.Time
+}
+
+const (
+	authFailThreshold = 5
+	authFailGlobalMax = 100
+)
+
+func authKey(username, ip string) string {
+	return username + "|" + ip
+}
+
+// authBlockedFor trả thời gian còn phải chờ nếu cặp (username, IP) hoặc toàn
+// cục đang bị chặn; chỉ áp dụng cho các lần xác thực sai.
+func (m *manager) authBlockedFor(username, ip string) time.Duration {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := time.Now()
+	if now.Before(m.authGlobalUntil) {
+		return m.authGlobalUntil.Sub(now)
+	}
+	failure := m.authFailures[authKey(username, ip)]
+	if failure == nil {
+		return 0
+	}
+	if now.After(failure.until) {
+		delete(m.authFailures, authKey(username, ip))
+		return 0
+	}
+	return failure.until.Sub(now)
+}
+
+func (m *manager) recordAuthFailure(username, ip string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := time.Now()
+	if now.Sub(m.authGlobalWindow) > time.Minute {
+		m.authGlobalWindow = now
+		m.authGlobalCount = 0
+	}
+	m.authGlobalCount++
+	if m.authGlobalCount >= authFailGlobalMax {
+		m.authGlobalUntil = now.Add(10 * time.Second)
+		m.authGlobalCount = 0
+	}
+
+	key := authKey(username, ip)
+	failure := m.authFailures[key]
+	if failure == nil {
+		failure = &authFailure{}
+		m.authFailures[key] = failure
+	}
+	failure.count++
+	if failure.count >= authFailThreshold {
+		exponent := failure.count - authFailThreshold
+		if exponent > 4 {
+			exponent = 4
+		}
+		backoff := 5 * time.Second * time.Duration(1<<exponent)
+		if backoff > time.Minute {
+			backoff = time.Minute
+		}
+		failure.until = now.Add(backoff)
+	}
+}
+
+func (m *manager) clearAuthFailure(username, ip string) {
+	m.mu.Lock()
+	delete(m.authFailures, authKey(username, ip))
+	m.mu.Unlock()
 }

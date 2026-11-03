@@ -18,13 +18,13 @@
 | 8 | 2 | C4 | SEC-F04 | DONE | C4 | outbound/sourceTarget PASS; live chặn 169.254.169.254 | — |
 | 9 | 2 | C4 | SEC-F07 | DONE | C4 | assertCanTarget từng dòng; server 138 PASS | — |
 | 10 | 2 | C5 | SEC-F01 | DONE | C5 | migration admin 36; live 403 → đổi MK → 200 | — |
-| 11 | 3 | C6 | SEC-F10 | ĐANG LÀM | — | — | — |
-| 12 | 3 | C6 | SEC-F13 | TODO | — | — | — |
-| 13 | 3 | C6 | SEC-F09 | TODO | — | — | — |
-| 14 | 3 | C6 | SEC-F18 | TODO | — | — | — |
-| 15 | 3 | C7 | SEC-F06 | TODO | — | — | — |
-| 16 | 3 | C7 | SEC-F03 | TODO | — | — | — |
-| 17 | 4 | C8 | FIX-07 | TODO | — | — | — |
+| 11 | 3 | C6 | SEC-F10 | DONE | C6 | fail-fast production; __Host-; HSTS | — |
+| 12 | 3 | C6 | SEC-F13 | DONE | C6 | audit retry + fail-closed; login audit | — |
+| 13 | 3 | C6 | SEC-F09 | DONE | C6 | TRUST_PROXY mặc định tắt | — |
+| 14 | 3 | C6 | SEC-F18 | DONE | C6 | dummy Argon2; 401 thống nhất | — |
+| 15 | 3 | C7 | SEC-F06 | DONE | C7 | throttle (user,IP)+global; 2 test | — |
+| 16 | 3 | C7 | SEC-F03 | DONE | C7 | bind 127.0.0.1; TLS tùy chọn | — |
+| 17 | 4 | C8 | FIX-07 | ĐANG LÀM | — | — | — |
 | 18 | 4 | C8 | FIX-08 | TODO | — | — | — |
 | 19 | 4 | C8 | FIX-09 | TODO | — | — | — |
 | 20 | 4 | C8 | FIX-10 | TODO | — | — | — |
@@ -56,6 +56,8 @@
   trạm "THA Hậu Lộc" (pre-existing, đã ghi SESSION).
 - 2026-11-03 17:22 +07: SEC-F02/04/07 DONE (C4); SEC-F01 DONE (C5): migration
   admin 36, live 403 → đổi mật khẩu → 200. Sang Đợt 3 — SEC-F10 (C6).
+- 2026-11-03 17:30 +07: SEC-F10/13/09/18 (C6) và SEC-F06/03 (C7) DONE; gộp
+  C6+C7 một commit vì cùng đợt và chạy chung gate. Sang Đợt 4 — FIX-07 (C8).
 
 ## Việc phát sinh
 

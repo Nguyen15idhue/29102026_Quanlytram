@@ -82,6 +82,12 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | SEC-F04 | Đã sửa | C4 | 2026-11-03 | credential gắn host/port/TLS; chặn SSRF; test outbound/sourceTarget PASS |
 | SEC-F07 | Đã sửa | C4 | 2026-11-03 | `assertCanTarget` từng dòng + giới hạn field + audit diff |
 | SEC-F01 | Đã sửa | C5 | 2026-11-03 | migration admin 36; live 403 → đổi mật khẩu → 200 (`qa_mustchange`) |
+| SEC-F10 | Đã sửa | C6 | 2026-11-03 | fail-fast production; `__Host-`; HSTS; configSecurity PASS |
+| SEC-F13 | Đã sửa | C6 | 2026-11-03 | audit retry + fail-closed; login success/fail/logout; audit.test PASS |
+| SEC-F09 | Đã sửa | C6 | 2026-11-03 | `TRUST_PROXY` mặc định tắt; cookie name dùng chung socket |
+| SEC-F18 | Đã sửa | C6 | 2026-11-03 | dummy Argon2 + `INVALID_CREDENTIALS` thống nhất |
+| SEC-F06 | Đã sửa | C7 | 2026-11-03 | throttle (username,IP) + toàn cục; 2 test PASS |
+| SEC-F03 | Đã sửa | C7 | 2026-11-03 | compose bind 127.0.0.1; TLS listener tùy chọn; go test PASS |
 
 ---
 
@@ -505,30 +511,67 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - **Cách sửa:** đếm lỗi xác thực theo `(username, ip)` + toàn cục, backoff sau N lần; chỉ áp cho trường hợp sai, không áp cho kết nối thành công; log/audit lỗi (không log password).
 - **Nghiệm thu:** 20 lần sai cùng username+IP → backoff; 150 source hợp lệ cùng IP vẫn PASS dưới trần tổng.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C7.**
+- `authorize` nhận `remoteIP`; đếm lỗi theo `(username, IP)` và toàn cục,
+  backoff 5s→60s sau 5 lần sai, chặn toàn cục 10s sau 100 lỗi/phút.
+- Chỉ áp dụng cho lần xác thực sai; xác thực thành công xoá bộ đếm.
+- Test: `TestAuthFailureThrottleBlocksOnlyFailedPair`,
+  `TestAuthFailureGlobalThrottle` PASS.
+
 #### SEC-F03 [Medium–High nếu Internet] Caster plaintext
 - **Vị trí:** `docker-compose.yml:116-117` (`1509:1509`, `1508:1508` bind 0.0.0.0); caster listener không TLS.
 - **Cách sửa:** nếu Internet → thêm TLS listener (`crypto/tls`, cert/key) hoặc stunnel/haproxy; nếu nội bộ → publish vào IP nội bộ/VPN + firewall theo dải mạng khách hàng, không allowlist từng IP.
 - **Nghiệm thu:** plaintext bị từ chối khi bật TLS; `docker compose port gnss 1509` không mở public khi mô hình nội bộ.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C7.**
+- Compose publish `127.0.0.1:1509`/`127.0.0.1:1508` (mô hình nội bộ/VPN).
+- Caster hỗ trợ TLS listener khi đặt `CASTER_TLS_CERT`/`CASTER_TLS_KEY`
+  (`crypto/tls`, TLS ≥ 1.2); plaintext bị từ chối khi bật TLS.
+- Test: `go build ./...`, `go vet ./...`, `go test ./...` PASS;
+  `docker compose config --quiet` OK.
 
 #### SEC-F10 [Medium] Cookie phiên production
 - **Vị trí:** `server/src/config.ts:46`; `server/src/routes/auth.ts` (Set-Cookie); `frontend/nginx.conf` (HSTS).
 - **Cách sửa:** fail-fast nếu `NODE_ENV=production` và `SESSION_COOKIE_SECURE!=='true'`; đổi tiền tố `__Host-` khi HTTPS; thêm HSTS ở nginx.
 - **Nghiệm thu:** production thiếu biến → server không start; Set-Cookie có `Secure; HttpOnly; SameSite=Lax; __Host-`.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C6.**
+- Fail-fast khi `NODE_ENV=production` và `SESSION_COOKIE_SECURE!=='true'`;
+  tên cookie tự thêm tiền tố `__Host-` khi bật Secure; HSTS ở `nginx.conf`.
+- Test: `configSecurity.test.ts` PASS; chạy thật `NODE_ENV=production node -e
+  "require('./dist/config')"` → throw đúng thông điệp.
+
 #### SEC-F13 [Medium] Audit mất im lặng + không audit đăng nhập
 - **Vị trí:** `server/src/lib/audit.ts:55`; `server/src/routes/auth.ts`.
 - **Cách sửa:** retry có giới hạn + log error; với thao tác quyền nhạy cảm có thể fail-closed; audit login success/fail/lock/logout kèm IP/UA (đã redact).
 - **Nghiệm thu:** DB audit lỗi → hành động nhạy cảm báo lỗi/cảnh báo; login sai 5 lần có bản ghi audit.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C6.**
+- `writeAudit` thử lại 1 lần, log lỗi; hành động nhạy cảm (delete/lock/import/
+  change_password/role/permission/seed) fail-closed với 500 `AUDIT_WRITE_FAILED`.
+- Audit `login_success`, `login_failed` (unknown_user/locked/company_disabled/
+  bad_password) và `logout`, kèm IP; payload đã redact.
+- Test: `audit.test.ts` 4 test PASS.
 
 #### SEC-F09 [Medium] `trust proxy` vô điều kiện
 - **Vị trí:** `server/src/app.ts:54`.
 - **Cách sửa:** chỉ bật khi có env `TRUST_PROXY` (số hop hoặc dải CIDR proxy tin cậy); mặc định tắt. Ghi nhận cả socket IP và XFF có đánh dấu nguồn.
 - **Nghiệm thu:** gửi XFF giả khi không qua proxy → limiter/session dùng socket IP.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C6.**
+- `trust proxy` chỉ bật khi có env `TRUST_PROXY` (số hop hoặc dải CIDR);
+  mặc định tắt, request dùng socket IP.
+- `sessionCookieName()` áp dụng cho cả HTTP middleware và Socket.IO handshake.
+
 #### SEC-F18 [Low–Medium] Login lộ trạng thái tài khoản
 - **Vị trí:** `server/src/routes/auth.ts:51-66`.
 - **Cách sửa:** verify dummy Argon2 khi không tìm thấy user; trả cùng `INVALID_CREDENTIALS` cho mọi trường hợp không đăng nhập được (trừ khi có kênh thông báo khác); audit login fail.
 - **Nghiệm thu:** thời gian/response user tồn tại vs không tồn tại tương đương.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C6.**
+- Verify Argon2id với hash giả khi không tìm thấy user/khóa/công ty bị vô hiệu;
+  mọi trường hợp đều trả `401 INVALID_CREDENTIALS`, audit lý do nội bộ.
+- Test: server build + 145 test PASS.
 
 ### 3.3. Nhóm ưu tiên 3 — sửa nhanh, rủi ro thấp
 
