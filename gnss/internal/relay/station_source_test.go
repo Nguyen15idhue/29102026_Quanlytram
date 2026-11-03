@@ -504,3 +504,13 @@ func TestRunStationSourceKeepsSlowCadence(t *testing.T) {
 		t.Fatalf("phiên bị cắt sớm: %v", err)
 	}
 }
+
+func TestStationSourceReconcileBeforeRunDoesNotPanic(t *testing.T) {
+	store := &fakeStationStore{}
+	m := NewStationSourceManager(store, nil, testManagerOptions(5*time.Second))
+	if m.rootContext() == nil {
+		t.Fatal("rootContext nil trước Run")
+	}
+	m.Reconcile(context.Background())
+	m.Shutdown(context.Background())
+}

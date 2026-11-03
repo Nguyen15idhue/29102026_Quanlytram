@@ -400,6 +400,12 @@ async function assertNoCycles(proposed: {
     upstreamKey: String(row.upstream_key),
     downstreamKey: String(row.downstream_key)
   }));
+  const busyDownstream = rows.find(
+    (row) => String(row.downstream_key) === proposed.downstreamKey
+  );
+  if (busyDownstream) {
+    throw new ApiError(409, 'DOWNSTREAM_BUSY', 'Downstream đã được relay job khác sử dụng');
+  }
   edges.push({
     upstreamKey: proposed.upstreamKey,
     downstreamKey: proposed.downstreamKey
@@ -1636,6 +1642,18 @@ relayJobsRouter.post(
         errors.push(
           `Dòng ${index + 1}: ${err instanceof Error ? err.message : 'dữ liệu không hợp lệ'}`
         );
+      }
+    }
+    const seenDownstream = new Map<string, string>();
+    for (const item of items) {
+      if (!item.enabled) continue;
+      const key = endpointKey(item.downstream);
+      const label = String(item.externalKey || item.name || item.id || '?');
+      const prior = seenDownstream.get(key);
+      if (prior) {
+        errors.push(`Downstream trùng giữa "${prior}" và "${label}"`);
+      } else {
+        seenDownstream.set(key, label);
       }
     }
     let created = 0;

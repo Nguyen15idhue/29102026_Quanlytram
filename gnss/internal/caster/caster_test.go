@@ -1035,3 +1035,57 @@ func TestAuthFailureGlobalThrottle(t *testing.T) {
 		t.Fatal("chÆ°a cháº·n toĂ n cá»¥c sau ngÆ°á»¡ng sai")
 	}
 }
+
+func TestHubDetachSourceKeepsRoversForGrace(t *testing.T) {
+	h := newHub(nil, nil)
+	source := &connection{id: 1}
+	rover := &connection{id: 2}
+	h.source = source
+	if !h.addRover(rover) {
+		t.Fatal("addRover failed")
+	}
+	h.detachSource(source)
+	if h.hasSource() {
+		t.Fatal("source chưa được detach")
+	}
+	rovers := h.takeRoversIfNoSource()
+	if len(rovers) != 1 || rovers[0] != rover {
+		t.Fatalf("rovers = %d, want 1", len(rovers))
+	}
+	if got := h.takeRoversIfNoSource(); len(got) != 0 {
+		t.Fatalf("lấy rover lần hai = %d, want 0", len(got))
+	}
+}
+
+func TestSourceGraceClosesRoverAfterTimeout(t *testing.T) {
+	mgr := NewManager(&memoryStore{}, &memoryRuntime{}, Options{
+		DBTimeout:   time.Second,
+		SourceGrace: 30 * time.Millisecond,
+	})
+	h := newHub(nil, nil)
+	server, client := net.Pipe()
+	defer client.Close()
+	source := &connection{id: 1, direction: DirectionSource, hub: h, conn: server}
+	roverServer, roverClient := net.Pipe()
+	defer roverClient.Close()
+	rover := &connection{id: 2, direction: DirectionRover, hub: h, conn: roverServer, done: make(chan struct{})}
+	h.source = source
+	if !h.addRover(rover) {
+		t.Fatal("addRover failed")
+	}
+
+	mgr.connectionClosed(source, "timeout")
+	select {
+	case <-rover.done:
+		t.Fatal("rover bị đóng ngay, chưa hết grace")
+	case <-time.After(10 * time.Millisecond):
+	}
+	select {
+	case <-rover.done:
+	case <-time.After(time.Second):
+		t.Fatal("rover không bị đóng sau grace")
+	}
+	if got := rover.closeReason(); got != "source_disconnected" {
+		t.Fatalf("closeReason = %q, want source_disconnected", got)
+	}
+}

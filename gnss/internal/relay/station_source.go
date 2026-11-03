@@ -398,7 +398,17 @@ func (m *StationSourceManager) Shutdown(ctx context.Context) {
 	}
 }
 
+func (m *StationSourceManager) rootContext() context.Context {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.rootCtx != nil {
+		return m.rootCtx
+	}
+	return context.Background()
+}
+
 func (m *StationSourceManager) reconcile(ctx context.Context) {
+	root := m.rootContext()
 	loadCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	configs, err := m.store.LoadAll(loadCtx)
@@ -430,7 +440,7 @@ func (m *StationSourceManager) reconcile(ctx context.Context) {
 			cancelSession()
 			delete(m.sessions, id)
 		}
-		sessionCtx, cancelSession := context.WithCancel(m.rootCtx)
+		sessionCtx, cancelSession := context.WithCancel(root)
 		m.sessions[id] = cancelSession
 		m.fingerprints[id] = fingerprint
 		m.wg.Add(1)

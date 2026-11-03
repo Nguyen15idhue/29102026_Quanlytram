@@ -48,6 +48,40 @@ func NewManager(store ConfigStore, writer RuntimeWriter, opts Options) *Manager 
 	}
 }
 
+// duplicateJobIDs đánh dấu job trùng cặp upstream/downstream hoặc trùng
+// downstream (một downstream chỉ nhận một source).
+func duplicateJobIDs(configs []*JobConfig) map[int64]bool {
+	pairs := make(map[string][]int64)
+	downstreams := make(map[string][]int64)
+	for _, cfg := range configs {
+		if !cfg.Enabled {
+			continue
+		}
+		pairs[cfg.Upstream.Key+"\x00"+cfg.Downstream.Key] = append(
+			pairs[cfg.Upstream.Key+"\x00"+cfg.Downstream.Key], cfg.ID)
+		downstreams[cfg.Downstream.Key] = append(downstreams[cfg.Downstream.Key], cfg.ID)
+	}
+	duplicates := make(map[int64]bool)
+	mark := func(groups map[string][]int64) {
+		for _, jobIDs := range groups {
+			if len(jobIDs) > 1 {
+				for _, id := range jobIDs {
+					duplicates[id] = true
+				}
+			}
+		}
+	}
+	mark(pairs)
+	mark(downstreams)
+	return duplicates
+}
+
+func (m *Manager) Degraded() bool {	if store, ok := m.store.(interface{ Degraded() bool }); ok {
+		return store.Degraded()
+	}
+	return false
+}
+
 func (m *Manager) Run(ctx context.Context) {
 	m.mu.Lock()
 	m.rootCtx = ctx
@@ -96,7 +130,6 @@ func (m *Manager) Reconcile(ctx context.Context, ids []int64) error {
 	}
 
 	edges := make([]Edge, 0, len(configs))
-	pairs := make(map[string][]int64)
 	for _, cfg := range configs {
 		if !cfg.Enabled {
 			continue
@@ -106,17 +139,8 @@ func (m *Manager) Reconcile(ctx context.Context, ids []int64) error {
 			UpstreamKey:   cfg.Upstream.Key,
 			DownstreamKey: cfg.Downstream.Key,
 		})
-		pair := cfg.Upstream.Key + "\x00" + cfg.Downstream.Key
-		pairs[pair] = append(pairs[pair], cfg.ID)
 	}
-	duplicates := make(map[int64]bool)
-	for _, jobIDs := range pairs {
-		if len(jobIDs) > 1 {
-			for _, id := range jobIDs {
-				duplicates[id] = true
-			}
-		}
-	}
+	duplicates := duplicateJobIDs(configs)
 
 	m.mu.Lock()
 	defer m.mu.Unlock()

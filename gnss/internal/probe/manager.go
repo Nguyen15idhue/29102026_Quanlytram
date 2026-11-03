@@ -128,6 +128,7 @@ func (m *Manager) Shutdown(ctx context.Context) {
 }
 
 func (m *Manager) reconcile(ctx context.Context) {
+	root := m.rootContext()
 	loadCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	configs, err := m.store.LoadAll(loadCtx)
@@ -162,7 +163,7 @@ func (m *Manager) reconcile(ctx context.Context) {
 			cancel()
 			delete(m.sessions, id)
 		}
-		probeCtx, cancel := context.WithCancel(m.rootCtx)
+		probeCtx, cancel := context.WithCancel(root)
 		m.sessions[id] = cancel
 		m.fingerprints[id] = fingerprint
 		m.wg.Add(1)
@@ -172,6 +173,15 @@ func (m *Manager) reconcile(ctx context.Context) {
 		}(cfg, probeCtx)
 	}
 	m.mu.Unlock()
+}
+
+func (m *Manager) rootContext() context.Context {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.rootCtx != nil {
+		return m.rootCtx
+	}
+	return context.Background()
 }
 
 func probeFingerprint(cfg *Config) string {

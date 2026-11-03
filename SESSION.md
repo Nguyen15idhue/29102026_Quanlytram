@@ -1222,3 +1222,7 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   purge alert mồ côi lúc khởi động; realtime fallback từ `relay_job_state` với
   cờ `stale` + banner; history lọc `direction` (mặc định upstream).
   Test: server 29 file/148 PASS.
+- FIX-11..14 DONE (lô C9): grace 10s giữ rover khi source ngắt; `rootContext()`
+  + recover internal API chống panic; credential lỗi chỉ bỏ job đó và health
+  báo `relayDegraded`; chặn trùng downstream (409 `DOWNSTREAM_BUSY`, import
+  báo theo dòng). Test: Go build/vet/test PASS (+5 test).

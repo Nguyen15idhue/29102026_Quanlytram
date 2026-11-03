@@ -22,6 +22,7 @@ type Options struct {
 	WriteTimeout        time.Duration
 	SourceIdleTimeout   time.Duration
 	RoverIdleTimeout    time.Duration
+	SourceGrace         time.Duration
 	DBTimeout           time.Duration
 	ReadBuffer          int
 	QueueSize           int
@@ -41,6 +42,7 @@ func DefaultOptions() Options {
 		WriteTimeout:        10 * time.Second,
 		SourceIdleTimeout:   60 * time.Second,
 		RoverIdleTimeout:    5 * time.Minute,
+		SourceGrace:         10 * time.Second,
 		DBTimeout:           3 * time.Second,
 		ReadBuffer:          32 * 1024,
 		QueueSize:           64,
@@ -72,6 +74,12 @@ func (o Options) withDefaults() Options {
 	}
 	if o.RoverIdleTimeout <= 0 {
 		o.RoverIdleTimeout = defaults.RoverIdleTimeout
+	}
+	if o.SourceGrace < 0 {
+		o.SourceGrace = 0
+	}
+	if o.SourceGrace == 0 && defaults.SourceGrace > 0 {
+		o.SourceGrace = defaults.SourceGrace
 	}
 	if o.DBTimeout <= 0 {
 		o.DBTimeout = defaults.DBTimeout
@@ -532,9 +540,21 @@ func (m *manager) connectionClosed(conn *connection, reason string) {
 	m.mu.Unlock()
 
 	if conn.direction == DirectionSource {
-		rovers := conn.hub.removeSource(conn)
-		for _, rover := range rovers {
-			rover.closeWithReason("source_disconnected")
+		conn.hub.detachSource(conn)
+		if m.opts.SourceGrace <= 0 {
+			for _, rover := range conn.hub.takeRoversIfNoSource() {
+				rover.closeWithReason("source_disconnected")
+			}
+		} else {
+			grace := m.opts.SourceGrace
+			time.AfterFunc(grace, func() {
+				if conn.hub.hasSource() {
+					return
+				}
+				for _, rover := range conn.hub.takeRoversIfNoSource() {
+					rover.closeWithReason("source_disconnected")
+				}
+			})
 		}
 	} else {
 		conn.hub.removeRover(conn)

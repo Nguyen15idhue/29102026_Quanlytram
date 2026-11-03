@@ -1,6 +1,9 @@
 package probe
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 func TestProbeFingerprintChanges(t *testing.T) {
 	lat := 21.0
@@ -30,4 +33,16 @@ func TestProbeFingerprintChanges(t *testing.T) {
 	if third := probeFingerprint(cfg); third == first {
 		t.Fatal("fingerprint did not change when password changed")
 	}
+}
+
+type emptyStore struct{}
+
+func (emptyStore) LoadAll(context.Context) ([]*Config, error) { return nil, nil }
+
+func TestReconcileBeforeRunDoesNotPanic(t *testing.T) {
+	m := NewManager(emptyStore{}, DefaultOptions())
+	if m.rootContext() == nil {
+		t.Fatal("rootContext nil trÆ°á»›c Run")
+	}
+	m.Reconcile(context.Background())
 }

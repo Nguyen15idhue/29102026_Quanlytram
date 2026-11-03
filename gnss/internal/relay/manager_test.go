@@ -600,3 +600,25 @@ func TestWaitJobDoneHonorsTimeout(t *testing.T) {
 		t.Fatalf("chờ %s, vượt StopTimeout quá xa", elapsed)
 	}
 }
+
+func TestDuplicateJobIDsBlocksSameDownstream(t *testing.T) {
+	makeJob := func(id int64, upstream, downstream string) *JobConfig {
+		return &JobConfig{
+			ID:         id,
+			Enabled:    true,
+			Upstream:   EndpointConfig{Key: upstream},
+			Downstream: EndpointConfig{Key: downstream},
+		}
+	}
+	duplicates := duplicateJobIDs([]*JobConfig{
+		makeJob(1, "u1", "d1"),
+		makeJob(2, "u2", "d1"),
+		makeJob(3, "u3", "d3"),
+	})
+	if !duplicates[1] || !duplicates[2] {
+		t.Fatalf("chưa chặn trùng downstream: %+v", duplicates)
+	}
+	if duplicates[3] {
+		t.Fatal("job downstream riêng bị đánh dấu trùng")
+	}
+}

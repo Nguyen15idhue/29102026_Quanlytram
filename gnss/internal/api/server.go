@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -117,7 +118,19 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/internal/maintenance/status", s.requireSignature(s.handleMaintenanceStatus, http.MethodGet))
 	mux.HandleFunc("/internal/maintenance/prune", s.requireSignature(s.handleMaintenancePrune, http.MethodPost))
 	mux.HandleFunc("/internal/maintenance/reconcile", s.requireSignature(s.handleMaintenanceReconcile, http.MethodPost))
-	return mux
+	return recoverHandler(mux)
+}
+
+func recoverHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				log.Printf("[api] panic at %s: %v", r.URL.Path, recovered)
+				writeError(w, http.StatusInternalServerError, "internal error")
+			}
+		}()
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -149,12 +162,16 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatus)
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	payload := map[string]any{
 		"status":        status,
 		"db":            dbStatus,
 		"schemaVersion": version,
 		"time":          time.Now().UTC().Format(time.RFC3339),
-	})
+	}
+	if reporter, ok := s.manager.(interface{ Degraded() bool }); ok && reporter.Degraded() {
+		payload["relayDegraded"] = true
+	}
+	_ = json.NewEncoder(w).Encode(payload)
 }
 
 type signedHandler func(http.ResponseWriter, *http.Request, []byte)

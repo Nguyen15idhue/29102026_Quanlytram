@@ -4,7 +4,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"strings"
+	"sync/atomic"
 
 	"cors/gnss/internal/secret"
 )
@@ -15,12 +17,18 @@ type ConfigStore interface {
 }
 
 type MySQLStore struct {
-	db     *sql.DB
-	encKey string
+	db       *sql.DB
+	encKey   string
+	degraded atomic.Bool
 }
 
 func NewMySQLStore(db *sql.DB, encKey string) *MySQLStore {
 	return &MySQLStore{db: db, encKey: encKey}
+}
+
+// Degraded báo có job bị bỏ qua do credential không giải mã được.
+func (s *MySQLStore) Degraded() bool {
+	return s.degraded.Load()
 }
 
 const jobColumns = `
@@ -146,10 +154,14 @@ func (s *MySQLStore) LoadAll(ctx context.Context) ([]*JobConfig, error) {
 	defer rows.Close()
 
 	var jobs []*JobConfig
+	s.degraded.Store(false)
 	for rows.Next() {
 		job, err := s.scanJob(rows)
 		if err != nil {
-			return nil, err
+			// Một credential hỏng chỉ bỏ qua job đó, không làm hỏng toàn bộ cấu hình.
+			s.degraded.Store(true)
+			log.Printf("[relay] bỏ qua job lỗi cấu hình: %v", err)
+			continue
 		}
 		jobs = append(jobs, job)
 	}

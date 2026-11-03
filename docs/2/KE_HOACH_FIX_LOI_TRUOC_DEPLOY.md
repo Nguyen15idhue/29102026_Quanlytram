@@ -92,6 +92,10 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | FIX-08 | Đã sửa | C8 | 2026-11-03 | resolve alert khi xoá + purge mồ côi lúc khởi động |
 | FIX-09 | Đã sửa | C8 | 2026-11-03 | fallback `relay_job_state`, `stale` + banner |
 | FIX-10 | Đã sửa | C8 | 2026-11-03 | lọc `direction`, mặc định upstream; test PASS |
+| FIX-11 | Đã sửa | C9 | 2026-11-03 | grace 10s giữ rover; 2 test PASS |
+| FIX-12 | Đã sửa | C9 | 2026-11-03 | `rootContext()` + recover API; 2 test PASS |
+| FIX-13 | Đã sửa | C9 | 2026-11-03 | bỏ qua job lỗi credential, `relayDegraded` |
+| FIX-14 | Đã sửa | C9 | 2026-11-03 | 409 `DOWNSTREAM_BUSY`; test duplicate PASS |
 
 ---
 
@@ -392,6 +396,13 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - Source ngắt rồi kết nối lại trong grace → rover giữ nguyên session.
 - Quá grace → rover đóng đúng lý do.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C9.**
+- Thêm `SourceGrace` (mặc định 10s, `CASTER_SOURCE_GRACE_SEC`); source ngắt
+  thì detach, giữ rover, hết grace mà chưa có source mới mới đóng
+  `source_disconnected`.
+- Test: `TestHubDetachSourceKeepsRoversForGrace`,
+  `TestSourceGraceClosesRoverAfterTimeout` PASS.
+
 ---
 
 ### FIX-12 [Medium] Nguy cơ panic khi reconcile trước Run
@@ -409,6 +420,13 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 **Nghiệm thu**
 - Gọi reconcile trước Run không panic; trả kết quả hợp lệ.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C9.**
+- Thêm `rootContext()` cho probe và station-source: trả `Background` khi chưa
+  `Run`; reconcile dùng context đó thay vì `m.rootCtx` nil.
+- Thêm `recoverHandler` bao toàn bộ internal API: panic trả 500 thay vì chết process.
+- Test: `TestReconcileBeforeRunDoesNotPanic`,
+  `TestStationSourceReconcileBeforeRunDoesNotPanic` PASS.
+
 ---
 
 ### FIX-13 [Medium] Một credential lỗi làm hỏng toàn bộ cấu hình relay
@@ -424,6 +442,11 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 
 **Nghiệm thu**
 - 1 credential hỏng + 5 job tốt → 5 job vẫn reconcile; health báo `degraded`.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C9.**
+- `LoadAll` bỏ qua job lỗi credential, log `job id + lý do` (không log ciphertext),
+  đặt cờ `Degraded()`; health Go trả `relayDegraded: true` khi có job bị bỏ.
+- Test: Go build/vet/test PASS (hành vi DB kiểm bằng log + cờ, không cần DB test).
 
 ---
 
@@ -441,6 +464,13 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 **Nghiệm thu**
 - Tạo job B cùng downstream với job A → 409 `DOWNSTREAM_BUSY`.
 - Import file có 2 job cùng downstream → báo lỗi theo dòng, không tạo.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C9.**
+- `duplicateJobIDs` chặn cả trùng downstream; API create/update trả 409
+  `DOWNSTREAM_BUSY`; import báo lỗi theo dòng khi trùng trong file hoặc với job
+  đang bật.
+- UI hiện lỗi từ API khi lưu (không cần thêm cảnh báo trước).
+- Test: `TestDuplicateJobIDsBlocksSameDownstream` PASS.
 
 ---
 

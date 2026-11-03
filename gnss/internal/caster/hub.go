@@ -73,6 +73,31 @@ func (h *hub) removeSource(c *connection) []*connection {
 	return rovers
 }
 
+// detachSource chỉ bỏ tham chiếu source, giữ rover lại để chờ source mới
+// trong khoảng grace.
+func (h *hub) detachSource(c *connection) {
+	h.mu.Lock()
+	if h.source == c {
+		h.source = nil
+	}
+	h.mu.Unlock()
+}
+
+// takeRoversIfNoSource trả toàn bộ rover nếu hiện không còn source.
+func (h *hub) takeRoversIfNoSource() []*connection {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.source != nil || len(h.rovers) == 0 {
+		return nil
+	}
+	rovers := make([]*connection, 0, len(h.rovers))
+	for _, rover := range h.rovers {
+		rovers = append(rovers, rover)
+	}
+	h.rovers = make(map[int64]*connection)
+	return rovers
+}
+
 func (h *hub) addRover(c *connection) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
