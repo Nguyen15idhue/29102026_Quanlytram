@@ -4,6 +4,7 @@ import { config } from './config';
 import { closePool } from './db/pool';
 import { closeRuntimePool } from './db/runtimePool';
 import { startMaintenanceScheduler } from './lib/maintenance';
+import { purgeOrphanQualityAlerts } from './lib/qualityAlerts';
 import { initRealtime } from './realtime/socket';
 
 const server = http.createServer(app);
@@ -12,6 +13,11 @@ startMaintenanceScheduler();
 
 server.listen(config.port, '0.0.0.0', () => {
   console.log(`[server] listening on :${config.port}`);
+  void purgeOrphanQualityAlerts()
+    .then((count) => {
+      if (count > 0) console.log(`[quality] đã resolve ${count} cảnh báo mồ côi`);
+    })
+    .catch((err) => console.error('[quality] purge alerts failed', err instanceof Error ? err.message : err));
 });
 
 async function shutdown(signal: string): Promise<void> {

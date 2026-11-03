@@ -2,6 +2,7 @@ import { RowDataPacket } from 'mysql2/promise';
 import { config } from '../config';
 import { query } from '../db/pool';
 import { callGoInternal } from '../lib/internalApi';
+import { runtimeQuery } from '../db/runtimePool';
 import type {
   RawAlert,
   RawConnection,
@@ -99,6 +100,7 @@ async function fetchBaseData(): Promise<RawData> {
 
   let relay: RawRelayMetric[] = [];
   let goOk = true;
+  let stale = false;
   try {
     const response = await callGoInternal<{ items: GoMetrics[] }>(
       '/internal/snapshot',
@@ -118,6 +120,8 @@ async function fetchBaseData(): Promise<RawData> {
     }));
   } catch {
     goOk = false;
+    stale = true;
+    relay = await fallbackRelayMetrics(jobs);
   }
 
   let connections: RawConnection[] = [];
@@ -153,8 +157,41 @@ async function fetchBaseData(): Promise<RawData> {
     listenersCount,
     goOk,
     casterOk,
+    stale,
     ts: new Date().toISOString()
   };
+}
+
+async function fallbackRelayMetrics(jobs: RawJob[]): Promise<RawRelayMetric[]> {
+  if (jobs.length === 0) return [];
+  try {
+    const rows = await runtimeQuery<RowDataPacket[]>(
+      `SELECT relay_job_id, runtime_state, applied_revision, last_error
+         FROM relay_job_state
+        WHERE relay_job_id IN (?)`,
+      [jobs.map((job) => job.id)]
+    );
+    return rows.map((row) => ({
+      jobId: Number(row.relay_job_id),
+      state: String(row.runtime_state || 'unknown'),
+      appliedRevision: Number(row.applied_revision ?? 0),
+      bytesUp: 0,
+      bytesDown: 0,
+      frames: 0,
+      crcErrors: 0,
+      lastError: row.last_error === null || row.last_error === undefined ? undefined : String(row.last_error)
+    }));
+  } catch {
+    return jobs.map((job) => ({
+      jobId: job.id,
+      state: 'unknown',
+      appliedRevision: 0,
+      bytesUp: 0,
+      bytesDown: 0,
+      frames: 0,
+      crcErrors: 0
+    }));
+  }
 }
 
 export async function loadOpenAlerts(): Promise<RawAlert[]> {

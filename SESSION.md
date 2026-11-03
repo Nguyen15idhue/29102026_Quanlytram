@@ -1217,3 +1217,8 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   mặc định tắt; dummy Argon2 chống dò tài khoản; throttle xác thực sai caster;
   compose bind 127.0.0.1, TLS listener tùy chọn. Test: server 145 PASS,
   Go build/vet/test PASS.
+- FIX-07..10 DONE (lô C8): resume relay dùng transaction + FOR UPDATE, chỉ xoá
+  cờ pause khi nguồn không chặn; resolve quality alert khi xoá trạm/relay và
+  purge alert mồ côi lúc khởi động; realtime fallback từ `relay_job_state` với
+  cờ `stale` + banner; history lọc `direction` (mặc định upstream).
+  Test: server 29 file/148 PASS.

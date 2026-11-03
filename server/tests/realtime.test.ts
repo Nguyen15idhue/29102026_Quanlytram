@@ -12,6 +12,7 @@ const raw: RawData = {
   ts: '2026-10-30T00:00:00.000Z',
   goOk: true,
   casterOk: true,
+  stale: false,
   listenersCount: 1,
   jobs: [
     { id: 1, name: 'Job own', enabled: true, ownerId: 10 },
@@ -163,6 +164,13 @@ describe('realtime payload filtering', () => {
     expect(snapshot.alerts.map((item) => item.id)).toEqual([1]);
     expect(snapshot.summary.relayBackoff).toBe(1);
     expect(snapshot.summary.openAlerts).toBe(1);
+  });
+
+  it('giữ cờ stale khi Go mất kết nối', () => {
+    const permissions = permissionMap([{ code: 'relay.view', scope: 'all' }]);
+    const snapshot = buildSnapshot({ ...raw, goOk: false, stale: true }, alerts, permissions, 10, [10]);
+    expect(snapshot.stale).toBe(true);
+    expect(snapshot.relays.map((item) => item.jobId)).toEqual([3, 1, 2]);
   });
 
   it('returns empty sections when permission is none', () => {

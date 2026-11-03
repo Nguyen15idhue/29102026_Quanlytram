@@ -88,6 +88,10 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | SEC-F18 | Đã sửa | C6 | 2026-11-03 | dummy Argon2 + `INVALID_CREDENTIALS` thống nhất |
 | SEC-F06 | Đã sửa | C7 | 2026-11-03 | throttle (username,IP) + toàn cục; 2 test PASS |
 | SEC-F03 | Đã sửa | C7 | 2026-11-03 | compose bind 127.0.0.1; TLS listener tùy chọn; go test PASS |
+| FIX-07 | Đã sửa | C8 | 2026-11-03 | resume có FOR UPDATE; reset pause khi đổi station |
+| FIX-08 | Đã sửa | C8 | 2026-11-03 | resolve alert khi xoá + purge mồ côi lúc khởi động |
+| FIX-09 | Đã sửa | C8 | 2026-11-03 | fallback `relay_job_state`, `stale` + banner |
+| FIX-10 | Đã sửa | C8 | 2026-11-03 | lọc `direction`, mặc định upstream; test PASS |
 
 ---
 
@@ -289,6 +293,13 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - Bỏ station khỏi mountpoint → không còn `paused_by_station_id` treo.
 - Ma trận trạng thái relay vẫn PASS 14 test hiện có.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C8.**
+- Thêm `resumeRelayJob()` dùng transaction + `SELECT ... FOR UPDATE`; chỉ bật
+  lại và xoá cờ khi trạm/mountpoint nguồn không còn chặn, ngược lại giữ `enabled=0`.
+- Áp dụng cho enable đơn lẻ và bulk enable.
+- PATCH mountpoint: đổi/bỏ `station_id` thì reset `paused_by_station_id`.
+- Test: server build + 148 test PASS.
+
 ---
 
 ### FIX-08 [Medium] Quality alert không được resolve khi xoá trạm/relay
@@ -307,6 +318,12 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 **Nghiệm thu**
 - Xoá 1 relay có alert mở → alert chuyển resolved, `total` giảm tương ứng.
 - Chạy dọn alert mồ côi trên DB test → 0 alert trỏ target không tồn tại.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C8.**
+- `lib/qualityAlerts.ts`: resolve alert khi xoá trạm/relay (đơn lẻ và bulk),
+  thêm `purgeOrphanQualityAlerts()` chạy lúc khởi động.
+- Audit ghi thêm `resolvedAlerts` (không chứa secret).
+- Test: server build + 148 test PASS.
 
 ---
 
@@ -327,6 +344,12 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - Mock Go timeout → danh sách relay giữ nguyên số lượng, badge `stale`.
 - Go phục hồi → dữ liệu cập nhật lại, banner mất.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C8.**
+- Khi Go timeout: dựng `relay` từ `relay_job_state` (jobs đang có), đặt
+  `stale=true`; filter chuyển cờ vào snapshot.
+- UI Layout hiện banner "Mất kết nối Go, dữ liệu relay có thể cũ" và giữ row.
+- Test: `realtime.test.ts` thêm test giữ cờ stale + đủ job; 148 test PASS.
+
 ---
 
 ### FIX-10 [Medium] History relay trộn upstream/downstream
@@ -344,6 +367,11 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 **Nghiệm thu**
 - Job có cả 2 chiều: số event "state changed" bằng số lần đổi trạng thái thật.
 - API trả đúng series theo `direction`.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C8.**
+- Thêm query `direction` (mặc định `upstream`) cho `quality_samples`; response
+  trả kèm `direction`.
+- Test: `historyDirection.test.ts` PASS.
 
 ---
 

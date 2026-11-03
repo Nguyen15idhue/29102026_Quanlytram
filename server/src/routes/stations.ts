@@ -21,6 +21,7 @@ import { hashPassword } from '../lib/password';
 import { createStationResources } from '../lib/stationResources';
 import { dataUptime } from '../lib/dataUptime';
 import { publishEntityChange } from '../lib/entityChange';
+import { resolveQualityAlerts } from '../lib/qualityAlerts';
 import {
   notifyStationStreamingChange,
   setStationStreamingInTransaction,
@@ -2843,6 +2844,7 @@ stationsRouter.delete(
       throw new ApiError(400, 'STATION_LOCKED', 'Trạm đang khóa, phải mở khóa trước khi xóa');
     }
     const result = await withTransaction((conn) => deleteStationCascade(conn, id));
+    const resolvedAlerts = await resolveQualityAlerts('station', id);
     await notifyStationStreamingChange({
       relayJobIds: result.relayJobIds,
       mountpointIds: result.mountpointIds
@@ -2854,7 +2856,7 @@ stationsRouter.delete(
       'station',
       id,
       before,
-      { mountpointIds: result.mountpointIds, relayJobIds: result.relayJobIds },
+      { mountpointIds: result.mountpointIds, relayJobIds: result.relayJobIds, resolvedAlerts },
       ipFrom(req)
     );
     publishEntityChange({ entity: 'station', id, action: 'delete' });

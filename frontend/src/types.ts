@@ -668,6 +668,7 @@ export interface RealtimeAlert {
 
 export interface RealtimeSnapshot {
   ts: string;
+  stale?: boolean;
   summary: {
     stations: number;
     relayTotal: number;

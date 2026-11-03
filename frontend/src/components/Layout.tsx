@@ -21,6 +21,7 @@ import {
   X
 } from 'lucide-react';
 import { useAuth } from '../auth/AuthProvider';
+import { useRealtime } from '../realtime/RealtimeProvider';
 import { IconButton } from './ui';
 import { ThemeToggle } from './ThemeToggle';
 
@@ -47,6 +48,7 @@ const titles: Record<string, string> = {
 
 export function Layout() {
   const { user, logout, can } = useAuth();
+  const { snapshot } = useRealtime();
   const navigate = useNavigate();
   const location = useLocation();
   const [open, setOpen] = useState(false);
@@ -193,6 +195,13 @@ export function Layout() {
           </div>
         </header>
         <main className={location.pathname === '/guide' ? 'content content-flush' : 'content'}>
+          {snapshot?.stale && (
+            <div className="panel" role="status">
+              <p className="muted">
+                Mất kết nối Go, dữ liệu relay có thể cũ. Danh sách được giữ từ trạng thái gần nhất.
+              </p>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

@@ -10,6 +10,8 @@ import { endpointKey } from '../lib/endpointKey';
 import { asyncHandler, ApiError } from '../lib/http';
 import { callGoInternal } from '../lib/internalApi';
 import { dataUptime } from '../lib/dataUptime';
+import { resolveQualityAlerts } from '../lib/qualityAlerts';
+import { historyDirection } from '../lib/historyDirection';
 import {
   buildStatusTimeline,
   combinedRelayStatus,
@@ -971,6 +973,7 @@ relayJobsRouter.get(
     await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
     const { pageSize, offset } = pageFrom(req);
     const to = req.query.to ? new Date(String(req.query.to)) : new Date();
+    const direction = historyDirection(req.query.direction);
     const from = req.query.from
       ? new Date(String(req.query.from))
       : new Date(to.getTime() - 24 * 3600_000);
@@ -1012,11 +1015,11 @@ relayJobsRouter.get(
       runtimeQuery<RowDataPacket[]>(
         `SELECT ts, score, state
            FROM quality_samples
-          WHERE target_type = 'relay_job' AND target_id = ?
+          WHERE target_type = 'relay_job' AND target_id = ? AND direction = ?
             AND ts >= ? AND ts <= ?
           ORDER BY ts ASC
           LIMIT 5000`,
-        [id, from, to]
+        [id, direction, from, to]
       ),
       query<RowDataPacket[]>(
         `SELECT a.id, a.action, a.created_at, u.username AS actor_name
@@ -1182,6 +1185,7 @@ relayJobsRouter.get(
       offset,
       from: from.toISOString(),
       to: to.toISOString(),
+      direction,
       sources: {
         quality: filtered.filter((event) => event.source === 'quality').length,
         caster: 0,
@@ -1526,15 +1530,7 @@ relayJobsRouter.post(
             [body.action === 'lock' ? 1 : 0, row.id]
           );
         } else if (body.action === 'enable') {
-          await conn.query(
-            `UPDATE relay_jobs
-                SET enabled = 1,
-                    paused_by_station_id = NULL,
-                    paused_by_mountpoint_id = NULL,
-                    desired_revision = desired_revision + 1
-              WHERE id = ?`,
-            [row.id]
-          );
+          await resumeRelayJob(conn, row.id);
         } else {
           await conn.query(
             `UPDATE relay_jobs
@@ -1547,6 +1543,11 @@ relayJobsRouter.post(
       }
     });
     result.updated = allowed.length;
+    if (body.action === 'delete') {
+      for (const row of allowed) {
+        await resolveQualityAlerts('relay_job', Number(row.id));
+      }
+    }
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -1785,6 +1786,7 @@ relayJobsRouter.delete(
       [id]
     );
     const after = await getJobRow(id);
+    const resolvedAlerts = await resolveQualityAlerts('relay_job', id);
     await writeAudit(
       adminPool,
       req.auth!.id,
@@ -1792,13 +1794,56 @@ relayJobsRouter.delete(
       'relay_job',
       id,
       publicJob(before, null),
-      publicJob(after, null),
+      { ...publicJob(after, null), resolvedAlerts },
       ipFrom(req)
     );
     await requestReconcile(id);
     res.status(204).send();
   })
 );
+
+// Chỉ bật lại relay khi nguồn pause (trạm/mountpoint) không còn chặn.
+// Khoá dòng bằng FOR UPDATE để tránh đua với luồng pause của trạm/mountpoint.
+async function resumeRelayJob(conn: any, id: number): Promise<boolean> {
+  const [rows] = await conn.query(
+    `SELECT paused_by_station_id, paused_by_mountpoint_id
+       FROM relay_jobs WHERE id = ? FOR UPDATE`,
+    [id]
+  );
+  const row = rows[0];
+  let blocked = false;
+  if (row?.paused_by_station_id) {
+    const [stations] = await conn.query('SELECT enabled, status FROM stations WHERE id = ?', [
+      row.paused_by_station_id
+    ]);
+    const station = stations[0];
+    if (station && (!station.enabled || station.status === 'locked')) blocked = true;
+  }
+  if (!blocked && row?.paused_by_mountpoint_id) {
+    const [mountpoints] = await conn.query('SELECT enabled FROM mountpoints WHERE id = ?', [
+      row.paused_by_mountpoint_id
+    ]);
+    const mountpoint = mountpoints[0];
+    if (mountpoint && !mountpoint.enabled) blocked = true;
+  }
+  if (blocked) {
+    await conn.query(
+      'UPDATE relay_jobs SET enabled = 0, desired_revision = desired_revision + 1 WHERE id = ?',
+      [id]
+    );
+    return false;
+  }
+  await conn.query(
+    `UPDATE relay_jobs
+        SET enabled = 1,
+            paused_by_station_id = NULL,
+            paused_by_mountpoint_id = NULL,
+            desired_revision = desired_revision + 1
+      WHERE id = ?`,
+    [id]
+  );
+  return true;
+}
 
 async function setEnabled(req: any, enabled: boolean) {
   const id = Number(req.params.id);
@@ -1820,15 +1865,9 @@ async function setEnabled(req: any, enabled: boolean) {
     });
   }
   if (enabled) {
-    await adminPool.query(
-      `UPDATE relay_jobs
-          SET enabled = 1,
-              paused_by_station_id = NULL,
-              paused_by_mountpoint_id = NULL,
-              desired_revision = desired_revision + 1
-        WHERE id = ?`,
-      [id]
-    );
+    await withTransaction(async (conn) => {
+      await resumeRelayJob(conn, id);
+    });
   } else {
     await adminPool.query(
       `UPDATE relay_jobs

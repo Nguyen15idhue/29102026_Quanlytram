@@ -67,6 +67,7 @@ export interface RawData {
   listenersCount: number;
   goOk: boolean;
   casterOk: boolean;
+  stale: boolean;
   ts: string;
 }
 
@@ -110,6 +111,7 @@ export interface SnapshotAlert {
 
 export interface Snapshot {
   ts: string;
+  stale: boolean;
   summary: {
     stations: number;
     relayTotal: number;
@@ -248,6 +250,7 @@ export function buildSnapshot(
 
   return {
     ts: raw.ts,
+    stale: raw.stale,
     summary: {
       stations,
       relayTotal: relays.length,
