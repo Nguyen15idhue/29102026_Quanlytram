@@ -1408,6 +1408,10 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
   listener ngoài 1508/1509; tạo WALLY + wally; listeners gán owner wally.
   Kết quả: 2 user, 1 company, 0 trạm/mountpoint/relay/account, 2 listener,
   audit 0; superadmin + wally login 200.
+- Bước 4 DONE: `--apply-core` tạo 36 trạm, 31 mountpoint (1508=6, 1509=26),
+  32 mapping, 31 station_sources no-auth, 3 NTRIP account + 27 ACL. Mock:
+  publish no-auth 200, đọc thiếu account 401, đọc bằng `nguyen` 200, mountpoint
+  1509 không lộ qua 1508 (404).
 
 ## Form tài khoản NTRIP — Công ty dạng select (2026-11-03)
 

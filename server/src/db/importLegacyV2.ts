@@ -1,6 +1,11 @@
-import { createHash } from 'node:crypto';
+﻿import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { adminPool, closePool, query, withTransaction } from './pool';
+import { hashPassword } from '../lib/password';
+import { writeAudit } from '../lib/audit';
+import { endpointKey } from '../lib/endpointKey';
+import { upsertRelayCredential } from '../lib/relayCredentials';
 
 /**
  * Import tài nguyên hệ thống CORS cũ (db/data) sang hệ thống hiện tại.
@@ -341,18 +346,392 @@ export function summarizePlan(plan: ImportPlan) {
 
 function main(): void {
   const args = process.argv.slice(2);
+  const applyCore = args.includes('--apply-core');
+  const applyRelays = args.includes('--apply-relays');
   const apply = args.includes('--apply');
   const dataIndex = args.indexOf('--data');
   const dataDir = dataIndex >= 0 ? args[dataIndex + 1] : 'db/data';
   const plan = buildPlan(dataDir);
   const summary = summarizePlan(plan);
-  console.log(JSON.stringify({ mode: apply ? 'apply' : 'dry-run', dataDir, ...summary }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        mode: applyCore ? 'apply-core' : applyRelays ? 'apply-relays' : apply ? 'apply' : 'dry-run',
+        dataDir,
+        ...summary
+      },
+      null,
+      2
+    )
+  );
+  if (applyCore || applyRelays) {
+    (applyCore ? applyCorePlan(plan) : applyRelayPlan(plan))
+      .then(async () => {
+        await closePool();
+        process.exit(0);
+      })
+      .catch(async (error) => {
+        console.error(`[import-legacy] ${error.message}`);
+        await closePool();
+        process.exit(1);
+      });
+    return;
+  }
   if (apply) {
-    throw new Error('--apply chưa được bật trong bước dry-run; dùng sau khi duyệt báo cáo');
+    throw new Error('Dùng --apply-core (trạm/mountpoint/account) hoặc --apply-relays (relay)');
   }
   if (plan.issues.length > 0) {
     console.error(`[import-legacy] ${plan.issues.length} cảnh báo cần xem trước khi apply`);
   }
+}
+
+async function applyCorePlan(plan: ImportPlan): Promise<void> {
+  const companyRows = await query<any[]>('SELECT id FROM companies WHERE code = ? LIMIT 1', [
+    'WALLY'
+  ]);
+  const userRows = await query<any[]>('SELECT id FROM web_users WHERE username = ? LIMIT 1', [
+    'wally'
+  ]);
+  const superRows = await query<any[]>(
+    `SELECT u.id FROM web_users u JOIN roles r ON r.id = u.role_id
+      WHERE r.code = 'super_admin' ORDER BY u.id LIMIT 1`
+  );
+  const companyId = Number(companyRows[0]?.id ?? 0);
+  const wallyId = Number(userRows[0]?.id ?? 0);
+  const superId = Number(superRows[0]?.id ?? 0);
+  if (!companyId || !wallyId || !superId) {
+    throw new Error('Thiếu WALLY/wally/superadmin; chạy db:reset-legacy trước');
+  }
+
+  const listeners = await query<any[]>('SELECT id, port FROM caster_listeners');
+  const listenerByPort = new Map<number, number>(
+    listeners.map((row) => [Number(row.port), Number(row.id)])
+  );
+
+  const stationIdByCode = new Map<string, number>();
+  const mountpointIds = new Map<string, number>();
+  let stationCreated = 0;
+  let mountpointCreated = 0;
+  let sourceCreated = 0;
+
+  await withTransaction(async (conn) => {
+    for (const station of plan.stations) {
+      const [existing] = await conn.query<any[]>('SELECT id FROM stations WHERE name = ? LIMIT 1', [
+        station.name
+      ]);
+      let stationId = Number(existing[0]?.id ?? 0);
+      if (!stationId) {
+        const [result] = await conn.query<any>(
+          `INSERT INTO stations
+             (name, host, port, connection_type, lat, lon, notes, owner_web_user_id, created_by,
+              station_type, enabled, protocol, source_type, ntrip_version, ntrip_mode, status,
+              company_id)
+           VALUES (?, ?, ?, 'ntrip', ?, ?, ?, ?, ?, 'reference', ?, 'ntrip', ?, ?, ?, 'active', ?)`,
+          [
+            station.name,
+            station.host,
+            station.port,
+            station.lat,
+            station.lon,
+            station.notes,
+            wallyId,
+            superId,
+            station.enabled ? 1 : 0,
+            station.sourceType,
+            station.ntripVersion,
+            'v1_noauth',
+            companyId
+          ]
+        );
+        stationId = Number(result.insertId);
+        stationCreated += 1;
+      } else {
+        await conn.query(
+          `UPDATE stations SET host = ?, port = ?, lat = ?, lon = ?, notes = ?,
+             owner_web_user_id = ?, company_id = ?, source_type = ?, ntrip_version = ?,
+             ntrip_mode = 'v1_noauth', enabled = ?
+           WHERE id = ?`,
+          [
+            station.host,
+            station.port,
+            station.lat,
+            station.lon,
+            station.notes,
+            wallyId,
+            companyId,
+            station.sourceType,
+            station.ntripVersion,
+            station.enabled ? 1 : 0,
+            stationId
+          ]
+        );
+      }
+      stationIdByCode.set(stationCodeFromMountpoint(station.name).toLowerCase(), stationId);
+    }
+
+    for (const mountpoint of plan.mountpoints) {
+      const stationId = stationIdByCode.get(mountpoint.stationCode.toLowerCase());
+      if (!stationId) throw new Error(`Mountpoint ${mountpoint.name} thiếu trạm ${mountpoint.stationCode}`);
+      const [existing] = await conn.query<any[]>(
+        'SELECT id FROM mountpoints WHERE name = ? LIMIT 1',
+        [mountpoint.name]
+      );
+      let mountpointId = Number(existing[0]?.id ?? 0);
+      if (!mountpointId) {
+        const [result] = await conn.query<any>(
+          `INSERT INTO mountpoints
+             (name, station_id, enabled, requires_auth, owner_web_user_id, created_by,
+              description, company_id)
+           VALUES (?, ?, ?, 1, ?, ?, ?, ?)`,
+          [
+            mountpoint.name,
+            stationId,
+            mountpoint.enabled ? 1 : 0,
+            wallyId,
+            superId,
+            'Chuyển từ hệ thống CORS cũ',
+            companyId
+          ]
+        );
+        mountpointId = Number(result.insertId);
+        mountpointCreated += 1;
+      } else {
+        await conn.query(
+          `UPDATE mountpoints SET station_id = ?, enabled = ?, requires_auth = 1,
+             owner_web_user_id = ?, company_id = ? WHERE id = ?`,
+          [stationId, mountpoint.enabled ? 1 : 0, wallyId, companyId, mountpointId]
+        );
+      }
+      mountpointIds.set(mountpoint.name.toLowerCase(), mountpointId);
+      for (const port of mountpoint.ports) {
+        const listenerId = listenerByPort.get(port);
+        if (!listenerId) throw new Error(`Thiếu listener port ${port}`);
+        await conn.query(
+          'INSERT IGNORE INTO caster_listener_mountpoints (listener_id, mountpoint_id) VALUES (?, ?)',
+          [listenerId, mountpointId]
+        );
+      }
+      const primaryPort = mountpoint.ports.includes(1509) ? 1509 : mountpoint.ports[0];
+      const listenerId = listenerByPort.get(primaryPort);
+      await conn.query(
+        `INSERT INTO station_sources
+           (station_id, source_role, caster_version, caster_username, caster_password_enc,
+            caster_requires_auth, caster_listener_id)
+         VALUES (?, 'ntrip_caster', 'v1', ?, NULL, 0, ?)
+         ON DUPLICATE KEY UPDATE
+           source_role = 'ntrip_caster', caster_version = 'v1', caster_username = VALUES(caster_username),
+           caster_password_enc = NULL, caster_requires_auth = 0,
+           caster_listener_id = VALUES(caster_listener_id)`,
+        [stationId, mountpoint.stationCode, listenerId ?? null]
+      );
+      sourceCreated += 1;
+    }
+
+    for (const account of plan.accounts) {
+      const passwordHash = await hashPassword(account.password);
+      await conn.query(
+        `INSERT INTO ntrip_accounts
+           (username, password_hash, enabled, max_connections, owner_web_user_id, created_by,
+            company, company_id, notes)
+         VALUES (?, ?, 1, 50, ?, ?, 'Wally', ?, 'Chuyển từ hệ thống CORS cũ')
+         ON DUPLICATE KEY UPDATE
+           password_hash = VALUES(password_hash), enabled = 1, owner_web_user_id = VALUES(owner_web_user_id),
+           company_id = VALUES(company_id)`,
+        [account.username, passwordHash, wallyId, superId, companyId]
+      );
+      const [accountRows] = await conn.query<any[]>(
+        'SELECT id FROM ntrip_accounts WHERE username = ? LIMIT 1',
+        [account.username]
+      );
+      const accountId = Number(accountRows[0]?.id ?? 0);
+      await conn.query('DELETE FROM account_mountpoint_acl WHERE account_id = ?', [accountId]);
+      for (const mountName of [...account.readMounts, ...account.writeMounts]) {
+        const mountpointId = mountpointIds.get(mountName.toLowerCase());
+        if (!mountpointId) continue;
+        await conn.query(
+          'INSERT IGNORE INTO account_mountpoint_acl (account_id, mountpoint_id) VALUES (?, ?)',
+          [accountId, mountpointId]
+        );
+      }
+    }
+  });
+
+  await writeAudit(
+    adminPool,
+    superId,
+    'import',
+    'legacy_core',
+    0,
+    null,
+    {
+      stations: plan.stations.length,
+      stationCreated,
+      mountpoints: plan.mountpoints.length,
+      mountpointCreated,
+      sources: sourceCreated,
+      accounts: plan.accounts.map((account) => account.username),
+      checksum: plan.checksum
+    },
+    '127.0.0.1'
+  );
+  console.log(
+    `[import-legacy] core OK: trạm tạo ${stationCreated}/${plan.stations.length}, ` +
+      `mountpoint tạo ${mountpointCreated}/${plan.mountpoints.length}, source ${sourceCreated}, ` +
+      `account ${plan.accounts.length}`
+  );
+}
+
+async function applyRelayPlan(plan: ImportPlan): Promise<void> {
+  const companyRows = await query<any[]>('SELECT id FROM companies WHERE code = ? LIMIT 1', ['WALLY']);
+  const userRows = await query<any[]>('SELECT id FROM web_users WHERE username = ? LIMIT 1', ['wally']);
+  const superRows = await query<any[]>(
+    `SELECT u.id FROM web_users u JOIN roles r ON r.id = u.role_id
+      WHERE r.code = 'super_admin' ORDER BY u.id LIMIT 1`
+  );
+  const companyId = Number(companyRows[0]?.id ?? 0);
+  const wallyId = Number(userRows[0]?.id ?? 0);
+  const superId = Number(superRows[0]?.id ?? 0);
+  if (!companyId || !wallyId || !superId) {
+    throw new Error('Thiếu WALLY/wally/superadmin; chạy db:reset-legacy + --apply-core trước');
+  }
+
+  let created = 0;
+  let updated = 0;
+  const missingCredential: string[] = [];
+
+  await withTransaction(async (conn) => {
+    for (const relay of plan.relays) {
+      const [existingRows] = await conn.query<any[]>(
+        'SELECT id, upstream_credential_id, downstream_credential_id FROM relay_jobs WHERE external_key = ? LIMIT 1',
+        [relay.externalKey]
+      );
+      const existing = existingRows[0];
+      const upstreamCredentialId = await upsertRelayCredential(
+        conn,
+        relay.srcUser && relay.srcPass ? { username: relay.srcUser, password: relay.srcPass } : null,
+        existing?.upstream_credential_id ? Number(existing.upstream_credential_id) : null,
+        `${relay.name} upstream`,
+        wallyId,
+        superId,
+        companyId
+      );
+      if (relay.srcUser && !relay.srcPass) missingCredential.push(`${relay.externalKey} src`);
+      const downstreamCredentialId = await upsertRelayCredential(
+        conn,
+        relay.dstUser && relay.dstPass ? { username: relay.dstUser, password: relay.dstPass } : null,
+        existing?.downstream_credential_id ? Number(existing.downstream_credential_id) : null,
+        `${relay.name} downstream`,
+        wallyId,
+        superId,
+        companyId
+      );
+      if (relay.dstUser && !relay.dstPass) missingCredential.push(`${relay.externalKey} dst`);
+
+      const upstreamKey = endpointKey({
+        host: relay.srcHost,
+        port: relay.srcPort,
+        mount: relay.srcMount,
+        ssl: relay.srcSsl
+      });
+      const downstreamKey = endpointKey({
+        host: relay.dstHost,
+        port: relay.dstPort,
+        mount: relay.dstMount,
+        ssl: relay.dstSsl
+      });
+      const tags = JSON.stringify({ legacyEnabled: relay.legacyEnabled, legacyId: relay.externalKey });
+      if (existing) {
+        await conn.query(
+          `UPDATE relay_jobs SET
+             name = ?, enabled = 0, locked = 0, deleted_at = NULL,
+             upstream_host = ?, upstream_port = ?, upstream_mount = ?, upstream_credential_id = ?,
+             upstream_proxy = ?, upstream_ssl = ?, upstream_ntrip_version = 'v2',
+             downstream_host = ?, downstream_port = ?, downstream_mount = ?, downstream_credential_id = ?,
+             downstream_proxy = ?, downstream_ssl = ?, downstream_ntrip_version = 'v2',
+             downstream_mode = 'auto', lat = NULL, lon = NULL, tags = ?,
+             origin = 'import', origin_ref = ?, imported_at = CURRENT_TIMESTAMP(3),
+             upstream_key = ?, downstream_key = ?, owner_web_user_id = ?, company_id = ?,
+             desired_revision = desired_revision + 1
+           WHERE id = ?`,
+          [
+            relay.name,
+            relay.srcHost,
+            relay.srcPort,
+            relay.srcMount,
+            upstreamCredentialId,
+            relay.srcProxy,
+            relay.srcSsl,
+            relay.dstHost,
+            relay.dstPort,
+            relay.dstMount,
+            downstreamCredentialId,
+            relay.dstProxy,
+            relay.dstSsl,
+            tags,
+            relay.externalKey,
+            upstreamKey,
+            downstreamKey,
+            wallyId,
+            companyId,
+            existing.id
+          ]
+        );
+        updated += 1;
+      } else {
+        await conn.query(
+          `INSERT INTO relay_jobs
+             (external_key, name, enabled, locked,
+              upstream_host, upstream_port, upstream_mount, upstream_credential_id,
+              upstream_proxy, upstream_ssl, upstream_ntrip_version,
+              downstream_host, downstream_port, downstream_mount, downstream_credential_id,
+              downstream_proxy, downstream_ssl, downstream_ntrip_version, downstream_mode,
+              lat, lon, tags, origin, origin_ref, imported_at, desired_revision,
+              upstream_key, downstream_key, owner_web_user_id, company_id, created_by)
+           VALUES (?, ?, 0, 0, ?, ?, ?, ?, ?, ?, 'v2', ?, ?, ?, ?, ?, ?, 'v2', 'auto',
+              NULL, NULL, ?, 'import', ?, CURRENT_TIMESTAMP(3), 1, ?, ?, ?, ?, ?)`,
+          [
+            relay.externalKey,
+            relay.name,
+            relay.srcHost,
+            relay.srcPort,
+            relay.srcMount,
+            upstreamCredentialId,
+            relay.srcProxy,
+            relay.srcSsl,
+            relay.dstHost,
+            relay.dstPort,
+            relay.dstMount,
+            downstreamCredentialId,
+            relay.dstProxy,
+            relay.dstSsl,
+            tags,
+            relay.externalKey,
+            upstreamKey,
+            downstreamKey,
+            wallyId,
+            companyId,
+            superId
+          ]
+        );
+        created += 1;
+      }
+    }
+  });
+
+  await writeAudit(
+    adminPool,
+    superId,
+    'import',
+    'legacy_relays',
+    0,
+    null,
+    { created, updated, total: plan.relays.length, missingCredential, checksum: plan.checksum },
+    '127.0.0.1'
+  );
+  console.log(
+    `[import-legacy] relay OK: tạo ${created}, cập nhật ${updated}, tổng ${plan.relays.length}; ` +
+      `thiếu mật khẩu: ${missingCredential.length}`
+  );
 }
 
 if (require.main === module) {

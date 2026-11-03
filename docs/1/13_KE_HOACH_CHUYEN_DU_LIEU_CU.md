@@ -322,3 +322,13 @@ Cần xác nhận khi duyệt:
 - Kết quả: web_users=2, companies=1, stations=0, mountpoints=0, relay_jobs=0,
   ntrip_accounts=0, caster_listeners=2, audit_logs=0; đăng nhập superadmin và
   wally đều 200.
+
+### Bước 4 — Import trạm/mountpoint/source/account
+
+- `--apply-core`: 36 trạm (host rtktk.online, toạ độ giả định, owner/company
+  Wally), 31 mountpoint `requires_auth=1`, 32 mapping (1508=6, 1509=26),
+  31 station_sources `caster_requires_auth=0`, 3 NTRIP account + 27 ACL
+  (nguyen 13, admin 10, aitogy123 4 — chỉ mountpoint tồn tại trên hệ thống).
+- Mock TCP: publish 1509/1508 không Basic → `ICY 200 OK`; đọc không account →
+  `401`; đọc bằng `nguyen` → `200`; đọc mountpoint 1509 qua 1508 → `404`.
+- Audit ghi 1 entry `legacy_core` (không chứa secret).
