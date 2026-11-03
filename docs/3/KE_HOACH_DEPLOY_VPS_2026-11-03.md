@@ -4,7 +4,8 @@
 - VPS: `43.240.117.54`, SSH `root@... -p 24700` (key
   `~/.ssh/CS-Linux-20261103230212929.pem`)
 - Trạng thái: VPS trắng, chưa cài Docker; **chưa thay đổi gì trên VPS** (chỉ đọc
-  thông tin).
+  thông tin). Đã chốt: domain `https://rtktk.online`, Caddy (DNS-only), cutover
+  20:00–23:59 (+07), backup VPS 02:00 hằng ngày, giữ SSH hiện trạng, dump DB.
 
 ## 1. Hiện trạng VPS (đã kiểm tra)
 
@@ -62,13 +63,18 @@ Nội bộ Docker:
 
 ## 4. Chuẩn bị trước khi deploy
 
-### 4.1. DNS / TLS
+### 4.1. DNS / TLS (đã chốt Caddy)
 
+- Domain: **https://rtktk.online** (không dùng www/subdomain).
 - Hạ TTL bản ghi `rtktk.online` xuống 300s trước cutover 24–48h.
-- Tạo A record `rtktk.online` (và `www` nếu cần) → `43.240.117.54` **tại thời
-  điểm cutover**, không trỏ sớm khi chưa có TLS.
-- Caddy lấy certificate Let's Encrypt cho domain; email ACME cấu hình trong
-  Caddyfile.
+- Tạo A record `rtktk.online` → `43.240.117.54` **tại thời điểm cutover**,
+  không trỏ sớm khi chưa có TLS.
+- **DNS-only, không bật Cloudflare proxy**: thiết bị NTRIP dùng
+  `rtktk.online:1509/1508` (TCP thô); nếu proxy, DNS trả IP Cloudflare và cổng
+  1509/1508 sẽ không tới được VPS. Vì vậy giữ bản ghi A trỏ trực tiếp VPS.
+- **Caddy** làm reverse proxy 80/443 → web-prod, tự xin/gia hạn Let's Encrypt;
+  cấu hình `Caddyfile` nội bộ, HTTP→HTTPS, WebSocket `/socket.io`.
+- Không dùng nginx+certbot hay Cloudflare proxy cho pha này.
 
 ### 4.2. Secret và khoá mã hoá
 
@@ -95,17 +101,18 @@ Nội bộ Docker:
 ### Pha 0 — Hardening VPS (chưa có dữ liệu)
 
 1. Tạo user `deploy`, copy public key, cấp sudo + group docker (sau khi cài).
-2. Tắt `PasswordAuthentication`, `PermitRootLogin prohibit-password`; giữ port
-   24700; `sshd -t` trước khi reload.
-3. UFW: default deny incoming; allow 24700 (giới hạn IP quản trị nếu có),
-   80/443, 1508/1509; IPv6 tương ứng.
+2. **Giữ nguyên SSH hiện trạng** theo yêu cầu: root login + password auth vẫn
+   bật; port 24700. Chỉ cài fail2ban để giảm brute-force; bạn sẽ tự tắt
+   password/root sau.
+3. UFW: default deny incoming; allow 24700 (không giới hạn IP), 80/443,
+   1508/1509; IPv6 tương ứng.
 4. Cài `fail2ban` (sshd), `unattended-upgrades`, `chrony` (đã có), `htop`,
-   `rsync`, `rclone` (nếu backup offsite).
+   `rsync`.
 5. Swap 4 GB (`/swapfile`, `vm.swappiness=10`), `sysctl` network cơ bản.
 6. Cài Docker Engine + compose plugin từ repo chính thức; bật log rotation
    mặc định; giới hạn `live-restore`.
-7. Gate: SSH user deploy OK, root password login bị từ chối, UFW active, swap
-   bật, `docker run --rm hello-world` OK.
+7. Gate: SSH root hiện tại vẫn vào được, user deploy OK, UFW active, swap bật,
+   fail2ban active, `docker run --rm hello-world` OK.
 
 ### Pha 1 — Chuẩn bị mã nguồn & compose production
 
@@ -153,33 +160,59 @@ Nội bộ Docker:
 
 ### Pha 4 — Backup & monitoring trước cutover
 
-1. Script `/opt/cors/backup.sh`: mysqldump admin+runtime, gzip, sha256, retention
-   14 ngày; đẩy offsite (rclone/S3/B2) hằng ngày 02:00.
-2. Cron: backup, kiểm tra dung lượng, healthcheck; log rotate.
-3. Cảnh báo: disk >80%, RAM >85%, container unhealthy, backup fail (email/webhook
-   tùy hạ tầng).
-4. Diễn tập restore dump vào MySQL tạm trên VPS; so counts; xoá DB tạm.
-5. Gate: backup chạy tay + cron OK; file offsite kiểm tra; restore thử PASS.
+1. **Backup của nhà cung cấp**: full VPS hằng ngày lúc **02:00**, restore toàn
+   VPS; đây là lớp DR chính, không tốn tài nguyên VPS.
+2. Trước cutover: tạo **snapshot thủ công** (nếu nhà cung cấp hỗ trợ) + dump
+   logic `admin`/`runtime` ra `/opt/cors/backups` (retention 7–14 ngày) để
+   restore nhanh không cần khôi phục cả VPS.
+3. Script `/opt/cors/backup.sh`: mysqldump admin+runtime, gzip, sha256; chạy
+   trước/sau cutover và có thể chạy tay khi cần; không cần rclone/S3.
+4. Cron kiểm tra dung lượng, healthcheck container, log rotate.
+5. Diễn tập restore dump vào MySQL tạm trên VPS; so counts; xoá DB tạm.
+6. Gate: snapshot/dump trước cutover có checksum; restore thử PASS; xác nhận
+   lịch backup 02:00 và thời gian retention của nhà cung cấp.
 
-### Pha 5 — Cutover
+### Pha 5 — Cutover (20:00–23:59 giờ Việt Nam)
 
-1. Thông báo cửa sổ bảo trì; dừng ghi dữ liệu trên hệ thống cũ (hoặc chấp nhận
-   lệch và dump cuối).
-2. Dump cuối cùng admin+runtime; chuyển sang VPS; restore; kiểm tra counts lần
-   cuối.
-3. Đổi DNS `rtktk.online` → 43.240.117.54; chờ TTL; kiểm tra TLS, web, login.
-4. Thiết bị kết nối lại 1509/1508 (không đổi cấu hình thiết bị vì cùng domain).
-5. Theo dõi sourcetable, log 401/403, chất lượng RTCM, RAM/disk trong 24h.
-6. Bật relay theo nhóm sau khi trạm online; bật các job đích 1509/1508 sau cùng.
-7. Gate: trạm online đủ, sourcetable đúng, relay không loop, không lỗi auth hàng
-   loạt, backup sau cutover có.
+Khung giờ chốt: **20:00–23:59 (+07)**, ngoài giờ sử dụng. Dự phòng 30 phút cho
+việc tắt/bật thiết bị để nhận IP mới. Toàn bộ timeline nằm trong khung này.
+
+| Mốc | Việc làm | Người phụ trách |
+|---|---|---|
+| T-48h | Hạ TTL `rtktk.online` = 300s; xác nhận backup 02:00 đã chạy; thông báo lịch | Admin |
+| T-1 ngày | Snapshot/dump thử, restore thử trên VPS; kiểm tra counts | Admin |
+| 20:00 | Bắt đầu bảo trì: dừng nhận ghi trên hệ thống cũ (dừng caster/server cũ hoặc chặn 1509/1508) | Admin |
+| 20:00–20:05 | Dump cuối `cors_admin` + `cors_runtime`; SHA256; chuyển sang VPS; restore; kiểm tra counts | Admin |
+| 20:05–20:10 | Start stack VPS; healthcheck; login nội bộ; test sourcetable mock | Admin |
+| 20:10 | Đổi DNS A `rtktk.online` → `43.240.117.54`; kiểm tra `dig`/DNS propagation | Admin |
+| 20:10–20:15 | Kiểm tra TLS/web `https://rtktk.online`, login superadmin/wally | Admin |
+| 20:15–20:45 | **Tắt/bật thiết bị NTRIP theo danh sách** để nhận IP mới (dự kiến 30 phút); theo dõi thiết bị online | Vận hành thiết bị |
+| 20:45–21:00 | Đối chiếu sourcetable 1509/1508, số trạm online, log 401/403 | Admin |
+| 21:00 | Kết thúc bảo trì; hệ thống mới là chính thức | Admin |
+| 21:00–23:59 | Theo dõi RAM/disk/log/relay; xử lý thiết bị chưa lên; bật relay theo nhóm khi ổn định | Admin |
+| T+24–48h | Soak test, kiểm tra backup 02:00 đầu tiên trên VPS mới | Admin |
+| T+7 ngày | Giữ hệ thống cũ + dump cuối để rollback; sau đó tắt hẳn | Admin |
+
+Lưu ý cutover:
+
+- **Phải đổi DNS xong và kiểm tra phân giải trước khi cho tắt/bật thiết bị**,
+  nếu không thiết bị có thể reconnect về IP cũ.
+- Kết nối NTRIP đang mở không tự chuyển theo DNS; việc tắt/bật thiết bị là bắt
+  buộc. Danh sách thiết bị + người phụ trách cần chuẩn bị trước 20:00.
+- Thiết bị nào không tắt được từ xa thì cần phương án tại chỗ; ghi nhận thiết bị
+  chưa lên trong 30 phút để xử lý sau.
+- Không bật relay trong lúc thiết bị đang reconnect; chỉ bật sau khi sourcetable
+  ổn định.
+- Nếu quá 23:59 vẫn chưa xong: giữ hệ thống mới ở trạng thái đã restore, tiếp tục
+  theo dõi; quyết định rollback trước 24h nếu lỗi nghiêm trọng.
 
 ### Pha 6 — Ổn định & bàn giao
 
 - Chạy soak 24–48h: RAM, swap, CPU, disk, log, reconnect.
 - Chốt tài liệu vận hành: runbook sự cố, lịch backup, quy trình restore, đầu mối.
 - Đổi mật khẩu `wally`, xác nhận superadmin, khoá seed/test.
-- Gate: 48h không sự cố; backup offsite; tài liệu cập nhật.
+- Gate: 48h không sự cố; backup nhà cung cấp 02:00 + dump logic có; tài liệu
+  cập nhật.
 
 ## 6. Ngân sách tài nguyên (3.8 GiB RAM)
 
@@ -193,16 +226,19 @@ Nội bộ Docker:
 | **Tổng limit** | ~3.06 GB | còn ~0.7 GB cho OS/Docker; swap 4 GB dự phòng |
 
 - 2 vCPU: tránh build đồng thời; build lúc thấp điểm hoặc build local.
-- Disk 40 GB: image + MySQL + log + backup local 14 ngày; backup offsite bắt buộc.
+- Disk 40 GB: image + MySQL + log + dump logic 7–14 ngày; backup toàn VPS do nhà
+  cung cấp xử lý ngoài VPS.
 
 ## 7. Bảo mật
 
-- SSH: chỉ key, user `deploy`, root `prohibit-password`, fail2ban, UFW.
+- SSH: **giữ hiện trạng** (root + password) theo yêu cầu; đã cài fail2ban;
+  khuyến nghị tắt password/root sau khi vận hành ổn định. UFW vẫn bật.
 - Docker: không publish MySQL/4000/7080; chỉ Caddy + 1508/1509.
 - Web: TLS bắt buộc, HSTS, CSP hiện có, cookie Secure/HttpOnly/SameSite.
 - Nguồn trạm no-auth trên 1508/1509 là rủi ro đã chấp nhận: theo dõi nguồn
   trùng, log IP, cân nhắc allowlist IP thiết bị; chiều đọc vẫn bắt buộc account.
 - Secret: `.env.production` 600, không log, audit redaction; backup key offline.
+- Không bật Cloudflare proxy cho `rtktk.online` (sẽ chặn NTRIP 1508/1509).
 
 ## 8. Rủi ro & giảm thiểu
 
@@ -213,25 +249,37 @@ Nội bộ Docker:
 | DNS/TLS chưa sẵn sàng | Hạ TTL, test Host header trước, giữ old system |
 | Dữ liệu lệch lúc cutover | Freeze ghi, dump cuối, đối chiếu counts/checksum |
 | Rollback mất dữ liệu mới | Chấp nhận cửa sổ ngắn; dump system mới trước khi rollback |
+| Thiết bị không nhận IP mới | Tắt/bật theo danh sách, dự phòng 30 phút; đổi DNS xong mới tắt |
+| Thiết bị reconnect về IP cũ | Hạ TTL trước 48h; kiểm tra `dig` trước khi tắt thiết bị |
+| Rollback cần tắt thiết bị lần 2 | Cân nhắc kỹ; chỉ rollback trong 24h đầu; thông báo trước |
 | No-auth bị ghi giả | Giám sát nguồn trùng/IP, allowlist khi xác định được |
-| Nhà cung cấp chặn port | Kiểm tra security group/firewall provider trước cutover |
+| Nhà cung cấp chặn port | Kiểm tra firewall provider trước cutover |
 
 ## 9. Rollback
 
 1. Giữ hệ thống cũ nguyên trạng + dump cuối ít nhất 7 ngày.
 2. Nếu lỗi sau cutover: đổi DNS về IP cũ; restore dump mới nhất của hệ thống cũ
-   nếu đã ghi; thông báo thiết bị.
+   nếu đã ghi; **thông báo tắt/bật thiết bị lần 2** để nhận IP cũ (dự phòng thêm
+   30 phút).
 3. Trên VPS: `docker compose down` (giữ volume), restore dump trước đó nếu cần
    chạy lại; không xoá volume/backup.
+4. Chỉ rollback trong 24h đầu nếu lỗi nghiêm trọng; sau đó cần cân nhắc dữ liệu
+   phát sinh trên hệ thống mới.
 
-## 10. Câu hỏi cần chốt
+## 10. Quyết định đã chốt
 
-1. Domain dùng chính `rtktk.online` hay thêm subdomain (vd `cors.rtktk.online`)?
-2. Có giới hạn IP quản trị cho SSH 24700 không?
-3. Đích backup offsite (S3/B2/VPS khác) và công cụ (rclone)?
-4. Có dùng Caddy cho TLS hay bắt buộc nginx + certbot?
-5. Cửa sổ cutover dự kiến (ngày/giờ) và thời gian downtime cho phép?
-6. Có cần mở 1508/1509 qua cloud firewall/security group của nhà cung cấp không
-   (hiện từ ngoài đang đóng)?
-7. Giữ root SSH hay chỉ user `deploy` + sudo?
-8. Dùng dump DB (khuyến nghị) hay chạy lại import từ `db/data` trên VPS?
+1. Domain: **https://rtktk.online**.
+2. SSH: giữ root + password hiện trạng; không giới hạn IP; cài fail2ban.
+3. Backup: nhà cung cấp full VPS **02:00 hằng ngày**, restore toàn VPS; thêm dump
+   logic trước/sau cutover.
+4. TLS: **Caddy**, DNS-only, không Cloudflare proxy.
+5. Cutover: **20:00–23:59 (+07)**, dự phòng 30 phút tắt/bật thiết bị.
+6. Không có cloud firewall; chỉ UFW trên VPS.
+7. Deploy bằng **dump DB**.
+
+Còn cần xác nhận khi bắt đầu triển khai:
+
+- Ngày cutover cụ thể (đề xuất một tối trong tuần).
+- Nhà cung cấp có cho phép tạo snapshot thủ công trước cutover không.
+- Thời gian retention backup 02:00 (7/14/30 ngày).
+- Danh sách thiết bị + người chịu trách nhiệm tắt/bật trong khung 30 phút.
