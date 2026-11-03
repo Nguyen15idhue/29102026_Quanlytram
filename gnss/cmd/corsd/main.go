@@ -98,7 +98,7 @@ func main() {
 	stationSourceManager := relay.NewStationSourceManager(
 		relay.NewStationSourceStore(adminDB, cfg.AppEncKey),
 		relay.NewStationSourceSessionStore(runtimeDB),
-		relay.StationSourceOptions{Options: options},
+		relay.StationSourceOptions{Options: options, IdleTimeout: cfg.StationSourceIdleTimeout},
 	)
 
 	casterOptions := caster.DefaultOptions()
@@ -106,6 +106,7 @@ func main() {
 	casterOptions.PollInterval = cfg.CasterPollInterval
 	casterOptions.HeaderTimeout = cfg.CasterHeaderTimeout
 	casterOptions.WriteTimeout = cfg.CasterWriteTimeout
+	casterOptions.SourceIdleTimeout = cfg.CasterSourceIdleTimeout
 	casterOptions.QueueSize = cfg.CasterQueueSize
 	casterOptions.ReadBuffer = cfg.CasterReadBuffer
 	casterOptions.MaxHeader = cfg.CasterMaxHeaderBytes

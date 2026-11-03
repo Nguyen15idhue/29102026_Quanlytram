@@ -25,11 +25,13 @@ type Config struct {
 	DialTimeout      time.Duration
 	ShutdownTimeout  time.Duration
 	RelayIdleTimeout time.Duration
+	StationSourceIdleTimeout time.Duration
 
 	CasterBindAddr            string
 	CasterPollInterval        time.Duration
 	CasterHeaderTimeout       time.Duration
 	CasterWriteTimeout        time.Duration
+	CasterSourceIdleTimeout   time.Duration
 	CasterQueueSize           int
 	CasterReadBuffer          int
 	CasterMaxHeaderBytes      int
@@ -87,6 +89,16 @@ func getenvSeconds(key string, fallback time.Duration) time.Duration {
 	return time.Duration(value) * time.Second
 }
 
+// getenvSecondsAtLeast đọc biến giây nhưng không thấp hơn min; dùng cho ngưỡng
+// idle của nguồn trạm để cấu hình sai không cắt kết nối quá sớm.
+func getenvSecondsAtLeast(key string, fallback, min time.Duration) time.Duration {
+	value := getenvSeconds(key, fallback)
+	if value < min {
+		return min
+	}
+	return value
+}
+
 func Load() Config {
 	return Config{
 		Port:       getenv("GO_PORT", "7080"),
@@ -107,11 +119,13 @@ func Load() Config {
 		DialTimeout:      getenvSeconds("RELAY_DIAL_TIMEOUT_SEC", 15*time.Second),
 		ShutdownTimeout:  getenvSeconds("RELAY_SHUTDOWN_TIMEOUT_SEC", 10*time.Second),
 		RelayIdleTimeout: getenvSeconds("RELAY_IDLE_TIMEOUT_SEC", 60*time.Second),
+		StationSourceIdleTimeout: getenvSecondsAtLeast("STATION_SOURCE_IDLE_TIMEOUT_SEC", 120*time.Second, 30*time.Second),
 
 		CasterBindAddr:            getenv("CASTER_BIND_ADDR", "0.0.0.0"),
 		CasterPollInterval:        getenvSeconds("CASTER_POLL_INTERVAL_SEC", 10*time.Second),
 		CasterHeaderTimeout:       getenvSeconds("CASTER_HEADER_TIMEOUT_SEC", 10*time.Second),
 		CasterWriteTimeout:        getenvSeconds("CASTER_WRITE_TIMEOUT_SEC", 10*time.Second),
+		CasterSourceIdleTimeout:   getenvSeconds("CASTER_SOURCE_IDLE_TIMEOUT_SEC", 60*time.Second),
 		CasterQueueSize:           getenvInt("CASTER_QUEUE_SIZE", 64),
 		CasterReadBuffer:          getenvInt("CASTER_READ_BUFFER", 32*1024),
 		CasterMaxHeaderBytes:      getenvInt("CASTER_MAX_HEADER_BYTES", 16*1024),

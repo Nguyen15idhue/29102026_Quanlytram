@@ -19,6 +19,7 @@ type Options struct {
 	PollInterval        time.Duration
 	HeaderTimeout       time.Duration
 	WriteTimeout        time.Duration
+	SourceIdleTimeout   time.Duration
 	DBTimeout           time.Duration
 	ReadBuffer          int
 	QueueSize           int
@@ -34,6 +35,7 @@ func DefaultOptions() Options {
 		PollInterval:        10 * time.Second,
 		HeaderTimeout:       10 * time.Second,
 		WriteTimeout:        10 * time.Second,
+		SourceIdleTimeout:   60 * time.Second,
 		DBTimeout:           3 * time.Second,
 		ReadBuffer:          32 * 1024,
 		QueueSize:           64,
@@ -56,6 +58,12 @@ func (o Options) withDefaults() Options {
 	}
 	if o.WriteTimeout <= 0 {
 		o.WriteTimeout = defaults.WriteTimeout
+	}
+	if o.SourceIdleTimeout <= 0 {
+		o.SourceIdleTimeout = defaults.SourceIdleTimeout
+	}
+	if o.SourceIdleTimeout < 5*time.Second {
+		o.SourceIdleTimeout = 5 * time.Second
 	}
 	if o.DBTimeout <= 0 {
 		o.DBTimeout = defaults.DBTimeout

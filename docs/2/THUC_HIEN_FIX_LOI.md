@@ -9,9 +9,9 @@
 | # | Đợt | Lô | ID | Trạng thái | Commit | Bằng chứng test | Ghi chú |
 |---|---|---|---|---|---|---|---|
 | 1 | 1 | C1 | FIX-01 | DONE | C1 | vitest 22 file/130 PASS; live q=DOCS 200/total=4, không q total=8 | — |
-| 2 | 1 | C2 | FIX-02 | ĐANG LÀM | — | — | — |
-| 3 | 1 | C2 | FIX-03 | TODO | — | — | — |
-| 4 | 1 | C3 | FIX-04 | TODO | — | — | — |
+| 2 | 1 | C2 | FIX-02 | DONE | C2 | `go test ./internal/caster` PASS; 2 test idle/active | — |
+| 3 | 1 | C2 | FIX-03 | DONE | C2 | relay/config PASS; cadence 60ms/150ms; mặc định 120s | — |
+| 4 | 1 | C3 | FIX-04 | ĐANG LÀM | — | — | — |
 | 5 | 1 | C3 | FIX-05 | TODO | — | — | — |
 | 6 | 1 | C3 | FIX-06 | TODO | — | — | — |
 | 7 | 2 | C4 | SEC-F02 | TODO | — | — | — |
@@ -49,6 +49,7 @@
   Go build/vet/test PASS; frontend build PASS.
 - 2026-11-03 17:05 +07: Bắt đầu Đợt 1, mục FIX-01 (lô C1).
 - 2026-11-03 17:08 +07: FIX-01 DONE (C1). Tiếp theo: FIX-02 (C2).
+- 2026-11-03 17:11 +07: FIX-02, FIX-03 DONE (C2). Tiếp theo: FIX-04 (C3).
 
 ## Việc phát sinh
 

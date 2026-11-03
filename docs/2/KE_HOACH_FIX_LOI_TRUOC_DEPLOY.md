@@ -73,6 +73,8 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | ID | Trạng thái | Lô | Ngày (+07) | Bằng chứng |
 |---|---|---|---|---|
 | FIX-01 | Đã sửa | C1 | 2026-11-03 | vitest 22 file/130 PASS; live `q=DOCS` → 200, `total=4`; không `q` → `total=8` |
+| FIX-02 | Đã sửa | C2 | 2026-11-03 | `go test ./internal/caster` PASS; 2 test idle/active |
+| FIX-03 | Đã sửa | C2 | 2026-11-03 | `go test ./internal/relay ./internal/config` PASS; cadence 60ms/150ms, mặc định 120s, sàn 30s |
 
 ---
 
@@ -132,6 +134,13 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 
 **Test:** Go unit test với `net.Pipe`; chạy `go test ./internal/caster`.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C2.**
+- Thêm `caster.Options.SourceIdleTimeout` (mặc định 60s, sàn 5s),
+  `CASTER_SOURCE_IDLE_TIMEOUT_SEC`; `sourceReadLoop` đặt `SetReadDeadline`
+  mỗi vòng đọc và đóng với lý do `timeout`.
+- Test: `TestSourceReadLoopClosesIdleSource`, `TestSourceReadLoopKeepsActiveSource`
+  PASS; `go test ./internal/caster` PASS.
+
 ---
 
 ### FIX-03 [Blocker] Station source idle timeout 30s gây reconnect liên tục
@@ -155,6 +164,14 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - `current` trên timeline không còn nhảy `no_data` liên tục với trạm có dữ liệu.
 
 **Test:** Go unit test cadence 60s với idle 120s PASS; cadence 1s PASS; không gửi gì → timeout.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C2.**
+- `defaultStationIdleTimeout` 30s → 120s; thêm `STATION_SOURCE_IDLE_TIMEOUT_SEC`
+  (mặc định 120s, sàn 30s) trong `gnss/internal/config`.
+- Log timeout kèm `station_id`, tên trạm, ngưỡng và thời điểm byte cuối;
+  không log mật khẩu.
+- Test: `TestStationSourceIdleTimeoutDefault`, `TestRunStationSourceKeepsSlowCadence`,
+  `TestStationSourceIdleTimeoutClamp` PASS; test timeout cũ vẫn PASS.
 
 ---
 

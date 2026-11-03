@@ -476,3 +476,31 @@ func TestRunStationSourceSendsGGADerivedFrom1006(t *testing.T) {
 		t.Fatalf("GGA derived from 1006 was not sent immediately")
 	}
 }
+
+func TestStationSourceIdleTimeoutDefault(t *testing.T) {
+	if got := (StationSourceOptions{}).withDefaults().IdleTimeout; got != 120*time.Second {
+		t.Fatalf("IdleTimeout mặc định = %s, want 120s", got)
+	}
+}
+
+func TestRunStationSourceKeepsSlowCadence(t *testing.T) {
+	// Nguồn gửi 1 byte mỗi 60ms (mô phỏng nhịp 60s), idle 150ms:
+	// phiên phải sống tới khi ctx hết hạn, không bị cắt giữa chừng.
+	port := startCaster(t, func(idx int, conn net.Conn, req string) {
+		_, _ = conn.Write([]byte("ICY 200 OK\r\n\r\n"))
+		for i := 0; i < 8; i++ {
+			if _, err := conn.Write([]byte("x")); err != nil {
+				return
+			}
+			time.Sleep(60 * time.Millisecond)
+		}
+		_, _ = io.Copy(io.Discard, conn)
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
+	defer cancel()
+
+	err := RunStationSource(ctx, testStationConfig(port, "pw"), testManagerOptions(150*time.Millisecond), stationSessionHooks{})
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("phiên bị cắt sớm: %v", err)
+	}
+}

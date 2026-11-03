@@ -206,7 +206,7 @@ func (lr *listenerRuntime) handleSource(conn net.Conn, br *bufio.Reader, req *re
 		c.closeWithReason("network")
 		return
 	}
-	c.sourceReadLoop(req.bodyReader(br), lr.mgr.opts.ReadBuffer)
+	c.sourceReadLoop(req.bodyReader(br), lr.mgr.opts.ReadBuffer, lr.mgr.opts.SourceIdleTimeout)
 }
 
 func (lr *listenerRuntime) isClosed() bool {

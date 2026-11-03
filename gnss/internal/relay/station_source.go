@@ -16,9 +16,10 @@ import (
 
 const (
 	// defaultStationIdleTimeout: nguồn không gửi byte quá khoảng này thì coi như treo
-	// và kết nối lại. Luồng RTCM bình thường ~1 frame/giây nên 30s là ngưỡng an toàn.
-	defaultStationIdleTimeout = 30 * time.Second
-	// stableStreamAfter: phiên nhận dữ liệu đủ lâu mới reset backoff; tránh vòng lặp
+	// và kết nối lại. Nhịp dữ liệu thực tế có trạm ~60s/lần nên mặc định 120s;
+	// tránh cắt kết nối liên tục như ngưỡng cứng 30s trước đây.
+	defaultStationIdleTimeout = 120 * time.Second
+	minStationIdleTimeout     = 30 * time.Second	// stableStreamAfter: phiên nhận dữ liệu đủ lâu mới reset backoff; tránh vòng lặp
 	// nguồn "mở rồi đóng ngay" làm kết nối lại liên tục.
 	stableStreamAfter = 10 * time.Second
 )
@@ -277,6 +278,7 @@ func RunStationSource(
 
 	buffer := make([]byte, opts.ReadBuffer)
 	streaming := false
+	lastByte := time.Now()
 	for {
 		if upstream.Conn != nil {
 			if err := upstream.Conn.SetReadDeadline(time.Now().Add(opts.IdleTimeout)); err != nil {
@@ -285,6 +287,7 @@ func RunStationSource(
 		}
 		n, readErr := upstream.Body.Read(buffer)
 		if n > 0 {
+			lastByte = time.Now()
 			if !streaming {
 				streaming = true
 				if hooks.streaming != nil {
@@ -301,6 +304,11 @@ func RunStationSource(
 		if readErr != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
+			}
+			if classify(readErr) == "timeout" {
+				log.Printf("[station-source] station %d (%s) idle timeout %s, byte cuối %s",
+					cfg.StationID, cfg.StationName, opts.IdleTimeout,
+					lastByte.UTC().Format(time.RFC3339))
 			}
 			return readErr
 		}

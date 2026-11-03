@@ -134,12 +134,15 @@ func (c *connection) roverReadLoop() {
 	}
 }
 
-func (c *connection) sourceReadLoop(reader io.Reader, readBuffer int) {
+func (c *connection) sourceReadLoop(reader io.Reader, readBuffer int, idleTimeout time.Duration) {
 	if readBuffer <= 0 {
 		readBuffer = 32 * 1024
 	}
 	buffer := make([]byte, readBuffer)
 	for {
+		if idleTimeout > 0 {
+			_ = c.conn.SetReadDeadline(time.Now().Add(idleTimeout))
+		}
 		n, err := reader.Read(buffer)
 		if n > 0 {
 			c.bytesIn.Add(uint64(n))
@@ -147,7 +150,12 @@ func (c *connection) sourceReadLoop(reader io.Reader, readBuffer int) {
 		}
 		if err != nil {
 			reason := "source_closed"
-			if !errors.Is(err, io.EOF) {
+			var netErr net.Error
+			switch {
+			case errors.Is(err, io.EOF):
+			case errors.As(err, &netErr) && netErr.Timeout():
+				reason = "timeout"
+			default:
 				reason = "network"
 			}
 			c.closeWithReason(reason)

@@ -897,3 +897,49 @@ func TestRegisterEnforcesGlobalLimit(t *testing.T) {
 		}
 	}
 }
+
+func TestSourceReadLoopClosesIdleSource(t *testing.T) {
+	server, client := net.Pipe()
+	defer client.Close()
+	conn := &connection{conn: server, hub: newHub(nil, nil), done: make(chan struct{})}
+	go conn.sourceReadLoop(server, 1024, 80*time.Millisecond)
+
+	if _, err := client.Write([]byte("x")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	select {
+	case <-conn.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("source im lặng không bị đóng")
+	}
+	if got := conn.closeReason(); got != "timeout" {
+		t.Fatalf("closeReason = %q, want timeout", got)
+	}
+}
+
+func TestSourceReadLoopKeepsActiveSource(t *testing.T) {
+	server, client := net.Pipe()
+	conn := &connection{conn: server, hub: newHub(nil, nil), done: make(chan struct{})}
+	go conn.sourceReadLoop(server, 1024, 120*time.Millisecond)
+
+	for i := 0; i < 5; i++ {
+		if _, err := client.Write([]byte("x")); err != nil {
+			t.Fatalf("write %d: %v", i, err)
+		}
+		time.Sleep(40 * time.Millisecond)
+	}
+	select {
+	case <-conn.done:
+		t.Fatal("source còn gửi dữ liệu nhưng bị đóng")
+	default:
+	}
+	client.Close()
+	select {
+	case <-conn.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("source đóng không giải phóng kết nối")
+	}
+	if got := conn.closeReason(); got != "source_closed" {
+		t.Fatalf("closeReason = %q, want source_closed", got)
+	}
+}

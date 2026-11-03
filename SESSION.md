@@ -1192,3 +1192,8 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   mountpoint có `LEFT JOIN stations`, sửa 500 khi `?q=` tham chiếu `s.name`.
   Test: `cd server; npm run build; npm test` → 22 file/130 PASS. Live:
   `GET /api/mountpoints?q=DOCS` → 200/total=4; không `q` → total=8.
+- FIX-02/03 DONE (lô C2): caster source có `SourceIdleTimeout` 60s
+  (`CASTER_SOURCE_IDLE_TIMEOUT_SEC`, sàn 5s) và đóng lý do `timeout`; station
+  source idle 30s cứng → 120s (`STATION_SOURCE_IDLE_TIMEOUT_SEC`, sàn 30s),
+  log kèm station_id và byte cuối. Test: `cd gnss; go build ./...; go vet ./...;
+  go test ./...` PASS (thêm 3 test caster/relay/config).
