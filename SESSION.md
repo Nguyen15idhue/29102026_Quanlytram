@@ -1240,3 +1240,7 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   tương thích `v1`, hỗ trợ `APP_ENC_KEY_PREVIOUS`; áp dụng cho
   `station_sources.client_password_enc` (Node + Go). Test: server 32 file/157
   PASS; Go secret/relay PASS.
+- SEC-F11 DONE (lô C14): service `web-prod` (profile production) build từ
+  `frontend/Dockerfile`, nginx non-root uid 101, read_only + tmpfs, bind
+  127.0.0.1:8080, CSP/XFO/nosniff/Referrer/HSTS. Đã build và `curl -I` xác
+  nhận header + user; sau test đã stop container web-prod.

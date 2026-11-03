@@ -105,6 +105,7 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | SEC-F14 | Đã sửa | C12 | 2026-11-03 | HTTP Go có Read/Write/Idle/MaxHeader |
 | SEC-F12 | Đã sửa | C12 | 2026-11-03 | TLS auto theo host + `MYSQL_TLS`; test PASS |
 | SEC-F05 | Đã sửa | C13 | 2026-11-03 | AAD v2 + rotation; áp dụng station_sources client password |
+| SEC-F11 | Đã sửa | C14 | 2026-11-03 | web-prod nginx non-root, header đủ, bind loopback |
 
 ---
 
@@ -682,7 +683,12 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
   `table:column:recordId`, giữ tương thích `v1`; hỗ trợ khoá trước qua
   `APP_ENC_KEY_PREVIOUS`. Áp dụng cho `station_sources.client_password_enc`
   (Node ghi/đọc + Go đọc).
-- Test: server build + 32 file/157 PASS; Go secret/relay test PASS.
+- SEC-F11 (C14): thêm service `web-prod` (profile `production`) build từ
+  `frontend/Dockerfile`, nginx non-root (uid 101), `read_only` + tmpfs, bind
+  `127.0.0.1:8080`; CSP/XFO/nosniff/Referrer/HSTS.
+- Test: server build + 32 file/157 PASS; Go secret/relay PASS;
+  `docker compose --profile production config` OK; build + `curl -I` thấy đủ
+  header, `id` trong container = `uid=101(nginx)`.
 
 ### 3.4. Mục đã đóng
 - **F-16** (realtime tick dùng `tenantIds`) — đã sửa tại `server/src/realtime/socket.ts` (tick truyền `state.tenantIds`). Đóng, không cần làm lại.
