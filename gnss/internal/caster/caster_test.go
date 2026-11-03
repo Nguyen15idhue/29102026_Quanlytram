@@ -327,6 +327,57 @@ func TestAnonymousSourceRejected(t *testing.T) {
 	}
 }
 
+func TestSourceNoAuthAllowsPublishButReaderStillRequiresAccount(t *testing.T) {
+	mountpoint := &MountpointConfig{ID: 1, Name: "M", Enabled: true, SourceNoAuth: true}
+	cfg := &Config{
+		Mountpoints: map[int64]*MountpointConfig{1: mountpoint},
+		Listeners: []*ListenerConfig{
+			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: mountpoint}},
+		},
+	}
+	manager, _ := newTestManager(t, cfg)
+	port := listenerPort(t, manager, 1)
+
+	// Basic rỗng: mô phỏng client không có thông tin đăng nhập (connect() tự
+	// thêm test:test nếu không thấy header Authorization).
+	source, _, status := connect(t, port, "SOURCE /M HTTP/1.0\r\nAuthorization: Basic \r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("no-auth source status = %q", status)
+	}
+	source.Close()
+
+	source, _, status = connect(t, port, "SOURCE /M HTTP/1.0\r\nAuthorization: Basic "+
+		base64.StdEncoding.EncodeToString([]byte("random:password"))+"\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("random-credential source status = %q", status)
+	}
+	source.Close()
+
+	if _, _, status := connect(t, port, "GET /M HTTP/1.0\r\nAuthorization: Basic \r\n\r\n"); status != "ICY 401 Unauthorized" {
+		t.Fatalf("reader without account status = %q", status)
+	}
+	if _, _, status := connect(t, port, "GET /M HTTP/1.0\r\nAuthorization: Basic "+
+		base64.StdEncoding.EncodeToString([]byte("random:password"))+"\r\n\r\n"); status != "ICY 401 Unauthorized" {
+		t.Fatalf("reader with unknown account status = %q", status)
+	}
+}
+
+func TestSourceAuthRequiredRejectsAnonymousPublish(t *testing.T) {
+	mountpoint := &MountpointConfig{ID: 1, Name: "M", Enabled: true}
+	cfg := &Config{
+		Mountpoints: map[int64]*MountpointConfig{1: mountpoint},
+		Listeners: []*ListenerConfig{
+			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: mountpoint}},
+		},
+	}
+	manager, _ := newTestManager(t, cfg)
+	port := listenerPort(t, manager, 1)
+
+	if _, _, status := connect(t, port, "SOURCE /M HTTP/1.0\r\nAuthorization: Basic \r\n\r\n"); status != "ICY 401 Unauthorized" {
+		t.Fatalf("anonymous source status = %q", status)
+	}
+}
+
 func TestListenerGroupsAndSourcetable(t *testing.T) {
 	mountpoint := &MountpointConfig{ID: 1, Name: "M", Enabled: true}
 	cfg := &Config{

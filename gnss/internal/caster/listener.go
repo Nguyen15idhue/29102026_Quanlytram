@@ -163,14 +163,19 @@ func (lr *listenerRuntime) handleSource(conn net.Conn, br *bufio.Reader, req *re
 		_ = writeRequestError(conn, req, 404, "Not Found")
 		return
 	}
-	account, code, reason := lr.mgr.authorize(req, mountpoint, cfg.ID, remoteHost(conn.RemoteAddr().String()))
-	if code != 0 {
-		if code == 401 {
-			_ = writeAuthRequired(conn, req)
-		} else {
-			_ = writeRequestError(conn, req, code, reason)
+	var account *AccountConfig
+	if !mountpoint.SourceNoAuth {
+		var code int
+		var reason string
+		account, code, reason = lr.mgr.authorize(req, mountpoint, cfg.ID, remoteHost(conn.RemoteAddr().String()))
+		if code != 0 {
+			if code == 401 {
+				_ = writeAuthRequired(conn, req)
+			} else {
+				_ = writeRequestError(conn, req, code, reason)
+			}
+			return
 		}
-		return
 	}
 
 	h := lr.mgr.hubFor(mountpoint.ID)

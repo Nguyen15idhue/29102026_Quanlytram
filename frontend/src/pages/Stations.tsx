@@ -1515,14 +1515,27 @@ export function Stations() {
               </>
             ) : (
               <>
-                <Field label="Caster version">
+                <Field
+                  label="Caster version"
+                  hint={
+                    form.caster_requires_auth
+                      ? undefined
+                      : 'Nguồn không xác thực: trạm được publish mà không cần tài khoản; rover/relay vẫn phải đăng nhập NTRIP để đọc.'
+                  }
+                >
                   <Select
-                    value={form.caster_version}
-                    onChange={(event) =>
-                      setForm({ ...form, caster_version: event.target.value as 'v1' | 'v2' })
-                    }
+                    value={!form.caster_requires_auth ? 'v1_noauth' : form.caster_version}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setForm({
+                        ...form,
+                        caster_version: value === 'v1_noauth' ? 'v1' : (value as 'v1' | 'v2'),
+                        caster_requires_auth: value !== 'v1_noauth'
+                      });
+                    }}
                   >
                     <option value="v1">v1</option>
+                    <option value="v1_noauth">v1 (nguồn không xác thực)</option>
                     <option value="v2">v2</option>
                   </Select>
                 </Field>
@@ -1568,20 +1581,6 @@ export function Stations() {
                       setForm({ ...form, caster_password: event.target.value })
                     }
                   />
-                </Field>
-                <Field label="Yêu cầu xác thực">
-                  <Select
-                    value={form.caster_requires_auth ? '1' : '0'}
-                    onChange={(event) =>
-                      setForm({
-                        ...form,
-                        caster_requires_auth: event.target.value === '1'
-                      })
-                    }
-                  >
-                    <option value="1">Có</option>
-                    <option value="0">Không</option>
-                  </Select>
                 </Field>
               </>
             )}

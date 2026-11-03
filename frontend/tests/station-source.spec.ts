@@ -72,6 +72,11 @@ test.describe('Phase 7 station source and 1005 coordinates', () => {
     await expect(form.getByLabel('Kinh độ WGS84')).not.toBeEditable();
     await expect(form.getByText('Thông tin kết nối', { exact: true })).toBeVisible();
     await expect(form.getByLabel('Caster version')).toBeVisible();
+    await expect(
+      form.getByLabel('Caster version').locator('option', {
+        hasText: 'v1 (nguồn không xác thực)'
+      })
+    ).toHaveCount(1);
     await expect(form.getByLabel('NTRIP mode')).toHaveCount(0);
     await page.screenshot({
       path: 'test-results/station-source-form.png',

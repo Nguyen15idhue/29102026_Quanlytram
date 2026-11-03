@@ -1386,3 +1386,27 @@ Kế hoạch: `docs/1/12_KE_HOACH_RELAY_CHON_TRAM.md`.
   200 (`X-Tile-Proxy-Status: rate-limited`) thay vì 429; banner lỗi tile chờ
   1s và tự huỷ nếu có tile tải được (tránh nhấp nháy khi zoom). Smoke 1250
   request: 1200 tile thật + 50 tile trong suốt, không còn 429.
+
+## Kế hoạch 13 — Chuyển dữ liệu hệ thống cũ
+
+Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
+
+- Bước 0 DONE: backup `cors_admin` 3.672.151 bytes + `cors_runtime` 22.488.953
+  bytes tại `%TEMP%\opencode\db-backup\` (ngoài repo); baseline 3 company/6
+  user/8 trạm/9 mountpoint/13 relay/7 account/5 listener.
+- Bước 1 DONE: caster hỗ trợ **nguồn không xác thực** (`SourceNoAuth` từ
+  `station_sources.caster_requires_auth=0`) chỉ cho publish; đọc vẫn bắt buộc
+  NTRIP account + ACL. UI trạm thêm `v1 (nguồn không xác thực)`.
+  Gate: Go build/vet/test; server+frontend tsc; frontend build; Playwright
+  `station-source` PASS; gnss rebuild healthy.
+
+## Form tài khoản NTRIP — Công ty dạng select (2026-11-03)
+
+- `frontend/src/pages/NtripAccounts.tsx`: trường **Công ty** chuyển thành `Select`
+  lấy danh sách từ `GET /api/companies`, chỉ hiện với `super_admin` (giống form
+  người dùng web); khi sửa thì khóa vì server cấm đổi công ty. Bỏ hẳn trường
+  **Đơn vị** (text `company`) khỏi form, bảng và drawer chi tiết; cột liên hệ
+  trong bảng đổi thành **Liên hệ**.
+- Khi tạo, gửi `company_id` (super admin); khi sửa không gửi để tránh
+  `COMPANY_IMMUTABLE`.
+- Kiểm tra: `frontend` `tsc --noEmit` PASS, `npm run lint` PASS.

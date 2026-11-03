@@ -345,7 +345,9 @@ func (m *manager) isInvalidLocked(conn *connection, listenerByID map[int64]*List
 		return true
 	}
 	if conn.accountID == nil {
-		return true
+		// Nguồn không xác thực: chỉ cho phép chiều publish khi mountpoint của
+		// trạm được cấu hình caster_requires_auth=0. Chiều đọc luôn cần account.
+		return !(conn.direction == DirectionSource && mountpoint.SourceNoAuth)
 	}
 	account := m.accountsByID[*conn.accountID]
 	if account == nil || !account.Enabled {
