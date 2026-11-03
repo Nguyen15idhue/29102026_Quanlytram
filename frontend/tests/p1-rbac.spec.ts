@@ -193,4 +193,32 @@ test.describe('P1.2 RBAC tenant và menu', () => {
       await adminACtx.dispose();
     }
   });
+
+  test('đổi tài khoản không lộ dữ liệu công ty khác từ cache', async ({ page }) => {
+    // Trước đây React Query giữ cache của phiên trước: super_admin xem 8 trạm,
+    // đăng xuất rồi đăng nhập admin công ty khác vẫn thấy 8 trạm tới lần refetch
+    // 10s sau. Cache phải bị xoá ngay khi phiên đổi.
+    await login(page, 'superadmin', process.env.E2E_PASSWORD ?? '');
+    await page.getByRole('link', { name: 'Danh sách trạm' }).click();
+    await expect(page.locator('tbody tr').first()).toBeVisible();
+    const all = (await (
+      await page.request.get('/api/stations?page=1&pageSize=100&q=')
+    ).json()) as { total: number };
+    expect(all.total).toBeGreaterThan(0);
+
+    await page.getByRole('button', { name: 'Đăng xuất' }).click();
+    await expect(page).toHaveURL(/\/login$/);
+    await page.getByLabel('Tên đăng nhập').fill(adminUsername);
+    await page.getByLabel('Mật khẩu').fill(adminPassword);
+    await page.getByRole('button', { name: 'Đăng nhập' }).click();
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+
+    const mine = (await (
+      await page.request.get('/api/stations?page=1&pageSize=20&q=')
+    ).json()) as { total: number; items: unknown[] };
+    expect(mine.total).toBeLessThan(all.total);
+
+    await page.getByRole('link', { name: 'Danh sách trạm' }).click();
+    await expect(page.locator('tbody tr')).toHaveCount(mine.items.length, { timeout: 2000 });
+  });
 });

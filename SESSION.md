@@ -1328,3 +1328,20 @@ Board: `docs/2/TODOS_FOLLOWUP.md`.
   nếu 403.
 - Kiểm chứng: schema admin 37; tile thật trả **200**; Playwright map +
   unified-map + realtime **7/7 PASS**; server 36 file/174 test PASS.
+
+### Hotfix rò dữ liệu do cache phiên (2026-11-03)
+
+- Triệu chứng: sau khi đăng xuất super_admin rồi đăng nhập admin/user, danh
+  sách hiện dữ liệu toàn hệ thống vài giây rồi mới về đúng công ty.
+- Tái hiện: superadmin xem 8 trạm → đăng xuất → login `docs.admin` (4 trạm) →
+  mở "Danh sách trạm" bằng điều hướng SPA vẫn thấy **8 trạm** suốt ~10s cho
+  tới lần refetch kế tiếp (không phát request mới lúc mount).
+- Nguyên nhân: React Query cache (`staleTime 30s`, `gcTime 5m`) không được xoá
+  khi phiên đổi; query key `['stations', ...]` không chứa danh tính người
+  dùng nên dữ liệu của phiên trước được trả ngay, không refetch.
+- Sửa: `AuthProvider` dùng `queryClient.clear()` trong `applySession` cho
+  bootstrap/login/logout/refresh; `RealtimeProvider` reset snapshot/quality
+  khi `user.id` đổi. Server vẫn scope đúng (test API công ty A/B đã có).
+- Test: Playwright `p1-rbac.spec.ts` "đổi tài khoản không lộ dữ liệu công ty
+  khác từ cache" (yêu cầu bảng về đúng số dòng trong 2s; trước fix là 10s).
+- Graphify: `graphify update .` → 4402 node, 10098 cạnh, 311 community.

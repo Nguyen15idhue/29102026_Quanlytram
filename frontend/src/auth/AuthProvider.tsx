@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode
 } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiFetch, ApiClientError } from '../api/client';
 import type { Permission, User } from '../types';
 
@@ -30,19 +31,31 @@ interface MeResponse {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState<User | null>(null);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [csrfToken, setCsrfToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Cache React Query thuộc về phiên đăng nhập: nếu đổi tài khoản/công ty mà
+  // giữ cache, trang sẽ hiển thị dữ liệu của phiên trước (vd. super_admin thấy
+  // toàn hệ thống) vài giây cho tới lần refetch kế tiếp.
+  const applySession = useCallback(
+    (data: MeResponse | null) => {
+      queryClient.clear();
+      setUser(data?.user ?? null);
+      setPermissions(data?.permissions ?? []);
+      setCsrfToken(data?.csrfToken ?? null);
+    },
+    [queryClient]
+  );
 
   useEffect(() => {
     let active = true;
     apiFetch<MeResponse>('/api/auth/me')
       .then((data) => {
         if (!active) return;
-        setUser(data.user);
-        setPermissions(data.permissions);
-        setCsrfToken(data.csrfToken);
+        applySession(data);
       })
       .catch((err) => {
         if (!active) return;
@@ -56,34 +69,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, []);
+  }, [applySession]);
 
-  const login = useCallback(async (username: string, password: string) => {
-    const data = await apiFetch<MeResponse>('/api/auth/login', {
-      method: 'POST',
-      body: { username, password }
-    });
-    setUser(data.user);
-    setPermissions(data.permissions);
-    setCsrfToken(data.csrfToken);
-  }, []);
+  const login = useCallback(
+    async (username: string, password: string) => {
+      const data = await apiFetch<MeResponse>('/api/auth/login', {
+        method: 'POST',
+        body: { username, password }
+      });
+      applySession(data);
+    },
+    [applySession]
+  );
 
   const logout = useCallback(async () => {
     try {
       await apiFetch<void>('/api/auth/logout', { method: 'POST', csrfToken });
     } finally {
-      setUser(null);
-      setPermissions([]);
-      setCsrfToken(null);
+      applySession(null);
     }
-  }, [csrfToken]);
+  }, [applySession, csrfToken]);
 
   const refresh = useCallback(async () => {
     const data = await apiFetch<MeResponse>('/api/auth/me');
-    setUser(data.user);
-    setPermissions(data.permissions);
-    setCsrfToken(data.csrfToken);
-  }, []);
+    applySession(data);
+  }, [applySession]);
 
   const can = useCallback(
     (module: string, action: string) =>

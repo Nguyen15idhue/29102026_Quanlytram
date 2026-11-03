@@ -99,3 +99,7 @@
 - Hotfix bản đồ 2026-11-03: tile proxy trả 403 vì permission `map.view` chưa
   được tạo; migration admin 037 + seed + matrix cấp lại quyền (super_admin
   all, admin/user tenant); thêm test Playwright tải tile thật.
+- Hotfix cache phiên 2026-11-03: React Query giữ cache của phiên trước nên
+  admin/user thấy dữ liệu toàn hệ thống vài giây sau khi đổi tài khoản; xoá
+  cache trong `AuthProvider` khi phiên đổi + reset realtime snapshot; test
+  Playwright `p1-rbac` kiểm tra bảng về đúng công ty trong 2s.

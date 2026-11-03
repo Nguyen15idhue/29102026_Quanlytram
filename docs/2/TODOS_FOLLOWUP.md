@@ -140,3 +140,13 @@ Trạng thái: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong · `[!]` lỗi
 - [x] Test Playwright `unified-map.spec.ts` tải tile thật: fail nếu 403.
 - [x] Áp dụng dev: schema admin 37, tile 200; map/unified-map/realtime 7/7
   PASS; server 36 file/174 test PASS.
+
+## Hotfix sau đợt — cache phiên (2026-11-03)
+
+- [x] Tái hiện: đổi superadmin → docs.admin trong cùng tab (SPA) vẫn thấy
+  8 trạm của superadmin tới lần refetch 10s.
+- [x] `AuthProvider` xoá React Query cache khi phiên đổi
+  (bootstrap/login/logout/refresh); `RealtimeProvider` reset snapshot/quality
+  khi `user.id` đổi.
+- [x] Test Playwright `p1-rbac.spec.ts` yêu cầu danh sách đúng công ty trong
+  2s sau khi đổi tài khoản.

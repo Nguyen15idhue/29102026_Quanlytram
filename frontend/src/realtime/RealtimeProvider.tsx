@@ -50,6 +50,16 @@ export function RealtimeProvider({ children }: { children: ReactNode }) {
   const [connected, setConnected] = useState(false);
   const [revoked, setRevoked] = useState(false);
   const [lastSession, setLastSession] = useState<RealtimeContextValue['lastSession']>(null);
+  const userId = user?.id ?? null;
+
+  // Đổi tài khoản: bỏ snapshot/quality của phiên trước để dashboard không hiện
+  // số liệu toàn hệ thống của super_admin trong lúc chờ snapshot mới.
+  useEffect(() => {
+    setSnapshot(null);
+    setQuality([]);
+    setLastSession(null);
+    setRevoked(false);
+  }, [userId]);
 
   useEffect(() => {
     if (!user) {
