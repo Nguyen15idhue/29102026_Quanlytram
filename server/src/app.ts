@@ -113,10 +113,10 @@ app.get(
         time: new Date().toISOString()
       });
     } catch (err) {
+      console.error('[health] db check failed', err instanceof Error ? err.message : err);
       res.status(503).json({
         status: 'error',
         db: 'error',
-        message: err instanceof Error ? err.message : 'unknown',
         time: new Date().toISOString()
       });
     }

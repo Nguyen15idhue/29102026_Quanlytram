@@ -15,10 +15,12 @@ import {
 import { testTileSource } from '../lib/tileProxy';
 import { ipFrom } from '../rbac/access';
 import { isSuperAdmin, requireAuth, requirePermission } from '../middleware/auth';
+import { csrfProtection } from '../middleware/csrf';
 
 export const mapConfigRouter = Router();
 
 mapConfigRouter.use(requireAuth);
+mapConfigRouter.use(csrfProtection);
 
 mapConfigRouter.get(
   '/',

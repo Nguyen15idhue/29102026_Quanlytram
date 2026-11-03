@@ -34,11 +34,11 @@
 | 24 | 4 | C9 | FIX-14 | DONE | C9 | 409 DOWNSTREAM_BUSY; test | — |
 | 25 | 5 | C10 | FIX-15 | DONE | C10 | reset monitor/backoff/cursor | — |
 | 26 | 5 | C10 | FIX-16 | DONE | C10 | framesAt cửa sổ quá khứ; uptime mẫu số | — |
-| 27 | 5 | C11 | SEC-F08 | ĐANG LÀM | — | — | — |
-| 28 | 5 | C11 | SEC-F15 | TODO | — | — | — |
-| 29 | 5 | C11 | SEC-F19 | TODO | — | — | — |
-| 30 | 5 | C11 | SEC-F21 | TODO | — | — | — |
-| 31 | 5 | C12 | SEC-F14 | TODO | — | — | — |
+| 27 | 5 | C11 | SEC-F08 | DONE | C11 | CSRF mapConfig | — |
+| 28 | 5 | C11 | SEC-F15 | DONE | C11 | map.view + rate-limit tile | — |
+| 29 | 5 | C11 | SEC-F19 | DONE | C11 | health bỏ err.message | — |
+| 30 | 5 | C11 | SEC-F21 | DONE | C11 | own = [userId]; test PASS | — |
+| 31 | 5 | C12 | SEC-F14 | ĐANG LÀM | — | — | — |
 | 32 | 5 | C12 | SEC-F12 | TODO | — | — | — |
 | 33 | 5 | C13 | SEC-F05 | TODO | — | — | — |
 | 34 | 5 | C14 | SEC-F11 | TODO | — | — | — |
@@ -62,6 +62,7 @@
   realtime fallback stale, lọc direction. Sang FIX-11 (C9).
 - 2026-11-03 17:38 +07: FIX-11..14 DONE (C9). Sang Đợt 5 — FIX-15 (C10).
 - 2026-11-03 17:41 +07: FIX-15/16 DONE (C10). Sang SEC-F08 (C11).
+- 2026-11-03 17:43 +07: SEC-F08/15/19/21 DONE (C11). Sang SEC-F14 (C12).
 
 ## Việc phát sinh
 

@@ -10,6 +10,7 @@ import { requireAuth } from '../middleware/auth';
 import { csrfProtection } from '../middleware/csrf';
 import { permissionsForRole } from '../rbac/permissions';
 import { inScope, subtreeIds, tenantIds } from '../rbac/scope';
+import { idsForScope } from '../lib/scopeIds';
 import { loadBaseData, loadOpenAlerts } from '../realtime/data';
 import { buildSnapshot, permissionMap, scopeOf } from '../realtime/filter';
 
@@ -54,7 +55,7 @@ opsRouter.get(
       loadOpenAlerts()
     ]);
     const perms = permissionMap(permissions);
-    const idsFor = (scope: string): number[] => (scope === 'tenant' ? tenants : ids);
+    const idsFor = (scope: string): number[] => idsForScope(scope, auth.id, ids, tenants);
     const snapshot = buildSnapshot(raw, openAlerts, perms, auth.id, ids, tenants);
 
     const mountScope = scopeOf(perms, 'mountpoints.view');

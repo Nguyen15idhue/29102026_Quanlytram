@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { RowDataPacket } from 'mysql2/promise';
 import { query } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
@@ -28,6 +29,15 @@ import { inScope, Scope, scopeClause, subtreeIds, tenantIds } from '../rbac/scop
 export const mapRouter = Router();
 mapRouter.use(requireAuth);
 mapRouter.use(csrfProtection);
+
+const tileLimiter = rateLimit({
+  windowMs: 60_000,
+  limit: 240,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: any) => String(req.auth?.id ?? req.ip),
+  message: { error: { code: 'RATE_LIMITED', message: 'Tải tile quá nhiều, thử lại sau' } }
+});
 
 function placeholders(values: unknown[]): string {
   return values.map(() => '?').join(',');
@@ -67,6 +77,8 @@ async function relayScopeClause(scope: Scope, actorId: number): Promise<{ sql: s
 
 mapRouter.get(
   '/tiles/:z/:x/:y',
+  requirePermission('map', 'view'),
+  tileLimiter,
   asyncHandler(async (req, res) => {
     const config = await getMapConfig();
     if (config.tileMode !== 'proxy') {

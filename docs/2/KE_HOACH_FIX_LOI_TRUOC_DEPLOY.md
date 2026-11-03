@@ -98,6 +98,10 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | FIX-14 | Đã sửa | C9 | 2026-11-03 | 409 `DOWNSTREAM_BUSY`; test duplicate PASS |
 | FIX-15 | Đã sửa | C10 | 2026-11-03 | reset monitor/backoff/cursor; test PASS |
 | FIX-16 | Đã sửa | C10 | 2026-11-03 | framesAt `[at-window, at)`; mẫu số quan sát |
+| SEC-F08 | Đã sửa | C11 | 2026-11-03 | CSRF mapConfig sau requireAuth |
+| SEC-F15 | Đã sửa | C11 | 2026-11-03 | tile cần `map.view` + rate-limit 240/phút |
+| SEC-F19 | Đã sửa | C11 | 2026-11-03 | `/health` không trả `err.message` |
+| SEC-F21 | Đã sửa | C11 | 2026-11-03 | `idsForScope('own')` = `[userId]`; test PASS |
 
 ---
 
@@ -659,6 +663,15 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | SEC-F05 | `server/src/lib/crypto.ts:18`, `gnss/internal/secret/aes.go` | AAD = `table:column:recordId`; payload `v2:keyid:...` hỗ trợ 2 khoá | Hoán đổi ciphertext giữa 2 bản ghi → decrypt fail |
 | SEC-F12 | `server/src/db/pool.ts`, `gnss/internal/db/db.go` | Chỉ bật TLS khi DB ra ngoài host; giữ nguyên khi DB trong Docker network | `SHOW GRANTS` đúng thiết kế; DSN không log |
 | SEC-F11 | `docker-compose.yml` service `web` | Khi production dùng `frontend/Dockerfile` + nginx, bỏ bind mount, thêm CSP/XFO/HSTS, non-root | `curl -I` có header; process không phải root |
+
+**Trạng thái thực hiện nhóm 3.3 (2026-11-03, +07):**
+- SEC-F08 (C11): `mapConfigRouter` dùng `csrfProtection` sau `requireAuth`.
+- SEC-F19 (C11): `/health` bỏ `message`, log lỗi server-side; payload chỉ còn
+  `status/db/time` (và `schemaVersion` khi thành công).
+- SEC-F15 (C11): tile yêu cầu `requirePermission('map','view')` + rate-limit
+  240/phút theo user.
+- SEC-F21 (C11): `idsForScope()` trả `[userId]` cho `own`; test PASS.
+- Test: server build + 30 file/150 PASS.
 
 ### 3.4. Mục đã đóng
 - **F-16** (realtime tick dùng `tenantIds`) — đã sửa tại `server/src/realtime/socket.ts` (tick truyền `state.tenantIds`). Đóng, không cần làm lại.

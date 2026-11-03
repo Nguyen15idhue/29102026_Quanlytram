@@ -1230,3 +1230,6 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   trước Next, cursor `lastSessionId` theo dòng đã fetch; timeline chỉ dùng mẫu
   `[at-window, at)`, uptime lấy mẫu số thời gian quan sát. Test: Go + server
   148 PASS.
+- SEC-F08/15/19/21 DONE (lô C11): CSRF cho mapConfig; tile yêu cầu quyền
+  `map.view` + rate-limit theo user; `/health` không lộ `err.message`; audit
+  scope `own` chỉ trả id chính actor. Test: server 30 file/150 PASS.
