@@ -81,6 +81,7 @@ func (j *Job) run(ctx context.Context) {
 		j.metrics.SetState("connecting", j.cfg.DesiredRevision, "")
 
 		start := time.Now()
+		j.monitor.Reset()
 		err := RunSession(ctx, j.cfg, sessionOpts, j.monitor, j.metrics)
 		end := time.Now()
 
@@ -123,6 +124,9 @@ func (j *Job) run(ctx context.Context) {
 
 		j.metrics.Retry()
 		j.writer.Event(j.cfg.ID, "reconnect", reason, duration)
+		if end.Sub(start) > 30*time.Second {
+			backoff.Reset()
+		}
 		wait := backoff.Next()
 		j.writer.State(j.cfg.ID, "backoff", j.cfg.DesiredRevision, message)
 		j.metrics.SetState("backoff", j.cfg.DesiredRevision, message)
@@ -131,10 +135,6 @@ func (j *Job) run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-time.After(wait):
-		}
-
-		if end.Sub(start) > 30*time.Second {
-			backoff.Reset()
 		}
 	}
 }

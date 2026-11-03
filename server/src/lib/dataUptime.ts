@@ -75,6 +75,7 @@ export async function dataUptime(input: {
 
   const buckets = new Map<string, DataUptimeBucket>();
   let onlineSec = 0;
+  let observedSec = 0;
   let samples = 0;
   let crcErrors = 0;
   let parseErrors = 0;
@@ -106,6 +107,7 @@ export async function dataUptime(input: {
         parseErrors: 0
       };
     bucket.samples += 1;
+    observedSec += windowSec;
     bucket.crcErrors += item.crc;
     bucket.parseErrors += item.parse;
     if (online) {
@@ -123,7 +125,8 @@ export async function dataUptime(input: {
     parseErrors += item.parse;
   }
 
-  const totalSec = Math.max(0, Math.round((now.getTime() - from.getTime()) / 1000));
+  const rangeSec = Math.max(0, Math.round((now.getTime() - from.getTime()) / 1000));
+  const totalSec = Math.min(rangeSec, Math.round(observedSec));
   const cappedOnline = Math.min(totalSec, onlineSec);
   return {
     from: from.toISOString(),

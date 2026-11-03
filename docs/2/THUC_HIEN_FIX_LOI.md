@@ -32,9 +32,9 @@
 | 22 | 4 | C9 | FIX-12 | DONE | C9 | rootContext + recover API | — |
 | 23 | 4 | C9 | FIX-13 | DONE | C9 | skip job lỗi, relayDegraded | — |
 | 24 | 4 | C9 | FIX-14 | DONE | C9 | 409 DOWNSTREAM_BUSY; test | — |
-| 25 | 5 | C10 | FIX-15 | ĐANG LÀM | — | — | — |
-| 26 | 5 | C10 | FIX-16 | TODO | — | — | — |
-| 27 | 5 | C11 | SEC-F08 | TODO | — | — | — |
+| 25 | 5 | C10 | FIX-15 | DONE | C10 | reset monitor/backoff/cursor | — |
+| 26 | 5 | C10 | FIX-16 | DONE | C10 | framesAt cửa sổ quá khứ; uptime mẫu số | — |
+| 27 | 5 | C11 | SEC-F08 | ĐANG LÀM | — | — | — |
 | 28 | 5 | C11 | SEC-F15 | TODO | — | — | — |
 | 29 | 5 | C11 | SEC-F19 | TODO | — | — | — |
 | 30 | 5 | C11 | SEC-F21 | TODO | — | — | — |
@@ -61,6 +61,7 @@
 - 2026-11-03 17:33 +07: FIX-07..10 DONE (C8): resume an toàn, resolve alert,
   realtime fallback stale, lọc direction. Sang FIX-11 (C9).
 - 2026-11-03 17:38 +07: FIX-11..14 DONE (C9). Sang Đợt 5 — FIX-15 (C10).
+- 2026-11-03 17:41 +07: FIX-15/16 DONE (C10). Sang SEC-F08 (C11).
 
 ## Việc phát sinh
 

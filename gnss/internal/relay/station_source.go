@@ -498,12 +498,13 @@ func (m *StationSourceManager) runSession(ctx context.Context, cfg *StationSourc
 		if !streamStart.IsZero() && time.Since(streamStart) >= stableStreamAfter {
 			backoff.Reset()
 		}
+		wait := backoff.Next()
 		log.Printf("[station-source] station %d (%s) reason=%s: %s",
 			cfg.StationID, cfg.StationName, classify(err), messageFor(err))
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(backoff.Next()):
+		case <-time.After(wait):
 		}
 	}
 }

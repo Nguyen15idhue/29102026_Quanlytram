@@ -1226,3 +1226,7 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   + recover internal API chống panic; credential lỗi chỉ bỏ job đó và health
   báo `relayDegraded`; chặn trùng downstream (409 `DOWNSTREAM_BUSY`, import
   báo theo dòng). Test: Go build/vet/test PASS (+5 test).
+- FIX-15/16 DONE (lô C10): reset monitor + counters đầu session, backoff.Reset
+  trước Next, cursor `lastSessionId` theo dòng đã fetch; timeline chỉ dùng mẫu
+  `[at-window, at)`, uptime lấy mẫu số thời gian quan sát. Test: Go + server
+  148 PASS.

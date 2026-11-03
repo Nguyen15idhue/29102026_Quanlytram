@@ -95,17 +95,16 @@ function sampleWindowMs(sample: TimelineSample): number {
   return Math.max(1000, Math.round((sample.windowSec ?? 60) * 1000));
 }
 
-// Số frame trong cửa sổ 60 giây phủ thời điểm atMs. Sample được ghi ở cuối
-// cửa sổ, nên sample kế tiếp có thể là sample phủ atMs. Nếu không sample nào
-// phủ atMs thì trả 0, không suy diễn dữ liệu từ sample cách xa.
+// Số frame trong cửa sổ phủ thời điểm atMs. Chỉ dùng sample đã ghi tại hoặc
+// trước atMs (cửa sổ [at-window, at]); không nhìn sample tương lai.
 function framesAt(samples: TimelineSample[], atMs: number, fallbackMinFrames: number): number {
   if (samples.length === 0) return 0;
   const index = lowerBound(samples, atMs);
-  const sample = index < samples.length ? samples[index] : samples[samples.length - 1];
+  if (index === 0) return 0;
+  const sample = samples[index - 1];
   if (!sample) return 0;
   const windowMs = sampleWindowMs(sample);
-  if (atMs < sample.ts.getTime() - windowMs) return 0;
-  if (atMs > sample.ts.getTime() + windowMs) return 0;
+  if (atMs - sample.ts.getTime() > windowMs) return 0;
   if (sample.frames === null || sample.frames === undefined) {
     return sample.state === 'streaming' ? fallbackMinFrames : 0;
   }

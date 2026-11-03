@@ -429,7 +429,10 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
             LIMIT 200`,
           [lastSessionId]
         );
-        lastSessionId = maxSessionId;
+        // Chỉ tiến con trỏ tới dòng cuối đã fetch; burst > 200 sẽ được lấy
+        // tiếp ở tick sau thay vì nhảy thẳng MAX(id) và mất event.
+        const lastFetched = newSessions[newSessions.length - 1];
+        if (lastFetched) lastSessionId = Number(lastFetched.id);
       }
 
       for (const socket of io.sockets.sockets.values()) {

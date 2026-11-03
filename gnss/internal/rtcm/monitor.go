@@ -104,6 +104,10 @@ func (m *Monitor) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.buf = m.buf[:0]
+	m.frames = 0
+	m.crcErrors = 0
+	m.lengthErrors = 0
+	m.dropped = 0
 }
 
 func CRC24Q(data []byte) uint32 {

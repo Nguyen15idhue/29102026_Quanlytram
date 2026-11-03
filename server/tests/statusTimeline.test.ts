@@ -79,7 +79,7 @@ describe('status timeline', () => {
     });
 
     expect(timeline.buckets[0].status).toBe('online');
-    expect(timeline.buckets[1].status).toBe('no_data');
+    expect(timeline.buckets[1].status).toBe('online');
     expect(timeline.buckets[2].status).toBe('no_data');
     expect(timeline.noDataSec).toBeGreaterThan(0);
     expect(timeline.offlineSec).toBe(0);

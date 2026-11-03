@@ -96,6 +96,8 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | FIX-12 | Đã sửa | C9 | 2026-11-03 | `rootContext()` + recover API; 2 test PASS |
 | FIX-13 | Đã sửa | C9 | 2026-11-03 | bỏ qua job lỗi credential, `relayDegraded` |
 | FIX-14 | Đã sửa | C9 | 2026-11-03 | 409 `DOWNSTREAM_BUSY`; test duplicate PASS |
+| FIX-15 | Đã sửa | C10 | 2026-11-03 | reset monitor/backoff/cursor; test PASS |
+| FIX-16 | Đã sửa | C10 | 2026-11-03 | framesAt `[at-window, at)`; mẫu số quan sát |
 
 ---
 
@@ -484,6 +486,13 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 
 **Cách sửa:** reset monitor khi bắt đầu session; gọi `backoff.Reset()` trước `Next()`; dùng `lastSessionId = max(id) của các dòng đã fetch` + phân trang.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C10.**
+- `Monitor.Reset()` xoá cả buffer và counters; gọi trước mỗi `RunSession`.
+- `backoff.Reset()` chuyển lên trước `Next()` (relay job và station source).
+- Socket chỉ tiến `lastSessionId` tới dòng cuối đã fetch (LIMIT 200), burst lớn
+  sẽ lấy tiếp ở tick sau.
+- Test: `TestMonitorResetClearsCountersAndBuffer` PASS; Go test PASS.
+
 ---
 
 ### FIX-16 [Low] Sai lệch timeline/uptime
@@ -495,6 +504,13 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - Relay yêu cầu `up>0 && down>0` cùng key 1s; nếu Go ghi lệch `ts` sẽ ra ~0% uptime.
 
 **Cách sửa:** lấy mẫu trong cửa sổ `[at-window, at)`; mẫu số là thời gian có quan sát; đồng bộ tổng bucket với summary; kiểm tra lệch `ts` của 2 chiều.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C10.**
+- `framesAt` chỉ dùng sample đã ghi tại/trước mốc, cửa sổ `[at-window, at)`,
+  không nhìn sample tương lai.
+- Uptime lấy mẫu số là tổng thời gian quan sát (`observedSec`, chặn theo range),
+  nên tổng bucket khớp summary.
+- Test: `statusTimeline.test.ts` cập nhật kỳ vọng theo semantics mới; 148 test PASS.
 
 ---
 

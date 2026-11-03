@@ -71,3 +71,18 @@ func TestMonitorBoundedBuffer(t *testing.T) {
 		t.Fatal("expected dropped bytes for oversized buffer")
 	}
 }
+
+func TestMonitorResetClearsCountersAndBuffer(t *testing.T) {
+	monitor := NewMonitor(1024)
+	monitor.Feed(makeFrame([]byte{1, 2, 3}))
+	monitor.Feed([]byte{0xD3, 0x00})
+	monitor.Reset()
+	stats := monitor.Snapshot()
+	if stats.Frames != 0 || stats.CRCErrors != 0 || stats.LengthErrors != 0 || stats.Dropped != 0 {
+		t.Fatalf("Reset chưa xoá hết: %+v", stats)
+	}
+	monitor.Feed(makeFrame([]byte{4, 5}))
+	if got := monitor.Snapshot().Frames; got != 1 {
+		t.Fatalf("Frames sau Reset = %d, want 1", got)
+	}
+}
