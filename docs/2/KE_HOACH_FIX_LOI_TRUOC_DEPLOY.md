@@ -75,6 +75,9 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | FIX-01 | Đã sửa | C1 | 2026-11-03 | vitest 22 file/130 PASS; live `q=DOCS` → 200, `total=4`; không `q` → `total=8` |
 | FIX-02 | Đã sửa | C2 | 2026-11-03 | `go test ./internal/caster` PASS; 2 test idle/active |
 | FIX-03 | Đã sửa | C2 | 2026-11-03 | `go test ./internal/relay ./internal/config` PASS; cadence 60ms/150ms, mặc định 120s, sàn 30s |
+| FIX-04 | Đã sửa | C3 | 2026-11-03 | `TestWaitJobDone*` PASS; `StopTimeout` 15s, hoãn start khi phiên cũ chưa đóng |
+| FIX-05 | Đã sửa | C3 | 2026-11-03 | per-IP mặc định 200, trần tổng 500; `TestDefaultPerIPLimitAllowsValidFanIn` PASS |
+| FIX-06 | Đã sửa | C3 | 2026-11-03 | rover 1 KB, idle 5 phút, `recover()`; 2 test rover PASS |
 
 ---
 
@@ -193,6 +196,13 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 
 **Test:** Go test với mock downstream từ chối kết nối thứ hai; kiểm tra số session.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C3.**
+- Bỏ chờ cứng 2s: thêm `Options.StopTimeout` (mặc định 15s) và
+  `Manager.waitJobDone`; hết hạn thì log cảnh báo và **hoãn start** (continue),
+  reconcile vòng sau thử lại, không mở phiên thứ hai ghi cùng downstream.
+- Test: `TestWaitJobDoneReturnsTrueWhenSessionClosed`,
+  `TestWaitJobDoneHonorsTimeout` PASS.
+
 ---
 
 ### FIX-05 [High] Trần 50 kết nối/IP chặn fan-in hợp lệ
@@ -213,6 +223,13 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - 20 lần sai liên tiếp cùng username+IP → backoff; IP/username khác không ảnh hưởng.
 - Vượt trần tổng → 503 sớm, RAM ổn định.
 
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C3.**
+- Nâng mặc định `MaxConnectionsPerIP` 50 → 200 (đủ fan-in 100 trạm/IP),
+  giữ trần tổng 500; cập nhật `.env.example` và `config.go`.
+- Throttle xác thực sai theo (username, IP) nằm ở SEC-F06 (Đợt 3).
+- Test: `TestDefaultPerIPLimitAllowsValidFanIn` PASS; test trần per-IP cũ
+  (`TestRegisterEnforcesPerIPLimit`) vẫn PASS.
+
 ---
 
 ### FIX-06 [High] Rover đọc dòng không giới hạn → cạn RAM
@@ -232,6 +249,15 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 - Client gửi 10 MB không newline → kết nối bị đóng, RSS không tăng vọt.
 - Client gửi GGA hợp lệ vẫn cập nhật `fixType`.
 - Các kết nối khác không bị ảnh hưởng khi một client lỗi.
+
+**Trạng thái thực hiện (2026-11-03, +07): Đã sửa — lô C3.**
+- `roverReadLoop` dùng `ReadSlice('\n')`, giới hạn dòng 1 KB → vượt đóng
+  `protocol_error`; thêm `RoverIdleTimeout` 5 phút
+  (`CASTER_ROVER_IDLE_TIMEOUT_SEC`).
+- Thêm `recover()` ở goroutine connection: panic một client chỉ đóng kết nối,
+  không làm chết service.
+- Test: `TestRoverReadLoopRejectsOversizedLine` (10 KB không newline),
+  `TestRoverReadLoopUpdatesFixType` PASS; `go test ./internal/caster` PASS.
 
 ---
 

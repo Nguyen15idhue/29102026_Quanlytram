@@ -1197,3 +1197,10 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
   source idle 30s cứng → 120s (`STATION_SOURCE_IDLE_TIMEOUT_SEC`, sàn 30s),
   log kèm station_id và byte cuối. Test: `cd gnss; go build ./...; go vet ./...;
   go test ./...` PASS (thêm 3 test caster/relay/config).
+- FIX-04/05/06 DONE (lô C3): relay `StopTimeout` 15s + `waitJobDone` (hoãn
+  start nếu phiên cũ chưa đóng); caster per-IP 200/trần 500; rover giới hạn
+  dòng 1KB, idle 5 phút, `recover()` goroutine. Test: Go build/vet/test PASS.
+- Đợt 1 gate: server 22 file/130 PASS, FE build PASS; Playwright
+  `mountpoint-explorer` PASS, `station-source` FAIL do dữ liệu mẫu không có
+  trạm "THA Hậu Lộc" (DB đang là `TestHauLoc`) — lỗi fixture có sẵn, không do
+  thay đổi đợt 1.

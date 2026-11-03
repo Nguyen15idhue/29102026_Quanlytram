@@ -579,3 +579,24 @@ func TestLockedEnabledRowNeverStreams(t *testing.T) {
 	default:
 	}
 }
+
+func TestWaitJobDoneReturnsTrueWhenSessionClosed(t *testing.T) {
+	m := &Manager{opts: Options{StopTimeout: 50 * time.Millisecond}}
+	job := &Job{done: make(chan struct{})}
+	close(job.done)
+	if !m.waitJobDone(job) {
+		t.Fatal("waitJobDone = false, want true khi session đã đóng")
+	}
+}
+
+func TestWaitJobDoneHonorsTimeout(t *testing.T) {
+	m := &Manager{opts: Options{StopTimeout: 20 * time.Millisecond}}
+	job := &Job{done: make(chan struct{})}
+	start := time.Now()
+	if m.waitJobDone(job) {
+		t.Fatal("waitJobDone = true, want false khi session còn sống")
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("chờ %s, vượt StopTimeout quá xa", elapsed)
+	}
+}

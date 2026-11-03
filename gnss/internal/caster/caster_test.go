@@ -2,6 +2,7 @@ package caster
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -910,7 +911,7 @@ func TestSourceReadLoopClosesIdleSource(t *testing.T) {
 	select {
 	case <-conn.done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("source im lặng không bị đóng")
+		t.Fatal("source im láº·ng khĂ´ng bá»‹ Ä‘Ă³ng")
 	}
 	if got := conn.closeReason(); got != "timeout" {
 		t.Fatalf("closeReason = %q, want timeout", got)
@@ -930,16 +931,76 @@ func TestSourceReadLoopKeepsActiveSource(t *testing.T) {
 	}
 	select {
 	case <-conn.done:
-		t.Fatal("source còn gửi dữ liệu nhưng bị đóng")
+		t.Fatal("source cĂ²n gá»­i dá»¯ liá»‡u nhÆ°ng bá»‹ Ä‘Ă³ng")
 	default:
 	}
 	client.Close()
 	select {
 	case <-conn.done:
 	case <-time.After(2 * time.Second):
-		t.Fatal("source đóng không giải phóng kết nối")
+		t.Fatal("source Ä‘Ă³ng khĂ´ng giáº£i phĂ³ng káº¿t ná»‘i")
 	}
 	if got := conn.closeReason(); got != "source_closed" {
 		t.Fatalf("closeReason = %q, want source_closed", got)
+	}
+}
+
+func TestDefaultPerIPLimitAllowsValidFanIn(t *testing.T) {
+	opts := DefaultOptions()
+	if opts.MaxConnectionsPerIP < 200 {
+		t.Fatalf("MaxConnectionsPerIP máº·c Ä‘á»‹nh = %d, cáº§n >= 200 cho fan-in 100 tráº¡m", opts.MaxConnectionsPerIP)
+	}
+	if opts.MaxConnections < 500 {
+		t.Fatalf("MaxConnections máº·c Ä‘á»‹nh = %d, cáº§n >= 500", opts.MaxConnections)
+	}
+}
+
+func TestRoverReadLoopRejectsOversizedLine(t *testing.T) {
+	server, client := net.Pipe()
+	conn := &connection{
+		conn: server,
+		br:   bufio.NewReaderSize(server, 4096),
+		done: make(chan struct{}),
+	}
+	go conn.roverReadLoop(2 * time.Second)
+
+	go func() {
+		_, _ = client.Write(bytes.Repeat([]byte("A"), 10*1024))
+	}()
+	select {
+	case <-conn.done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("dĂ²ng quĂ¡ dĂ i khĂ´ng bá»‹ Ä‘Ă³ng")
+	}
+	if got := conn.closeReason(); got != "protocol_error" {
+		t.Fatalf("closeReason = %q, want protocol_error", got)
+	}
+	_ = client.Close()
+}
+
+func TestRoverReadLoopUpdatesFixType(t *testing.T) {
+	server, client := net.Pipe()
+	conn := &connection{
+		conn: server,
+		br:   bufio.NewReaderSize(server, 4096),
+		done: make(chan struct{}),
+	}
+	go conn.roverReadLoop(2 * time.Second)
+
+	if _, err := client.Write([]byte("$GPGGA,123519,4807.038,N,01131.000,E,4,08,0.9,545.4,M,46.9,M,,*4E\r\n")); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) && conn.currentFixType() == FixError {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := conn.currentFixType(); got != FixFixed {
+		t.Fatalf("fixType = %q, want %q", got, FixFixed)
+	}
+	_ = client.Close()
+	select {
+	case <-conn.done:
+	case <-time.After(time.Second):
+		t.Fatal("khĂ´ng Ä‘Ă³ng sau khi client Ä‘Ă³ng")
 	}
 }

@@ -114,18 +114,36 @@ func (c *connection) roverWriteLoop(writeTimeout time.Duration) {
 	}
 }
 
-func (c *connection) roverReadLoop() {
+func (c *connection) roverReadLoop(idleTimeout time.Duration) {
+	const maxRoverLine = 1024
 	for {
-		line, err := c.br.ReadString('\n')
+		if idleTimeout > 0 {
+			_ = c.conn.SetReadDeadline(time.Now().Add(idleTimeout))
+		}
+		line, err := c.br.ReadSlice('\n')
+		if errors.Is(err, bufio.ErrBufferFull) {
+			// Dòng NMEA hợp lệ rất ngắn; vượt 1KB là dữ liệu rác/cố tình.
+			c.closeWithReason("protocol_error")
+			return
+		}
+		if len(line) > maxRoverLine {
+			c.closeWithReason("protocol_error")
+			return
+		}
 		if len(line) > 0 {
 			c.bytesIn.Add(uint64(len(line)))
-			if fixType, ok := ParseGGAFixType(line); ok {
+			if fixType, ok := ParseGGAFixType(string(line)); ok {
 				c.fixType.Store(fixType)
 			}
 		}
 		if err != nil {
 			reason := "client_closed"
-			if !errors.Is(err, io.EOF) {
+			var netErr net.Error
+			switch {
+			case errors.Is(err, io.EOF):
+			case errors.As(err, &netErr) && netErr.Timeout():
+				reason = "timeout"
+			default:
 				reason = "network"
 			}
 			c.closeWithReason(reason)

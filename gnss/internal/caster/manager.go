@@ -20,6 +20,7 @@ type Options struct {
 	HeaderTimeout       time.Duration
 	WriteTimeout        time.Duration
 	SourceIdleTimeout   time.Duration
+	RoverIdleTimeout    time.Duration
 	DBTimeout           time.Duration
 	ReadBuffer          int
 	QueueSize           int
@@ -36,12 +37,13 @@ func DefaultOptions() Options {
 		HeaderTimeout:       10 * time.Second,
 		WriteTimeout:        10 * time.Second,
 		SourceIdleTimeout:   60 * time.Second,
+		RoverIdleTimeout:    5 * time.Minute,
 		DBTimeout:           3 * time.Second,
 		ReadBuffer:          32 * 1024,
 		QueueSize:           64,
 		MaxHeader:           16 * 1024,
 		MaxConnections:      500,
-		MaxConnectionsPerIP: 50,
+		MaxConnectionsPerIP: 200,
 	}
 }
 
@@ -64,6 +66,9 @@ func (o Options) withDefaults() Options {
 	}
 	if o.SourceIdleTimeout < 5*time.Second {
 		o.SourceIdleTimeout = 5 * time.Second
+	}
+	if o.RoverIdleTimeout <= 0 {
+		o.RoverIdleTimeout = defaults.RoverIdleTimeout
 	}
 	if o.DBTimeout <= 0 {
 		o.DBTimeout = defaults.DBTimeout

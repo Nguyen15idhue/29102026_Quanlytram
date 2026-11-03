@@ -107,6 +107,7 @@ func main() {
 	casterOptions.HeaderTimeout = cfg.CasterHeaderTimeout
 	casterOptions.WriteTimeout = cfg.CasterWriteTimeout
 	casterOptions.SourceIdleTimeout = cfg.CasterSourceIdleTimeout
+	casterOptions.RoverIdleTimeout = cfg.CasterRoverIdleTimeout
 	casterOptions.QueueSize = cfg.CasterQueueSize
 	casterOptions.ReadBuffer = cfg.CasterReadBuffer
 	casterOptions.MaxHeader = cfg.CasterMaxHeaderBytes

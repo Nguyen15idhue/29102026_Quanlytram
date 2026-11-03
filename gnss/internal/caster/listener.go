@@ -3,6 +3,7 @@ package caster
 import (
 	"bufio"
 	"errors"
+	"log"
 	"net"
 	"sync"
 	"time"
@@ -38,6 +39,11 @@ func (lr *listenerRuntime) serve() {
 		lr.mgr.connWG.Add(1)
 		go func() {
 			defer lr.mgr.connWG.Done()
+			defer func() {
+				if recovered := recover(); recovered != nil {
+					log.Printf("[caster] connection panic: %v", recovered)
+				}
+			}()
 			lr.handle(conn)
 		}()
 	}
@@ -143,7 +149,7 @@ func (lr *listenerRuntime) handleRover(conn net.Conn, br *bufio.Reader, req *req
 	}
 
 	go c.roverWriteLoop(lr.mgr.opts.WriteTimeout)
-	go c.roverReadLoop()
+	go c.roverReadLoop(lr.mgr.opts.RoverIdleTimeout)
 	<-c.done
 }
 

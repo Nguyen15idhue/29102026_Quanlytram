@@ -24,6 +24,7 @@ type Options struct {
 	RetryMin         time.Duration
 	RetryMax         time.Duration
 	PollInterval     time.Duration
+	StopTimeout      time.Duration
 	OnFirstByte      func()
 	Quality          *quality.Analyzer
 }
@@ -39,6 +40,7 @@ func DefaultOptions() Options {
 		RetryMin:         time.Second,
 		RetryMax:         30 * time.Second,
 		PollInterval:     10 * time.Second,
+		StopTimeout:      15 * time.Second,
 	}
 }
 
@@ -73,6 +75,9 @@ func (o Options) withDefaults() Options {
 	}
 	if o.PollInterval <= 0 {
 		o.PollInterval = defaults.PollInterval
+	}
+	if o.StopTimeout <= 0 {
+		o.StopTimeout = defaults.StopTimeout
 	}
 	return o
 }

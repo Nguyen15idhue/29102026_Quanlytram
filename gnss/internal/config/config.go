@@ -32,6 +32,7 @@ type Config struct {
 	CasterHeaderTimeout       time.Duration
 	CasterWriteTimeout        time.Duration
 	CasterSourceIdleTimeout   time.Duration
+	CasterRoverIdleTimeout    time.Duration
 	CasterQueueSize           int
 	CasterReadBuffer          int
 	CasterMaxHeaderBytes      int
@@ -126,11 +127,12 @@ func Load() Config {
 		CasterHeaderTimeout:       getenvSeconds("CASTER_HEADER_TIMEOUT_SEC", 10*time.Second),
 		CasterWriteTimeout:        getenvSeconds("CASTER_WRITE_TIMEOUT_SEC", 10*time.Second),
 		CasterSourceIdleTimeout:   getenvSeconds("CASTER_SOURCE_IDLE_TIMEOUT_SEC", 60*time.Second),
+		CasterRoverIdleTimeout:    getenvSeconds("CASTER_ROVER_IDLE_TIMEOUT_SEC", 5*time.Minute),
 		CasterQueueSize:           getenvInt("CASTER_QUEUE_SIZE", 64),
 		CasterReadBuffer:          getenvInt("CASTER_READ_BUFFER", 32*1024),
 		CasterMaxHeaderBytes:      getenvInt("CASTER_MAX_HEADER_BYTES", 16*1024),
 		CasterMaxConnections:      getenvInt("CASTER_MAX_CONNECTIONS", 500),
-		CasterMaxConnectionsPerIP: getenvInt("CASTER_MAX_CONNECTIONS_PER_IP", 50),
+		CasterMaxConnectionsPerIP: getenvInt("CASTER_MAX_CONNECTIONS_PER_IP", 200),
 
 		ProbePollInterval: getenvSeconds("PROBE_POLL_INTERVAL_SEC", 10*time.Second),
 		ProbeReadBuffer:   getenvInt("PROBE_READ_BUFFER", 32*1024),

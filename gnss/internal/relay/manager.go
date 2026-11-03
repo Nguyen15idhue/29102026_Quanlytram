@@ -187,9 +187,10 @@ func (m *Manager) Reconcile(ctx context.Context, ids []int64) error {
 		}
 		if job != nil {
 			job.stop("config_changed")
-			select {
-			case <-job.done:
-			case <-time.After(2 * time.Second):
+			if !m.waitJobDone(job) {
+				log.Printf("[relay] job %d: session cũ chưa đóng sau %s, hoãn start để tránh trùng downstream",
+					id, m.opts.StopTimeout)
+				continue
 			}
 		}
 
@@ -199,6 +200,21 @@ func (m *Manager) Reconcile(ctx context.Context, ids []int64) error {
 	}
 
 	return nil
+}
+
+// waitJobDone chờ phiên cũ đóng hẳn trước khi cho job mới start.
+// Trả false nếu quá StopTimeout; khi đó caller phải hoãn start, không được
+// mở thêm một phiên thứ hai ghi cùng downstream.
+func (m *Manager) waitJobDone(job *Job) bool {
+	if job == nil {
+		return true
+	}
+	select {
+	case <-job.done:
+		return true
+	case <-time.After(m.opts.StopTimeout):
+		return false
+	}
 }
 
 func (m *Manager) stopJob(id int64, reason string) {
