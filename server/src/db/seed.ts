@@ -23,6 +23,7 @@ const permissions = [
   ['mountpoints.add', 'mountpoints', 'add'],
   ['mountpoints.edit', 'mountpoints', 'edit'],
   ['mountpoints.delete', 'mountpoints', 'delete'],
+  ['map.view', 'map', 'view'],
   ['ntrip_accounts.view', 'ntrip_accounts', 'view'],
   ['ntrip_accounts.add', 'ntrip_accounts', 'add'],
   ['ntrip_accounts.edit', 'ntrip_accounts', 'edit'],

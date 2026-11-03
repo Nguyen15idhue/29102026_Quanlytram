@@ -24,6 +24,7 @@ export function roleMatrix(role: string, code: string): Scope {
   }
   if (role === 'user') {
     if (code === 'stations.view' || code === 'relay.view') return 'tenant';
+    if (code === 'map.view') return 'tenant';
     if (code.startsWith('mountpoints.')) return 'own';
     if (code.startsWith('ntrip_accounts.')) return 'own';
     if (code === 'alerts.view' || code === 'quality.view') return 'own';

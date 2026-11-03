@@ -130,5 +130,13 @@ Trạng thái: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong · `[!]` lỗi
 
 ## Đóng đợt
 
-- [ ] F1. `SESSION.md`, `TASKS.md`, `docs/2/THUC_HIEN_FIX_LOI.md`
-- [ ] F2. Push, kiểm tra working tree sạch
+- [x] F1. `SESSION.md`, `TASKS.md`, `docs/2/THUC_HIEN_FIX_LOI.md`
+- [x] F2. Push, kiểm tra working tree sạch
+
+## Hotfix sau đợt — bản đồ 403 (2026-11-03)
+
+- [x] Migration admin `037_map_view.sql` thêm permission `map.view`
+  (super_admin `all`, admin/user `tenant`), seed + `roleMatrix` cập nhật.
+- [x] Test Playwright `unified-map.spec.ts` tải tile thật: fail nếu 403.
+- [x] Áp dụng dev: schema admin 37, tile 200; map/unified-map/realtime 7/7
+  PASS; server 36 file/174 test PASS.

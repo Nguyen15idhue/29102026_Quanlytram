@@ -96,3 +96,6 @@
   rotate 6/6 secret sang v2, chạy lại dry-run = 0; `docs/OPS.md` §6.2.
 - Còn theo dõi: trạm 480 (`TestHauLoc`) trỏ caster công khai `rtktk.online`
   đang stream trong dev; không dùng làm test tự động.
+- Hotfix bản đồ 2026-11-03: tile proxy trả 403 vì permission `map.view` chưa
+  được tạo; migration admin 037 + seed + matrix cấp lại quyền (super_admin
+  all, admin/user tenant); thêm test Playwright tải tile thật.

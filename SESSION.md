@@ -1313,3 +1313,18 @@ Board: `docs/2/TODOS_FOLLOWUP.md`.
   - Server **36 file/174 test**; quy trình ghi ở `docs/OPS.md` §6.2.
 - Lưu ý: trạm 480 (`TestHauLoc`) trỏ caster công khai `rtktk.online` đang
   stream trong dev; không dùng cho test tự động (mock-first).
+
+### Hotfix bản đồ 2026-11-03
+
+- Triệu chứng: bản đồ xem được (tile cũ trong cache trình duyệt) nhưng zoom
+  ra/vùng mới báo "Không tải được nền bản đồ"; log tile trả **403**.
+- Nguyên nhân: SEC-F15 (lô C11) thêm `requirePermission('map','view')` cho
+  tile proxy nhưng permission `map.view` chưa từng được seed/migration tạo,
+  nên mọi tài khoản đều bị 403 khi tải tile mới.
+- Sửa: migration admin **037_map_view.sql** thêm `map.view` và cấp
+  `super_admin=all`, `admin/user=tenant`; seed bổ sung permission;
+  `roleMatrix` cho `user` `map.view=tenant` (khôi phục quyền xem bản đồ như
+  trước C11); test Playwright tải tile thật, chấp nhận 200/502 nhưng fail
+  nếu 403.
+- Kiểm chứng: schema admin 37; tile thật trả **200**; Playwright map +
+  unified-map + realtime **7/7 PASS**; server 36 file/174 test PASS.

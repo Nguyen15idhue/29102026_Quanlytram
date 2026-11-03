@@ -95,4 +95,20 @@ test.describe('P0 Phase 3 unified map', () => {
 
     expect(errors).toEqual([]);
   });
+
+  test('tài khoản có quyền tải được tile thật (không 403)', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('Tên đăng nhập').fill('superadmin');
+    await page.getByLabel('Mật khẩu').fill(password);
+    await page.getByRole('button', { name: 'Đăng nhập' }).click();
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+
+    // Không stub: SEC-F15 từng chặn mọi tile bằng 403 vì thiếu permission
+    // `map.view`. 502 = proxy không gọi được upstream, vẫn qua được RBAC.
+    const tile = await page.request.get('/api/map/tiles/5/24/15?mode=streets');
+    expect([200, 502]).toContain(tile.status());
+    if (tile.status() === 200) {
+      expect(tile.headers()['content-type']).toContain('image/');
+    }
+  });
 });
