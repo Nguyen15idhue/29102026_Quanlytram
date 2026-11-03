@@ -12,7 +12,7 @@ import { type GoConnection, publicConnection } from '../lib/caster';
 import { buildWorkbook, readSheetRows, readWorkbook, sendWorkbook } from '../lib/excel';
 import { asyncHandler, ApiError } from '../lib/http';
 import { ecefToGeodetic, geodeticToVn2000 } from '../lib/geo';
-import { decryptSecret, encryptSecret } from '../lib/crypto';
+import { decryptSecret, encryptSecret, secretAad } from '../lib/crypto';
 import { callGoInternal } from '../lib/internalApi';
 import { resolveSafeHost } from '../lib/outbound';
 import { sameSourceTarget } from '../lib/sourceTarget';
@@ -2443,7 +2443,11 @@ stationsRouter.post(
       }
       if (saved.client_password_enc) {
         try {
-          password = decryptSecret(saved.client_password_enc);
+          password = decryptSecret(
+            saved.client_password_enc,
+            undefined,
+            secretAad('station_sources', 'client_password_enc', body.stationId)
+          );
         } catch {
           password = '';
         }
@@ -2651,7 +2655,13 @@ stationsRouter.put(
           body.client_port,
           body.client_mount,
           body.client_username,
-          body.client_password ? encryptSecret(body.client_password) : null,
+          body.client_password
+            ? encryptSecret(
+                body.client_password,
+                undefined,
+                secretAad('station_sources', 'client_password_enc', station.id)
+              )
+            : null,
           body.client_tls ? 1 : 0,
           body.client_send_gga ? 1 : 0,
           body.client_nmea_interval_sec,

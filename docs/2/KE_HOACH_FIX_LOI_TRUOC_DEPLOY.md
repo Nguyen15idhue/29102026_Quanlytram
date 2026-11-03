@@ -104,6 +104,7 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | SEC-F21 | Đã sửa | C11 | 2026-11-03 | `idsForScope('own')` = `[userId]`; test PASS |
 | SEC-F14 | Đã sửa | C12 | 2026-11-03 | HTTP Go có Read/Write/Idle/MaxHeader |
 | SEC-F12 | Đã sửa | C12 | 2026-11-03 | TLS auto theo host + `MYSQL_TLS`; test PASS |
+| SEC-F05 | Đã sửa | C13 | 2026-11-03 | AAD v2 + rotation; áp dụng station_sources client password |
 
 ---
 
@@ -677,7 +678,11 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
   `IdleTimeout 60s`, `MaxHeaderBytes 16KB`.
 - SEC-F12 (C12): TLS MySQL tự bật khi host public/FQDN, tắt với loopback/
   RFC1918/docker service; ép bằng `MYSQL_TLS=true|false`.
-- Test: server build + 31 file/153 PASS; Go config test PASS.
+- SEC-F05 (C13): secret hỗ trợ `v2:<keyid>:...` + AAD
+  `table:column:recordId`, giữ tương thích `v1`; hỗ trợ khoá trước qua
+  `APP_ENC_KEY_PREVIOUS`. Áp dụng cho `station_sources.client_password_enc`
+  (Node ghi/đọc + Go đọc).
+- Test: server build + 32 file/157 PASS; Go secret/relay test PASS.
 
 ### 3.4. Mục đã đóng
 - **F-16** (realtime tick dùng `tenantIds`) — đã sửa tại `server/src/realtime/socket.ts` (tick truyền `state.tenantIds`). Đóng, không cần làm lại.

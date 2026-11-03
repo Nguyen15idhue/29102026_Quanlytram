@@ -11,7 +11,10 @@ import (
 	"strings"
 )
 
-const formatPrefix = "v1"
+const (
+	formatPrefixV1 = "v1"
+	formatPrefixV2 = "v2"
+)
 
 func decodeKey(keyBase64 string) ([]byte, error) {
 	if keyBase64 == "" {
@@ -27,15 +30,39 @@ func decodeKey(keyBase64 string) ([]byte, error) {
 	return key, nil
 }
 
+// Decrypt giải mã payload v1 (không AAD) hoặc v2 (có AAD rỗng không hợp lệ).
 func Decrypt(payload, keyBase64 string) (string, error) {
+	return decrypt(payload, keyBase64, "")
+}
+
+// DecryptWithAAD giải mã payload v2 có gắn AAD table:column:recordId.
+func DecryptWithAAD(payload, keyBase64, aad string) (string, error) {
+	return decrypt(payload, keyBase64, aad)
+}
+
+func decrypt(payload, keyBase64, aad string) (string, error) {
 	key, err := decodeKey(keyBase64)
 	if err != nil {
 		return "", err
 	}
 	parts := strings.Split(payload, ":")
-	if len(parts) != 4 || parts[0] != formatPrefix {
+	switch parts[0] {
+	case formatPrefixV1:
+		if len(parts) != 4 {
+			return "", errors.New("unsupported secret format")
+		}
+	case formatPrefixV2:
+		if len(parts) != 5 || parts[1] != "0" {
+			return "", errors.New("unsupported secret format")
+		}
+		if aad == "" {
+			return "", errors.New("secret v2 requires AAD")
+		}
+		parts = append(parts[:1], parts[2:]...)
+	default:
 		return "", errors.New("unsupported secret format")
 	}
+
 	nonce, err := base64.StdEncoding.DecodeString(parts[1])
 	if err != nil {
 		return "", errors.New("invalid secret nonce")
@@ -60,7 +87,11 @@ func Decrypt(payload, keyBase64 string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	plaintext, err := gcm.Open(nil, nonce, append(ciphertext, tag...), nil)
+	var additional []byte
+	if aad != "" {
+		additional = []byte(aad)
+	}
+	plaintext, err := gcm.Open(nil, nonce, append(ciphertext, tag...), additional)
 	if err != nil {
 		return "", errors.New("secret authentication failed")
 	}
@@ -68,6 +99,18 @@ func Decrypt(payload, keyBase64 string) (string, error) {
 }
 
 func Encrypt(plain, keyBase64 string) (string, error) {
+	return encryptVersion(plain, keyBase64, "", formatPrefixV1)
+}
+
+// EncryptWithAAD tạo payload v2 gắn AAD table:column:recordId.
+func EncryptWithAAD(plain, keyBase64, aad string) (string, error) {
+	if aad == "" {
+		return "", errors.New("secret v2 requires AAD")
+	}
+	return encryptVersion(plain, keyBase64, aad, formatPrefixV2)
+}
+
+func encryptVersion(plain, keyBase64, aad, prefix string) (string, error) {
 	key, err := decodeKey(keyBase64)
 	if err != nil {
 		return "", err
@@ -84,13 +127,26 @@ func Encrypt(plain, keyBase64 string) (string, error) {
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return "", err
 	}
-	sealed := gcm.Seal(nil, nonce, []byte(plain), nil)
+	var additional []byte
+	if aad != "" {
+		additional = []byte(aad)
+	}
+	sealed := gcm.Seal(nil, nonce, []byte(plain), additional)
 	ciphertext := sealed[:len(sealed)-gcm.Overhead()]
 	tag := sealed[len(sealed)-gcm.Overhead():]
-	return strings.Join([]string{
-		formatPrefix,
+	parts := []string{
+		prefix,
 		base64.StdEncoding.EncodeToString(nonce),
 		base64.StdEncoding.EncodeToString(ciphertext),
 		base64.StdEncoding.EncodeToString(tag),
-	}, ":"), nil
+	}
+	if prefix == formatPrefixV2 {
+		parts = []string{
+			prefix, "0",
+			base64.StdEncoding.EncodeToString(nonce),
+			base64.StdEncoding.EncodeToString(ciphertext),
+			base64.StdEncoding.EncodeToString(tag),
+		}
+	}
+	return strings.Join(parts, ":"), nil
 }

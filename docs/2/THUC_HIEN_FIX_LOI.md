@@ -40,8 +40,8 @@
 | 30 | 5 | C11 | SEC-F21 | DONE | C11 | own = [userId]; test PASS | — |
 | 31 | 5 | C12 | SEC-F14 | DONE | C12 | HTTP Go timeout/header | — |
 | 32 | 5 | C12 | SEC-F12 | DONE | C12 | TLS MySQL auto + override | — |
-| 33 | 5 | C13 | SEC-F05 | ĐANG LÀM | — | — | — |
-| 34 | 5 | C14 | SEC-F11 | TODO | — | — | — |
+| 33 | 5 | C13 | SEC-F05 | DONE | C13 | AAD v2 + rotation; station_sources | — |
+| 34 | 5 | C14 | SEC-F11 | ĐANG LÀM | — | — | — |
 
 ## Nhật ký quyết định
 
@@ -64,6 +64,7 @@
 - 2026-11-03 17:41 +07: FIX-15/16 DONE (C10). Sang SEC-F08 (C11).
 - 2026-11-03 17:43 +07: SEC-F08/15/19/21 DONE (C11). Sang SEC-F14 (C12).
 - 2026-11-03 17:45 +07: SEC-F14/12 DONE (C12). Sang SEC-F05 (C13).
+- 2026-11-03 17:47 +07: SEC-F05 DONE (C13). Sang SEC-F11 (C14).
 
 ## Việc phát sinh
 

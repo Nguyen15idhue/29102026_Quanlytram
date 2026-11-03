@@ -1,6 +1,6 @@
 import type { PoolConnection } from 'mysql2/promise';
 import { ApiError } from './http';
-import { encryptSecret } from './crypto';
+import { encryptSecret, secretAad } from './crypto';
 import { hashPassword } from './password';
 import { uniqueMountpointName } from './stationNaming';
 
@@ -149,7 +149,13 @@ export async function createStationResources(
       data.client_port ?? 1509,
       data.client_mount ?? '',
       data.client_username ?? '',
-      data.client_password ? encryptSecret(data.client_password) : null,
+      data.client_password
+        ? encryptSecret(
+            data.client_password,
+            undefined,
+            secretAad('station_sources', 'client_password_enc', stationId)
+          )
+        : null,
       data.client_tls ? 1 : 0,
       data.client_send_gga ? 1 : 0,
       data.client_nmea_interval_sec ?? 0,

@@ -48,3 +48,25 @@ func TestDecryptRejectsBadFormat(t *testing.T) {
 		t.Fatal("expected invalid format error")
 	}
 }
+
+func TestEncryptDecryptWithAAD(t *testing.T) {
+	key := testKey(9)
+	aad := "station_sources:client_password_enc:42"
+	payload, err := EncryptWithAAD("mat-khau", key, aad)
+	if err != nil {
+		t.Fatalf("EncryptWithAAD: %v", err)
+	}
+	if !strings.HasPrefix(payload, "v2:0:") {
+		t.Fatalf("unexpected prefix: %q", payload)
+	}
+	plain, err := DecryptWithAAD(payload, key, aad)
+	if err != nil || plain != "mat-khau" {
+		t.Fatalf("DecryptWithAAD = %q, %v", plain, err)
+	}
+	if _, err := DecryptWithAAD(payload, key, "station_sources:client_password_enc:43"); err == nil {
+		t.Fatal("AAD khác phải decrypt fail")
+	}
+	if _, err := Decrypt(payload, key); err == nil {
+		t.Fatal("v2 thiếu AAD phải fail")
+	}
+}

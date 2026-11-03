@@ -1236,3 +1236,7 @@ powershell -File scripts/load-test-mock.ps1 -Jobs 20
 - SEC-F14/12 DONE (lô C12): HTTP server Go có Read/Write/Idle timeout và
   MaxHeaderBytes; MySQL TLS tự bật với host public/FQDN, tắt nội bộ, ép bằng
   `MYSQL_TLS`. Test: server 31 file/153 PASS; Go config test PASS.
+- SEC-F05 DONE (lô C13): secret `v2:<keyid>` + AAD `table:column:recordId`,
+  tương thích `v1`, hỗ trợ `APP_ENC_KEY_PREVIOUS`; áp dụng cho
+  `station_sources.client_password_enc` (Node + Go). Test: server 32 file/157
+  PASS; Go secret/relay PASS.
