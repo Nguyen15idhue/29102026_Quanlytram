@@ -1,0 +1,48 @@
+name: gnss-race
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'gnss/**'
+      - '.github/workflows/gnss-race.yml'
+  pull_request:
+    paths:
+      - 'gnss/**'
+      - '.github/workflows/gnss-race.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gnss-race-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  race:
+    name: go test -race
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: gnss
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: gnss/go.mod
+          cache-dependency-path: gnss/go.sum
+
+      - name: Vet
+        run: go vet ./...
+
+      # Race detector cần CGO + gcc; runner ubuntu-latest có sẵn. Chạy ở CI vì
+      # máy dev Windows không có toolchain C.
+      - name: Test with race detector
+        env:
+          CGO_ENABLED: '1'
+        run: go test -race ./...

@@ -86,6 +86,22 @@ docker compose up -d --force-recreate server web
 
 Migration Phase 5: `db/migrations/admin/005_alerts_settings.sql` (admin schema 5).
 
+### 6.1. Test Go và race detector
+
+```bash
+cd gnss
+go vet ./...
+go test ./...
+# Windows không có toolchain C: chạy -race trong container (golang:1.24 có gcc)
+docker run --rm \
+  -v "$PWD:/src" -w /src golang:1.24 \
+  sh -c "go mod download && go test -race ./..."
+```
+
+- CI: `.github/workflows/gnss-race.yml` chạy `go vet` + `go test -race ./...`
+  trên `ubuntu-latest` khi `gnss/**` thay đổi (push `main` hoặc pull request).
+- Kết quả dev 2026-11-03: toàn bộ package `ok`, không phát hiện race.
+
 ## 7. API Phase 5
 
 - `GET /api/snapshot`: snapshot lọc quyền cho reconnect.

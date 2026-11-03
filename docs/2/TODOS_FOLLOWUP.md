@@ -63,9 +63,17 @@ Trạng thái: `[ ]` chưa làm · `[~]` đang làm · `[x]` xong · `[!]` lỗi
 
 ## Lô C — race + CI
 
-- [ ] C1. Chạy `go test -race` bằng Docker, ghi kết quả
-- [ ] C2. Tạo `.github/workflows/gnss-race.yml`
-- [ ] C3. Commit lô C
+- [x] C1. Chạy `go test -race` bằng Docker, ghi kết quả
+  - `docker run --rm -v ".../gnss:/src" -w /src golang:1.24 sh -c "go mod download && go test -race ./..."`
+  - Kết quả: tất cả package `ok` (api, caster 16.7s, relay 14.6s, quality,
+    probe, ntrip, rtcm, secret, maintenance, nmea, config, proxy); không race.
+    Windows không có gcc nên không chạy native được.
+- [x] C2. Tạo `.github/workflows/gnss-race.yml`
+  - Trigger push `main` + pull request khi `gnss/**` đổi; `setup-go` đọc
+    `gnss/go.mod`; chạy `go vet ./...` rồi `go test -race ./...`
+    (`CGO_ENABLED=1`, timeout 20 phút, concurrency theo ref).
+  - Ghi cách chạy vào `docs/OPS.md` §6.1.
+- [x] C3. Commit lô C
 
 ## Lô D — AAD read-path
 
