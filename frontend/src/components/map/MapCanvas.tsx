@@ -144,6 +144,7 @@ export function MapCanvas({
   const archipelagoRef = useRef<L.LayerGroup | null>(null);
   const onTileErrorRef = useRef(onTileError);
   const onSelectRef = useRef(onSelect);
+  const tileErrorTimerRef = useRef<number | null>(null);
   const initialView = useRef({ center: config.center, zoom: config.zoom });
 
   onTileErrorRef.current = onTileError;
@@ -187,13 +188,29 @@ export function MapCanvas({
       subdomains: config.subdomains,
       detectRetina: config.retina
     });
-    layer.on('tileerror', () =>
-      onTileErrorRef.current('Không tải được nền bản đồ. Kiểm tra kết nối hoặc cấu hình tile.')
-    );
-    layer.on('tileload', () => onTileErrorRef.current(null));
+    layer.on('tileerror', () => {
+      // Zoom nhanh làm nhiều tile bị huỷ; chỉ báo lỗi nếu không có tile nào
+      // tải được trong ~1s để tránh banner nhấp nháy sai.
+      if (tileErrorTimerRef.current !== null) return;
+      tileErrorTimerRef.current = window.setTimeout(() => {
+        tileErrorTimerRef.current = null;
+        onTileErrorRef.current('Không tải được nền bản đồ. Kiểm tra kết nối hoặc cấu hình tile.');
+      }, 1000);
+    });
+    layer.on('tileload', () => {
+      if (tileErrorTimerRef.current !== null) {
+        window.clearTimeout(tileErrorTimerRef.current);
+        tileErrorTimerRef.current = null;
+      }
+      onTileErrorRef.current(null);
+    });
     layer.addTo(map);
     tileRef.current = layer;
     return () => {
+      if (tileErrorTimerRef.current !== null) {
+        window.clearTimeout(tileErrorTimerRef.current);
+        tileErrorTimerRef.current = null;
+      }
       if (tileRef.current) {
         map.removeLayer(tileRef.current);
         tileRef.current = null;

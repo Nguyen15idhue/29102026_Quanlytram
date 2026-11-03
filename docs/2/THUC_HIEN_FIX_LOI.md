@@ -111,3 +111,6 @@
 - Bản đồ 2026-11-03: mở trang dùng đúng zoom/tâm cấu hình (không auto-fit lần
   đầu); nút Về mặc định theo cấu hình; thêm tùy chọn nhãn quần đảo + ngưỡng
   zoom; phủ nhãn Quần đảo Hoàng Sa/Trường Sa thay tên tiếng Trung.
+- Hotfix zoom 2026-11-03: tile bị 429 khi zoom nhanh do hạn mức 240/phút; nâng
+  1200/phút và vượt hạn mức trả tile trong suốt thay vì 429; banner lỗi tile
+  chờ 1s và tự huỷ khi có tile tải được.

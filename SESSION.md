@@ -1381,3 +1381,8 @@ Kế hoạch: `docs/1/12_KE_HOACH_RELAY_CHON_TRAM.md`.
   tên tiếng Trung), chỉ hiện khi zoom >= ngưỡng cấu hình.
 - Test: server `map.test.ts` 11 case; Playwright `map-archipelago.spec.ts`
   (2 nhãn ở zoom 6, ẩn khi zoom ra 2 mức, hiện lại khi zoom vào).
+- Hotfix zoom 2026-11-03: log tile có 522 response **429** do hạn mức 240/phút
+  khi zoom nhanh. Nâng lên **1200/phút**, vượt hạn mức trả tile PNG trong suốt
+  200 (`X-Tile-Proxy-Status: rate-limited`) thay vì 429; banner lỗi tile chờ
+  1s và tự huỷ nếu có tile tải được (tránh nhấp nháy khi zoom). Smoke 1250
+  request: 1200 tile thật + 50 tile trong suốt, không còn 429.

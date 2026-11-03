@@ -513,7 +513,8 @@ mapConfigRouter.use(requireAuth);
 - Giữ allowlist; cân nhắc cache key theo mode + z/x/y và giới hạn kích thước response.
 
 **Kiểm chứng đề xuất**
-- User không có `map.view` gọi tile → 403; burst > N/phút → 429.
+- User không có `map.view` gọi tile → 403; burst > 1200/phút → tile trong suốt
+  (không trả 429) để bản đồ không báo lỗi khi zoom nhanh.
 
 ---
 

@@ -99,7 +99,7 @@ Bảng đầy đủ 34 mục nằm tại `docs/2/THUC_HIEN_FIX_LOI.md`; dưới 
 | FIX-15 | Đã sửa | C10 | 2026-11-03 | reset monitor/backoff/cursor; test PASS |
 | FIX-16 | Đã sửa | C10 | 2026-11-03 | framesAt `[at-window, at)`; mẫu số quan sát |
 | SEC-F08 | Đã sửa | C11 | 2026-11-03 | CSRF mapConfig sau requireAuth |
-| SEC-F15 | Đã sửa | C11 | 2026-11-03 | tile cần `map.view` + rate-limit 240/phút |
+| SEC-F15 | Đã sửa | C11 | 2026-11-03 | tile cần `map.view` + rate-limit tile (nay 1200/phút, vượt hạn mức trả tile trong suốt) |
 | SEC-F19 | Đã sửa | C11 | 2026-11-03 | `/health` không trả `err.message` |
 | SEC-F21 | Đã sửa | C11 | 2026-11-03 | `idsForScope('own')` = `[userId]`; test PASS |
 | SEC-F14 | Đã sửa | C12 | 2026-11-03 | HTTP Go có Read/Write/Idle/MaxHeader |

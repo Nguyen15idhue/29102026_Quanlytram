@@ -32,11 +32,19 @@ mapRouter.use(csrfProtection);
 
 const tileLimiter = rateLimit({
   windowMs: 60_000,
-  limit: 240,
+  limit: 1200,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req: any) => String(req.auth?.id ?? req.ip),
-  message: { error: { code: 'RATE_LIMITED', message: 'Tải tile quá nhiều, thử lại sau' } }
+  // Vượt hạn mức: trả tile trong suốt thay vì 429 để bản đồ không hiện cảnh báo
+  // "không tải được nền" khi người dùng zoom nhanh; upstream vẫn được bảo vệ.
+  handler: (_req, res) => {
+    res.status(200);
+    res.setHeader('X-Tile-Proxy-Status', 'rate-limited');
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(TRANSPARENT_PNG);
+  }
 });
 
 function placeholders(values: unknown[]): string {
