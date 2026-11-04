@@ -331,10 +331,37 @@ Còn cần xác nhận khi bắt đầu triển khai:
 | Bước | Trạng thái | Bằng chứng |
 |---|---|---|
 | 1. Chuẩn hoá dữ liệu + dump | PASS 2026-11-04 | Backup `cors-mysql-20261104-220116.sql.zip` SHA256 `47D5...B7F1`; DB đích 1 company/2 user/36 station/31 MP/3 listener/58 mapping/3 account/67 relay, 0 demo, 0 cross-company; dump `cors-prod.sql.gz` SHA256 `DB6C...5406`, đã SCP VPS `/root/cors-prod.sql.gz`. |
-| 2. Hardening VPS | PENDING | |
+| 2. Hardening VPS | PASS 2026-11-04 | User `deploy` SSH + sudo/docker OK; Docker 29.9.3 + Compose v5.7.0; swap 4 GB; fail2ban active; timezone +07; **UFW inactive, không thêm rule OneDash**. |
 | 3. Compose production + Caddy | PENDING | |
 | 4. Restore DB | PENDING | |
 | 5. Stack + test nội bộ/staging | PENDING | |
 | 6. Backup + restore drill | PENDING | |
 | 7. Smoke + data integrity | PENDING | |
 | 8. Runbook + báo cáo | PENDING | |
+
+## 12. Hướng dẫn bật firewall OneDash (người dùng tự làm sau)
+
+Trạng thái hiện tại: **UFW inactive, OneDash chưa thêm rule** theo xác nhận của
+người dùng. Không bật firewall trong pha deploy này.
+
+Thao tác trên OneDash:
+
+1. Vào **Cloud Server → CS-Linux-20261103230212929 → Firewall**.
+2. Bấm **Thêm rule**.
+3. Thêm theo thứ tự, **Loại = Cho phép**, **Giao thức = TCP**:
+
+| Thứ tự | Mục đích | Cổng |
+|---:|---|---|
+| 1 | SSH (bắt buộc thêm trước) | `24700` |
+| 2 | HTTP | `80` |
+| 3 | HTTPS | `443` |
+| 4 | NTRIP Wally | `1508`, `1509`, `2101` |
+| 5 | NTRIP công ty | `1510–1599` |
+
+- Nếu ô Cổng không nhận dải, thêm từng port trong `1510–1599`.
+- Chỉ bật firewall sau khi đã thêm rule SSH `24700` và kiểm tra lại SSH.
+- Sau khi bật, kiểm tra từ ngoài: `80/443`, `1508/1509/2101`, một port
+  `1510–1599`.
+- OneDash/IPtables nằm ngoài VPS; Docker publish port có thể bypass UFW nội bộ,
+  nên test từ Internet sau khi bật.
+- Nếu bật UFW trên VPS sau này, nhớ allow `24700` trước khi enable.
