@@ -103,7 +103,7 @@ MySQL và Go internal không public ra ngoài.
 ## 8. Quy tắc an toàn
 
 - Không sửa, ghi, xóa file trong `relayrtcm\backup`.
-- Không chạy relay cũ, không chiếm cổng `8081`/`2101`.
+- Không chạy relay cũ, không chiếm cổng `8081`; `2101` là listener mặc định của caster.
 - Mock-first cho NTRIP/RTCM.
 - Không commit secret; chỉ dùng `.env.local`.
 - Không thêm Redis/Kafka/RabbitMQ/K8s.
@@ -117,7 +117,7 @@ cd frontend && npm test
 cd frontend && npx playwright test tests/relay-state.spec.ts
 ```
 
-Mock relay (không dùng caster thật, không chiếm 8081/2101):
+Mock relay (không dùng caster thật, không chiếm 8081):
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/e2e-relay-mock.ps1

@@ -41,6 +41,8 @@ interface DictionaryItem {
   value: string;
 }
 
+const DEFAULT_CASTER_LISTENER_PORT = 2101;
+
 const emptyForm = {
   name: '', host: '', port: 1509, connection_type: 'ntrip',
   source_type: 'manual', ntrip_version: 'v1', ntrip_mode: 'v1_noauth',
@@ -250,6 +252,19 @@ export function Stations() {
       apiFetch<{ items: CasterListener[] }>('/api/caster/listeners?page=1&pageSize=100'),
     enabled: formOpen && can('caster', 'view')
   });
+
+  const defaultListenerId = sourceListeners.data?.items.find(
+    (listener) => listener.port === DEFAULT_CASTER_LISTENER_PORT
+  )?.id;
+
+  useEffect(() => {
+    if (!formOpen || editing || defaultListenerId === undefined) return;
+    setForm((current) =>
+      current.caster_listener_id === ''
+        ? { ...current, caster_listener_id: defaultListenerId }
+        : current
+    );
+  }, [formOpen, editing, defaultListenerId]);
 
   const dictionaries = useQuery({
     queryKey: ['dictionaries'],

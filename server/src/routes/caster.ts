@@ -5,6 +5,7 @@ import { writeAudit } from '../lib/audit';
 import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
 import {
   GoConnection,
+  isListenerEnabled,
   listenerCreateSchema,
   listenerMountpointsSchema,
   listenerUpdateSchema,
@@ -326,8 +327,13 @@ casterRouter.post(
         result.forbidden += 1;
       }
     }
+    const deletable =
+      body.action === 'delete' ? allowed.filter((row) => !isListenerEnabled(row)) : allowed;
+    if (body.action === 'delete') {
+      result.skipped += allowed.length - deletable.length;
+    }
     await withTransaction(async (conn) => {
-      for (const row of allowed) {
+      for (const row of deletable) {
         if (body.action === 'delete') {
           await conn.query('DELETE FROM caster_listeners WHERE id = ?', [row.id]);
         } else {
@@ -338,7 +344,7 @@ casterRouter.post(
         }
       }
     });
-    result.updated = allowed.length;
+    result.updated = deletable.length;
     if (result.updated > 0) {
       await requestCasterReconcile();
       publishEntityChange({ entity: 'listener', id: 'bulk', action: body.action });
@@ -365,6 +371,13 @@ casterRouter.delete(
     const before = await getListenerRow(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
     await assertRecordScope(req, before.owner_web_user_id);
+    if (isListenerEnabled(before)) {
+      throw new ApiError(
+        409,
+        'LISTENER_ENABLED',
+        'Listener đang bật. Tắt listener trước khi xóa.'
+      );
+    }
     await adminPool.query('DELETE FROM caster_listeners WHERE id = ?', [id]);
     await writeAudit(
       adminPool,

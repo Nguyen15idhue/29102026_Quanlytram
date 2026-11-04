@@ -456,9 +456,9 @@ phân trang server-side, icon lucide, trạng thái/a11y. Chi tiết:
 **Giải thích:** Source đẩy dữ liệu lên mountpoint; rover kết nối vào. Cần v1 legacy/v1 auth/v2, fan-out, slow-client policy.
 
 ## 4.1. Công việc
-- [x] Listener mặc định **1509** (source + rover), tùy chỉnh; không 2101/8081
+- [x] Listener mặc định **2101** (source + rover); 1508/1509 giữ tương thích; không 8081
 - [x] `caster_listeners` + `caster_listener_mountpoints` many-to-many
-- [x] Một mountpoint có thể nghe nhiều port (A,B,C→1509; A,C→1508)
+- [x] Một mountpoint có thể nghe nhiều port (A,B,C→2101; A,C→1508)
 - [x] Parse `SOURCE` (v1), `POST` (v2), `GET` (rover); phân biệt ngữ cảnh response
 - [x] `ICY 200` / `HTTP 200` / `SOURCETABLE 200` đúng ngữ cảnh
 - [x] Auth Basic; no-auth chỉ khi cấu hình rõ ràng

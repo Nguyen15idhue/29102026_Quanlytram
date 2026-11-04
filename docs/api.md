@@ -381,9 +381,10 @@ ACL body: `{ "mountpointIds": [1, 2] }`; placeholder cho Phase 4.
 
 ## 14. Caster listeners (Phase 4)
 
-- Port mặc định **1509** cho source và rover; tùy chỉnh theo listener.
-- Một mountpoint có thể gắn nhiều listener: A,B,C→1509; A,C→1508.
-- Không dùng 2101/8081.
+- Port mặc định **2101** cho source và rover; 1508/1509 giữ để tương thích;
+  tùy chỉnh theo listener.
+- Một mountpoint có thể gắn nhiều listener: A,B,C→2101; A,C→1508.
+- Không dùng 8081.
 - Listener là tài nguyên **toàn hệ thống** (D05-7): response `global: true`,
   `ownerWebUserId`, `ownerName`; không có `companyId`.
 - Admin xem toàn bộ listener nhưng không có `caster.add/edit/delete`.

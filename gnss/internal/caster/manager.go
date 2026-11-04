@@ -286,7 +286,7 @@ func (m *manager) Reconcile(ctx context.Context) error {
 }
 
 func (m *manager) startListener(cfg *ListenerConfig) error {
-	if cfg.Port == 2101 || cfg.Port == 8081 {
+	if cfg.Port == 8081 {
 		return fmt.Errorf("port %d is reserved", cfg.Port)
 	}
 	address := net.JoinHostPort(m.opts.BindAddr, strconv.Itoa(cfg.Port))

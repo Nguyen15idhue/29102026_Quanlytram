@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { callGoInternal } from './internalApi';
 
-export const FORBIDDEN_CASTER_PORTS = new Set([2101, 8081]);
+export const FORBIDDEN_CASTER_PORTS = new Set([8081]);
 
 const portField = z
   .number()
@@ -9,7 +9,7 @@ const portField = z
   .min(1)
   .max(65535)
   .refine((port) => !FORBIDDEN_CASTER_PORTS.has(port), {
-    message: 'Không dùng cổng 2101 hoặc 8081'
+    message: 'Không dùng cổng 8081'
   });
 
 export const listenerCreateSchema = z.object({
@@ -36,6 +36,10 @@ export const listenerMountpointsSchema = z.object({
 
 export function isForbiddenCasterPort(port: number): boolean {
   return FORBIDDEN_CASTER_PORTS.has(port);
+}
+
+export function isListenerEnabled(row: { enabled: unknown }): boolean {
+  return Number(row.enabled) === 1;
 }
 
 export function publicListener(row: any) {

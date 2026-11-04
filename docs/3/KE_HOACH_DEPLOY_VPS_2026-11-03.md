@@ -6,6 +6,8 @@
 - Trạng thái: VPS trắng, chưa cài Docker; **chưa thay đổi gì trên VPS** (chỉ đọc
   thông tin). Đã chốt: domain `https://rtktk.online`, Caddy (DNS-only), cutover
   20:00–23:59 (+07), backup VPS 02:00 hằng ngày, giữ SSH hiện trạng, dump DB.
+- Cập nhật 2026-11-04: listener mặc định đổi sang **2101**; production phải
+  publish và mở firewall **2101** (giữ 1508/1509 để tương thích).
 
 ## 1. Hiện trạng VPS (đã kiểm tra)
 
@@ -21,7 +23,7 @@
 | SSH | port 24700, `permitrootlogin yes`, `passwordauthentication yes` |
 | Tiến trình khác | `onedash-agent`, `vmagent` (monitoring của nhà cung cấp — không đụng) |
 | Port đang mở | 24700 (SSH), 9099/8429 loopback (agent) |
-| 80/443/1508/1509 từ Internet | đóng (chưa có service) |
+| 80/443/2101/1508/1509 từ Internet | đóng (chưa có service) |
 | DNS `rtktk.online` | đang trỏ `103.166.183.250` (hệ thống cũ), chưa trỏ VPS mới |
 | Công cụ có sẵn | git 2.43, curl 8.5, chrony |
 
@@ -44,7 +46,7 @@ và cấu hình production trước khi chạy dữ liệu thật.
 Internet
  ├─ 80/443 ── Caddy (TLS tự động) ── web-prod (nginx tĩnh, 8080)
  │                              └── /api, /socket.io ── server:4000
- ├─ 1509/1508 ── gnss caster (public, NTRIP)
+ ├─ 2101/1509/1508 ── gnss caster (public, NTRIP)
  └─ 24700 ── SSH (giới hạn IP nếu có)
 
 Nội bộ Docker:
@@ -56,10 +58,10 @@ Nội bộ Docker:
 ```
 
 - `mysql`, `server`, `gnss`, `web-prod`, `caddy` chạy trên network nội bộ.
-- Chỉ Caddy (80/443), gnss (1509/1508), SSH (24700) lộ ra ngoài.
+- Chỉ Caddy (80/443), gnss (2101/1509/1508), SSH (24700) lộ ra ngoài.
 - `server` không chạy seed/watch; command `node dist/index.js`.
 - `web-prod` chỉ bind nội bộ; Caddy reverse proxy + WebSocket.
-- `gnss` publish 1508/1509 trên `0.0.0.0`; 7080 chỉ loopback.
+- `gnss` publish 2101/1508/1509 trên `0.0.0.0`; 7080 chỉ loopback.
 
 ## 4. Chuẩn bị trước khi deploy
 
@@ -70,8 +72,8 @@ Nội bộ Docker:
 - Tạo A record `rtktk.online` → `43.240.117.54` **tại thời điểm cutover**,
   không trỏ sớm khi chưa có TLS.
 - **DNS-only, không bật Cloudflare proxy**: thiết bị NTRIP dùng
-  `rtktk.online:1509/1508` (TCP thô); nếu proxy, DNS trả IP Cloudflare và cổng
-  1509/1508 sẽ không tới được VPS. Vì vậy giữ bản ghi A trỏ trực tiếp VPS.
+  `rtktk.online:2101/1509/1508` (TCP thô); nếu proxy, DNS trả IP Cloudflare và
+  các cổng này sẽ không tới được VPS. Vì vậy giữ bản ghi A trỏ trực tiếp VPS.
 - **Caddy** làm reverse proxy 80/443 → web-prod, tự xin/gia hạn Let's Encrypt;
   cấu hình `Caddyfile` nội bộ, HTTP→HTTPS, WebSocket `/socket.io`.
 - Không dùng nginx+certbot hay Cloudflare proxy cho pha này.
@@ -105,7 +107,7 @@ Nội bộ Docker:
    bật; port 24700. Chỉ cài fail2ban để giảm brute-force; bạn sẽ tự tắt
    password/root sau.
 3. UFW: default deny incoming; allow 24700 (không giới hạn IP), 80/443,
-   1508/1509; IPv6 tương ứng.
+   2101/1508/1509; IPv6 tương ứng.
 4. Cài `fail2ban` (sshd), `unattended-upgrades`, `chrony` (đã có), `htop`,
    `rsync`.
 5. Swap 4 GB (`/swapfile`, `vm.swappiness=10`), `sysctl` network cơ bản.
@@ -123,8 +125,8 @@ Nội bộ Docker:
    - `migrate`: build server image, chạy một lần.
    - `server`: image build từ `server/Dockerfile`, `restart unless-stopped`,
      `mem_limit 700m`, `NODE_ENV=production`, **không** mount source, không seed.
-   - `gnss`: build `gnss/`, `700m`, publish `1508:1508`, `1509:1509`,
-     `127.0.0.1:7080:7080`; healthcheck.
+   - `gnss`: build `gnss/`, `700m`, publish `2101:2101`, `1508:1508`,
+     `1509:1509`, `127.0.0.1:7080:7080`; healthcheck.
    - `web-prod`: profile production, `128m`, read_only, bind nội bộ 8080.
    - `caddy`: image caddy, 80/443, volume config + data, `128m`, phụ thuộc
      web-prod/server healthy.
@@ -156,7 +158,7 @@ Nội bộ Docker:
 3. Test qua Caddy bằng `--resolve rtktk.online:443:127.0.0.1` trước khi đổi DNS
    (certificate có thể chưa cấp nếu DNS chưa trỏ; dùng HTTP tạm hoặc DNS staging).
 4. Gate: 5 container healthy; log không lỗi; RAM/disk ổn; web load map/tile,
-   WebSocket realtime hoạt động; 1508/1509 truy cập từ ngoài (test mock).
+   WebSocket realtime hoạt động; 2101/1508/1509 truy cập từ ngoài (test mock).
 
 ### Pha 4 — Backup & monitoring trước cutover
 
@@ -233,12 +235,12 @@ Lưu ý cutover:
 
 - SSH: **giữ hiện trạng** (root + password) theo yêu cầu; đã cài fail2ban;
   khuyến nghị tắt password/root sau khi vận hành ổn định. UFW vẫn bật.
-- Docker: không publish MySQL/4000/7080; chỉ Caddy + 1508/1509.
+- Docker: không publish MySQL/4000/7080; chỉ Caddy + 2101/1508/1509.
 - Web: TLS bắt buộc, HSTS, CSP hiện có, cookie Secure/HttpOnly/SameSite.
-- Nguồn trạm no-auth trên 1508/1509 là rủi ro đã chấp nhận: theo dõi nguồn
+- Nguồn trạm no-auth trên 2101/1508/1509 là rủi ro đã chấp nhận: theo dõi nguồn
   trùng, log IP, cân nhắc allowlist IP thiết bị; chiều đọc vẫn bắt buộc account.
 - Secret: `.env.production` 600, không log, audit redaction; backup key offline.
-- Không bật Cloudflare proxy cho `rtktk.online` (sẽ chặn NTRIP 1508/1509).
+- Không bật Cloudflare proxy cho `rtktk.online` (sẽ chặn NTRIP 2101/1508/1509).
 
 ## 8. Rủi ro & giảm thiểu
 

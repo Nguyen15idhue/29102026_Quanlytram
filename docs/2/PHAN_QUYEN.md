@@ -632,7 +632,8 @@ User chỉ xem relay company; không thêm/sửa/xóa.
 - Admin xem tất cả listener của mọi company.
 - Danh sách mountpoint gắn listener bị lọc theo company của admin; super thấy tất cả.
 - Tạo listener trùng port → 409 (`uq_caster_listeners_port`).
-- Cổng 2101/8081 bị cấm.
+- Cổng 8081 bị cấm; 2101 là listener mặc định.
+- Listener đang bật không xóa được (`409 LISTENER_ENABLED`); phải tắt trước.
 
 ### 8.9. Caster connections — `/api/caster/connections`, `/api/connections`
 
@@ -1099,7 +1100,8 @@ SELECT * FROM company_backfill_reports ORDER BY entity_type, entity_id;
 | F1 | Admin A và admin B list listener | Cùng total với super |
 | F2 | Admin A tạo/sửa/xóa listener | 403 |
 | F3 | Super tạo listener trùng port | 409 |
-| F4 | Super tạo listener port 2101/8081 | 400 |
+| F4 | Super tạo listener port 8081 | 400 |
+| F4b | Super xóa listener đang bật | 409; bulk bỏ qua listener đang bật |
 | F5 | Admin A xem mountpoints listener có MP A+B | Chỉ MP A |
 | F6 | Super xem mountpoints listener | Thấy cả A+B |
 | F7 | User gọi listener API | 403 |

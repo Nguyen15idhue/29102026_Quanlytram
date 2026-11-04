@@ -203,9 +203,12 @@ async function main(): Promise<void> {
   );
 
   const [listenerRows] = await adminPool.query<any[]>(
-    'SELECT id FROM caster_listeners WHERE port = 1509 LIMIT 1'
+    `SELECT id, port FROM caster_listeners
+      WHERE port IN (2101, 1509)
+      ORDER BY FIELD(port, 2101, 1509) LIMIT 1`
   );
   const listenerId = listenerRows[0]?.id ? Number(listenerRows[0].id) : null;
+  const listenerPort = listenerRows[0]?.port ? Number(listenerRows[0].port) : 2101;
 
   const seedStation = async (
     name: string,
@@ -221,8 +224,8 @@ async function main(): Promise<void> {
       `INSERT INTO stations
          (name, host, port, connection_type, source_type, enabled,
           owner_web_user_id, company_id, created_by)
-       VALUES (?, 'example.invalid', 1509, 'ntrip', 'caster_ingest', 1, ?, ?, ?)`,
-      [name, ownerId, companyId, createdBy]
+       VALUES (?, 'example.invalid', ?, 'ntrip', 'caster_ingest', 1, ?, ?, ?)`,
+      [name, listenerPort, ownerId, companyId, createdBy]
     );
     const stationId = Number(inserted.insertId);
     if (listenerId) {

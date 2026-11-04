@@ -5,7 +5,7 @@ import { hashPassword } from '../lib/password';
 import { config } from '../config';
 
 /**
- * Xoá dữ liệu test, giữ listener 1508/1509 + superadmin, tạo công ty WALLY và
+ * Xoá dữ liệu test, giữ listener 2101/1508/1509 + superadmin, tạo công ty WALLY và
  * tài khoản wally. Mặc định dry-run; chỉ ghi khi --apply (sau khi đã backup).
  */
 
@@ -86,7 +86,7 @@ async function apply(): Promise<void> {
       SELECT id FROM roles WHERE code = 'super_admin'
     )`);
     await conn.query('DELETE FROM companies');
-    await conn.query('DELETE FROM caster_listeners WHERE port NOT IN (1508, 1509)');
+    await conn.query('DELETE FROM caster_listeners WHERE port NOT IN (2101, 1508, 1509)');
 
     const [superRows] = await conn.query<any[]>(
       `SELECT u.id FROM web_users u JOIN roles r ON r.id = u.role_id
@@ -114,7 +114,7 @@ async function apply(): Promise<void> {
     );
     const wallyId = Number(userResult.insertId);
     await conn.query(
-      'UPDATE caster_listeners SET owner_web_user_id = ? WHERE port IN (1508, 1509)',
+      'UPDATE caster_listeners SET owner_web_user_id = ? WHERE port IN (2101, 1508, 1509)',
       [wallyId]
     );
   });
@@ -153,7 +153,7 @@ async function main(): Promise<void> {
     'SELECT id, port, enabled FROM caster_listeners ORDER BY port'
   );
   console.log('[reset-legacy] Wally:', JSON.stringify({ company: company[0], user: user[0], listeners }));
-  const expected = { web_users: 2, companies: 1, stations: 0, mountpoints: 0, relay_jobs: 0, ntrip_accounts: 0, caster_listeners: 2, audit_logs: 0 };
+  const expected = { web_users: 2, companies: 1, stations: 0, mountpoints: 0, relay_jobs: 0, ntrip_accounts: 0, caster_listeners: 3, audit_logs: 0 };
   for (const [key, value] of Object.entries(expected)) {
     if (after[key] !== value) throw new Error(`Sai count ${key}: ${after[key]} != ${value}`);
   }

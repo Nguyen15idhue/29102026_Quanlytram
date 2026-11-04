@@ -41,7 +41,7 @@ interface MountpointList {
 
 const emptyForm = {
   name: '',
-  port: 1509,
+  port: 2101,
   enabled: true,
   role: 'both',
   description: ''
@@ -69,6 +69,11 @@ function ListenerPanel() {
         `/api/caster/listeners?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
       )
   });
+  const selectedListeners = (list.data?.items ?? []).filter((listener) =>
+    selected.has(listener.id)
+  );
+  const hasEnabledSelected = selectedListeners.some((listener) => listener.enabled);
+
   const mountpoints = useQuery({
     queryKey: ['mountpoints', 'caster-options'],
     queryFn: () => apiFetch<MountpointList>('/api/mountpoints?pageSize=50'),
@@ -131,8 +136,17 @@ function ListenerPanel() {
       setSelected(new Set());
       setBulkDeleteOpen(false);
       setDetail(null);
-      push(bulkMessage(result), result.forbidden || result.notFound ? 'error' : 'success');
-      if (bulkAction === 'delete') push('Đã xóa các listener đã chọn', 'success');
+      const skippedEnabled = bulkAction === 'delete' && result.skipped > 0;
+      const message = skippedEnabled
+        ? `${bulkMessage(result)} · listener đang bật không bị xóa`
+        : bulkMessage(result);
+      push(
+        message,
+        result.forbidden || result.notFound || skippedEnabled ? 'error' : 'success'
+      );
+      if (bulkAction === 'delete' && !skippedEnabled) {
+        push('Đã xóa các listener đã chọn', 'success');
+      }
       await queryClient.invalidateQueries({ queryKey: ['caster-listeners'] });
     },
     onError: (err) =>
@@ -222,8 +236,12 @@ function ListenerPanel() {
             ...(can('caster', 'delete')
               ? [
                   {
-                    label: 'Xóa',
+                    label: hasEnabledSelected ? 'Xóa (tắt trước)' : 'Xóa',
                     variant: 'danger' as const,
+                    disabled: hasEnabledSelected,
+                    title: hasEnabledSelected
+                      ? 'Listener đang bật không thể xóa. Tắt hoặc bỏ chọn listener đang bật trước.'
+                      : undefined,
                     onClick: () => setBulkDeleteOpen(true)
                   }
                 ]
@@ -305,7 +323,12 @@ function ListenerPanel() {
                   )}
                   {can('caster', 'delete') && (
                     <IconButton
-                      label={`Xóa ${listener.name}`}
+                      label={
+                        listener.enabled
+                          ? `${listener.name} đang bật — tắt listener trước khi xóa`
+                          : `Xóa ${listener.name}`
+                      }
+                      disabled={listener.enabled}
                       onClick={(event) => {
                         event.stopPropagation();
                         setDeleteTarget(listener);
@@ -335,7 +358,7 @@ function ListenerPanel() {
           if (!open) setEditing(null);
         }}
         title={editing ? 'Sửa listener' : 'Thêm listener'}
-        description="Listener NTRIP cho source và rover; mặc định 1509."
+        description="Listener NTRIP cho source và rover; mặc định 2101."
         footer={
           <>
             <Button variant="ghost" onClick={() => setFormOpen(false)}>
@@ -486,7 +509,7 @@ function ListenerPanel() {
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
         title="Xóa listener?"
-        description={`Listener ${deleteTarget?.name ?? ''} sẽ dừng và bị xóa.`}
+        description={`Listener ${deleteTarget?.name ?? ''} sẽ bị xóa. Chỉ listener đã tắt mới xóa được.`}
         pending={action.isPending}
         onConfirm={() => deleteTarget && action.mutate({ listener: deleteTarget, action: 'delete' })}
       />
@@ -494,7 +517,7 @@ function ListenerPanel() {
         open={bulkDeleteOpen}
         onOpenChange={setBulkDeleteOpen}
         title="Xóa các listener đã chọn?"
-        description={`${selected.size} listener sẽ dừng và bị xóa.`}
+        description={`${selected.size} listener sẽ được xử lý. Listener đang bật sẽ được bỏ qua; tắt trước nếu muốn xóa.`}
         pending={bulk.isPending}
         onConfirm={() => bulk.mutate('delete')}
       />

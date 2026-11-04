@@ -72,8 +72,8 @@ Xây dựng MVP hệ thống quản lý trạm CORS/NTRIP/RTCM chạy thực t�
 | D38 | **Radix Dialog/AlertDialog + focus trap; bỏ `window.confirm`** | Accessible, keyboard, Esc, restore focus |
 | D39 | **Hướng UI `framed-sheet` + IBM Plex Sans/Mono self-host** | Một accent; không gradient/glass/shadow ở trạng thái nghỉ |
 | D40 | **Dark mode `system/light/dark` + token, không hardcode light** | Toggle topbar; `color-scheme`; chống FOUC; test contrast cả 2 theme |
-| D41 | **Caster listener mặc định 1509** | Áp dụng cho source và rover; tùy chỉnh theo listener; không dùng 2101/8081 |
-| D42 | **Nhóm mountpoint ↔ listener many-to-many** | Một mountpoint có thể nghe trên nhiều port; ví dụ A,B,C→1509 và A,C→1508 |
+| D41 | **Caster listener mặc định 2101** | Áp dụng cho source và rover; 1508/1509 giữ tương thích; tùy chỉnh theo listener; không dùng 8081 |
+| D42 | **Nhóm mountpoint ↔ listener many-to-many** | Một mountpoint có thể nghe trên nhiều port; ví dụ A,B,C→2101 và A,C→1508 |
 | D43 | **Real endpoint chỉ dùng allowlist, credential ngoài repo** | Mock-first; chỉ endpoint được duyệt; không log/commit secret |
 | D44 | **Phase 7–12 học từ CGBAS theo nhóm chức năng** | 7 dữ liệu trạm/IA → 8 vận hành/map → 9 notification → 10 quản trị hệ thống → 11 báo cáo/export → 12 hardening; không copy lỗ hổng CGBAS (password plaintext, i18n lệch menu/route, bundle không menu) |
 | D45 *(đã chốt 2026-10-30: phương án (a))* | **Chart lib: tự vẽ SVG/light component (zero-dep)** — không thêm dependency; `recharts`/lib tương tự chỉ cân nhắc khi phát hiện nhu cầu chart phức tạp (tooltip/zoom/legend) | Áp cho P6-05 và P11-03 |

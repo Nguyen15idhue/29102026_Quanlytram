@@ -3,6 +3,7 @@
 ## 1. Thông tin phiên
 
 - Thời điểm: 2026-11-01 09:27 (Asia/Ho_Chi_Minh, +07:00)
+- 2026-11-04: listener mặc định đổi sang **2101** (migration admin 039, copy owner/mountpoint từ 1509; form listener và form trạm mặc định 2101; dev publish 2101). Listener đang bật **không xóa được**: API single trả 409 `LISTENER_ENABLED`, bulk bỏ qua + `skipped`, UI disable nút xóa từng dòng và nút Xóa bulk khi selection có listener bật. Server test 191/191 PASS, Go test PASS, FE build PASS; API 409/bulk skipped PASS; UI default 2101 + nút xóa disabled PASS. Lưu ý: container server test 2 FAIL do thiếu mount `/db/data` (không phải lỗi code); docs lịch sử còn ghi 2101 bị cấm.
 - Kế hoạch 09 lập: `docs/1/09_KE_HOACH_TIMELINE_TRANG_THAI.md` — no_data theo frame/60s (`xx` mặc định 10), offline theo kết nối/service/tắt-khoá, `system_down` vs `source_lost`, rolling 30d, `none` hiển thị mọi khung; chưa triển khai code.
 - P09 Phase 0 PASS: baseline `scripts/verify-timeline.ps1` tái hiện 24h/7d/30d `online` lúc 00:30/04:00 (downtime), độ phủ segment 72.371s < khung; server tsc PASS, vitest 89/90 (FAIL stationDetail.test:19 do WIP), frontend tsc PASS.
 - WIP timeline lần trước được làm lại trong P09; không giữ kết luận 90/90 cũ vì semantics đã đổi.

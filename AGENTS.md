@@ -54,7 +54,7 @@ giám sát realtime và cấu hình hệ thống.
 1. Không sửa, ghi, xóa, di chuyển, đổi tên file trong
    `F:\3.Laptrinh\1. Project\1. GNSS\relayrtcm\backup`.
 2. Không chạy `relay.exe`, không dừng tiến trình relay cũ, không chiếm cổng
-   `8081` hoặc `2101` khi chưa được xác nhận.
+   `8081` hoặc cổng `2101` của relay cũ khi chưa được xác nhận.
 3. Mock-first: mọi tính năng NTRIP/RTCM phải đạt test với mock trước khi chạm
    dịch vụ thật.
 4. Không commit secret. Chỉ dùng `.env.local` hoặc secret manager.
@@ -98,8 +98,9 @@ giám sát realtime và cấu hình hệ thống.
 ## 9. Relay, NTRIP, RTCM
 
 - Relay bridge: GET upstream -> POST/SOURCE downstream, passthrough nguyên byte.
-- Caster: Phase 4; v1 legacy, v1 auth, v2. Cổng listener mặc định **1509**
-  (vào/ra), tùy chỉnh theo nhóm mountpoint; không dùng 2101/8081.
+- Caster: Phase 4; v1 legacy, v1 auth, v2. Cổng listener mặc định **2101**
+  (vào/ra); 1508/1509 giữ để tương thích; tùy chỉnh theo nhóm mountpoint;
+  không dùng 8081.
 - RTCM monitor/analyzer chỉ parse để đếm/đo; không sửa byte, không serialize lại.
 - Chất lượng dùng chung cho `station` (ingest) và `relay_job` (upstream/downstream)
   theo `target_type` + `target_id` + `direction`; không FK giữa relay và station.
