@@ -1,13 +1,15 @@
 # Kế hoạch deploy VPS mới — CORS Manager
 
-- Ngày kiểm tra: 2026-11-03
+- Ngày kiểm tra VPS: 2026-11-03; cập nhật kế hoạch: 2026-11-04.
 - VPS: `43.240.117.54`, SSH `root@... -p 24700` (key
   `~/.ssh/CS-Linux-20261103230212929.pem`)
 - Trạng thái: VPS trắng, chưa cài Docker; **chưa thay đổi gì trên VPS** (chỉ đọc
   thông tin). Đã chốt: domain `https://rtktk.online`, Caddy (DNS-only), cutover
   20:00–23:59 (+07), backup VPS 02:00 hằng ngày, giữ SSH hiện trạng, dump DB.
-- Cập nhật 2026-11-04: listener mặc định đổi sang **2101**; production phải
-  publish và mở firewall **1508/1509/2101** và dải port riêng **1510–1599**.
+- Cập nhật 2026-11-04: listener mặc định **2101**; production publish/firewall
+  **1508/1509/2101** và dải port riêng **1510–1599**. Schema hiện tại
+  **admin 41 / runtime 7**. Production **chỉ giữ dữ liệu Wally**, không giữ
+  company/user/trạm/mountpoint/listener/account/relay demo hoặc test.
 
 ## 1. Hiện trạng VPS (đã kiểm tra)
 
@@ -23,7 +25,7 @@
 | SSH | port 24700, `permitrootlogin yes`, `passwordauthentication yes` |
 | Tiến trình khác | `onedash-agent`, `vmagent` (monitoring của nhà cung cấp — không đụng) |
 | Port đang mở | 24700 (SSH), 9099/8429 loopback (agent) |
-| 80/443/2101/1508/1509 từ Internet | đóng (chưa có service) |
+| 80/443/1508/1509/2101/1510–1599 từ Internet | đóng (chưa có service) |
 | DNS `rtktk.online` | đang trỏ `103.166.183.250` (hệ thống cũ), chưa trỏ VPS mới |
 | Công cụ có sẵn | git 2.43, curl 8.5, chrony |
 
@@ -39,6 +41,8 @@ và cấu hình production trước khi chạy dữ liệu thật.
    cần thiết, TLS cho web, DB/API nội bộ không public.
 4. Không đưa secret vào git; `.env.production` chỉ trên VPS, quyền 600.
 5. Cutover có rollback; relay giữ disabled đến khi trạm online.
+6. Không giữ tài nguyên/dữ liệu demo trên production: chỉ Wally + dữ liệu vận
+   hành thật; mọi bản ghi DOCS/E2E/Metrics/Trạm test phải xoá trước khi dump.
 
 ## 3. Kiến trúc production đề xuất
 
@@ -93,13 +97,35 @@ Nội bộ Docker:
   `SESSION_COOKIE_SECURE=true`, `MYSQL_HOST=mysql`, `GO_INTERNAL_URL=http://gnss:7080`,
   `CASTER_PUBLIC_PORTS=1508,1509,2101,1510-1599`.
 
-### 4.3. Dữ liệu nguồn
+### 4.3. Dữ liệu nguồn — chỉ giữ Wally, không giữ demo
 
-- Dump `cors_admin` + `cors_runtime` từ máy hiện tại (trạng thái cuối:
-  1 company/2 user/36 trạm/31 mountpoint/32 mapping/67 relay disabled/3 account).
-- Chuyển dump sang VPS qua SCP, kiểm tra SHA256.
-- Không chạy `resetLegacyV2`/`importLegacyV2` trên production nếu đã có dump;
-  chỉ dùng khi muốn dựng lại từ `db/data`.
+**Mục tiêu trước khi dump:**
+
+| Đối tượng | Giữ lại | Xoá bỏ |
+|---|---|---|
+| Company | 1 (WALLY) | company `admin` và mọi company demo/test |
+| Web user | 2 (superadmin, wally) | `admin`, `user1`, `user2`, `docs.*`, E2E |
+| Station | 36 (Wally) | `Trạm test ...`, `DOCS-*`, `E2E*`, `Metrics*` |
+| Mountpoint | 31 (Wally) | mountpoint của trạm demo/test |
+| Caster listener | 3 (1508/1509/2101) | listener 1599 demo và listener DOCS/E2E |
+| Mapping listener | 58 (1508=6, 1509=26, 2101=26) | mapping của listener demo |
+| NTRIP account | 3 (Wally: nguyen/admin/aitogy123) | `seed_*`, `test_ntrip_*`, `docs_*`, E2E |
+| Relay job | 67 (Wally, disabled) | relay `Metrics Relay ...`, DOCS/E2E |
+| Schema | admin **41**, runtime **7** | — |
+
+**Thứ tự làm trước khi dump:**
+
+1. Backup DB hiện tại ra ngoài repo; ghi SHA256.
+2. Xoá listener 1599 demo, mapping, 3 mountpoint + 3 trạm test, 5 account demo
+   (`seed_687/688/689`, `test_ntrip_01/02`), user `admin/user1/user2`,
+   company `admin`.
+3. Xoá relay test `Metrics Relay ...` (company NULL); giữ 67 relay Wally disabled.
+4. Xoá runtime test phát sinh từ demo/DOCS/E2E/Metrics; không xoá lịch sử Wally
+   thật nếu đã có.
+5. Kiểm tra lại counts đúng bảng trên; kiểm tra 0 mapping/ACL/source chéo company.
+6. Dump `cors_admin` + `cors_runtime`; SHA256; SCP sang VPS.
+7. Không chạy `resetLegacyV2`/`importLegacyV2` trên production nếu đã có dump.
+8. **Chưa tạo script cleanup**: thực hiện thủ công theo checklist này trước khi dump.
 
 ## 5. Các pha triển khai
 
@@ -145,13 +171,14 @@ Nội bộ Docker:
 
 1. Khởi động `mysql` + `migrate`, chờ healthy.
 2. Restore `cors_admin` rồi `cors_runtime` từ dump; chạy migration nếu schema cũ
-   hơn (hiện admin 38/runtime 7).
-3. Kiểm tra counts: company=1, user=2, station=36, mountpoint=31, mapping=32,
-   relay=67 (enabled=0), account=3, listener=2; `schema_migrations` đúng.
+   hơn (hiện admin **41**/runtime **7**).
+3. Kiểm tra counts: company=1 (WALLY), user=2, station=36, mountpoint=31,
+   listener=3 (1508/1509/2101), mapping=58 (6/26/26), relay=67 (enabled=0),
+   account=3; `schema_migrations` đúng; 0 bản ghi demo/DOCS/E2E/Metrics.
 4. Kiểm tra Go đọc credential: start `gnss`, `/health` không lỗi credential,
    `relayDegraded=false`.
-5. Gate: counts khớp, login superadmin/wally qua API nội bộ, sourcetable mock
-   publish/read đúng (no-auth publish, read cần account).
+5. Gate: counts khớp, login superadmin/wally qua API nội bộ, sourcetable
+   anonymous trả đủ mountpoint của listener, đọc dữ liệu vẫn cần account/ACL.
 
 ### Pha 3 — Chạy stack và kiểm tra nội bộ
 
@@ -160,9 +187,9 @@ Nội bộ Docker:
    `/api/relay-jobs`.
 3. Test qua Caddy bằng `--resolve rtktk.online:443:127.0.0.1` trước khi đổi DNS
    (certificate có thể chưa cấp nếu DNS chưa trỏ; dùng HTTP tạm hoặc DNS staging).
-4. Gate: 5 container healthy; log không lỗi; RAM/disk ổn; web load map/tile,
-   WebSocket realtime hoạt động; 1508/1509/2101 và một port 1510–1599 truy cập
-   từ ngoài (test mock).
+4. Gate: mysql/server/gnss/web-prod/caddy healthy, migrate exit 0; log không
+   lỗi; RAM/disk ổn; web load map/tile, WebSocket realtime hoạt động;
+   1508/1509/2101 và một port 1510–1599 truy cập từ ngoài (test mock).
 
 ### Pha 4 — Backup & monitoring trước cutover
 
@@ -171,8 +198,8 @@ Nội bộ Docker:
 2. Trước cutover: tạo **snapshot thủ công** (nếu nhà cung cấp hỗ trợ) + dump
    logic `admin`/`runtime` ra `/opt/cors/backups` (retention 7–14 ngày) để
    restore nhanh không cần khôi phục cả VPS.
-3. Script `/opt/cors/backup.sh`: mysqldump admin+runtime, gzip, sha256; chạy
-   trước/sau cutover và có thể chạy tay khi cần; không cần rclone/S3.
+3. Script `/opt/cors/backup.sh` (tạo ở Pha 4): mysqldump admin+runtime, gzip,
+   sha256; chạy trước/sau cutover và có thể chạy tay khi cần; không cần rclone/S3.
 4. Cron kiểm tra dung lượng, healthcheck container, log rotate.
 5. Diễn tập restore dump vào MySQL tạm trên VPS; so counts; xoá DB tạm.
 6. Gate: snapshot/dump trước cutover có checksum; restore thử PASS; xác nhận
@@ -185,15 +212,15 @@ việc tắt/bật thiết bị để nhận IP mới. Toàn bộ timeline nằm
 
 | Mốc | Việc làm | Người phụ trách |
 |---|---|---|
-| T-48h | Hạ TTL `rtktk.online` = 300s; xác nhận backup 02:00 đã chạy; thông báo lịch | Admin |
-| T-1 ngày | Snapshot/dump thử, restore thử trên VPS; kiểm tra counts | Admin |
-| 20:00 | Bắt đầu bảo trì: dừng nhận ghi trên hệ thống cũ (dừng caster/server cũ hoặc chặn 1509/1508) | Admin |
-| 20:00–20:05 | Dump cuối `cors_admin` + `cors_runtime`; SHA256; chuyển sang VPS; restore; kiểm tra counts | Admin |
-| 20:05–20:10 | Start stack VPS; healthcheck; login nội bộ; test sourcetable mock | Admin |
+| T-48h | Hạ TTL `rtktk.online` = 300s; xác nhận backup 02:00 đã chạy; thông báo lịch; xác nhận đã xoá demo/test | Admin |
+| T-1 ngày | Snapshot/dump thử **sau khi xoá demo**, restore thử trên VPS; kiểm tra counts + schema 41 | Admin |
+| 20:00 | Bắt đầu bảo trì: dừng nhận ghi trên hệ thống cũ (dừng caster/server cũ hoặc chặn 1508/1509/2101) | Admin |
+| 20:00–20:05 | Dump cuối `cors_admin` + `cors_runtime`; SHA256; chuyển sang VPS; restore; kiểm tra counts (không có demo) | Admin |
+| 20:05–20:10 | Start stack VPS; healthcheck; login nội bộ; test sourcetable anonymous + đọc dữ liệu cần account | Admin |
 | 20:10 | Đổi DNS A `rtktk.online` → `43.240.117.54`; kiểm tra `dig`/DNS propagation | Admin |
 | 20:10–20:15 | Kiểm tra TLS/web `https://rtktk.online`, login superadmin/wally | Admin |
 | 20:15–20:45 | **Tắt/bật thiết bị NTRIP theo danh sách** để nhận IP mới (dự kiến 30 phút); theo dõi thiết bị online | Vận hành thiết bị |
-| 20:45–21:00 | Đối chiếu sourcetable 1509/1508, số trạm online, log 401/403 | Admin |
+| 20:45–21:00 | Đối chiếu sourcetable 1508/1509/2101 (và port riêng nếu có), số trạm online, log 401/403 | Admin |
 | 21:00 | Kết thúc bảo trì; hệ thống mới là chính thức | Admin |
 | 21:00–23:59 | Theo dõi RAM/disk/log/relay; xử lý thiết bị chưa lên; bật relay theo nhóm khi ổn định | Admin |
 | T+24–48h | Soak test, kiểm tra backup 02:00 đầu tiên trên VPS mới | Admin |
@@ -217,6 +244,8 @@ Lưu ý cutover:
 - Chạy soak 24–48h: RAM, swap, CPU, disk, log, reconnect.
 - Chốt tài liệu vận hành: runbook sự cố, lịch backup, quy trình restore, đầu mối.
 - Đổi mật khẩu `wally`, xác nhận superadmin, khoá seed/test.
+- Xác nhận UI/DB không còn company/user/trạm/mountpoint/listener/account/relay
+  demo hoặc test; counts đúng bảng mục 4.3.
 - Gate: 48h không sự cố; backup nhà cung cấp 02:00 + dump logic có; tài liệu
   cập nhật.
 
@@ -262,6 +291,7 @@ Lưu ý cutover:
 | Rollback cần tắt thiết bị lần 2 | Cân nhắc kỹ; chỉ rollback trong 24h đầu; thông báo trước |
 | No-auth bị ghi giả | Giám sát nguồn trùng/IP, allowlist khi xác định được |
 | Nhà cung cấp chặn port | Kiểm tra firewall provider trước cutover |
+| Dump còn dữ liệu demo | Checklist mục 4.3 + counts + tìm DOCS/E2E/Metrics/Trạm test trước dump |
 
 ## 9. Rollback
 
@@ -284,6 +314,9 @@ Lưu ý cutover:
 5. Cutover: **20:00–23:59 (+07)**, dự phòng 30 phút tắt/bật thiết bị.
 6. Không có cloud firewall; chỉ UFW trên VPS.
 7. Deploy bằng **dump DB**.
+8. **Không giữ tài nguyên/dữ liệu demo**: chỉ Wally + 36 trạm/31 mountpoint/
+   3 listener/3 account/67 relay thật; xoá toàn bộ DOCS/E2E/Metrics/Trạm test.
+9. Port đầu vào: **1508/1509/2101** (Wally) + dải riêng **1510–1599**.
 
 Còn cần xác nhận khi bắt đầu triển khai:
 
