@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log"
 	"net"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -288,6 +290,16 @@ func (m *manager) sourcetableMountpoints(cfg *ListenerConfig) []*MountpointConfi
 		}
 		out = append(out, mountpoint)
 	}
+	// Map iteration không ổn định; sourcetable phải trả theo thứ tự ABC để
+	// client/rover và công cụ so sánh nhận được danh sách nhất quán.
+	sort.SliceStable(out, func(i, j int) bool {
+		left := strings.ToLower(out[i].Name)
+		right := strings.ToLower(out[j].Name)
+		if left == right {
+			return out[i].ID < out[j].ID
+		}
+		return left < right
+	})
 	return out
 }
 

@@ -463,3 +463,4 @@ Trạng thái trước cutover:
 | Danh sách online | DONE 2026-11-05 | Cột trạng thái hiển thị fixed/float/single/RTD/lỗi theo `fixType`; thêm lọc hướng và trạng thái fix (fixed 19, error 3, none 22). |
 | DOWNSTREAM_BUSY | FIXED 2026-11-05 | Thông báo nêu relay đang giữ downstream: `TNNVN đang được relay job "xuanai2" (ID 480) sử dụng`. |
 | daitu2 offline | FIXED 2026-11-05 | Thiếu ACL mountpoint 666/TNN_DaiTu cho tài khoản aitogy123 (403), sau đó max_connections=1 gây 503. Đã thêm ACL và nâng max_connections=20; daitu2 streaming, byte tăng 5.117/15s. |
+| Sourcetable ABC | DONE 2026-11-05 | Sort mountpoint ABC (case-insensitive, tie-break ID) trong `sourcetableMountpoints`; 1508/1509/2101 đều đúng thứ tự, test PASS. |

@@ -1526,3 +1526,12 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
   `max_connections=20`.
 - Kết quả: `daitu2` chuyển `streaming`; byte up/down tăng 5.117 byte/15 giây;
   41 relay đang streaming.
+
+## Sourcetable mountpoint ABC (2026-11-05)
+
+- `sourcetableMountpoints` trước đây duyệt map nên thứ tự ngẫu nhiên. Đã sort
+  ABC không phân biệt hoa/thường, tie-break theo ID, trước khi build sourcetable.
+- Áp dụng cho mọi listener (1508/1509/2101). Kiểm tra: 1508 6 mount, 1509 31
+  mount, 2101 31 mount, tất cả `sorted=true`.
+- Test `TestSourcetableMountpointsSortedABC` PASS; deploy lại `cors-gnss:prod`;
+  41 relay vẫn streaming sau khi reconnect.

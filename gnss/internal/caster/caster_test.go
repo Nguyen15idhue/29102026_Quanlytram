@@ -309,6 +309,25 @@ func TestListenerACLAndSourcetable(t *testing.T) {
 	}
 }
 
+func TestSourcetableMountpointsSortedABC(t *testing.T) {
+	cfg := &ListenerConfig{Mountpoints: map[int64]*MountpointConfig{
+		1: {ID: 1, Name: "zeta", Enabled: true},
+		2: {ID: 2, Name: "Alpha", Enabled: true},
+		3: {ID: 3, Name: "beta", Enabled: true},
+		4: {ID: 4, Name: "disabled", Enabled: false},
+	}}
+	m := &manager{}
+	got := m.sourcetableMountpoints(cfg)
+	if len(got) != 3 {
+		t.Fatalf("len = %d, want 3", len(got))
+	}
+	for i, want := range []string{"Alpha", "beta", "zeta"} {
+		if got[i].Name != want {
+			t.Fatalf("order[%d] = %q, want %q", i, got[i].Name, want)
+		}
+	}
+}
+
 func TestAuthorizeRequiresSameCompany(t *testing.T) {
 	mountpoint := &MountpointConfig{ID: 1, Name: "M1", Enabled: true}
 	listenerCompany := int64(85)
