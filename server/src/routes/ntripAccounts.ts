@@ -64,19 +64,25 @@ const listenerAclSchema = z.object({
 async function assertScopedIds(
   req: any,
   table: 'caster_listeners' | 'mountpoints',
-  ids: number[]
+  ids: number[],
+  companyId?: number | null
 ): Promise<void> {
   if (ids.length === 0) return;
-  const companyColumn = table === 'mountpoints' ? ', company_id' : '';
   const rows = await query<RowDataPacket[]>(
-    `SELECT id, owner_web_user_id${companyColumn} FROM ${table}
+    `SELECT id, owner_web_user_id, company_id FROM ${table}
       WHERE id IN (${ids.map(() => '?').join(',')})`,
     ids
   );
   if (rows.length !== ids.length) throw new ApiError(400, 'INVALID_ACL', 'ACL không tồn tại');
-  if (table === 'caster_listeners') return;
   for (const row of rows) {
     await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
+    if (
+      companyId !== undefined &&
+      companyId !== null &&
+      (row.company_id === null || Number(row.company_id) !== companyId)
+    ) {
+      throw new ApiError(400, 'CROSS_COMPANY_ACL', 'ACL phải cùng công ty với tài khoản');
+    }
   }
 }
 
@@ -243,11 +249,14 @@ ntripAccountsRouter.get(
   asyncHandler(async (req, res) => {
     const account = await assertAccountScope(req, Number(req.params.id));
     const listenerIds = await listenerIdsFor(account.id);
+    const accountCompany =
+      account.company_id === null ? null : Number(account.company_id);
+    const companyFilter = accountCompany === null ? '' : ' AND company_id = ?';
     const listeners = listenerIds.length
       ? await query<RowDataPacket[]>(
           `SELECT id, name, port, enabled FROM caster_listeners
-            WHERE id IN (${listenerIds.map(() => '?').join(',')}) ORDER BY name`,
-          listenerIds
+            WHERE id IN (${listenerIds.map(() => '?').join(',')})${companyFilter} ORDER BY name`,
+          accountCompany === null ? listenerIds : [...listenerIds, accountCompany]
         )
       : [];
     res.json({
@@ -265,16 +274,12 @@ ntripAccountsRouter.put(
     const account = await assertAccountScope(req, Number(req.params.id));
     const body = listenerAclSchema.parse(req.body);
     const ids = [...new Set(body.listenerIds)];
-    if (ids.length > 0) {
-      const rows = await query<RowDataPacket[]>(
-        `SELECT id, owner_web_user_id FROM caster_listeners
-          WHERE id IN (${ids.map(() => '?').join(',')})`,
-        ids
-      );
-      if (rows.length !== ids.length) {
-        throw new ApiError(400, 'INVALID_LISTENER', 'Listener không tồn tại');
-      }
-    }
+    await assertScopedIds(
+      req,
+      'caster_listeners',
+      ids,
+      account.company_id === null ? null : Number(account.company_id)
+    );
     await withTransaction(async (conn) => {
       await conn.query('DELETE FROM account_listener_acl WHERE account_id = ?', [account.id]);
       for (const listenerId of ids) {
@@ -310,18 +315,12 @@ ntripAccountsRouter.put(
     const account = await assertAccountScope(req, Number(req.params.id));
     const body = aclSchema.parse(req.body);
     const uniqueIds = [...new Set(body.mountpointIds)];
-    if (uniqueIds.length > 0) {
-      const rows = await query<RowDataPacket[]>(
-        `SELECT id, owner_web_user_id, company_id FROM mountpoints WHERE id IN (${uniqueIds.map(() => '?').join(',')})`,
-        uniqueIds
-      );
-      if (rows.length !== uniqueIds.length) {
-        throw new ApiError(400, 'INVALID_MOUNTPOINT', 'Mountpoint không tồn tại');
-      }
-      for (const row of rows) {
-        await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', row.company_id);
-      }
-    }
+    await assertScopedIds(
+      req,
+      'mountpoints',
+      uniqueIds,
+      account.company_id === null ? null : Number(account.company_id)
+    );
     await withTransaction(async (conn) => {
       await conn.query('DELETE FROM account_mountpoint_acl WHERE account_id = ?', [account.id]);
       for (const mountpointId of uniqueIds) {
@@ -352,11 +351,16 @@ ntripAccountsRouter.post(
   requirePermission('ntrip_accounts', 'add'),
   asyncHandler(async (req, res) => {
     const body = createSchema.parse(req.body);
-    await assertScopedIds(req, 'caster_listeners', [...new Set(body.listenerIds ?? [])]);
-    await assertScopedIds(req, 'mountpoints', [...new Set(body.mountpointIds ?? [])]);
     const ownership = await resolveWriteOwnership(req, body.owner_web_user_id, body.company_id);
     const ownerId = ownership.ownerId;
     const companyId = ownership.companyId;
+    await assertScopedIds(
+      req,
+      'caster_listeners',
+      [...new Set(body.listenerIds ?? [])],
+      companyId
+    );
+    await assertScopedIds(req, 'mountpoints', [...new Set(body.mountpointIds ?? [])], companyId);
     const passwordHash = await hashPassword(body.password);
     let accountId: number;
     try {
@@ -425,18 +429,18 @@ ntripAccountsRouter.patch(
     if (body.username !== undefined && body.username !== before.username) {
       throw new ApiError(409, 'IMMUTABLE_FIELD', 'Username NTRIP không thể sửa sau khi tạo');
     }
-    if (body.listenerIds !== undefined) {
-      await assertScopedIds(req, 'caster_listeners', [...new Set(body.listenerIds)]);
-    }
-    if (body.mountpointIds !== undefined) {
-      await assertScopedIds(req, 'mountpoints', [...new Set(body.mountpointIds)]);
-    }
     let ownerId = Number(before.owner_web_user_id);
     let companyId = before.company_id === null ? null : Number(before.company_id);
     if (body.owner_web_user_id !== undefined) {
       const ownership = await resolveWriteOwnership(req, body.owner_web_user_id, companyId);
       ownerId = ownership.ownerId;
       companyId = ownership.companyId;
+    }
+    if (body.listenerIds !== undefined) {
+      await assertScopedIds(req, 'caster_listeners', [...new Set(body.listenerIds)], companyId);
+    }
+    if (body.mountpointIds !== undefined) {
+      await assertScopedIds(req, 'mountpoints', [...new Set(body.mountpointIds)], companyId);
     }
     const passwordHash = body.password ? await hashPassword(body.password) : before.password_hash;
     try {

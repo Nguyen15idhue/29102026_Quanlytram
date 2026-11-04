@@ -552,20 +552,23 @@ mountpointsRouter.get(
     const item = await getMountpoint(id);
     if (!item) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
     await assertRecordScope(req, item.owner_web_user_id, 'owner_web_user_id', item.company_id);
+    const companyId = item.company_id === null ? null : Number(item.company_id);
+    const listenerCompanyFilter = companyId === null ? '' : ' AND l.company_id = ?';
+    const accountCompanyFilter = companyId === null ? '' : ' AND a.company_id = ?';
     const [listeners, accounts, relays] = await Promise.all([
       query<RowDataPacket[]>(
         `SELECT l.id, l.name, l.port, l.enabled
            FROM caster_listener_mountpoints lm
            JOIN caster_listeners l ON l.id = lm.listener_id
-          WHERE lm.mountpoint_id = ?`,
-        [id]
+          WHERE lm.mountpoint_id = ?${listenerCompanyFilter}`,
+        companyId === null ? [id] : [id, companyId]
       ),
       query<RowDataPacket[]>(
         `SELECT a.id, a.username, a.enabled
            FROM account_mountpoint_acl am
            JOIN ntrip_accounts a ON a.id = am.account_id
-          WHERE am.mountpoint_id = ?`,
-        [id]
+          WHERE am.mountpoint_id = ?${accountCompanyFilter}`,
+        companyId === null ? [id] : [id, companyId]
       ),
       query<RowDataPacket[]>(
         `SELECT id, name, enabled FROM relay_jobs

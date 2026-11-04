@@ -5,12 +5,15 @@ import { writeAudit } from '../lib/audit';
 import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
 import {
   GoConnection,
+  isAllowedCasterPort,
   isListenerEnabled,
+  isReservedCasterPort,
   listenerCreateSchema,
   listenerMountpointsSchema,
   listenerUpdateSchema,
   publicConnection,
-  publicListener
+  publicListener,
+  WALLY_COMPANY_CODE
 } from '../lib/caster';
 import { asyncHandler, ApiError } from '../lib/http';
 import { callGoInternal } from '../lib/internalApi';
@@ -40,14 +43,97 @@ function castorGuard(router: Router): void {
 }
 
 const LISTENER_SELECT = `
-  SELECT l.*, u.display_name AS owner_name,
-         (SELECT COUNT(*) FROM caster_listener_mountpoints m WHERE m.listener_id = l.id) AS mountpoint_count
+  SELECT l.*, u.display_name AS owner_name, c.name AS company_name,
+         (SELECT COUNT(*)
+            FROM caster_listener_mountpoints lm
+            JOIN mountpoints m ON m.id = lm.mountpoint_id
+           WHERE lm.listener_id = l.id
+             AND (l.company_id IS NULL OR m.company_id = l.company_id)) AS mountpoint_count
     FROM caster_listeners l
-    LEFT JOIN web_users u ON u.id = l.owner_web_user_id`;
+    LEFT JOIN web_users u ON u.id = l.owner_web_user_id
+    LEFT JOIN companies c ON c.id = l.company_id`;
 
 async function getListenerRow(id: number): Promise<any | null> {
   const [rows] = await adminPool.query<any[]>(`${LISTENER_SELECT} WHERE l.id = ?`, [id]);
   return rows[0] ?? null;
+}
+
+function listenerCompanyId(row: any): number | null {
+  return row.company_id === null || row.company_id === undefined
+    ? null
+    : Number(row.company_id);
+}
+
+async function resolveListenerCompany(
+  req: Request,
+  requested?: number | null
+): Promise<number> {
+  const isSuper = req.auth?.roleCode === 'super_admin';
+  if (!isSuper) {
+    const actorCompany = req.auth?.companyId;
+    if (actorCompany === null || actorCompany === undefined) {
+      throw new ApiError(400, 'COMPANY_REQUIRED', 'Tài khoản chưa thuộc công ty');
+    }
+    if (
+      requested !== undefined &&
+      requested !== null &&
+      Number(requested) !== Number(actorCompany)
+    ) {
+      throw new ApiError(403, 'FORBIDDEN', 'Không được tạo listener cho công ty khác');
+    }
+    return Number(actorCompany);
+  }
+  if (requested === undefined || requested === null) {
+    throw new ApiError(400, 'COMPANY_REQUIRED', 'Phải chọn công ty cho listener');
+  }
+  const rows = await query<RowDataPacket[]>('SELECT id FROM companies WHERE id = ? LIMIT 1', [
+    requested
+  ]);
+  if (rows.length === 0) {
+    throw new ApiError(400, 'INVALID_COMPANY', 'Công ty không tồn tại');
+  }
+  return Number(requested);
+}
+
+async function assertPortAllowedForCompany(port: number, companyId: number | null): Promise<void> {
+  if (!isAllowedCasterPort(port)) {
+    throw new ApiError(
+      400,
+      'PORT_NOT_ALLOWED',
+      'Port phải là 1508, 1509, 2101 hoặc trong dải 1510-1599'
+    );
+  }
+  if (companyId === null) {
+    if (isReservedCasterPort(port)) {
+      throw new ApiError(400, 'COMPANY_REQUIRED', 'Port Wally phải gán cho công ty Wally');
+    }
+    return;
+  }
+  if (!isReservedCasterPort(port)) return;
+  const rows = await query<RowDataPacket[]>('SELECT code FROM companies WHERE id = ? LIMIT 1', [
+    companyId
+  ]);
+  if (String(rows[0]?.code ?? '') !== WALLY_COMPANY_CODE) {
+    throw new ApiError(400, 'PORT_RESERVED', '1508/1509/2101 chỉ dành cho công ty Wally');
+  }
+}
+
+async function assertMountpointsSameCompany(
+  ids: number[],
+  companyId: number | null
+): Promise<void> {
+  if (ids.length === 0) return;
+  const rows = await query<RowDataPacket[]>(
+    `SELECT id, company_id FROM mountpoints WHERE id IN (${ids.map(() => '?').join(',')})`,
+    ids
+  );
+  if (rows.length !== ids.length) {
+    throw new ApiError(400, 'INVALID_MOUNTPOINT', 'Mountpoint không tồn tại');
+  }
+  if (companyId === null) return;
+  if (rows.some((row) => Number(row.company_id) !== companyId)) {
+    throw new ApiError(400, 'CROSS_COMPANY_MOUNTPOINT', 'Mountpoint phải cùng công ty với listener');
+  }
 }
 
 async function listenerMountpointIds(id: number, req?: Request): Promise<number[]> {
@@ -86,17 +172,6 @@ function duplicateGuard(err: unknown): never {
 
 function validateMountpointIds(ids: number[]): number[] {
   return [...new Set(ids)];
-}
-
-async function assertMountpointsExist(ids: number[]): Promise<void> {
-  if (ids.length === 0) return;
-  const rows = await query<RowDataPacket[]>(
-    `SELECT id FROM mountpoints WHERE id IN (${ids.map(() => '?').join(',')})`,
-    ids
-  );
-  if (rows.length !== ids.length) {
-    throw new ApiError(400, 'INVALID_MOUNTPOINT', 'Mountpoint không tồn tại');
-  }
 }
 
 async function writableMountpointIds(req: Request): Promise<Set<number> | null> {
@@ -139,12 +214,19 @@ casterRouter.get(
     const { pageSize, offset } = pageFrom(req);
     const q = String(req.query.q || '').trim();
     const ids = await scopeIdsFor(req);
-    const scope = listScope(req, ids, 'l.owner_web_user_id');
+    const scope = listScope(req, ids, 'l.owner_web_user_id', {
+      companyColumn: 'l.company_id'
+    });
     const params: unknown[] = [...scope.params];
     let where = scope.sql;
     if (q) {
       where += ' AND (l.name LIKE ? OR l.description LIKE ?)';
       params.push(`%${q}%`, `%${q}%`);
+    }
+    const companyFilter = Number(req.query.companyId || 0);
+    if (req.auth?.roleCode === 'super_admin' && Number.isInteger(companyFilter) && companyFilter > 0) {
+      where += ' AND l.company_id = ?';
+      params.push(companyFilter);
     }
     const [rows] = await adminPool.query<any[]>(
       `${LISTENER_SELECT} WHERE ${where} ORDER BY l.id DESC LIMIT ? OFFSET ?`,
@@ -169,7 +251,7 @@ casterRouter.get(
   asyncHandler(async (req, res) => {
     const row = await getListenerRow(Number(req.params.id));
     if (!row) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
-    await assertRecordScope(req, row.owner_web_user_id);
+    await assertRecordScope(req, row.owner_web_user_id, 'owner_web_user_id', listenerCompanyId(row));
     res.json({
       item: { ...publicListener(row), mountpointIds: await listenerMountpointIds(Number(row.id), req) }
     });
@@ -181,8 +263,10 @@ casterRouter.post(
   requirePermission('caster', 'add'),
   asyncHandler(async (req, res) => {
     const body = listenerCreateSchema.parse(req.body);
+    const companyId = await resolveListenerCompany(req, body.company_id);
+    await assertPortAllowedForCompany(body.port, companyId);
     const mountpointIds = validateMountpointIds(body.mountpointIds ?? []);
-    await assertMountpointsExist(mountpointIds);
+    await assertMountpointsSameCompany(mountpointIds, companyId);
     const writable = await writableMountpointIds(req);
     if (writable && mountpointIds.some((mountpointId) => !writable.has(mountpointId))) {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
@@ -192,8 +276,8 @@ casterRouter.post(
       listenerId = await withTransaction(async (conn) => {
         const [result] = await conn.query<any>(
           `INSERT INTO caster_listeners
-             (name, port, enabled, role, description, owner_web_user_id, created_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+             (name, port, enabled, role, description, owner_web_user_id, company_id, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             body.name,
             body.port,
@@ -201,6 +285,7 @@ casterRouter.post(
             body.role,
             body.description,
             req.auth!.id,
+            companyId,
             req.auth!.id
           ]
         );
@@ -240,12 +325,45 @@ casterRouter.patch(
     const id = Number(req.params.id);
     const before = await getListenerRow(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(
+      req,
+      before.owner_web_user_id,
+      'owner_web_user_id',
+      listenerCompanyId(before)
+    );
     const body = listenerUpdateSchema.parse(req.body);
+    let companyId = listenerCompanyId(before);
+    if (body.company_id !== undefined) {
+      if (companyId !== null && Number(body.company_id) !== companyId) {
+        throw new ApiError(400, 'COMPANY_IMMUTABLE', 'Không được đổi công ty của listener');
+      }
+      if (companyId === null) {
+        if (body.company_id === null) {
+          throw new ApiError(400, 'COMPANY_REQUIRED', 'Phải chọn công ty cho listener');
+        }
+        companyId = await resolveListenerCompany(req, body.company_id);
+        const [mapped] = await adminPool.query<any[]>(
+          `SELECT m.company_id
+             FROM caster_listener_mountpoints lm
+             JOIN mountpoints m ON m.id = lm.mountpoint_id
+            WHERE lm.listener_id = ?`,
+          [id]
+        );
+        if (mapped.some((row) => Number(row.company_id) !== companyId)) {
+          throw new ApiError(
+            400,
+            'CROSS_COMPANY_MOUNTPOINT',
+            'Listener còn mountpoint khác công ty; gỡ trước khi gán công ty'
+          );
+        }
+      }
+    }
+    const port = body.port ?? Number(before.port);
+    await assertPortAllowedForCompany(port, companyId);
     const mountpointIds =
       body.mountpointIds === undefined ? null : validateMountpointIds(body.mountpointIds);
     if (mountpointIds) {
-      await assertMountpointsExist(mountpointIds);
+      await assertMountpointsSameCompany(mountpointIds, companyId);
       const writable = await writableMountpointIds(req);
       if (writable && mountpointIds.some((mountpointId) => !writable.has(mountpointId))) {
         throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
@@ -255,14 +373,15 @@ casterRouter.patch(
       await withTransaction(async (conn) => {
         await conn.query(
           `UPDATE caster_listeners
-              SET name = ?, port = ?, enabled = ?, role = ?, description = ?
+              SET name = ?, port = ?, enabled = ?, role = ?, description = ?, company_id = ?
             WHERE id = ?`,
           [
             body.name ?? before.name,
-            body.port ?? before.port,
+            port,
             body.enabled === undefined ? before.enabled : body.enabled,
             body.role ?? before.role,
             body.description ?? before.description,
+            companyId,
             id
           ]
         );
@@ -307,7 +426,7 @@ casterRouter.post(
     const body = bulkBodySchema.parse(req.body);
     const ids = uniqueIds(body.ids);
     const rows = await query<RowDataPacket[]>(
-      `SELECT id, name, enabled, owner_web_user_id FROM caster_listeners
+      `SELECT id, name, enabled, owner_web_user_id, company_id FROM caster_listeners
         WHERE id IN (${ids.map(() => '?').join(',')})`,
       ids
     );
@@ -321,7 +440,12 @@ casterRouter.post(
         continue;
       }
       try {
-        await assertRecordScope(req, row.owner_web_user_id);
+        await assertRecordScope(
+          req,
+          row.owner_web_user_id,
+          'owner_web_user_id',
+          listenerCompanyId(row)
+        );
         allowed.push(row);
       } catch {
         result.forbidden += 1;
@@ -370,7 +494,12 @@ casterRouter.delete(
     const id = Number(req.params.id);
     const before = await getListenerRow(id);
     if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
-    await assertRecordScope(req, before.owner_web_user_id);
+    await assertRecordScope(
+      req,
+      before.owner_web_user_id,
+      'owner_web_user_id',
+      listenerCompanyId(before)
+    );
     if (isListenerEnabled(before)) {
       throw new ApiError(
         409,
@@ -399,7 +528,12 @@ async function setListenerEnabled(req: Request, enabled: boolean) {
   const id = Number(req.params.id);
   const before = await getListenerRow(id);
   if (!before) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
-  await assertRecordScope(req, before.owner_web_user_id);
+  await assertRecordScope(
+    req,
+    before.owner_web_user_id,
+    'owner_web_user_id',
+    listenerCompanyId(before)
+  );
   await adminPool.query('UPDATE caster_listeners SET enabled = ? WHERE id = ?', [enabled, id]);
   const after = await getListenerRow(id);
   await writeAudit(
@@ -444,12 +578,10 @@ casterRouter.get(
     const id = Number(req.params.id);
     const listener = await getListenerRow(id);
     if (!listener) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
-    await assertRecordScope(req, listener.owner_web_user_id);
-    const isSuper = req.auth?.roleCode === 'super_admin';
-    const companyFilter = isSuper
-      ? ''
-      : ' AND m.company_id = ?';
-    const params: unknown[] = isSuper ? [id] : [id, Number(req.auth!.companyId)];
+    const companyId = listenerCompanyId(listener);
+    await assertRecordScope(req, listener.owner_web_user_id, 'owner_web_user_id', companyId);
+    const companyFilter = companyId === null ? '' : ' AND m.company_id = ?';
+    const params: unknown[] = companyId === null ? [id] : [id, companyId];
     const rows = await query<RowDataPacket[]>(
       `SELECT m.id, m.name, m.station_id, s.name AS station_name
          FROM caster_listener_mountpoints lm
@@ -469,10 +601,11 @@ casterRouter.put(
     const id = Number(req.params.id);
     const listener = await getListenerRow(id);
     if (!listener) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
-    await assertRecordScope(req, listener.owner_web_user_id);
+    const companyId = listenerCompanyId(listener);
+    await assertRecordScope(req, listener.owner_web_user_id, 'owner_web_user_id', companyId);
     const body = listenerMountpointsSchema.parse(req.body);
     const mountpointIds = validateMountpointIds(body.mountpointIds);
-    await assertMountpointsExist(mountpointIds);
+    await assertMountpointsSameCompany(mountpointIds, companyId);
     const writable = await writableMountpointIds(req);
     if (writable && mountpointIds.some((mountpointId) => !writable.has(mountpointId))) {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');

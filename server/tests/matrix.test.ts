@@ -20,7 +20,7 @@ describe('roleMatrix company scope (P05-2)', () => {
     expect(roleMatrix('admin', 'settings.view')).toBe('none');
     expect(roleMatrix('admin', 'companies.view')).toBe('none');
     expect(roleMatrix('admin', 'companies.edit')).toBe('none');
-    expect(roleMatrix('admin', 'caster.view')).toBe('all');
+    expect(roleMatrix('admin', 'caster.view')).toBe('tenant');
     expect(roleMatrix('admin', 'caster.add')).toBe('none');
     expect(roleMatrix('admin', 'caster.edit')).toBe('none');
     expect(roleMatrix('admin', 'caster.delete')).toBe('none');
@@ -43,7 +43,7 @@ describe('roleMatrix company scope (P05-2)', () => {
     expect(roleMatrix('user', 'ntrip_accounts.add')).toBe('own');
     expect(roleMatrix('user', 'alerts.view')).toBe('own');
     expect(roleMatrix('user', 'audit.view')).toBe('none');
-    expect(roleMatrix('user', 'caster.view')).toBe('none');
+    expect(roleMatrix('user', 'caster.view')).toBe('tenant');
     expect(roleMatrix('user', 'companies.view')).toBe('none');
     expect(roleMatrix('user', 'system_ops.view')).toBe('none');
     expect(roleMatrix('user', 'system_ops.edit')).toBe('none');

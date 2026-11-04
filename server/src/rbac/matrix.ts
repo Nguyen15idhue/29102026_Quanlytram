@@ -9,7 +9,7 @@ export function roleMatrix(role: string, code: string): Scope {
     if (code.startsWith('settings.')) return 'none';
     if (code === 'system_health.view') return 'none';
     if (code.startsWith('system_ops.')) return 'none';
-    if (code === 'caster.view') return 'all';
+    if (code === 'caster.view') return 'tenant';
     if (code.startsWith('caster.')) return 'none';
     if (code.endsWith('.view') || code === 'audit.view') return 'tenant';
     if (
@@ -24,6 +24,7 @@ export function roleMatrix(role: string, code: string): Scope {
   }
   if (role === 'user') {
     if (code === 'stations.view' || code === 'relay.view') return 'tenant';
+    if (code === 'caster.view') return 'tenant';
     if (code === 'map.view') return 'tenant';
     if (code.startsWith('mountpoints.')) return 'own';
     if (code.startsWith('ntrip_accounts.')) return 'own';

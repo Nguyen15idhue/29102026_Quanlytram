@@ -1,15 +1,31 @@
 import { z } from 'zod';
 import { callGoInternal } from './internalApi';
 
+export const WALLY_COMPANY_CODE = 'WALLY';
+export const RESERVED_CASTER_PORTS = new Set([1508, 1509, 2101]);
+export const CUSTOM_CASTER_PORT_MIN = 1510;
+export const CUSTOM_CASTER_PORT_MAX = 1599;
 export const FORBIDDEN_CASTER_PORTS = new Set([8081]);
+
+export function isReservedCasterPort(port: number): boolean {
+  return RESERVED_CASTER_PORTS.has(port);
+}
+
+export function isCustomCasterPort(port: number): boolean {
+  return port >= CUSTOM_CASTER_PORT_MIN && port <= CUSTOM_CASTER_PORT_MAX;
+}
+
+export function isAllowedCasterPort(port: number): boolean {
+  return isReservedCasterPort(port) || isCustomCasterPort(port);
+}
 
 const portField = z
   .number()
   .int()
   .min(1)
   .max(65535)
-  .refine((port) => !FORBIDDEN_CASTER_PORTS.has(port), {
-    message: 'Không dùng cổng 8081'
+  .refine((port) => isAllowedCasterPort(port) && !FORBIDDEN_CASTER_PORTS.has(port), {
+    message: 'Port phải là 1508, 1509, 2101 hoặc trong dải 1510-1599'
   });
 
 export const listenerCreateSchema = z.object({
@@ -18,6 +34,7 @@ export const listenerCreateSchema = z.object({
   enabled: z.boolean().optional().default(true),
   role: z.enum(['both', 'source', 'rover']).optional().default('both'),
   description: z.string().max(500).optional().default(''),
+  company_id: z.number().int().positive().optional(),
   mountpointIds: z.array(z.number().int().positive()).max(1000).optional()
 });
 
@@ -27,6 +44,7 @@ export const listenerUpdateSchema = z.object({
   enabled: z.boolean().optional(),
   role: z.enum(['both', 'source', 'rover']).optional(),
   description: z.string().max(500).optional(),
+  company_id: z.number().int().positive().nullable().optional(),
   mountpointIds: z.array(z.number().int().positive()).max(1000).optional()
 });
 
@@ -50,7 +68,12 @@ export function publicListener(row: any) {
     enabled: Boolean(row.enabled),
     role: String(row.role),
     description: String(row.description ?? ''),
-    global: true,
+    global: row.company_id === null || row.company_id === undefined,
+    companyId:
+      row.company_id === null || row.company_id === undefined
+        ? null
+        : Number(row.company_id),
+    companyName: row.company_name ?? null,
     mountpointCount: Number(row.mountpoint_count ?? 0),
     ownerWebUserId:
       row.owner_web_user_id === null || row.owner_web_user_id === undefined

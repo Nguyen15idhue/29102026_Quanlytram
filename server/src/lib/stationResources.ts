@@ -73,11 +73,22 @@ export async function createStationResources(
       throw new ApiError(400, 'INVALID_LISTENER', 'Caster listener là bắt buộc');
     }
     const [listeners] = await conn.query<any[]>(
-      'SELECT id, owner_web_user_id FROM caster_listeners WHERE id = ? LIMIT 1',
+      'SELECT id, owner_web_user_id, company_id FROM caster_listeners WHERE id = ? LIMIT 1',
       [data.caster_listener_id]
     );
     if (listeners.length === 0) {
       throw new ApiError(400, 'INVALID_LISTENER', 'Caster listener không tồn tại');
+    }
+    if (
+      resolvedCompanyId !== null &&
+      (listeners[0].company_id === null ||
+        Number(listeners[0].company_id) !== resolvedCompanyId)
+    ) {
+      throw new ApiError(
+        400,
+        'CROSS_COMPANY_LISTENER',
+        'Listener phải cùng công ty với trạm'
+      );
     }
     await conn.query(
       `INSERT INTO station_sources
