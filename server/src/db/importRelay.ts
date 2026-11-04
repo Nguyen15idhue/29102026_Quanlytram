@@ -109,6 +109,12 @@ function optionalBoolean(value: unknown): boolean {
 
 function normalizeJob(raw: OldRelayJob) {
   const externalKey = requiredString(raw.id, 'id');
+  const lat = optionalNumber(raw.lat);
+  const lon = optionalNumber(raw.lon);
+  const nmeaIntervalRaw = Math.max(0, Math.trunc(optionalNumber(raw.nmea_interval_sec) ?? 0));
+  // File cũ (CGBAS) có lat/lon nhưng thiếu nmea_interval_sec. Nếu để 0 thì
+  // relay không gửi GGA và caster VRS từ chối. Mặc định 5s khi có tọa độ.
+  const nmeaIntervalSec = nmeaIntervalRaw === 0 && lat !== null && lon !== null ? 5 : nmeaIntervalRaw;
   const upstream = {
     host: requiredString(raw.src_host, 'src_host'),
     port: optionalNumber(raw.src_port) ?? 2101,
@@ -132,9 +138,9 @@ function normalizeJob(raw: OldRelayJob) {
     downstream,
     upstreamKey: endpointKey(upstream),
     downstreamKey: endpointKey(downstream),
-    lat: optionalNumber(raw.lat),
-    lon: optionalNumber(raw.lon),
-    nmeaIntervalSec: Math.max(0, Math.trunc(optionalNumber(raw.nmea_interval_sec) ?? 0)),
+    lat,
+    lon,
+    nmeaIntervalSec,
     upstreamCredential:
       typeof raw.src_user === 'string' && raw.src_user.trim() !== ''
         ? { username: raw.src_user.trim(), password: typeof raw.src_pass === 'string' ? raw.src_pass : '' }
