@@ -1488,3 +1488,4 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
   TGG2, PYN6 không còn trong sourcetable 12101; cần CGBAS cấp tên mount + tài
   khoản mới trước khi sửa cấu hình.
 - NTRIP rover sau GGA: tài khoản tạm 575/2101/BDH1 nhận HTTP 200, 1680 byte, byte đầu d3; xóa 204.
+- Import relay: nếu file cũ có lat/lon nhưng thiếu `nmea_interval_sec`, importer mặc định 5s thay vì 0 (tránh tắt GGA khi import lại). Server 192 test PASS, `tsc --noEmit` PASS.
