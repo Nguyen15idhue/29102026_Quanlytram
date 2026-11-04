@@ -75,32 +75,6 @@ func (s *SourceConn) Close() error {
 	return connErr
 }
 
-type chunkWriter struct {
-	w io.Writer
-}
-
-func (c *chunkWriter) Write(p []byte) (int, error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-	if _, err := fmt.Fprintf(c.w, "%x\r\n", len(p)); err != nil {
-		return 0, err
-	}
-	n, err := c.w.Write(p)
-	if err != nil {
-		return n, err
-	}
-	if _, err := io.WriteString(c.w, "\r\n"); err != nil {
-		return n, err
-	}
-	return n, nil
-}
-
-func (c *chunkWriter) Close() error {
-	_, err := io.WriteString(c.w, "0\r\n\r\n")
-	return err
-}
-
 type rawWriter struct {
 	w io.Writer
 }
@@ -354,8 +328,7 @@ func openSource(ctx context.Context, endpoint Endpoint, usePost bool, timeout ti
 		if auth := authorization(endpoint); auth != "" {
 			fmt.Fprintf(&builder, "Authorization: %s\r\n", auth)
 		}
-		fmt.Fprintf(&builder, "Content-Type: gnss/data\r\n")
-		fmt.Fprintf(&builder, "Transfer-Encoding: chunked\r\n")
+		fmt.Fprintf(&builder, "Content-Type: application/octet-stream\r\n")
 		fmt.Fprintf(&builder, "Connection: close\r\n\r\n")
 	} else {
 		fmt.Fprintf(&builder, "SOURCE /%s HTTP/1.0\r\n", mount)
@@ -396,8 +369,8 @@ func openSource(ctx context.Context, endpoint Endpoint, usePost bool, timeout ti
 	}
 	response.Conn = conn
 
-	if usePost {
-		return &SourceConn{Response: response, writer: &chunkWriter{w: conn}}, nil
-	}
+	// NTRIP source gửi byte thô sau header, không dùng chunked. CGBAS và
+	// nhiều caster thực tế (gồm rtk.taikhoandodac.vn) không nhận chunk framing
+	// ở chiều upload.
 	return &SourceConn{Response: response, writer: rawWriter{w: conn}}, nil
 }

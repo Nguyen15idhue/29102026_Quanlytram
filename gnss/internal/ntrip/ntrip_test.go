@@ -14,7 +14,6 @@ import (
 	"io"
 	"math/big"
 	"net"
-	"net/http/httputil"
 	"strconv"
 	"strings"
 	"sync"
@@ -187,7 +186,7 @@ func TestGetAuthFailure(t *testing.T) {
 	}
 }
 
-func TestSourcePostChunked(t *testing.T) {
+func TestSourcePostRaw(t *testing.T) {
 	payload := []byte("SOURCE-POST-DATA")
 	captured := make(chan []byte, 1)
 	server := newTestServer(t, func(conn net.Conn, _ int) {
@@ -199,12 +198,14 @@ func TestSourcePostChunked(t *testing.T) {
 		if request != "POST /M HTTP/1.1" {
 			t.Errorf("request line = %q", request)
 		}
-		if !strings.Contains(headers["transfer-encoding"], "chunked") {
-			t.Errorf("Transfer-Encoding = %q", headers["transfer-encoding"])
+		if headers["content-type"] != "application/octet-stream" {
+			t.Errorf("Content-Type = %q", headers["content-type"])
+		}
+		if headers["transfer-encoding"] != "" {
+			t.Errorf("Transfer-Encoding = %q, want empty", headers["transfer-encoding"])
 		}
 		_, _ = io.WriteString(conn, "HTTP/1.1 200 OK\r\n\r\n")
-		reader := bufio.NewReader(conn)
-		body, _ := io.ReadAll(httputil.NewChunkedReader(reader))
+		body, _ := io.ReadAll(conn)
 		captured <- body
 	})
 
@@ -224,7 +225,7 @@ func TestSourcePostChunked(t *testing.T) {
 			t.Fatalf("captured = %q", body)
 		}
 	case <-time.After(3 * time.Second):
-		t.Fatal("server did not receive chunked body")
+		t.Fatal("server did not receive raw body")
 	}
 }
 

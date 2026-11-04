@@ -1462,3 +1462,28 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
 - Khi tạo, gửi `company_id` (super admin); khi sửa không gửi để tránh
   `COMPANY_IMMUTABLE`.
 - Kiểm tra: `frontend` `tsc --noEmit` PASS, `npm run lint` PASS.
+
+## Relay GGA + NTRIP POST (2026-11-05)
+
+- Nguyên nhân relay tới `rtk.taikhoandodac.vn` báo invalid: 67/67 `relay_jobs`
+  có `lat/lon = NULL` và `nmea_interval_sec = 0` nên Go không gửi GGA; đồng thời
+  POST downstream dùng `Content-Type: gnss/data` + `Transfer-Encoding: chunked`,
+  khác CGBAS.
+- Đã khôi phục `lat/lon` + `nmea_interval_sec=5` cho 67 relay từ
+  `db/data/config.json`; `QNH_DongTrieu` lấy tọa độ trạm 21.0000000/107.3000000.
+- Code: `nmea.GGAWithFix`; `relay.nmeaSender` gửi GGA ngay sau khi mở upstream,
+  trước downstream; trạng thái 1=Single (chưa có dữ liệu/quá 30s), 2=DGPS,
+  4=RTK Fixed, 5=RTK Float; jitter ±10%. NTRIP POST đổi sang raw
+  `application/octet-stream`, bỏ chunked. Caster lọc NMEA khỏi source trước khi
+  publish RTCM để không trộn vào luồng rover/relay.
+- Test: `go test ./...` PASS; `go vet ./...` PASS; `TestSourcePostRaw`,
+  `TestNMEAFixStateMachine`, `TestBridgeSendsInitialGGABeforeDownstream`,
+  `nmea_filter_test.go` PASS.
+- Deploy image `cors-gnss:prod` 2026-11-05: 10/10 trạm streaming 5 phút, CRC=0,
+  score 99–100; relay 39/66 online, 43 relay có byte tăng, 12.15 MB up/down/5 phút.
+- 12 relay lấy nguồn từ `rtk.taikhoandodac.vn`: 10 online/streaming; 2 relay
+  `BGG_TpBacGiang`, `TQG_TPTuyenQuang` trả ICY 200 nhưng 0 byte dù đã gửi GGA
+  (nguồn/trạm phía CGBAS không phát dữ liệu).
+- 5 relay đích `rtk.taikhoandodac.vn` vẫn invalid vì mount cũ CMU3, KGG1, HUG2,
+  TGG2, PYN6 không còn trong sourcetable 12101; cần CGBAS cấp tên mount + tài
+  khoản mới trước khi sửa cấu hình.

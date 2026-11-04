@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
-	"cors/gnss/internal/nmea"
 	"cors/gnss/internal/ntrip"
 	"cors/gnss/internal/quality"
 	"cors/gnss/internal/rtcm"
@@ -120,6 +120,21 @@ func RunSession(
 	}
 	defer upstream.Close()
 
+	// GGA mở hàng phải gửi trước khi mở downstream. Caster VRS chỉ bắt đầu
+	// trả dòng RTCM sau khi biết vị trí rover.
+	var lastData atomic.Int64
+	var sender *nmeaSender
+	if cfg.Lat != nil && cfg.Lon != nil {
+		interval := time.Duration(cfg.NMEAIntervalSec) * time.Second
+		if interval <= 0 {
+			interval = opts.NMEAInterval
+		}
+		sender = newNMEASender(cfg.ID, *cfg.Lat, *cfg.Lon, interval)
+		if err := sender.sendInitial(upstream.Conn); err != nil {
+			return fmt.Errorf("nmea initial: %w", err)
+		}
+	}
+
 	downstream, err := ntrip.Source(
 		ctx,
 		toNtripEndpoint(cfg.Downstream, userAgent),
@@ -152,30 +167,9 @@ func RunSession(
 
 	nmeaCtx, stopNMEA := context.WithCancel(ctx)
 	defer stopNMEA()
-	if cfg.Lat != nil && cfg.Lon != nil {
-		interval := opts.NMEAInterval
-		if cfg.NMEAIntervalSec > 0 {
-			interval = time.Duration(cfg.NMEAIntervalSec) * time.Second
-		}
-		go func() {
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-			for {
-				select {
-				case <-nmeaCtx.Done():
-					return
-				case at := <-ticker.C:
-					if err := upstream.Conn.SetWriteDeadline(time.Now().Add(2 * time.Second)); err != nil {
-						return
-					}
-					_, writeErr := upstream.Conn.Write(nmea.Join(*cfg.Lat, *cfg.Lon, at))
-					_ = upstream.Conn.SetWriteDeadline(time.Time{})
-					if writeErr != nil {
-						return
-					}
-				}
-			}
-		}()
+	nmeaErr := make(chan error, 1)
+	if sender != nil {
+		go sender.run(nmeaCtx, upstream.Conn, &lastData, nmeaErr)
 	}
 
 	writeCh := make(chan []byte, opts.DownstreamBuffer)
@@ -219,6 +213,8 @@ func RunSession(
 		select {
 		case err := <-writerErr:
 			return err
+		case err := <-nmeaErr:
+			return err
 		default:
 		}
 		if upstream.Conn != nil {
@@ -226,6 +222,7 @@ func RunSession(
 		}
 		n, readErr := upstream.Body.Read(buffer)
 		if n > 0 {
+			lastData.Store(time.Now().UnixNano())
 			metrics.AddUp(n)
 			if opts.OnFirstByte != nil {
 				firstBytes.Do(opts.OnFirstByte)

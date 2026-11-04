@@ -45,14 +45,48 @@ func jitter(value float64) float64 {
 	return value + (rand.Float64()-0.5)*0.00001
 }
 
+// FixInfo mô tả trạng thái định vị thật của rover tại thời điểm gửi GGA.
+// Quality theo chuẩn NMEA 0183: 1=Single, 2=DGPS, 4=RTK Fixed, 5=RTK Float.
+type FixInfo struct {
+	Quality     int
+	Satellites  int
+	HDOP        float64
+	AgeOfDiff   float64
+	Altitude    float64
+	GeoidHeight float64
+}
+
 func GGA(lat, lon float64, at time.Time) string {
-	latValue, latHemisphere := coordinate(jitter(lat), true)
-	lonValue, lonHemisphere := coordinate(jitter(lon), false)
+	return GGAWithFix(lat, lon, at, FixInfo{Quality: 1, Satellites: 8, HDOP: 1.0, Altitude: 10.0})
+}
+
+// GGAWithFix tạo câu GGA với trạng thái fix chính xác. Tọa độ giữ nguyên theo
+// cấu hình relay (không dịch chuyển) để vẫn nằm trong bán kính trạm.
+func GGAWithFix(lat, lon float64, at time.Time, info FixInfo) string {
+	latValue, latHemisphere := coordinate(lat, true)
+	lonValue, lonHemisphere := coordinate(lon, false)
+	if info.Quality <= 0 {
+		info.Quality = 1
+	}
+	if info.Satellites <= 0 {
+		info.Satellites = 8
+	}
+	if info.HDOP <= 0 {
+		info.HDOP = 1.0
+	}
+	if info.Altitude == 0 {
+		info.Altitude = 10.0
+	}
+	age := ""
+	if info.AgeOfDiff > 0 {
+		age = fmt.Sprintf("%.1f", info.AgeOfDiff)
+	}
 	body := fmt.Sprintf(
-		"GPGGA,%s,%s,%s,%s,%s,1,08,1.0,10.0,M,0.0,M,,",
+		"GPGGA,%s,%s,%s,%s,%s,%d,%02d,%.1f,%.1f,M,%.1f,M,%s,",
 		at.UTC().Format("150405.00"),
 		latValue, latHemisphere,
 		lonValue, lonHemisphere,
+		info.Quality, info.Satellites, info.HDOP, info.Altitude, info.GeoidHeight, age,
 	)
 	return sentence(body)
 }

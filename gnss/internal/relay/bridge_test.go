@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"net/http/httputil"
 	"strconv"
 	"strings"
 	"sync"
@@ -197,10 +196,6 @@ func downstreamHandler(options downstreamOptions) func(*mockServer, net.Conn) {
 		}
 
 		var reader io.Reader = br
-		if strings.HasPrefix(first, "POST ") {
-			reader = httputil.NewChunkedReader(br)
-		}
-
 		readSize := options.readSize
 		if readSize <= 0 {
 			readSize = 16 * 1024
@@ -320,6 +315,44 @@ func Test2T1ByteExactSource(t *testing.T) {
 				t.Fatalf("byte counters = up %d/down %d, want %d", snapshot.BytesUp, snapshot.BytesDown, size)
 			}
 		})
+	}
+}
+
+func TestBridgeSendsInitialGGABeforeDownstream(t *testing.T) {
+	payload := []byte("INITIAL-GGA-TEST")
+	initial := make(chan string, 1)
+	upstream := newMockServer(t, func(server *mockServer, conn net.Conn) {
+		defer conn.Close()
+		br := bufio.NewReader(conn)
+		if _, err := readRequest(br); err != nil {
+			return
+		}
+		_, _ = io.WriteString(conn, "ICY 200 OK\r\n\r\n")
+		line, _ := br.ReadString('\n')
+		initial <- strings.TrimRight(line, "\r\n")
+		_, _ = conn.Write(payload)
+	})
+	downstream := newMockServer(t, downstreamHandler(downstreamOptions{}))
+	cfg := testConfig(upstream, downstream, "post")
+	lat, lon := 21.818899, 104.6796
+	cfg.Lat = &lat
+	cfg.Lon = &lon
+	cfg.NMEAIntervalSec = 60
+
+	if err := runBridge(cfg, rtcm.NewMonitor(1<<20), &Metrics{}, 10*time.Second); !acceptableBridgeError(err) {
+		t.Fatalf("RunSession: %v", err)
+	}
+	select {
+	case line := <-initial:
+		if !strings.HasPrefix(line, "$GPGGA") {
+			t.Fatalf("initial upstream write = %q, want GGA", line)
+		}
+		fields := strings.Split(line, ",")
+		if len(fields) < 7 || fields[6] != "1" {
+			t.Fatalf("initial GGA fix = %q, want single (1)", line)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("upstream did not receive initial GGA before downstream")
 	}
 }
 

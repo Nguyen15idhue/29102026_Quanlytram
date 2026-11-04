@@ -157,6 +157,7 @@ func (c *connection) sourceReadLoop(reader io.Reader, readBuffer int, idleTimeou
 		readBuffer = 32 * 1024
 	}
 	buffer := make([]byte, readBuffer)
+	filter := &nmeaFilter{}
 	for {
 		if idleTimeout > 0 {
 			_ = c.conn.SetReadDeadline(time.Now().Add(idleTimeout))
@@ -164,7 +165,9 @@ func (c *connection) sourceReadLoop(reader io.Reader, readBuffer int, idleTimeou
 		n, err := reader.Read(buffer)
 		if n > 0 {
 			c.bytesIn.Add(uint64(n))
-			c.hub.publish(buffer[:n])
+			if payload := filter.Filter(buffer[:n]); len(payload) > 0 {
+				c.hub.publish(payload)
+			}
 		}
 		if err != nil {
 			reason := "source_closed"
