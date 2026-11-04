@@ -1,0 +1,28 @@
+{
+	local_certs
+}
+
+rtktk.online {
+	tls internal
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	handle /api/* {
+		reverse_proxy server:4000
+	}
+
+	handle /socket.io/* {
+		reverse_proxy server:4000
+	}
+
+	handle {
+		reverse_proxy web-prod:8080
+	}
+}

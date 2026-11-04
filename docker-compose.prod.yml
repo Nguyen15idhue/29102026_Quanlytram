@@ -1,0 +1,155 @@
+name: cors-prod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    mem_limit: 1400m
+    cpus: 1.0
+    logging: *default-logging
+    command:
+      - --default-time-zone=+00:00
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --innodb-buffer-pool-size=768M
+      - --max-connections=150
+    env_file:
+      - .env.production
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  migrate:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: cors-server:prod
+    env_file:
+      - .env.production
+    environment:
+      MIGRATIONS_DIR: /db/migrations
+    command: ["node", "dist/db/migrate.js"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
+    logging: *default-logging
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: cors-server:prod
+    restart: unless-stopped
+    mem_limit: 700m
+    cpus: 1.0
+    logging: *default-logging
+    env_file:
+      - .env.production
+    environment:
+      MIGRATIONS_DIR: /db/migrations
+    command: ["node", "dist/index.js"]
+    expose:
+      - "4000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - node -e "fetch('http://127.0.0.1:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  gnss:
+    build:
+      context: ./gnss
+    image: cors-gnss:prod
+    restart: unless-stopped
+    mem_limit: 700m
+    cpus: 1.0
+    logging: *default-logging
+    env_file:
+      - .env.production
+    ports:
+      - "127.0.0.1:7080:7080"
+      - "1508:1508"
+      - "1509:1509"
+      - "2101:2101"
+      - "1510-1599:1510-1599"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7080/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  web-prod:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: cors-web:prod
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    read_only: true
+    tmpfs:
+      - /tmp
+    logging: *default-logging
+    expose:
+      - "8080"
+    depends_on:
+      server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
+    logging: *default-logging
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./${CADDYFILE:-Caddyfile}:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      server:
+        condition: service_healthy
+      web-prod:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+  caddy_data:
+  caddy_config:
