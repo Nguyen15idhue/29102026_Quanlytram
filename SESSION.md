@@ -1512,3 +1512,17 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
   Kiểm tra: PUT nguồn trạm 675 = 200; PATCH relay 479 = 200; lọc trạm online 21,
   offline 14; relay online 38, offline 27, disabled 2; connections fixed 19,
   error 3, none 22; enable 479 = 409 với thông báo nêu rõ xuanai2 (ID 480).
+
+## daitu2 offline — nguyên nhân và fix (2026-11-05)
+
+- Cấu hình hiện tại: upstream `rtktk.online:1508/TNN_DaiTu`, downstream
+  `servers.onocoy.com:2101/TNNDT`, tài khoản upstream `aitogy123` (ID 539).
+- Nguyên nhân 1: tài khoản 539 thiếu ACL mountpoint `666/TNN_DaiTu` trên caster
+  mình → upstream trả `HTTP 403 Forbidden`.
+- Nguyên nhân 2: sau khi thêm ACL, tài khoản chỉ cho `max_connections=1` nên
+  gặp `HTTP 503 Maximum Connections Reached` vì các relay khác cũng dùng
+  `aitogy123` để đọc cùng caster.
+- Đã thêm ACL `666` (giữ nguyên `668/669/670/677`) và nâng
+  `max_connections=20`.
+- Kết quả: `daitu2` chuyển `streaming`; byte up/down tăng 5.117 byte/15 giây;
+  41 relay đang streaming.
