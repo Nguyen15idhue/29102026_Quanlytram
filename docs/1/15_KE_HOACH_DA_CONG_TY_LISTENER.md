@@ -140,14 +140,16 @@ Docker:
 | P15-1 | PASS 2026-11-04 | Migration 040 áp dụng; 1508/1509/2101 → WALLY; mapping 1509/2101 còn 26 Wally (bỏ 3 admin); listener demo 1599 → company admin; 0 mapping/ACL/source chéo công ty. Backup trước migration: `Backup/cors-mysql-20261104-203843.sql.zip`. |
 | P15-2 | PASS 2026-11-04 | Migration 041: admin/user `caster.view=tenant`, super `all`. API: super thấy 4 listener; user1 chỉ thấy 1599; wally thấy 3 port; super filter companyId=87 trả 1. Tạo 1510 company 87 OK, 1508 company 87 → 400, mountpoint Wally trên listener company 87 → 400, user1 tạo → 403. Station dùng listener khác company → 400. ACL account khác company → 400. Server test 192/192 PASS. |
 | P15-3 | PASS 2026-11-04 | Sourcetable anonymous port 2101 trả 26 STR (Wally); data anonymous `GET /BDH1` trả 401. Go thêm `CompanyID` cho listener/account + check cùng company; thêm `CASTER_PUBLIC_PORTS` (mặc định 1508,1509,2101,1510-1599). `go test ./...` + `go vet ./...` PASS; image gnss rebuild/recreate healthy. |
-| P15-4 | PENDING | |
+| P15-4 | PASS 2026-11-04 | `docker-compose.yml` publish `1510-1599`; `docker compose config` OK; gnss healthy. Tạo listener 1510 company 87, NTRIP `GET /` anonymous trả 1 STR; tắt/xóa listener sạch. Lưu ý Windows Docker Desktop có thể proxy mở port dù listener tắt; production Linux dùng DNAT, kiểm tra bằng request NTRIP. |
 | P15-5 | PENDING | |
 | P15-6 | PENDING | |
 
 ## 7. Rủi ro và rollback
 
 - **Docker published range bypass UFW**: firewall nhà cung cấp phải mở dải;
-  chỉ socket đang bật mới accept.
+  chỉ socket đang bật mới accept. Trên Windows Docker Desktop, port trong dải
+  có thể được proxy mở dù listener tắt; production Linux dùng DNAT nên kiểm tra
+  bằng request NTRIP, không chỉ `Test-NetConnection`.
 - **Đổi company của listener**: không cho sửa sau khi tạo; muốn đổi phải xóa
   listener đã tắt và tạo lại.
 - **Dữ liệu cũ chéo company**: migration xoá mapping/ACL chéo; cần backup trước.
