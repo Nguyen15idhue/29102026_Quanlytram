@@ -439,13 +439,14 @@ Tráº¡ng thÃ¡i trÆ°á»›c cutover:
 
 ## 14. K?t qu? cutover k? thu?t (2026-11-04)
 
-| Bý?c | Tr?ng thái | B?ng ch?ng |
+| Bï¿½?c | Tr?ng thï¿½i | B?ng ch?ng |
 |---|---|---|
-| Caddy production | PASS | DNS tr? VPS; Caddyfile production active; HTTPS 200 không -k; cert Let's Encrypt CN=YE1, h?n 2027-02-02; /health 200. |
+| Caddy production | PASS | DNS tr? VPS; Caddyfile production active; HTTPS 200 khï¿½ng -k; cert Let's Encrypt CN=YE1, h?n 2027-02-02; /health 200. |
 
-**Ðánh giá d? li?u sau cutover:** ch? thu **5 phút liên t?c** cho m?i tr?m/relay m?c tiêu ð? ð?m frame, byte, CRC và ki?m tra d? li?u RTCM; không dùng uptime dài h?n làm tiêu chí. M?c tiêu t?i thi?u 3/10 tr?m và 3/10 relay có d? li?u th?c t? trong 5 phút.
+**ï¿½ï¿½nh giï¿½ d? li?u sau cutover:** ch? thu **5 phï¿½t liï¿½n t?c** cho m?i tr?m/relay m?c tiï¿½u ï¿½? ï¿½?m frame, byte, CRC vï¿½ ki?m tra d? li?u RTCM; khï¿½ng dï¿½ng uptime dï¿½i h?n lï¿½m tiï¿½u chï¿½. M?c tiï¿½u t?i thi?u 3/10 tr?m vï¿½ 3/10 relay cï¿½ d? li?u th?c t? trong 5 phï¿½t.
 
-| Caddy production | PASS 2026-11-04 | Caddyfile production active; HTTPS 200 không -k; cert Let's Encrypt CN=YE1 h?n 2027-02-02; /health 200. |
-| Tr?m/relay online | BLOCKED 2026-11-04 | Caster m?i 0 source connection. Caster c? 103.166.183.250:1509 v?n tr? 5 STR: LCI_BaoHa, TQG_HamYen, QNH_DongTrieu, YBI_MuCangChai, BKN_NARI. Thi?t b? v?n n?i IP c?; c?n ð?i host thi?t b? sang 43.240.117.54 ho?c d?ng caster c?. |
+| Caddy production | PASS 2026-11-04 | Caddyfile production active; HTTPS 200 khï¿½ng -k; cert Let's Encrypt CN=YE1 h?n 2027-02-02; /health 200. |
+| Tr?m/relay online | BLOCKED 2026-11-04 | Caster m?i 0 source connection. Caster c? 103.166.183.250:1509 v?n tr? 5 STR: LCI_BaoHa, TQG_HamYen, QNH_DongTrieu, YBI_MuCangChai, BKN_NARI. Thi?t b? v?n n?i IP c?; c?n ï¿½?i host thi?t b? sang 43.240.117.54 ho?c d?ng caster c?. |
 
-| Caster legacy SOURCE | FIXED 2026-11-04 | Thi?t b? g?i SOURCE 123456 BDH1 (NTRIP v1, password + mountpoint, không có d?u /); parser c? ch? nh?n SOURCE /MOUNT nên tr? 404 và ðóng k?t n?i. Ð? s?a gnss/internal/caster/request.go ð? chu?n hóa request line legacy; test TestLegacySourceRequestLine PASS; sau deploy 15 source connection online. |
+| Caster legacy SOURCE | FIXED 2026-11-04 | Thi?t b? g?i SOURCE 123456 BDH1 (NTRIP v1, password + mountpoint, khï¿½ng cï¿½ d?u /); parser c? ch? nh?n SOURCE /MOUNT nï¿½n tr? 404 vï¿½ ï¿½ï¿½ng k?t n?i. ï¿½? s?a gnss/internal/caster/request.go ï¿½? chu?n hï¿½a request line legacy; test TestLegacySourceRequestLine PASS; sau deploy 15 source connection online. |
+| Dá»¯ liá»‡u 5 phÃºt | PASS 2026-11-04 | 10/10 tráº¡m streaming: BDH1, GLI1, HBH_TpHoaBinh, QBH_LeThuy, SLA_MocChau, SLA_TPSONLA, YBI_LucYen, YBI_TramTau, YBI_VanYen, BKN_BaBe. Má»—i tráº¡m tÄƒng ~1.325 frame vÃ  191â€“313 KB trong 5 phÃºt; CRC=0, score=100, ageMs < 700. |
