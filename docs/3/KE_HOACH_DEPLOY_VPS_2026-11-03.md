@@ -336,7 +336,7 @@ Còn cần xác nhận khi bắt đầu triển khai:
 | 4. Restore DB | PASS 2026-11-04 | Restore OK; counts 1/2/36/31/3/58/3/67; schema 41/7; 0 demo, 0 cross-company; server login superadmin/wally 200; API stations 36, relay 67, listeners 1508/1509/2101; gnss health `relayDegraded=false`; sourcetable 6/26/26 STR; data anonymous 401. |
 | 5. Stack + test nội bộ/staging | PASS 2026-11-04 | 5 service healthy, migrate exit 0; Caddy staging HTTPS 200, `/health` 200, JS asset 200, API unauth 401; WebSocket 101; public 1508/1509/2101 sourcetable 6/26/26, custom 1510 tạo/xóa OK (1 STR), data anonymous 401; không lỗi log. |
 | 6. Backup + restore drill | PASS 2026-11-04 | `/opt/cors/backup.sh` chạy OK; dump `cors-prod-20261104-153215.sql.gz` SHA256 `4272...7a57`; cron `15 2 * * *`, retention 14 ngày; restore sang MySQL tạm PASS, counts 1/2/36/31/3/58/3/67, schema 41/7; không tạo snapshot (người dùng tự làm ngoài VPS). |
-| 7. Smoke + data integrity | PENDING | |
+| 7. Smoke + data integrity | PASS 2026-11-04 | Smoke 15 phút: source 269.760 bytes, rover 269.370 bytes, health OK, RAM ~1.76 GB, disk 31%, server/gnss/caddy/web restart 0; mysql RestartCount=1 do init ban đầu, không tăng trong smoke. `CHECK TABLE` 11 bảng OK; orphan 0; cross-company 0; relay enabled 0; account smoke đã xoá, runtime test đã clear; DB vẫn 1/2/36/31/3/58/3/67, schema 41/7. |
 | 8. Runbook + báo cáo | PENDING | |
 
 ## 12. Hướng dẫn bật firewall OneDash (người dùng tự làm sau)
