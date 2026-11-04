@@ -403,6 +403,11 @@ async function applyCorePlan(plan: ImportPlan): Promise<void> {
     throw new Error('Thiếu WALLY/wally/superadmin; chạy db:reset-legacy trước');
   }
 
+  await query(
+    `UPDATE caster_listeners SET company_id = ?
+      WHERE port IN (1508, 1509, 2101) AND company_id IS NULL`,
+    [companyId]
+  );
   const listeners = await query<any[]>('SELECT id, port FROM caster_listeners');
   const listenerByPort = new Map<number, number>(
     listeners.map((row) => [Number(row.port), Number(row.id)])

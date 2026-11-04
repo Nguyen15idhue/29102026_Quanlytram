@@ -137,7 +137,7 @@ Docker:
 
 | Pha | Kết quả | Bằng chứng |
 |---|---|---|
-| P15-1 | PENDING | |
+| P15-1 | PASS 2026-11-04 | Migration 040 áp dụng; 1508/1509/2101 → WALLY; mapping 1509/2101 còn 26 Wally (bỏ 3 admin); listener demo 1599 → company admin; 0 mapping/ACL/source chéo công ty. Backup trước migration: `Backup/cors-mysql-20261104-203843.sql.zip`. |
 | P15-2 | PENDING | |
 | P15-3 | PENDING | |
 | P15-4 | PENDING | |

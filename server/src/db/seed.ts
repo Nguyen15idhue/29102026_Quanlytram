@@ -202,13 +202,29 @@ async function main(): Promise<void> {
     companyId
   );
 
+  // 1508/1509/2101 là port riêng của Wally; trạm demo thuộc công ty admin
+  // dùng listener riêng trong dải 1510-1599.
+  await adminPool.query(
+    `UPDATE caster_listeners l
+       JOIN companies c ON c.code = 'WALLY'
+        SET l.company_id = c.id
+      WHERE l.port IN (1508, 1509, 2101)`
+  );
+  await adminPool.query(
+    `INSERT INTO caster_listeners
+       (name, port, enabled, role, description, owner_web_user_id, company_id, created_by)
+     SELECT 'NTRIP caster 1599 (demo)', 1599, 0, 'both',
+            'Listener demo công ty admin', ?, ?, ?
+      WHERE NOT EXISTS (SELECT 1 FROM caster_listeners WHERE port = 1599)`,
+    [adminId, companyId, adminId]
+  );
   const [listenerRows] = await adminPool.query<any[]>(
     `SELECT id, port FROM caster_listeners
-      WHERE port IN (2101, 1509)
-      ORDER BY FIELD(port, 2101, 1509) LIMIT 1`
+      WHERE port = 1599 AND company_id = ? LIMIT 1`,
+    [companyId]
   );
   const listenerId = listenerRows[0]?.id ? Number(listenerRows[0].id) : null;
-  const listenerPort = listenerRows[0]?.port ? Number(listenerRows[0].port) : 2101;
+  const listenerPort = listenerRows[0]?.port ? Number(listenerRows[0].port) : 1599;
 
   const seedStation = async (
     name: string,
@@ -219,7 +235,25 @@ async function main(): Promise<void> {
       'SELECT id FROM stations WHERE name = ? LIMIT 1',
       [name]
     );
-    if (rows[0]?.id) return Number(rows[0].id);
+    if (rows[0]?.id) {
+      const stationId = Number(rows[0].id);
+      if (listenerId) {
+        await adminPool.query(
+          `UPDATE station_sources ss
+             JOIN caster_listeners l ON l.id = ss.caster_listener_id
+              SET ss.caster_listener_id = ?
+            WHERE ss.station_id = ?
+              AND l.company_id <> ?`,
+          [listenerId, stationId, companyId]
+        );
+        await adminPool.query(
+          `INSERT IGNORE INTO caster_listener_mountpoints (listener_id, mountpoint_id)
+           SELECT ?, m.id FROM mountpoints m WHERE m.station_id = ?`,
+          [listenerId, stationId]
+        );
+      }
+      return stationId;
+    }
     const [inserted] = await adminPool.query<any>(
       `INSERT INTO stations
          (name, host, port, connection_type, source_type, enabled,

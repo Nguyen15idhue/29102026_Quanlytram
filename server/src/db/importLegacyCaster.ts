@@ -122,6 +122,10 @@ async function main(): Promise<void> {
   const commit = process.argv.includes('--commit');
   const input = loadInputs();
   const existing = await loadExisting();
+  const [companyRows] = await adminPool.query<any[]>(
+    "SELECT id FROM companies WHERE code = 'WALLY' LIMIT 1"
+  );
+  const wallyCompanyId = companyRows[0]?.id ? Number(companyRows[0].id) : null;
   const missingStations = input.stations.filter(
     (station) => !existing.stations.has(station.name.toLowerCase())
   );
@@ -236,14 +240,24 @@ async function main(): Promise<void> {
       mountpointsCreated += 1;
     }
 
+    if (wallyCompanyId && casterPorts.length > 0) {
+      await conn.query(
+        `UPDATE caster_listeners
+            SET company_id = ?
+          WHERE port IN (${casterPorts.map(() => '?').join(',')})
+            AND company_id IS NULL`,
+        [wallyCompanyId, ...casterPorts]
+      );
+    }
     const listenerIds = new Map<number, number>();
     for (const [port, row] of existing.listeners) listenerIds.set(port, Number(row.id));
     for (const port of casterPorts) {
       if (listenerIds.has(port)) continue;
       const [inserted] = await conn.query<any>(
-        `INSERT INTO caster_listeners (name, port, enabled, role, description, created_by)
-         VALUES (?, ?, 1, 'both', 'Listener import hệ cũ', NULL)`,
-        [`NTRIP caster ${port}`, port]
+        `INSERT INTO caster_listeners
+           (name, port, enabled, role, description, company_id, created_by)
+         VALUES (?, ?, 1, 'both', 'Listener import hệ cũ', ?, NULL)`,
+        [`NTRIP caster ${port}`, port, wallyCompanyId]
       );
       listenerIds.set(port, Number(inserted.insertId));
       listenersCreated += 1;

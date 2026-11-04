@@ -114,8 +114,10 @@ async function apply(): Promise<void> {
     );
     const wallyId = Number(userResult.insertId);
     await conn.query(
-      'UPDATE caster_listeners SET owner_web_user_id = ? WHERE port IN (2101, 1508, 1509)',
-      [wallyId]
+      `UPDATE caster_listeners
+          SET owner_web_user_id = ?, company_id = ?
+        WHERE port IN (2101, 1508, 1509)`,
+      [wallyId, companyId]
     );
   });
 }
