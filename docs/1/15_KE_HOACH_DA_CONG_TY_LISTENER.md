@@ -1,7 +1,7 @@
 # Kế hoạch 15 — Đa công ty cho listener/caster và sourcetable công khai
 
 - Ngày lập: 2026-11-04
-- Trạng thái: IN PROGRESS
+- Trạng thái: DONE (2026-11-04)
 - Phạm vi: `caster_listeners`, RBAC company, sourcetable Go, Docker port range,
   UI `/caster` và các màn hình phụ thuộc listener.
 - Nguyên tắc: mock-first, không chạy relay thật, không chạm `relayrtcm/backup`,
@@ -121,17 +121,17 @@ Docker:
 
 ## 5. Checklist nghiệm thu
 
-- [ ] Migration 040/041 áp dụng sạch; admin schema version đúng.
-- [ ] 1508/1509/2101 thuộc Wally; không còn mapping chéo company.
-- [ ] Superadmin tạo được port 1510 cho company khác; company chỉ thấy port đó.
-- [ ] Company admin/user không thấy port company khác.
-- [ ] Tạo port 1508 cho company khác bị 400.
-- [ ] Sourcetable anonymous trả đủ mountpoint enabled của listener.
-- [ ] Kết nối data không auth bị 401; account khác company bị 403.
-- [ ] Docker publish 1510–1599; port ngoài dải bị từ chối.
-- [ ] Server test PASS, Go test/vet PASS, frontend build PASS.
-- [ ] Playwright company/sourcetable PASS.
-- [ ] Không có secret trong diff.
+- [x] Migration 040/041 áp dụng sạch; admin schema version đúng.
+- [x] 1508/1509/2101 thuộc Wally; không còn mapping chéo company.
+- [x] Superadmin tạo được port 1510 cho company khác; company chỉ thấy port đó.
+- [x] Company admin/user không thấy port company khác.
+- [x] Tạo port 1508 cho company khác bị 400.
+- [x] Sourcetable anonymous trả đủ mountpoint enabled của listener.
+- [x] Kết nối data không auth bị 401; account khác company bị 403.
+- [x] Docker publish 1510–1599; port ngoài dải bị từ chối.
+- [x] Server test PASS, Go test/vet PASS, frontend build PASS.
+- [x] Playwright company/sourcetable PASS.
+- [x] Không có secret trong diff.
 
 ## 6. Kết quả thực hiện
 
@@ -142,7 +142,7 @@ Docker:
 | P15-3 | PASS 2026-11-04 | Sourcetable anonymous port 2101 trả 26 STR (Wally); data anonymous `GET /BDH1` trả 401. Go thêm `CompanyID` cho listener/account + check cùng company; thêm `CASTER_PUBLIC_PORTS` (mặc định 1508,1509,2101,1510-1599). `go test ./...` + `go vet ./...` PASS; image gnss rebuild/recreate healthy. |
 | P15-4 | PASS 2026-11-04 | `docker-compose.yml` publish `1510-1599`; `docker compose config` OK; gnss healthy. Tạo listener 1510 company 87, NTRIP `GET /` anonymous trả 1 STR; tắt/xóa listener sạch. Lưu ý Windows Docker Desktop có thể proxy mở port dù listener tắt; production Linux dùng DNAT, kiểm tra bằng request NTRIP. |
 | P15-5 | PASS 2026-11-04 | `/caster` có cột/filter Công ty cho superadmin, form chọn company + port (mặc định Wally 2101), company/user chỉ thấy port của mình và không có nút quản lý. `/stations` mặc định 2101 hoặc listener đầu tiên của company. Frontend build PASS; Playwright `caster-company` 3/3 PASS, `p1-rbac` user PASS, `p1-mountpoint` + `p1-ntrip-acl` + `p1-station-fix` PASS. |
-| P15-6 | PENDING | |
+| P15-6 | PASS 2026-11-04 | Server build + 192/192 test PASS; Go test/vet PASS; FE build PASS. Playwright `caster-company` 3/3, `p1-mountpoint`, `p1-ntrip-acl`, `p1-station-fix`, `metrics-health` 2/2, `navigation/ui/dashboard/realtime` 6/6 PASS. Seed DOCS fixture: `company/p1-rbac/p1-bulk/station-source` 10/10 PASS; đã reset DOCS sau test. DB cuối: 4 listener (3 Wally + 1599 admin), 0 mapping/ACL/source chéo company, admin version 41. Graphify 4624 nodes / 10465 edges. `seed-docs-fixtures.mjs` cập nhật company_id + port 1551/1552. |
 
 ## 7. Rủi ro và rollback
 

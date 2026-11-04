@@ -182,7 +182,7 @@ Go GNSS service
 | Frontend dev/prod | 5173 / 3000 | |
 | Node API + Socket.IO | 4000 | |
 | Go internal HTTP | 7080 | bind loopback/docker network |
-| NTRIP caster | 1509 | Phase 4; tùy chỉnh theo listener |
+| NTRIP caster | 1508/1509/2101 + 1510–1599 | Phase 4; listener theo công ty |
 | MySQL | 3307→3306 | không public |
 | Relay cũ | 8081 | không đụng |
 
@@ -375,8 +375,9 @@ settings(key, value_json, updated_at)
 - `mountpoint_id` dùng cho chất lượng theo mountpoint của trạm; relay dùng `0`.
 - `station_probes` mặc định disabled; chỉ GET, không tạo downstream;
   `credential_id` tham chiếu credential mã hóa hiện có, không log/không trả API.
-- `caster_listeners.port` mặc định seed 1509; mỗi listener gắn 0..n mountpoint;
-  một mountpoint có thể nằm trên nhiều listener.
+- `caster_listeners.port` mặc định 2101; 1508/1509/2101 thuộc WALLY, port riêng
+  của công ty trong 1510–1599; mỗi listener gắn 0..n mountpoint cùng company;
+  một mountpoint có thể nằm trên nhiều listener cùng company.
 - `quality_alert_acks` ở admin để Node ghi ack; không FK xuyên schema.
 
 ---
@@ -442,9 +443,12 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 
 ### 7.5. Caster (Phase 4)
 
-- Listener mặc định **1509** cho source và rover; tùy chỉnh theo listener.
+- Listener mặc định **2101** cho source và rover; 1508/1509 giữ tương thích.
+- Listener thuộc công ty: super thấy tất cả; admin/user chỉ thấy company mình.
+- Port 1508/1509/2101 chỉ WALLY; port riêng 1510–1599 do super tạo từ UI.
 - Nhóm mountpoint ↔ listener many-to-many: một mountpoint có thể nghe trên
-  nhiều port (ví dụ A,B,C→1509; A,C→1508).
+  nhiều port cùng company (ví dụ A,B,C→2101; A,C→1508).
+- Sourcetable công khai; kết nối dữ liệu vẫn cần account + ACL + cùng company.
 - NTRIP v1 legacy, v1 auth, v2.
 - Source uplink + rover client; multi-client/mountpoint.
 - Queue giới hạn; **drop slow client**; không để một client làm nghẽn.
@@ -598,7 +602,7 @@ Quản lý NTRIP account theo RBAC `ntrip_accounts.*` + scope; có `owner_web_us
 | POST | `/api/ntrip-accounts/:id/lock` | Khóa |
 | POST | `/api/ntrip-accounts/:id/unlock` | Mở khóa |
 | GET/PUT | `/api/ntrip-accounts/:id/mountpoints` | ACL placeholder mountpoint |
-| GET/POST | `/api/caster/listeners` | Listener caster (mặc định 1509) |
+| GET/POST | `/api/caster/listeners` | Listener caster theo company (mặc định 2101) |
 | GET/PATCH/DELETE | `/api/caster/listeners/:id` | Chi tiết/sửa/xóa listener |
 | POST | `/api/caster/listeners/:id/enable` | Bật listener |
 | POST | `/api/caster/listeners/:id/disable` | Tắt listener |
@@ -829,7 +833,8 @@ SESSION_SECRET
 APP_ENC_KEY
 INTERNAL_HMAC_SECRET
 GO_INTERNAL_URL
-CASTER_PORT=1509
+CASTER_PORT=2101
+CASTER_PUBLIC_PORTS=1508,1509,2101,1510-1599
 RELAY_IMPORT_PATH
 RELAY_IMPORT_IDS
 NTRIP_TEST_HOST

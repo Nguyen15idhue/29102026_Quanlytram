@@ -154,9 +154,17 @@ async function ensureListener(listener) {
   count('listener');
   if (dryRun) return -1;
   const [result] = await conn.query(
-    `INSERT INTO caster_listeners (name, port, enabled, role, description, created_by, owner_web_user_id)
-     VALUES (?, ?, 0, ?, ?, 1, ?)`,
-    [listener.name, listener.port, listener.role, `${listener.name} — listener minh họa`, listener.ownerId]
+    `INSERT INTO caster_listeners
+       (name, port, enabled, role, description, company_id, created_by, owner_web_user_id)
+     VALUES (?, ?, 0, ?, ?, ?, 1, ?)`,
+    [
+      listener.name,
+      listener.port,
+      listener.role,
+      `${listener.name} — listener minh họa`,
+      listener.companyId,
+      listener.ownerId
+    ]
   );
   return result.insertId;
 }
@@ -331,9 +339,9 @@ const mountpoints = [
 for (const mountpoint of mountpoints) await ensureMountpoint(mountpoint);
 
 const listeners = [
-  { name: 'DOCS Caster Hà Nội', port: 15151, role: 'both' },
-  { name: 'DOCS Caster Đà Nẵng', port: 15152, role: 'source' }
-].map((item) => ({ ...item, ownerId: adminId }));
+  { name: 'DOCS Caster Hà Nội', port: 1551, role: 'both' },
+  { name: 'DOCS Caster Đà Nẵng', port: 1552, role: 'source' }
+].map((item) => ({ ...item, companyId, ownerId: adminId }));
 
 for (const listener of listeners) await ensureListener(listener);
 

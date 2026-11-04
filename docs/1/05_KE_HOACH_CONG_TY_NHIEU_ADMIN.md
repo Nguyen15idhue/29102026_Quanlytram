@@ -65,8 +65,8 @@ Nguyên tắc:
 | D05-4 | Tài nguyên tạo bởi super_admin mặc định thuộc company nào? | Bắt buộc chọn company khi tạo; không mặc định |
 | D05-5 | Owner null/legacy xử lý thế nào? | Gán company theo admin subtree nếu suy ra được; còn lại để super xử lý |
 | D05-6 | Có cần company root user riêng? | Không. Dùng bảng `companies`; admin đầu tiên là reporting root |
-| D05-7 | Listener caster thuộc công ty hay toàn hệ thống? | **Toàn hệ thống**. Chỉ super_admin tạo/sửa/xóa; mọi công ty được xem tất cả |
-| D05-8 | Mountpoint dưới listener hiển thị thế nào? | Listener global; danh sách mountpoint liên kết lọc theo company của actor, super thấy tất cả |
+| D05-7 | Listener caster thuộc công ty hay toàn hệ thống? | **Đã thay đổi ở kế hoạch 15 (2026-11-04)**: listener thuộc company; chỉ super tạo/sửa/xóa; admin/user xem company mình |
+| D05-8 | Mountpoint dưới listener hiển thị thế nào? | **Đã thay đổi ở kế hoạch 15**: mountpoint gắn listener cùng company; super thấy tất cả listener |
 | D05-9 | Owner khi super admin tạo tài nguyên? | Bắt buộc chọn company; owner mặc định là super (created_by) trừ khi chỉ định owner cùng company. Tài nguyên vẫn hiển thị cho company qua `company_id` |
 | D05-10 | Company disable ảnh hưởng gì? | Chặn đăng nhập + vô hiệu session cũ của user thuộc company; không xóa tài nguyên; super vẫn truy cập |
 
@@ -370,7 +370,8 @@ Ghi chú P05-1 (2026-11-01):
   admin root + toàn bộ descendants.
 - Tài nguyên lấy `company_id` theo `owner_web_user_id`; tài nguyên thuộc
   super_admin (`company_id = NULL`) được ghi báo cáo `owner_without_company`.
-- Không thêm `company_id` cho `caster_listeners` (D05-7).
+- ~~Không thêm `company_id` cho `caster_listeners` (D05-7).~~ Kế hoạch 15 đã
+  thêm `company_id` và chuyển listener sang phạm vi công ty.
 - Đã chạy lại 029/030 thủ công: không phát sinh bản ghi trùng (idempotent).
 
 ### P05-2 — RBAC company

@@ -457,8 +457,10 @@ phân trang server-side, icon lucide, trạng thái/a11y. Chi tiết:
 
 ## 4.1. Công việc
 - [x] Listener mặc định **2101** (source + rover); 1508/1509 giữ tương thích; không 8081
-- [x] `caster_listeners` + `caster_listener_mountpoints` many-to-many
+- [x] Listener thuộc company; 1508/1509/2101 chỉ WALLY; port riêng 1510–1599
+- [x] `caster_listeners` + `caster_listener_mountpoints` many-to-many cùng company
 - [x] Một mountpoint có thể nghe nhiều port (A,B,C→2101; A,C→1508)
+- [x] Sourcetable công khai; kết nối dữ liệu vẫn cần account + ACL + cùng company
 - [x] Parse `SOURCE` (v1), `POST` (v2), `GET` (rover); phân biệt ngữ cảnh response
 - [x] `ICY 200` / `HTTP 200` / `SOURCETABLE 200` đúng ngữ cảnh
 - [x] Auth Basic; no-auth chỉ khi cấu hình rõ ràng

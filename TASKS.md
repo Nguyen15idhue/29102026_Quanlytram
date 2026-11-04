@@ -772,6 +772,7 @@ bảng tiến độ: `docs/2/THUC_HIEN_FIX_LOI.md`.
 | 7 | Kế hoạch 12: relay chọn trạm nguồn/đích, ẩn relay superadmin | DONE |
 | 8 | Bản đồ: zoom mặc định theo cấu hình + nhãn quần đảo Việt Nam | DONE |
 | 9 | Kế hoạch 13: chuyển dữ liệu hệ thống cũ sang Wally | DONE |
+| 10 | Kế hoạch 15: listener theo công ty + sourcetable công khai | DONE |
 
 Gate chốt đợt 6: Playwright 56/56; server 36 file/174 test; Go build/vet/test
 + `go test -race`; FE build; DB secret 100% v2 (relay 5/5, station source 1/1).

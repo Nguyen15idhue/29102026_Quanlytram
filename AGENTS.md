@@ -101,6 +101,11 @@ giám sát realtime và cấu hình hệ thống.
 - Caster: Phase 4; v1 legacy, v1 auth, v2. Cổng listener mặc định **2101**
   (vào/ra); 1508/1509 giữ để tương thích; tùy chỉnh theo nhóm mountpoint;
   không dùng 8081.
+- Listener thuộc công ty: `1508/1509/2101` chỉ WALLY; port riêng của công ty
+  trong `1510–1599`. Super admin thấy/quản lý tất cả; admin/user chỉ xem
+  listener company mình. Chỉ super admin tạo/sửa/xóa listener.
+- Sourcetable NTRIP công khai, trả mountpoint enabled của listener; kết nối
+  dữ liệu vẫn bắt buộc account + ACL + cùng company.
 - RTCM monitor/analyzer chỉ parse để đếm/đo; không sửa byte, không serialize lại.
 - Chất lượng dùng chung cho `station` (ingest) và `relay_job` (upstream/downstream)
   theo `target_type` + `target_id` + `direction`; không FK giữa relay và station.

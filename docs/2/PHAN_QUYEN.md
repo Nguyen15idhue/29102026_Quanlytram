@@ -1,9 +1,9 @@
 # PHÂN QUYỀN & PHẠM VI DỮ LIỆU — HỆ THỐNG QUẢN LÝ CORS
 
-> Phiên bản: 1.0 — 2026-11-01
-> Trạng thái: hiện hành sau kế hoạch 05 (công ty nhiều admin)
-> Phạm vi: web session, RBAC, company, ownership, listener toàn hệ thống,
-> realtime, audit, UI và checklist test.
+> Phiên bản: 1.1 — 2026-11-04
+> Trạng thái: hiện hành sau kế hoạch 15 (listener theo công ty)
+> Phạm vi: web session, RBAC, company, ownership, listener theo công ty,
+> sourcetable công khai, realtime, audit, UI và checklist test.
 >
 > Nguồn sự thật:
 > - `AGENTS.md`
@@ -47,14 +47,18 @@
    giới hạn company. Không được xóa/khóa/hạ cấp super admin cuối cùng.
 2. **Admin công ty** (`admin`, level 50): chỉ thấy và thao tác tài nguyên của
    **cùng `company_id`**. Được tạo peer admin cùng công ty nhưng **không được
-   sửa/khóa/xóa peer admin**. Không quản lý company, listener, role, system health.
+   sửa/khóa/xóa peer admin**. Không quản lý company, listener, role, system
+   health; chỉ xem listener của company mình.
 3. **User** (`user`, level 10):
    - Xem **toàn company** cho Trạm, Relay, Dashboard, Lịch sử relay.
    - Chỉ **own** cho Mountpoint, NTRIP account, Cảnh báo, Chất lượng.
-   - Không thấy Listener, Người dùng, Phân quyền, Công ty, Audit, System Health.
-4. **Listener caster là tài nguyên toàn hệ thống**: mọi công ty xem tất cả,
-   **chỉ super admin** được tạo/sửa/xóa. Danh sách mountpoint gắn listener bị
-   lọc theo company của người xem (super thấy tất cả).
+   - Xem listener của công ty mình, không có nút thêm/sửa/xóa.
+   - Không thấy Người dùng, Phân quyền, Công ty, Audit, System Health.
+4. **Listener caster thuộc công ty**: super admin thấy/quản lý tất cả; admin và
+   user chỉ thấy listener của `company_id` mình. Chỉ super admin được tạo/sửa/xóa.
+   `1508/1509/2101` chỉ thuộc WALLY; port riêng của công ty nằm trong
+   `1510–1599`. Sourcetable công khai, không cần account; kết nối dữ liệu vẫn
+   bắt buộc account + ACL + cùng company.
 5. **`tenant` = `company_id`**, không còn là subtree `parent_user_id`.
    `parent_user_id` chỉ còn là cây báo cáo/quản lý nội bộ.
 
@@ -88,7 +92,9 @@ Tài nguyên có company + owner
     owner_web_user_id   ── người tạo/chủ
 
 caster_listeners
-  KHÔNG có company_id  ── tài nguyên toàn hệ thống
+  company_id            ── công ty sở hữu (nullable cho legacy)
+  port                  ── UNIQUE toàn cục
+  owner_web_user_id
 ```
 
 ### 1.1. Bất biến chính
@@ -99,7 +105,11 @@ caster_listeners
   super admin).
 - Không đổi `company_id` của tài nguyên sau khi tạo (`COMPANY_IMMUTABLE`).
 - Không chuyển owner sang user khác company (`OWNER_COMPANY_MISMATCH`).
-- `caster_listeners` không có company, không bị lọc theo company khi xem danh sách.
+- Listener mới phải có `company_id`; không đổi company sau khi tạo
+  (`COMPANY_IMMUTABLE`).
+- `1508/1509/2101` chỉ gán cho `WALLY`; port khác phải trong `1510–1599`.
+- Mountpoint gắn listener và ACL account/listener phải cùng company.
+- Listener đang bật không xóa được (`LISTENER_ENABLED`).
 
 ---
 
@@ -185,6 +195,7 @@ trong được lọc theo `stations.view`, `relay.view`, `mountpoints.view`,
 | Mountpoints list/detail | `mountpoints.company_id` | |
 | NTRIP accounts list/detail | `ntrip_accounts.company_id` | |
 | Relay jobs list/detail | `relay_jobs.company_id` | |
+| Caster listeners | `caster_listeners.company_id` | Admin/user chỉ thấy company mình |
 | Alerts list/detail | `alerts.company_id` | |
 | Audit logs | `audit_logs.company_id` | Admin chỉ thấy audit company mình |
 | Web users list/detail | `u.id IN (user cùng company_id)` | Không dùng `company_id` trực tiếp trên bảng user |
@@ -336,7 +347,7 @@ Ràng buộc super:
 | Phân quyền | Chỉ xem, read-only |
 | Trạm/Relay | Xem/thêm/sửa/xóa toàn company |
 | Mountpoint/NTRIP | Toàn company |
-| Listener | Xem toàn bộ; không thêm/sửa/xóa |
+| Listener | Xem listener của company mình; không thêm/sửa/xóa |
 | Kết nối caster | Xem/ngắt kết nối thuộc mountpoint company |
 | Cảnh báo/Chất lượng | Xem/ack toàn company |
 | Audit/Lịch sử | Toàn company |
@@ -356,6 +367,7 @@ Ràng buộc admin:
 | Nhóm | Quyền |
 |---|---|
 | Trạm | Xem toàn company; không thêm/sửa/xóa |
+| Listener | Xem listener của company mình; không thêm/sửa/xóa |
 | Relay | Xem toàn company; không thêm/sửa/xóa |
 | Dashboard | Xem số liệu company + own tùy module |
 | Mountpoint | Xem/thêm/sửa/xóa **own** |
@@ -585,7 +597,7 @@ khác → 404/403. Admin gắn station company mình.
 | GET | `/:id/mountpoints` | `ntrip_accounts.view` | Effective mountpoints |
 | GET | `/:id/listeners` | `ntrip_accounts.view` | |
 | PUT | `/:id/mountpoints` | `ntrip_accounts.edit` | Admin: mountpoint company; user: own |
-| PUT | `/:id/listeners` | `ntrip_accounts.edit` | Listener là global, chỉ cần tồn tại |
+| PUT | `/:id/listeners` | `ntrip_accounts.edit` | Listener phải cùng company với account |
 | POST | `/` | `ntrip_accounts.add` | User own; admin company |
 | PATCH | `/:id` | `ntrip_accounts.edit` | Username immutable |
 | POST | `/:id/lock|unlock` | `ntrip_accounts.edit` | Lock đóng connection online |
@@ -613,27 +625,30 @@ User chỉ xem relay company; không thêm/sửa/xóa.
 
 ### 8.8. Caster listeners — `/api/caster/listeners`
 
-**Global, không company.**
+**Thuộc company.** Super admin thấy tất cả; admin/user chỉ thấy company mình.
 
 | Method | Endpoint | Quyền | Admin | User |
 |---|---|---|---|---|
-| GET | `/listeners` | `caster.view` | Xem tất cả | Không |
-| GET | `/listeners/:id` | `caster.view` | Xem tất cả; `mountpointIds` lọc company | Không |
+| GET | `/listeners` | `caster.view` | Xem company mình | Xem company mình |
+| GET | `/listeners/:id` | `caster.view` | Xem company mình; `mountpointIds` cùng company | Xem company mình |
 | POST | `/listeners` | `caster.add` | 403 | 403 |
 | PATCH | `/listeners/:id` | `caster.edit` | 403 | 403 |
 | POST | `/listeners/bulk` | `caster.edit/delete` | 403 | 403 |
 | DELETE | `/listeners/:id` | `caster.delete` | 403 | 403 |
 | POST | `/:id/enable|disable` | `caster.edit` | 403 | 403 |
-| GET | `/:id/mountpoints` | `caster.view` | Chỉ mountpoint company | Không |
+| GET | `/:id/mountpoints` | `caster.view` | Mountpoint cùng company | Mountpoint cùng company |
 | PUT | `/:id/mountpoints` | `caster.edit` | 403 | 403 |
 
-- Listener response: `global: true`, `ownerWebUserId`, `ownerName`; **không**
-  có `companyId`.
-- Admin xem tất cả listener của mọi company.
-- Danh sách mountpoint gắn listener bị lọc theo company của admin; super thấy tất cả.
+- Listener response: `global: false`, `companyId`, `companyName`,
+  `ownerWebUserId`, `ownerName`.
+- Super admin tạo listener và gán company; `1508/1509/2101` chỉ cho WALLY;
+  port khác phải trong `1510–1599`.
+- Mountpoint gắn listener, ACL account/listener phải cùng company.
 - Tạo listener trùng port → 409 (`uq_caster_listeners_port`).
 - Cổng 8081 bị cấm; 2101 là listener mặc định.
 - Listener đang bật không xóa được (`409 LISTENER_ENABLED`); phải tắt trước.
+- Sourcetable NTRIP công khai, không cần account; kết nối dữ liệu vẫn cần
+  account + ACL + cùng company.
 
 ### 8.9. Caster connections — `/api/caster/connections`, `/api/connections`
 
@@ -792,7 +807,7 @@ Lỗi:
 | Web users | `companyId`, `companyName`, `companyStatus` | `parentUserId` (cây), không owner |
 | Alerts | `companyId`, `companyName` | `ownerWebUserId`, `ownerName` |
 | Audit logs | `companyId`, `companyName` | `actorId`, `actorName` |
-| Caster listeners | **Không có** company | `ownerWebUserId`, `ownerName`; `global: true` |
+| Caster listeners | `companyId`, `companyName` | `ownerWebUserId`, `ownerName`; `global: false` |
 
 Lưu ý: NTRIP account có 2 khái niệm khác nhau:
 - `company` (string): tên đơn vị/khách hàng nghiệp vụ trên account.
@@ -845,7 +860,7 @@ Bulk trả:
 | Bản đồ / Bản đồ vận hành | Có | Có | Có |
 | Bản đồ / Danh sách online | Có | Có | Không |
 | CORS / Mountpoint | Có | Có | Có (own) |
-| CORS / Listener | Có | Có | Không |
+| CORS / Listener | Có | Có (company) | Có (company) |
 | Tài khoản / NTRIP | Có | Có | Có (own) |
 | Relay / Relay jobs | Có | Có | Có (view) |
 | Hệ thống / Sức khỏe | Có | Không | Không |
@@ -870,7 +885,7 @@ chỉ hiện khi `audit.view != none`.
 | Relay | Full | Full company | Chỉ xem |
 | Mountpoint | Full | Full company | Full own |
 | NTRIP | Full | Full company | Full own |
-| Listener | Thêm/sửa/xóa/gắn MP | Chỉ xem; không nút | Không |
+| Listener | Thêm/sửa/xóa/gắn MP | Chỉ xem company; không nút | Chỉ xem company; không nút |
 | Online | Ngắt kết nối | Ngắt kết nối company | Không |
 | Cảnh báo | Ack | Ack company | Chỉ đánh dấu đọc own |
 | Chất lượng | Ack | Ack company | Chỉ xem own |
@@ -972,11 +987,9 @@ Các điểm này **có thật trong code hiện tại**, cần test riêng và 
    - Nằm trong `company_backfill_reports`; chỉ super xử lý được.
    - Không tự động gán company.
 
-10. **`mountpointCount` của listener là tổng toàn hệ thống**
-    - Admin A thấy `mountpointCount` gồm cả mountpoint company B, trong khi
-      danh sách `mountpointIds`/`GET /:id/mountpoints` đã lọc company A.
-    - Đây là chênh lệch số đếm so với danh sách chi tiết; cần thống nhất khi
-      test UI listener.
+10. ~~`mountpointCount` của listener là tổng toàn hệ thống~~
+    - Đã xử lý ở kế hoạch 15: count và danh sách mountpoint đều lọc theo
+      `caster_listeners.company_id`.
 
 ---
 
@@ -984,7 +997,7 @@ Các điểm này **có thật trong code hiện tại**, cần test riêng và 
 
 > Dùng dữ liệu test; tạo username/company code có suffix timestamp và cleanup
 > sau mỗi nhóm. Không dùng mountpoint công cộng, không chạy relay.exe, không
-> chiếm cổng 8081/2101.
+> chiếm cổng 8081; 2101 là listener Wally theo kế hoạch 15.
 
 ### 15.1. Chuẩn bị fixture
 
@@ -992,7 +1005,7 @@ Các điểm này **có thật trong code hiện tại**, cần test riêng và 
 2. Super tạo admin A1 (company A), admin B1 (company B).
 3. Admin A1 tạo admin A2 (peer, company A) và user A1 (company A).
 4. Super/admin tạo station, relay, mountpoint, NTRIP account cho từng company.
-5. Tạo ít nhất một listener global (super).
+5. Super tạo ít nhất một listener cho mỗi company (port trong 1510–1599).
 
 Kiểm tra DB:
 
@@ -1033,6 +1046,8 @@ SELECT * FROM company_backfill_reports ORDER BY entity_type, entity_id;
 | B7 | Disable company B | 200; login B 403; session B 401; tài nguyên còn |
 | B8 | Delete company B còn dữ liệu | 409 `COMPANY_IN_USE` |
 | B9 | Listener trùng port | 409 |
+| B9b | Tạo 1508/1509/2101 cho company khác Wally | 400 |
+| B9c | Tạo port ngoài 1510–1599 | 400 |
 | B10 | Filter `companyId=A` trên stations | Chỉ A |
 | B11 | Xóa super cuối | 409 `LAST_SUPER_ADMIN` |
 | B12 | Tự xóa/tự khóa | 409 |
@@ -1054,7 +1069,7 @@ SELECT * FROM company_backfill_reports ORDER BY entity_type, entity_id;
 | C11 | Gọi `/api/system/health` | 403 |
 | C12 | Gọi `/api/companies` | 403 |
 | C13 | Sửa role/permission | 403 |
-| C14 | List listener | 200, thấy tất cả listener |
+| C14 | List listener | 200, chỉ listener company A |
 | C15 | Tạo/sửa/xóa listener | 403 |
 | C16 | Listener mountpoints | Chỉ mountpoint company A |
 | C17 | Audit logs | Chỉ company A |
@@ -1075,7 +1090,9 @@ SELECT * FROM company_backfill_reports ORDER BY entity_type, entity_id;
 | D9 | Alerts | Chỉ own; read own 200; ack 403 |
 | D10 | Quality | Chỉ own; ack 403 |
 | D11 | Audit | 403 |
-| D12 | Users/Roles/Companies/Listener | 403 |
+| D11b | List listener | 200, chỉ listener company A |
+| D11c | Tạo/sửa/xóa listener | 403 |
+| D12 | Users/Roles/Companies | 403 |
 | D13 | System health | 403 |
 | D14 | Dashboard | Số liệu theo scope, không lỗi |
 | D15 | Profile sửa `display_name/email/password` | 200 |
@@ -1093,18 +1110,23 @@ SELECT * FROM company_backfill_reports ORDER BY entity_type, entity_id;
 | E5 | Company A disable | B không ảnh hưởng |
 | E6 | Tài nguyên company A không bị xóa khi disable | Count giữ nguyên |
 
-### 15.7. Nhóm F — Listener toàn hệ thống
+### 15.7. Nhóm F — Listener theo công ty
 
 | ID | Thao tác | Kỳ vọng |
 |---|---|---|
-| F1 | Admin A và admin B list listener | Cùng total với super |
+| F1 | Admin A và admin B list listener | Mỗi người chỉ thấy company mình |
 | F2 | Admin A tạo/sửa/xóa listener | 403 |
 | F3 | Super tạo listener trùng port | 409 |
 | F4 | Super tạo listener port 8081 | 400 |
 | F4b | Super xóa listener đang bật | 409; bulk bỏ qua listener đang bật |
-| F5 | Admin A xem mountpoints listener có MP A+B | Chỉ MP A |
-| F6 | Super xem mountpoints listener | Thấy cả A+B |
-| F7 | User gọi listener API | 403 |
+| F5 | Admin A xem mountpoints listener | Chỉ mountpoint cùng company A |
+| F6 | Super xem mountpoints listener | Chỉ mountpoint cùng company của listener |
+| F7 | User list listener | 200, chỉ company mình |
+| F7b | User tạo/sửa/xóa listener | 403 |
+| F8 | Super tạo 1508 cho company B | 400 `PORT_RESERVED` |
+| F9 | Super tạo 1510 cho company B | 201 |
+| F10 | Anonymous `GET /` port của company A | Trả đủ mountpoint enabled của listener A |
+| F11 | Anonymous đọc dữ liệu mountpoint | 401; account khác company → 403 |
 
 ### 15.8. Nhóm G — Audit
 
@@ -1367,8 +1389,9 @@ Khi test write API, thiếu header `X-CSRF-Token` sẽ trả `403 CSRF_INVALID`.
 - Muốn test **company isolation**: tạo 2 company, 2 admin, tài nguyên mỗi bên;
   kiểm tra list/detail/owner/company.
 - Muốn test **peer admin**: admin A1 tạo A2, sau đó thử sửa/lock/xóa A2 → 403.
-- Muốn test **listener global**: admin A/B list cùng total, nhưng CRUD 403;
-  kiểm tra mountpoint gắn listener bị lọc company.
+- Muốn test **listener theo công ty**: admin A/B chỉ thấy listener company mình,
+  CRUD 403; mountpoint gắn listener cùng company; sourcetable anonymous trả đủ
+  mountpoint của listener; kết nối dữ liệu vẫn cần account/ACL.
 - Muốn test **user own**: user1 xem MP/NTRIP user2 → 404; sửa own → 200.
 - Muốn test **super create**: thiếu company → 400; có company → 201.
 - Muốn test **company disable**: disable B, login B 403, session B 401,

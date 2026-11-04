@@ -381,15 +381,19 @@ ACL body: `{ "mountpointIds": [1, 2] }`; placeholder cho Phase 4.
 
 ## 14. Caster listeners (Phase 4)
 
-- Port mặc định **2101** cho source và rover; 1508/1509 giữ để tương thích;
-  tùy chỉnh theo listener.
-- Một mountpoint có thể gắn nhiều listener: A,B,C→2101; A,C→1508.
+- Port mặc định **2101** cho source và rover; 1508/1509 giữ để tương thích.
+- `1508/1509/2101` chỉ thuộc công ty WALLY; port riêng của công ty trong
+  `1510–1599`. Super admin tạo port từ UI và gán company.
+- Một mountpoint có thể gắn nhiều listener cùng company: A,B,C→2101; A,C→1508.
 - Không dùng 8081.
-- Listener là tài nguyên **toàn hệ thống** (D05-7): response `global: true`,
-  `ownerWebUserId`, `ownerName`; không có `companyId`.
-- Admin xem toàn bộ listener nhưng không có `caster.add/edit/delete`.
-- Danh sách mountpoint gắn listener (`/listeners/:id/mountpoints`) lọc theo
-  company của actor; super admin thấy tất cả (D05-8).
+- Listener thuộc company: response có `companyId`, `companyName`, `global: false`;
+  super admin thấy tất cả, admin/user chỉ thấy company mình.
+- Chỉ super admin có `caster.add/edit/delete`; admin/user chỉ xem.
+- Danh sách mountpoint gắn listener (`/listeners/:id/mountpoints`) lọc cùng
+  company với listener.
+- `GET /api/caster/listeners?companyId=...` chỉ super admin dùng để lọc.
+- Sourcetable NTRIP công khai, trả toàn bộ mountpoint enabled của listener;
+  kết nối dữ liệu vẫn cần account + ACL + cùng company.
 
 | Method | Endpoint | Quyền |
 |---|---|---|
