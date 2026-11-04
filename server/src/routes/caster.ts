@@ -696,6 +696,16 @@ async function listConnections(req: Request, res: any): Promise<void> {
         .includes(q)
     );
   }
+  const direction = String(req.query.direction || '').trim();
+  if (direction === 'source' || direction === 'rover') {
+    items = items.filter((item) => item.direction === direction);
+  }
+  const fix = String(req.query.fix || '').trim();
+  if (fix === 'none') {
+    items = items.filter((item) => !item.fixType);
+  } else if (['fixed', 'float', 'single', 'rtd', 'error'].includes(fix)) {
+    items = items.filter((item) => item.fixType === fix);
+  }
   res.json({
     items: items.slice(offset, offset + pageSize),
     total: items.length,

@@ -7,10 +7,12 @@ import type { CasterConnection } from '../types';
 import {
   Button,
   DataTable,
+  Field,
   IconButton,
   PageHeader,
   Pagination,
   SearchInput,
+  Select,
   StatusBadge
 } from '../components/ui';
 import { useToast } from '../components/ToastProvider';
@@ -30,17 +32,39 @@ function formatLocal(value: string): string {
   }).format(date);
 }
 
+function fixBadge(value?: string): { label: string; kind: 'ok' | 'warn' | 'error' | 'neutral' } {
+  switch (value) {
+    case 'fixed':
+      return { label: 'fixed', kind: 'ok' };
+    case 'float':
+      return { label: 'float', kind: 'warn' };
+    case 'single':
+      return { label: 'single', kind: 'warn' };
+    case 'rtd':
+      return { label: 'RTD', kind: 'warn' };
+    case 'error':
+      return { label: 'lỗi', kind: 'error' };
+    default:
+      return { label: '—', kind: 'neutral' };
+  }
+}
+
 export function OnlineList() {
   const { can, csrfToken } = useAuth();
   const { push } = useToast();
   const queryClient = useQueryClient();
-  const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
+  const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
+    useListParams();
+  const fix = getParam('fix');
+  const direction = getParam('direction');
 
   const list = useQuery({
-    queryKey: ['online-connections', page, pageSize, q],
+    queryKey: ['online-connections', page, pageSize, q, fix, direction],
     queryFn: () =>
       apiFetch<ConnectionList>(
-        `/api/connections?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
+        `/api/connections?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}` +
+          (fix ? `&fix=${encodeURIComponent(fix)}` : '') +
+          (direction ? `&direction=${encodeURIComponent(direction)}` : '')
       )
   });
 
@@ -65,6 +89,28 @@ export function OnlineList() {
       <div className="panel">
         <div className="table-head">
           <SearchInput value={q} onChange={setQ} placeholder="Tìm tài khoản, mountpoint, IP" />
+          <Select
+            value={direction}
+            onChange={(event) => setParam('direction', event.target.value || null)}
+            aria-label="Lọc theo hướng kết nối"
+          >
+            <option value="">Mọi hướng</option>
+            <option value="rover">Rover</option>
+            <option value="source">Source</option>
+          </Select>
+          <Select
+            value={fix}
+            onChange={(event) => setParam('fix', event.target.value || null)}
+            aria-label="Lọc theo trạng thái fix"
+          >
+            <option value="">Mọi trạng thái fix</option>
+            <option value="fixed">Fixed</option>
+            <option value="float">Float</option>
+            <option value="single">Single</option>
+            <option value="rtd">RTD</option>
+            <option value="error">Lỗi</option>
+            <option value="none">Chưa có GGA</option>
+          </Select>
           <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
             Tải lại
           </Button>
@@ -144,7 +190,10 @@ export function OnlineList() {
             {
               key: 'status',
               header: 'Trạng thái',
-              cell: () => <StatusBadge label="online" kind="ok" />
+              cell: (item) => {
+                const badge = fixBadge(item.fixType);
+                return <StatusBadge label={badge.label} kind={badge.kind} />;
+              }
             },
             {
               key: 'actions',

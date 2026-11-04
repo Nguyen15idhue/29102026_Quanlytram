@@ -615,7 +615,7 @@ mountpointsRouter.post(
     let enabled = body.enabled;
     let pausedBy: number | null = null;
     if (body.station_id) {
-      const [stationRows] = await query<RowDataPacket[]>(
+      const stationRows = await query<RowDataPacket[]>(
         'SELECT enabled, status FROM stations WHERE id = ? LIMIT 1',
         [body.station_id]
       );
@@ -687,7 +687,7 @@ mountpointsRouter.patch(
         : Number(before.station_id ?? 0) !== Number(body.station_id));
     let pausedBy = stationChanged ? null : before.paused_by_station_id;
     if (stationId) {
-      const [stationRows] = await query<RowDataPacket[]>(
+      const stationRows = await query<RowDataPacket[]>(
         'SELECT enabled, status FROM stations WHERE id = ? LIMIT 1',
         [stationId]
       );

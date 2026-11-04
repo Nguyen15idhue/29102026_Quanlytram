@@ -39,6 +39,9 @@ type connection struct {
 }
 
 func (c *connection) currentFixType() string {
+	if c.direction != "rover" {
+		return ""
+	}
 	if value, ok := c.fixType.Load().(string); ok && value != "" {
 		return value
 	}

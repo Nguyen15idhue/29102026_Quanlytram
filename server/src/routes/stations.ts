@@ -779,6 +779,7 @@ function whereFrom(req: any, scope: any, params: unknown[]) {
   const receiver = String(req.query.receiver || '').trim();
   const enabled = String(req.query.enabled || '').trim();
   const sourceType = String(req.query.sourceType || '').trim();
+  const lock = String(req.query.lock || '').trim();
   if (q) {
     where += ' AND (s.name LIKE ? OR s.address LIKE ? OR s.region LIKE ? OR s.host LIKE ?)';
     params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
@@ -786,6 +787,11 @@ function whereFrom(req: any, scope: any, params: unknown[]) {
   if (enabled === '0' || enabled === '1') {
     where += ' AND s.enabled = ?';
     params.push(Number(enabled));
+  }
+  if (lock === '0') {
+    where += " AND s.status <> 'locked'";
+  } else if (lock === '1') {
+    where += " AND s.status = 'locked'";
   }
   if (['relay_caster', 'caster_ingest', 'probe_client', 'manual'].includes(sourceType)) {
     where += ' AND s.source_type = ?';
@@ -820,18 +826,19 @@ stationsRouter.get(
     const { pageSize, offset } = pageFrom(req);
     const params: unknown[] = [...scope.params];
     const where = whereFrom(req, scope, params);
+    const transportFilter = String(req.query.transport || '').trim();
+    const transportValues = new Set(['online', 'offline', 'no_data', 'disabled']);
+    const filterByTransport = transportValues.has(transportFilter);
     const [rows] = await adminPool.query<RowDataPacket[]>(
       `SELECT ${stationColumns}
          FROM stations s
          LEFT JOIN web_users u ON u.id = s.owner_web_user_id
          LEFT JOIN companies c ON c.id = s.company_id
         WHERE ${where}
-        ORDER BY s.id DESC LIMIT ? OFFSET ?`,
-      [...params, pageSize, offset]
-    );
-    const [countRows] = await adminPool.query<RowDataPacket[]>(
-      `SELECT COUNT(*) AS total FROM stations s WHERE ${where}`,
-      params
+        ORDER BY s.id DESC LIMIT ${filterByTransport ? 2000 : '?'} ${
+          filterByTransport ? '' : 'OFFSET ?'
+        }`,
+      filterByTransport ? params : [...params, pageSize, offset]
     );
     const idsForMeta = rows.map((row) => Number(row.id));
     const [quality, relays, probes, connectedStations, live] = await Promise.all([
@@ -841,11 +848,34 @@ stationsRouter.get(
       stationConnectionSet(idsForMeta),
       liveStationMap()
     ]);
+    const attach = (row: RowDataPacket) => {
+      const item = withQuality(row, quality, relays, probes, connectedStations);
+      return applyLiveStatus(item, live.get(Number(row.id)), connectedStations.has(Number(row.id)));
+    };
+
+    if (filterByTransport) {
+      const items = rows.map(attach).filter((item: any) => {
+        if (transportFilter === 'disabled') {
+          return !item.enabled && item.status !== 'locked';
+        }
+        if (!item.enabled || item.status === 'locked') return false;
+        return item.transportStatus === transportFilter;
+      });
+      res.json({
+        items: items.slice(offset, offset + pageSize),
+        total: items.length,
+        pageSize,
+        offset
+      });
+      return;
+    }
+
+    const [countRows] = await adminPool.query<RowDataPacket[]>(
+      `SELECT COUNT(*) AS total FROM stations s WHERE ${where}`,
+      params
+    );
     res.json({
-      items: rows.map((row) => {
-        const item = withQuality(row, quality, relays, probes, connectedStations);
-        return applyLiveStatus(item, live.get(Number(row.id)), connectedStations.has(Number(row.id)));
-      }),
+      items: rows.map(attach),
       total: Number(countRows[0].total),
       pageSize,
       offset
@@ -2614,7 +2644,7 @@ stationsRouter.put(
     const before = beforeRows[0] ? publicSource(beforeRows[0]) : null;
     let managedAccount: any = null;
     if (body.source_role === 'ntrip_caster') {
-      const [accountRows] = await query<RowDataPacket[]>(
+      const accountRows = await query<RowDataPacket[]>(
         'SELECT id, username FROM ntrip_accounts WHERE managed_by_station_id = ? LIMIT 1',
         [station.id]
       );

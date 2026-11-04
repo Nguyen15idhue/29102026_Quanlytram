@@ -152,10 +152,11 @@ export function Stations() {
     useListParams();
   const region = getParam('region');
   const sourceType = getParam('sourceType');
-  const enabled = getParam('enabled');
+  const lock = getParam('lock');
+  const transport = getParam('transport');
   const owner = getParam('owner');
   const companyId = getParam('companyId');
-  const activeFilterCount = [region, sourceType, enabled, owner, isSuper ? companyId : null].filter(Boolean).length;
+  const activeFilterCount = [region, sourceType, lock, transport, owner, isSuper ? companyId : null].filter(Boolean).length;
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<Station | null>(null);
@@ -191,11 +192,12 @@ export function Stations() {
     });
     if (region) params.set('region', region);
     if (sourceType) params.set('sourceType', sourceType);
-    if (enabled) params.set('enabled', enabled);
+    if (lock) params.set('lock', lock);
+    if (transport) params.set('transport', transport);
     if (owner) params.set('owner', owner);
     if (isSuper && companyId) params.set('companyId', companyId);
     return params.toString();
-  }, [page, pageSize, q, region, sourceType, enabled, owner, companyId, isSuper]);
+  }, [page, pageSize, q, region, sourceType, lock, transport, owner, companyId, isSuper]);
   const list = useQuery({
     queryKey: ['stations', listQuery],
     queryFn: () => apiFetch<StationList>(`/api/stations?${listQuery}`),
@@ -433,7 +435,7 @@ export function Stations() {
 
   useEffect(() => {
     setSelected(new Set());
-  }, [page, pageSize, q, region, sourceType, enabled, owner, companyId]);
+  }, [page, pageSize, q, region, sourceType, lock, transport, owner, companyId]);
 
   const importMutation = useMutation({
     mutationFn: (dryRun: boolean) =>
@@ -705,14 +707,26 @@ export function Stations() {
               <option value="manual">Thủ công</option>
             </Select>
           </Field>
-          <Field label="Trạng thái">
+          <Field label="Khóa">
             <Select
-              value={enabled}
-              onChange={(event) => setParam('enabled', event.target.value || null)}
+              value={lock}
+              onChange={(event) => setParam('lock', event.target.value || null)}
             >
               <option value="">Tất cả</option>
-              <option value="1">Đang bật</option>
-              <option value="0">Đã tắt</option>
+              <option value="1">Đã khóa</option>
+              <option value="0">Mở khóa</option>
+            </Select>
+          </Field>
+          <Field label="Trạng thái">
+            <Select
+              value={transport}
+              onChange={(event) => setParam('transport', event.target.value || null)}
+            >
+              <option value="">Tất cả</option>
+              <option value="online">Online</option>
+              <option value="offline">Offline</option>
+              <option value="no_data">Không có dữ liệu</option>
+              <option value="disabled">Đã tắt</option>
             </Select>
           </Field>
           {can('web_users', 'view') && (

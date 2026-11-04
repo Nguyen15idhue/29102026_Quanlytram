@@ -1095,9 +1095,10 @@ func TestRoverReadLoopRejectsOversizedLine(t *testing.T) {
 func TestRoverReadLoopUpdatesFixType(t *testing.T) {
 	server, client := net.Pipe()
 	conn := &connection{
-		conn: server,
-		br:   bufio.NewReaderSize(server, 4096),
-		done: make(chan struct{}),
+		conn:      server,
+		br:        bufio.NewReaderSize(server, 4096),
+		done:      make(chan struct{}),
+		direction: "rover",
 	}
 	go conn.roverReadLoop(2 * time.Second)
 
@@ -1200,5 +1201,12 @@ func TestSourceGraceClosesRoverAfterTimeout(t *testing.T) {
 	}
 	if got := rover.closeReason(); got != "source_disconnected" {
 		t.Fatalf("closeReason = %q, want source_disconnected", got)
+	}
+}
+
+func TestSourceConnectionHasNoFixType(t *testing.T) {
+	conn := &connection{direction: "source"}
+	if got := conn.currentFixType(); got != "" {
+		t.Fatalf("source fixType = %q, want empty", got)
 	}
 }

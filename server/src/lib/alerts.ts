@@ -28,7 +28,7 @@ export async function createAlertOnce(input: AlertInput): Promise<number | null>
   );
   if (existing.length > 0) return null;
 
-  const [result] = await query<any>(
+  const result = await query<any>(
     `INSERT INTO alerts
        (type, severity, target_type, target_id, title, message, dedupe_key,
         owner_web_user_id, company_id)

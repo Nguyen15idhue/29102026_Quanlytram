@@ -144,9 +144,10 @@ export function RelayJobs() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
     useListParams();
-  const enabled = getParam('enabled');
+  const lock = getParam('lock');
+  const state = getParam('state');
   const companyId = getParam('companyId');
-  const activeFilterCount = [enabled, isSuper ? companyId : null].filter(Boolean).length;
+  const activeFilterCount = [lock, state, isSuper ? companyId : null].filter(Boolean).length;
   const [formOpen, setFormOpen] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<RelayJob | null>(null);
@@ -174,10 +175,11 @@ export function RelayJobs() {
       pageSize: String(pageSize),
       q
     });
-    if (enabled) params.set('enabled', enabled);
+    if (lock) params.set('lock', lock);
+    if (state) params.set('state', state);
     if (isSuper && companyId) params.set('companyId', companyId);
     return params.toString();
-  }, [page, pageSize, q, enabled, companyId, isSuper]);
+  }, [page, pageSize, q, lock, state, companyId, isSuper]);
   const list = useQuery({
     queryKey: ['relay-jobs', listQuery],
     queryFn: () => apiFetch<RelayJobList>(`/api/relay-jobs?${listQuery}`),
@@ -393,7 +395,7 @@ export function RelayJobs() {
 
   useEffect(() => {
     setSelected(new Set());
-  }, [page, pageSize, q, enabled]);
+  }, [page, pageSize, q, lock, state]);
 
   const bulkTargets = useMemo(() => {
     const jobs = (list.data?.items ?? []).filter((job) => selected.has(job.id));
@@ -528,14 +530,29 @@ export function RelayJobs() {
             </Button>
           }
         >
-          <Field label="Trạng thái">
+          <Field label="Khóa">
             <Select
-              value={enabled}
-              onChange={(event) => setParam('enabled', event.target.value || null)}
+              value={lock}
+              onChange={(event) => setParam('lock', event.target.value || null)}
             >
               <option value="">Tất cả</option>
-              <option value="1">Đang bật</option>
-              <option value="0">Đã tắt</option>
+              <option value="1">Đã khóa</option>
+              <option value="0">Mở khóa</option>
+            </Select>
+          </Field>
+          <Field label="Trạng thái">
+            <Select
+              value={state}
+              onChange={(event) => setParam('state', event.target.value || null)}
+            >
+              <option value="">Tất cả</option>
+              <option value="online">Online</option>
+              <option value="offline">Offline</option>
+              <option value="no_data">Không có dữ liệu</option>
+              <option value="pending">Đang áp dụng</option>
+              <option value="paused">Tạm dừng</option>
+              <option value="disabled">Đã tắt</option>
+              <option value="locked">Đã khóa</option>
             </Select>
           </Field>
           {isSuper && (

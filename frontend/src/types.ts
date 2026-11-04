@@ -657,6 +657,7 @@ export interface CasterConnection {
   startTs: string;
   bytesIn: number;
   bytesOut: number;
+  fixType?: string;
 }
 
 export interface RealtimeRelay {

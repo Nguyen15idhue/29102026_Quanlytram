@@ -120,6 +120,25 @@ const updateSchema = z.object({
   companyId: z.number().int().positive().nullable().optional()
 });
 
+function jsonColumn(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return null;
+    try {
+      JSON.parse(trimmed);
+      return trimmed;
+    } catch {
+      return null;
+    }
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return null;
+  }
+}
+
 const JOB_SELECT = `
   SELECT j.*,
          uc.username AS upstream_credential_username,
@@ -360,7 +379,7 @@ async function assertNoCycles(proposed: {
   if (!proposed.enabled) return;
 
   const rows = await query<RowDataPacket[]>(
-    `SELECT id, upstream_key, downstream_key FROM relay_jobs
+    `SELECT id, name, upstream_key, downstream_key FROM relay_jobs
       WHERE deleted_at IS NULL AND enabled = 1${proposed.id ? ' AND id <> ?' : ''}`,
     proposed.id ? [proposed.id] : []
   );
@@ -373,7 +392,11 @@ async function assertNoCycles(proposed: {
     (row) => String(row.downstream_key) === proposed.downstreamKey
   );
   if (busyDownstream) {
-    throw new ApiError(409, 'DOWNSTREAM_BUSY', 'Downstream đã được relay job khác sử dụng');
+    throw new ApiError(
+      409,
+      'DOWNSTREAM_BUSY',
+      `Downstream ${proposed.downstreamKey} đang được relay job "${busyDownstream.name}" (ID ${busyDownstream.id}) sử dụng`
+    );
   }
   edges.push({
     upstreamKey: proposed.upstreamKey,
@@ -426,32 +449,59 @@ relayJobsRouter.get(
       where += ' AND j.enabled = ?';
       params.push(Number(enabled));
     }
+    const lock = String(req.query.lock || '').trim();
+    if (lock === '0' || lock === '1') {
+      where += ' AND j.locked = ?';
+      params.push(Number(lock));
+    }
     const companyId = Number(req.query.companyId || 0);
     if (req.auth?.roleCode === 'super_admin' && Number.isInteger(companyId) && companyId > 0) {
       where += ' AND j.company_id = ?';
       params.push(companyId);
     }
+
+    const stateFilter = String(req.query.state || '').trim();
+    const stateValues = new Set([
+      'online',
+      'offline',
+      'no_data',
+      'pending',
+      'paused',
+      'disabled',
+      'locked'
+    ]);
+    const filterByState = stateValues.has(stateFilter);
     const [rows] = await adminPool.query<any[]>(
-      `${JOB_SELECT} WHERE ${where} ORDER BY j.id DESC LIMIT ? OFFSET ?`,
-      [...params, pageSize, offset]
-    );
-    const [countRows] = await adminPool.query<any[]>(
-      `SELECT COUNT(*) AS total FROM relay_jobs j WHERE ${where}`,
-      params
+      `${JOB_SELECT} WHERE ${where} ORDER BY j.id DESC LIMIT ${filterByState ? 2000 : '?'} ${
+        filterByState ? '' : 'OFFSET ?'
+      }`,
+      filterByState ? params : [...params, pageSize, offset]
     );
     const idsForRuntime = rows.map((row) => Number(row.id));
     const [stateMap, metricMap] = await Promise.all([
       statesFor(idsForRuntime),
       metricsFor(idsForRuntime)
     ]);
+    const attach = (row: any) =>
+      attachRuntime(row, stateMap.get(Number(row.id)), metricMap.get(Number(row.id)));
+
+    if (filterByState) {
+      const items = rows.map(attach).filter((item) => item.relayState === stateFilter);
+      res.json({
+        items: items.slice(offset, offset + pageSize),
+        total: items.length,
+        pageSize,
+        offset
+      });
+      return;
+    }
+
+    const [countRows] = await adminPool.query<any[]>(
+      `SELECT COUNT(*) AS total FROM relay_jobs j WHERE ${where}`,
+      params
+    );
     res.json({
-      items: rows.map((row) =>
-        attachRuntime(
-          row,
-          stateMap.get(Number(row.id)),
-          metricMap.get(Number(row.id))
-        )
-      ),
+      items: rows.map(attach),
       total: Number(countRows[0].total),
       pageSize,
       offset
@@ -1302,7 +1352,7 @@ relayJobsRouter.post(
             body.nmeaIntervalSec,
             body.origin,
             body.originRef,
-            body.tags === undefined || body.tags === null ? null : JSON.stringify(body.tags),
+            jsonColumn(body.tags),
             upstreamKey,
             downstreamKey,
             ownerId,
@@ -1519,11 +1569,7 @@ relayJobsRouter.patch(
             body.nmeaIntervalSec ?? Number(before.nmea_interval_sec),
             body.origin ?? before.origin,
             body.originRef ?? before.origin_ref,
-            body.tags === undefined
-              ? before.tags
-              : body.tags === null
-                ? null
-                : JSON.stringify(body.tags),
+            body.tags === undefined ? jsonColumn(before.tags) : jsonColumn(body.tags),
             upstreamKey,
             downstreamKey,
             ownerId,
@@ -1825,7 +1871,7 @@ relayJobsRouter.post(
                 bodyItem.downstream.ssl ? 1 : 0, bodyItem.downstream.ntripVersion,
                 bodyItem.downstreamMode, bodyItem.lat, bodyItem.lon, bodyItem.uaPrefix,
                 bodyItem.nmeaIntervalSec, bodyItem.originRef,
-                bodyItem.tags === null ? null : JSON.stringify(bodyItem.tags),
+                jsonColumn(bodyItem.tags),
                 upstreamKey, downstreamKey, bodyItem.id
               ]
             );
@@ -1850,7 +1896,7 @@ relayJobsRouter.post(
                 bodyItem.downstream.ssl ? 1 : 0, bodyItem.downstream.ntripVersion,
                 bodyItem.downstreamMode, bodyItem.lat, bodyItem.lon, bodyItem.uaPrefix,
                 bodyItem.nmeaIntervalSec, bodyItem.originRef,
-                bodyItem.tags === null ? null : JSON.stringify(bodyItem.tags),
+                jsonColumn(bodyItem.tags),
                 upstreamKey, downstreamKey, ownerId, companyId, req.auth!.id
               ]
             );

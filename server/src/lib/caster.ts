@@ -134,6 +134,7 @@ export function publicConnection(
     userAgent: item.userAgent ?? '',
     startTs: item.startTs,
     bytesIn: Number(item.bytesIn ?? 0),
-    bytesOut: Number(item.bytesOut ?? 0)
+    bytesOut: Number(item.bytesOut ?? 0),
+    fixType: item.fixType ?? ''
   };
 }
