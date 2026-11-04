@@ -253,9 +253,10 @@ export function Stations() {
     enabled: formOpen && can('caster', 'view')
   });
 
-  const defaultListenerId = sourceListeners.data?.items.find(
-    (listener) => listener.port === DEFAULT_CASTER_LISTENER_PORT
-  )?.id;
+  const defaultListenerId =
+    sourceListeners.data?.items.find(
+      (listener) => listener.port === DEFAULT_CASTER_LISTENER_PORT
+    )?.id ?? sourceListeners.data?.items[0]?.id;
 
   useEffect(() => {
     if (!formOpen || editing || defaultListenerId === undefined) return;

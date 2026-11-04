@@ -49,7 +49,13 @@ test.describe('Station metrics realtime', () => {
 
       const me = await (await page.request.get('/api/auth/me')).json();
       const headers = { 'X-CSRF-Token': me.csrfToken };
-      const companyId = await pickCompanyId(page.request);
+      const companies = await (
+        await page.request.get('/api/companies?page=1&pageSize=50')
+      ).json();
+      const companyId = Number(
+        companies.items.find((item: { code: string }) => item.code === 'WALLY')?.id ??
+          (await pickCompanyId(page.request))
+      );
       const listeners = await (
         await page.request.get('/api/caster/listeners?page=1&pageSize=20')
       ).json();

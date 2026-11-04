@@ -22,8 +22,10 @@ test.describe('P1 station connection/coordinate/geo fixes', () => {
       const auth = await login(context);
       const headers = { 'X-CSRF-Token': auth.csrfToken };
       const companyId = await pickCompanyId(context);
-      const listeners = await (await context.get('/api/caster/listeners?page=1&pageSize=10')).json();
-      const listener = listeners.items[0];
+      const listeners = await (await context.get('/api/caster/listeners?page=1&pageSize=50')).json();
+      const listener =
+        listeners.items.find((item: { companyId?: number | null }) => item.companyId === companyId) ??
+        listeners.items[0];
       const created = await context.post('/api/stations', {
         headers,
         data: {

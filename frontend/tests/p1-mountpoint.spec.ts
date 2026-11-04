@@ -40,8 +40,9 @@ test.describe('P1.6 mountpoint và listener', () => {
         headers,
         data: {
           name: `E2E Listener ${suffix}`,
-          port: 16000 + (suffix % 1000),
+          port: 1510 + (suffix % 80),
           enabled: false,
+          company_id: companyId,
           mountpointIds: [mp.id]
         }
       });

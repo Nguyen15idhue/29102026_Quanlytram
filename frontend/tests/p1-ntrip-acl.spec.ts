@@ -43,8 +43,9 @@ test.describe('P1.7 NTRIP account listener ACL', () => {
         headers,
         data: {
           name: `E2E ACL Listener ${suffix}`,
-          port: 17000 + (suffix % 1000),
+          port: 1510 + (suffix % 80),
           enabled: false,
+          company_id: companyId,
           mountpointIds: [mountpointIds[0]]
         }
       });

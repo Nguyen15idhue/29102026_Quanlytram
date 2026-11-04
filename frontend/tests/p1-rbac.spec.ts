@@ -48,9 +48,14 @@ test.describe('P1.2 RBAC tenant và menu', () => {
     await login(page, 'user1', userPassword);
     await expect(page.getByRole('link', { name: 'Danh sách trạm' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Relay jobs' })).toBeVisible();
-    await expect(page.locator('a[href="/caster"]')).toHaveCount(0);
+    await expect(page.locator('a[href="/caster"]')).toHaveCount(1);
     await expect(page.locator('a[href="/system"]')).toHaveCount(0);
     await expect(page.locator('a[href="/web-users"]')).toHaveCount(0);
+
+    await page.goto('/caster');
+    await expect(page.getByRole('heading', { name: 'Caster' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Thêm listener' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /Sửa / })).toHaveCount(0);
 
     await page.goto('/stations');
     await expect(page.getByRole('heading', { name: /Danh sách trạm/ })).toBeVisible();
@@ -94,6 +99,8 @@ test.describe('P1.2 RBAC tenant và menu', () => {
     const adminACtx = await api.newContext({ baseURL });
     let adminBId: number | null = null;
     let companyBId: number | null = null;
+    let listenerBId: number | null = null;
+    let listenerBPort = 0;
     let stationId: number | null = null;
     try {
       const superAuth = await loginApi(
@@ -112,6 +119,19 @@ test.describe('P1.2 RBAC tenant và menu', () => {
       expect(createCompany.status()).toBe(201);
       companyBId = (await createCompany.json()).item.id;
 
+      listenerBPort = 1510 + (suffix % 80);
+      const createListener = await superCtx.post('/api/caster/listeners', {
+        headers: { 'X-CSRF-Token': superAuth.csrfToken },
+        data: {
+          name: `E2E company B listener ${suffix}`,
+          port: listenerBPort,
+          enabled: false,
+          company_id: companyBId
+        }
+      });
+      expect(createListener.status()).toBe(201);
+      listenerBId = (await createListener.json()).item.id;
+
       const adminBUsername = `e2e_admin_b_${suffix}`;
       const adminBPassword = 'TenantB!2026';
       const createUser = await superCtx.post('/api/web-users', {
@@ -129,10 +149,7 @@ test.describe('P1.2 RBAC tenant và menu', () => {
       adminBId = (await createUser.json()).item.id;
 
       const adminBAuth = await loginApi(adminBCtx, adminBUsername, adminBPassword);
-      const listeners = await (
-        await superCtx.get('/api/caster/listeners?page=1&pageSize=10')
-      ).json();
-      const listener = listeners.items[0];
+      const listener = { id: listenerBId, port: listenerBPort };
       const stationName = `Trạm công ty B ${suffix}`;
       const createStation = await adminBCtx.post('/api/stations', {
         headers: { 'X-CSRF-Token': adminBAuth.csrfToken },
@@ -178,6 +195,13 @@ test.describe('P1.2 RBAC tenant và menu', () => {
         const me = await superCtx.get('/api/auth/me');
         const csrf = me.ok() ? (await me.json()).csrfToken : '';
         await superCtx.delete(`/api/web-users/${adminBId}`, {
+          headers: { 'X-CSRF-Token': csrf }
+        });
+      }
+      if (listenerBId !== null) {
+        const me = await superCtx.get('/api/auth/me');
+        const csrf = me.ok() ? (await me.json()).csrfToken : '';
+        await superCtx.delete(`/api/caster/listeners/${listenerBId}`, {
           headers: { 'X-CSRF-Token': csrf }
         });
       }

@@ -91,9 +91,11 @@ test.describe('P1.3 bulk action và shared table', () => {
       const headers = { 'X-CSRF-Token': auth.csrfToken };
       const companyId = await pickCompanyId(superCtx);
       const listeners = await (
-        await superCtx.get('/api/caster/listeners?page=1&pageSize=10')
+        await superCtx.get('/api/caster/listeners?page=1&pageSize=50')
       ).json();
-      const listener = listeners.items[0];
+      const listener =
+        listeners.items.find((item: { companyId?: number | null }) => item.companyId === companyId) ??
+        listeners.items[0];
       const prefix = `Bulk ${Date.now()}`;
       for (let index = 1; index <= 2; index += 1) {
         const response = await superCtx.post('/api/stations', {

@@ -623,6 +623,8 @@ export interface CasterListener {
   role: 'both' | 'source' | 'rover';
   description: string;
   global?: boolean;
+  companyId?: number | null;
+  companyName?: string | null;
   ownerWebUserId?: number | null;
   ownerName?: string | null;
   mountpointCount: number;

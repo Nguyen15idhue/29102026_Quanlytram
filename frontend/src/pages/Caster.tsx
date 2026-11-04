@@ -5,7 +5,7 @@ import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useListParams } from '../lib/useListParams';
-import type { CasterConnection, CasterListener, Mountpoint } from '../types';
+import type { CasterConnection, CasterListener, Company, Mountpoint } from '../types';
 import {
   BulkActionBar,
   Button,
@@ -39,19 +39,27 @@ interface MountpointList {
   items: Mountpoint[];
 }
 
+const RESERVED_LISTENER_PORTS = new Set([1508, 1509, 2101]);
+const CUSTOM_LISTENER_PORT_MIN = 1510;
+const CUSTOM_LISTENER_PORT_MAX = 1599;
+const WALLY_COMPANY_CODE = 'WALLY';
+
 const emptyForm = {
   name: '',
   port: 2101,
   enabled: true,
   role: 'both',
-  description: ''
+  description: '',
+  company_id: '' as string | number
 };
 
 function ListenerPanel() {
-  const { can, csrfToken } = useAuth();
+  const { can, csrfToken, user } = useAuth();
   const { push } = useToast();
   const queryClient = useQueryClient();
-  const { page, pageSize, q, setPage, setPageSize, setQ } = useListParams();
+  const { page, pageSize, q, getParam, setPage, setPageSize, setQ, setParam } = useListParams();
+  const isSuper = user?.role?.code === 'super_admin';
+  const companyFilter = getParam('companyId');
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<CasterListener | null>(null);
   const [detail, setDetail] = useState<CasterListener | null>(null);
@@ -62,11 +70,19 @@ function ListenerPanel() {
   const [error, setError] = useState('');
   const [mountpointIds, setMountpointIds] = useState<number[]>([]);
 
+  const companies = useQuery({
+    queryKey: ['companies', 'caster-options'],
+    queryFn: () => apiFetch<{ items: Company[] }>('/api/companies?page=1&pageSize=50'),
+    enabled: isSuper
+  });
+  const companyOptions = companies.data?.items ?? [];
   const list = useQuery({
-    queryKey: ['caster-listeners', page, pageSize, q],
+    queryKey: ['caster-listeners', page, pageSize, q, companyFilter],
     queryFn: () =>
       apiFetch<ListenerList>(
-        `/api/caster/listeners?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}`
+        `/api/caster/listeners?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}${
+          isSuper && companyFilter ? `&companyId=${encodeURIComponent(companyFilter)}` : ''
+        }`
       )
   });
   const selectedListeners = (list.data?.items ?? []).filter((listener) =>
@@ -97,6 +113,7 @@ function ListenerPanel() {
         enabled: form.enabled,
         role: form.role,
         description: form.description,
+        ...(form.company_id === '' ? {} : { company_id: Number(form.company_id) }),
         mountpointIds
       };
       if (editing) {
@@ -155,7 +172,7 @@ function ListenerPanel() {
 
   useEffect(() => {
     setSelected(new Set());
-  }, [page, pageSize, q]);
+  }, [page, pageSize, q, companyFilter]);
 
   const saveMapping = useMutation({
     mutationFn: () =>
@@ -173,8 +190,15 @@ function ListenerPanel() {
   });
 
   function openCreate() {
+    const defaultCompany =
+      companyOptions.find((company) => company.code === WALLY_COMPANY_CODE) ??
+      companyOptions[0];
     setEditing(null);
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      company_id: defaultCompany?.id ?? '',
+      port: defaultCompany?.code === WALLY_COMPANY_CODE ? 2101 : CUSTOM_LISTENER_PORT_MIN
+    });
     setMountpointIds([]);
     setError('');
     setFormOpen(true);
@@ -187,7 +211,8 @@ function ListenerPanel() {
       port: listener.port,
       enabled: listener.enabled,
       role: listener.role,
-      description: listener.description
+      description: listener.description,
+      company_id: listener.companyId ?? ''
     });
     setError('');
     setFormOpen(true);
@@ -212,6 +237,20 @@ function ListenerPanel() {
       <div className="panel">
         <div className="table-head">
           <SearchInput value={q} onChange={setQ} placeholder="Tìm listener" />
+          {isSuper && (
+            <Select
+              value={companyFilter}
+              onChange={(event) => setParam('companyId', event.target.value || null)}
+              aria-label="Lọc theo công ty"
+            >
+              <option value="">Tất cả công ty</option>
+              {companyOptions.map((company) => (
+                <option key={company.id} value={company.id}>
+                  {company.name}
+                </option>
+              ))}
+            </Select>
+          )}
           <div className="toolbar">
             <Button variant="ghost" onClick={() => list.refetch()} loading={list.isFetching}>
               Tải lại
@@ -271,6 +310,16 @@ function ListenerPanel() {
                 </div>
               )
             },
+            ...(isSuper
+              ? [
+                  {
+                    key: 'company',
+                    header: 'Công ty',
+                    hideOnMobile: true,
+                    cell: (listener: CasterListener) => listener.companyName ?? '—'
+                  }
+                ]
+              : []),
             {
               key: 'role',
               header: 'Vai trò',
@@ -378,11 +427,47 @@ function ListenerPanel() {
               required
             />
           </Field>
-          <Field label="Port">
+          {isSuper && (
+            <Field label="Công ty">
+              <Select
+                value={String(form.company_id)}
+                disabled={Boolean(editing)}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  const company = companyOptions.find(
+                    (item) => String(item.id) === value
+                  );
+                  const isWally = company?.code === WALLY_COMPANY_CODE;
+                  const currentPort = Number(form.port);
+                  const nextPort = isWally
+                    ? RESERVED_LISTENER_PORTS.has(currentPort)
+                      ? currentPort
+                      : 2101
+                    : currentPort >= CUSTOM_LISTENER_PORT_MIN &&
+                        currentPort <= CUSTOM_LISTENER_PORT_MAX
+                      ? currentPort
+                      : CUSTOM_LISTENER_PORT_MIN;
+                  setForm({ ...form, company_id: value, port: nextPort });
+                }}
+                required
+              >
+                <option value="">— Chọn công ty —</option>
+                {companyOptions.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          )}
+          <Field
+            label="Port"
+            hint="Wally: 1508/1509/2101; công ty khác: 1510–1599"
+          >
             <Input
               type="number"
-              min={1}
-              max={65535}
+              min={1508}
+              max={2101}
               value={form.port}
               onChange={(event) => setForm({ ...form, port: Number(event.target.value) })}
               required
@@ -469,8 +554,8 @@ function ListenerPanel() {
                 <dd>{detail.mountpointCount}</dd>
               </div>
               <div>
-                <dt>Phạm vi</dt>
-                <dd>Toàn hệ thống</dd>
+                <dt>Công ty</dt>
+                <dd>{detail.companyName ?? '—'}</dd>
               </div>
               <div>
                 <dt>Owner</dt>

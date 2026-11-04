@@ -141,7 +141,7 @@ Docker:
 | P15-2 | PASS 2026-11-04 | Migration 041: admin/user `caster.view=tenant`, super `all`. API: super thấy 4 listener; user1 chỉ thấy 1599; wally thấy 3 port; super filter companyId=87 trả 1. Tạo 1510 company 87 OK, 1508 company 87 → 400, mountpoint Wally trên listener company 87 → 400, user1 tạo → 403. Station dùng listener khác company → 400. ACL account khác company → 400. Server test 192/192 PASS. |
 | P15-3 | PASS 2026-11-04 | Sourcetable anonymous port 2101 trả 26 STR (Wally); data anonymous `GET /BDH1` trả 401. Go thêm `CompanyID` cho listener/account + check cùng company; thêm `CASTER_PUBLIC_PORTS` (mặc định 1508,1509,2101,1510-1599). `go test ./...` + `go vet ./...` PASS; image gnss rebuild/recreate healthy. |
 | P15-4 | PASS 2026-11-04 | `docker-compose.yml` publish `1510-1599`; `docker compose config` OK; gnss healthy. Tạo listener 1510 company 87, NTRIP `GET /` anonymous trả 1 STR; tắt/xóa listener sạch. Lưu ý Windows Docker Desktop có thể proxy mở port dù listener tắt; production Linux dùng DNAT, kiểm tra bằng request NTRIP. |
-| P15-5 | PENDING | |
+| P15-5 | PASS 2026-11-04 | `/caster` có cột/filter Công ty cho superadmin, form chọn company + port (mặc định Wally 2101), company/user chỉ thấy port của mình và không có nút quản lý. `/stations` mặc định 2101 hoặc listener đầu tiên của company. Frontend build PASS; Playwright `caster-company` 3/3 PASS, `p1-rbac` user PASS, `p1-mountpoint` + `p1-ntrip-acl` + `p1-station-fix` PASS. |
 | P15-6 | PENDING | |
 
 ## 7. Rủi ro và rollback
