@@ -444,3 +444,6 @@ Tráº¡ng thÃ¡i trÆ°á»›c cutover:
 | Caddy production | PASS | DNS tr? VPS; Caddyfile production active; HTTPS 200 không -k; cert Let's Encrypt CN=YE1, h?n 2027-02-02; /health 200. |
 
 **Ðánh giá d? li?u sau cutover:** ch? thu **5 phút liên t?c** cho m?i tr?m/relay m?c tiêu ð? ð?m frame, byte, CRC và ki?m tra d? li?u RTCM; không dùng uptime dài h?n làm tiêu chí. M?c tiêu t?i thi?u 3/10 tr?m và 3/10 relay có d? li?u th?c t? trong 5 phút.
+
+| Caddy production | PASS 2026-11-04 | Caddyfile production active; HTTPS 200 không -k; cert Let's Encrypt CN=YE1 h?n 2027-02-02; /health 200. |
+| Tr?m/relay online | BLOCKED 2026-11-04 | Caster m?i 0 source connection. Caster c? 103.166.183.250:1509 v?n tr? 5 STR: LCI_BaoHa, TQG_HamYen, QNH_DongTrieu, YBI_MuCangChai, BKN_NARI. Thi?t b? v?n n?i IP c?; c?n ð?i host thi?t b? sang 43.240.117.54 ho?c d?ng caster c?. |
