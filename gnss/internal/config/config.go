@@ -19,13 +19,13 @@ type Config struct {
 	AppEncKey          string
 	InternalHMACSecret string
 
-	PollInterval     time.Duration
-	FlushInterval    time.Duration
-	QueueSize        int
-	BatchSize        int
-	DialTimeout      time.Duration
-	ShutdownTimeout  time.Duration
-	RelayIdleTimeout time.Duration
+	PollInterval             time.Duration
+	FlushInterval            time.Duration
+	QueueSize                int
+	BatchSize                int
+	DialTimeout              time.Duration
+	ShutdownTimeout          time.Duration
+	RelayIdleTimeout         time.Duration
 	StationSourceIdleTimeout time.Duration
 
 	CasterBindAddr            string
@@ -42,6 +42,7 @@ type Config struct {
 	CasterMaxHeaderBytes      int
 	CasterMaxConnections      int
 	CasterMaxConnectionsPerIP int
+	CasterPublicPorts         string
 
 	ProbePollInterval time.Duration
 	ProbeReadBuffer   int
@@ -118,13 +119,13 @@ func Load() Config {
 		AppEncKey:          os.Getenv("APP_ENC_KEY"),
 		InternalHMACSecret: os.Getenv("INTERNAL_HMAC_SECRET"),
 
-		PollInterval:     getenvSeconds("RELAY_POLL_INTERVAL_SEC", 10*time.Second),
-		FlushInterval:    getenvSeconds("RELAY_FLUSH_INTERVAL_SEC", time.Second),
-		QueueSize:        getenvInt("RELAY_QUEUE_SIZE", 10000),
-		BatchSize:        getenvInt("RELAY_BATCH_SIZE", 100),
-		DialTimeout:      getenvSeconds("RELAY_DIAL_TIMEOUT_SEC", 15*time.Second),
-		ShutdownTimeout:  getenvSeconds("RELAY_SHUTDOWN_TIMEOUT_SEC", 10*time.Second),
-		RelayIdleTimeout: getenvSeconds("RELAY_IDLE_TIMEOUT_SEC", 60*time.Second),
+		PollInterval:             getenvSeconds("RELAY_POLL_INTERVAL_SEC", 10*time.Second),
+		FlushInterval:            getenvSeconds("RELAY_FLUSH_INTERVAL_SEC", time.Second),
+		QueueSize:                getenvInt("RELAY_QUEUE_SIZE", 10000),
+		BatchSize:                getenvInt("RELAY_BATCH_SIZE", 100),
+		DialTimeout:              getenvSeconds("RELAY_DIAL_TIMEOUT_SEC", 15*time.Second),
+		ShutdownTimeout:          getenvSeconds("RELAY_SHUTDOWN_TIMEOUT_SEC", 10*time.Second),
+		RelayIdleTimeout:         getenvSeconds("RELAY_IDLE_TIMEOUT_SEC", 60*time.Second),
 		StationSourceIdleTimeout: getenvSecondsAtLeast("STATION_SOURCE_IDLE_TIMEOUT_SEC", 120*time.Second, 30*time.Second),
 
 		CasterBindAddr:            getenv("CASTER_BIND_ADDR", "0.0.0.0"),
@@ -141,6 +142,7 @@ func Load() Config {
 		CasterMaxHeaderBytes:      getenvInt("CASTER_MAX_HEADER_BYTES", 16*1024),
 		CasterMaxConnections:      getenvInt("CASTER_MAX_CONNECTIONS", 500),
 		CasterMaxConnectionsPerIP: getenvInt("CASTER_MAX_CONNECTIONS_PER_IP", 200),
+		CasterPublicPorts:         getenv("CASTER_PUBLIC_PORTS", "1508,1509,2101,1510-1599"),
 
 		ProbePollInterval: getenvSeconds("PROBE_POLL_INTERVAL_SEC", 10*time.Second),
 		ProbeReadBuffer:   getenvInt("PROBE_READ_BUFFER", 32*1024),

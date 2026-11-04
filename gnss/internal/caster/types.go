@@ -29,6 +29,7 @@ type ListenerConfig struct {
 	Enabled     bool
 	Role        string
 	Description string
+	CompanyID   *int64
 	Mountpoints map[int64]*MountpointConfig
 }
 
@@ -38,6 +39,7 @@ type AccountConfig struct {
 	PasswordHash   string
 	Enabled        bool
 	MaxConnections int
+	CompanyID      *int64
 	ACL            map[int64]bool
 	ListenerACL    map[int64]bool
 }

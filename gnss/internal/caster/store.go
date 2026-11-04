@@ -20,15 +20,17 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 	}
 
 	listenerRows, err := s.db.QueryContext(ctx,
-		`SELECT id, name, port, enabled, role, description FROM caster_listeners ORDER BY id`)
+		`SELECT id, name, port, enabled, role, description, company_id
+		   FROM caster_listeners ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("load caster listeners: %w", err)
 	}
 	listenersByID := make(map[int64]*ListenerConfig)
 	for listenerRows.Next() {
 		var (
-			listener ListenerConfig
-			enabled  int
+			listener  ListenerConfig
+			enabled   int
+			companyID sql.NullInt64
 		)
 		if err := listenerRows.Scan(
 			&listener.ID,
@@ -37,11 +39,16 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 			&enabled,
 			&listener.Role,
 			&listener.Description,
+			&companyID,
 		); err != nil {
 			listenerRows.Close()
 			return nil, err
 		}
 		listener.Enabled = enabled != 0
+		if companyID.Valid {
+			value := companyID.Int64
+			listener.CompanyID = &value
+		}
 		listener.Mountpoints = make(map[int64]*MountpointConfig)
 		listenersByID[listener.ID] = &listener
 		cfg.Listeners = append(cfg.Listeners, &listener)
@@ -113,15 +120,17 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 	mappingRows.Close()
 
 	accountRows, err := s.db.QueryContext(ctx,
-		`SELECT id, username, password_hash, enabled, max_connections FROM ntrip_accounts ORDER BY id`)
+		`SELECT id, username, password_hash, enabled, max_connections, company_id
+		   FROM ntrip_accounts ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("load ntrip accounts: %w", err)
 	}
 	accountsByID := make(map[int64]*AccountConfig)
 	for accountRows.Next() {
 		var (
-			account AccountConfig
-			enabled int
+			account   AccountConfig
+			enabled   int
+			companyID sql.NullInt64
 		)
 		if err := accountRows.Scan(
 			&account.ID,
@@ -129,11 +138,16 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 			&account.PasswordHash,
 			&enabled,
 			&account.MaxConnections,
+			&companyID,
 		); err != nil {
 			accountRows.Close()
 			return nil, err
 		}
 		account.Enabled = enabled != 0
+		if companyID.Valid {
+			value := companyID.Int64
+			account.CompanyID = &value
+		}
 		if account.MaxConnections <= 0 {
 			account.MaxConnections = 1
 		}

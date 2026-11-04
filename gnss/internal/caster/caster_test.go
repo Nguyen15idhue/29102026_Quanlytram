@@ -289,23 +289,67 @@ func TestListenerACLAndSourcetable(t *testing.T) {
 	manager, _ := newTestManager(t, cfg)
 	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("ok:secret123"))
 
-	if _, code, _ := manager.authorize(&request{Authorization: auth}, m2, 2, "127.0.0.1"); code != 403 {
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, m2, cfg.Listeners[1], "127.0.0.1"); code != 403 {
 		t.Fatalf("listener acl code = %d, want 403", code)
 	}
-	if _, code, _ := manager.authorize(&request{Authorization: auth}, m1, 1, "127.0.0.1"); code != 0 {
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, m1, cfg.Listeners[0], "127.0.0.1"); code != 0 {
 		t.Fatalf("allowed listener code = %d, want 0", code)
 	}
-	allowed := manager.sourcetableMountpoints(&request{Authorization: auth}, cfg.Listeners[0])
+	allowed := manager.sourcetableMountpoints(cfg.Listeners[0])
 	if len(allowed) != 1 || allowed[0].Name != "M1" {
 		t.Fatalf("sourcetable listener1 = %+v", allowed)
 	}
-	blocked := manager.sourcetableMountpoints(&request{Authorization: auth}, cfg.Listeners[1])
-	if len(blocked) != 0 {
+	blocked := manager.sourcetableMountpoints(cfg.Listeners[1])
+	if len(blocked) != 1 || blocked[0].Name != "M2" {
 		t.Fatalf("sourcetable listener2 = %+v", blocked)
 	}
-	anonymous := manager.sourcetableMountpoints(&request{}, cfg.Listeners[0])
-	if len(anonymous) != 0 {
+	anonymous := manager.sourcetableMountpoints(cfg.Listeners[0])
+	if len(anonymous) != 1 || anonymous[0].Name != "M1" {
 		t.Fatalf("anonymous sourcetable = %+v", anonymous)
+	}
+}
+
+func TestAuthorizeRequiresSameCompany(t *testing.T) {
+	mountpoint := &MountpointConfig{ID: 1, Name: "M1", Enabled: true}
+	listenerCompany := int64(85)
+	accountCompany := int64(87)
+	account := &AccountConfig{
+		ID:             1,
+		Username:       "other-company",
+		PasswordHash:   passwordHash("secret123"),
+		Enabled:        true,
+		MaxConnections: 1,
+		CompanyID:      &accountCompany,
+		ACL:            map[int64]bool{1: true},
+	}
+	cfg := &Config{
+		Mountpoints: map[int64]*MountpointConfig{1: mountpoint},
+		Accounts:    []*AccountConfig{account},
+		Listeners: []*ListenerConfig{{
+			ID:          1,
+			Name:        "wally",
+			Port:        1509,
+			Enabled:     true,
+			Role:        RoleBoth,
+			CompanyID:   &listenerCompany,
+			Mountpoints: map[int64]*MountpointConfig{1: mountpoint},
+		}},
+	}
+	manager, _ := newTestManager(t, cfg)
+	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("other-company:secret123"))
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, mountpoint, cfg.Listeners[0], "127.0.0.1"); code != 403 {
+		t.Fatalf("cross-company authorize code = %d, want 403", code)
+	}
+}
+
+func TestStartListenerRejectsPortOutsideAllowlist(t *testing.T) {
+	manager, _ := newTestManagerWithOptions(t, &Config{}, Options{
+		BindAddr:     "127.0.0.1",
+		AllowedPorts: map[int]bool{1509: true},
+	})
+	err := manager.startListener(&ListenerConfig{ID: 1, Port: 1600, Enabled: true})
+	if err == nil || !strings.Contains(err.Error(), "not allowed") {
+		t.Fatalf("startListener err = %v, want not allowed", err)
 	}
 }
 

@@ -22,6 +22,10 @@ import (
 
 func main() {
 	cfg := config.Load()
+	allowedPorts, err := caster.ParsePortSpec(cfg.CasterPublicPorts)
+	if err != nil {
+		log.Fatalf("invalid CASTER_PUBLIC_PORTS: %v", err)
+	}
 	ctx := context.Background()
 
 	runtimeDB, err := db.Open(ctx, cfg)
@@ -116,6 +120,7 @@ func main() {
 	casterOptions.MaxHeader = cfg.CasterMaxHeaderBytes
 	casterOptions.MaxConnections = cfg.CasterMaxConnections
 	casterOptions.MaxConnectionsPerIP = cfg.CasterMaxConnectionsPerIP
+	casterOptions.AllowedPorts = allowedPorts
 	casterOptions.Quality = analyzer
 	casterManager := caster.NewManager(
 		caster.NewMySQLStore(adminDB),

@@ -29,6 +29,7 @@ type Options struct {
 	MaxHeader           int
 	MaxConnections      int
 	MaxConnectionsPerIP int
+	AllowedPorts        map[int]bool
 	TLSCert             string
 	TLSKey              string
 	Quality             *quality.Analyzer
@@ -288,6 +289,9 @@ func (m *manager) Reconcile(ctx context.Context) error {
 func (m *manager) startListener(cfg *ListenerConfig) error {
 	if cfg.Port == 8081 {
 		return fmt.Errorf("port %d is reserved", cfg.Port)
+	}
+	if len(m.opts.AllowedPorts) > 0 && !m.opts.AllowedPorts[cfg.Port] {
+		return fmt.Errorf("port %d is not allowed", cfg.Port)
 	}
 	address := net.JoinHostPort(m.opts.BindAddr, strconv.Itoa(cfg.Port))
 	listener, err := net.Listen("tcp", address)
