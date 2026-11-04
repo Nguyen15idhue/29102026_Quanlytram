@@ -333,7 +333,7 @@ Còn cần xác nhận khi bắt đầu triển khai:
 | 1. Chuẩn hoá dữ liệu + dump | PASS 2026-11-04 | Backup `cors-mysql-20261104-220116.sql.zip` SHA256 `47D5...B7F1`; DB đích 1 company/2 user/36 station/31 MP/3 listener/58 mapping/3 account/67 relay, 0 demo, 0 cross-company; dump `cors-prod.sql.gz` SHA256 `DB6C...5406`, đã SCP VPS `/root/cors-prod.sql.gz`. |
 | 2. Hardening VPS | PASS 2026-11-04 | User `deploy` SSH + sudo/docker OK; Docker 29.9.3 + Compose v5.7.0; swap 4 GB; fail2ban active; timezone +07; **UFW inactive, không thêm rule OneDash**. |
 | 3. Compose production + Caddy | PASS 2026-11-04 | Repo clone `/opt/cors/app` @ `4dd3d78`; `docker-compose.prod.yml`, `Caddyfile`, `Caddyfile.staging`; `.env.production` 600; image `cors-server:prod`, `cors-web:prod`, `cors-gnss:prod`; compose config OK; Caddy staging/prod validate OK. |
-| 4. Restore DB | PENDING | |
+| 4. Restore DB | PASS 2026-11-04 | Restore OK; counts 1/2/36/31/3/58/3/67; schema 41/7; 0 demo, 0 cross-company; server login superadmin/wally 200; API stations 36, relay 67, listeners 1508/1509/2101; gnss health `relayDegraded=false`; sourcetable 6/26/26 STR; data anonymous 401. |
 | 5. Stack + test nội bộ/staging | PENDING | |
 | 6. Backup + restore drill | PENDING | |
 | 7. Smoke + data integrity | PENDING | |
