@@ -1487,3 +1487,4 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
 - 5 relay đích `rtk.taikhoandodac.vn` vẫn invalid vì mount cũ CMU3, KGG1, HUG2,
   TGG2, PYN6 không còn trong sourcetable 12101; cần CGBAS cấp tên mount + tài
   khoản mới trước khi sửa cấu hình.
+- NTRIP rover sau GGA: tài khoản tạm 575/2101/BDH1 nhận HTTP 200, 1680 byte, byte đầu d3; xóa 204.
