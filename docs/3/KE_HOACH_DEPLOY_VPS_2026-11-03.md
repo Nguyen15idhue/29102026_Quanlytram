@@ -447,3 +447,5 @@ Tráº¡ng thÃ¡i trÆ°á»›c cutover:
 
 | Caddy production | PASS 2026-11-04 | Caddyfile production active; HTTPS 200 không -k; cert Let's Encrypt CN=YE1 h?n 2027-02-02; /health 200. |
 | Tr?m/relay online | BLOCKED 2026-11-04 | Caster m?i 0 source connection. Caster c? 103.166.183.250:1509 v?n tr? 5 STR: LCI_BaoHa, TQG_HamYen, QNH_DongTrieu, YBI_MuCangChai, BKN_NARI. Thi?t b? v?n n?i IP c?; c?n ð?i host thi?t b? sang 43.240.117.54 ho?c d?ng caster c?. |
+
+| Caster legacy SOURCE | FIXED 2026-11-04 | Thi?t b? g?i SOURCE 123456 BDH1 (NTRIP v1, password + mountpoint, không có d?u /); parser c? ch? nh?n SOURCE /MOUNT nên tr? 404 và ðóng k?t n?i. Ð? s?a gnss/internal/caster/request.go ð? chu?n hóa request line legacy; test TestLegacySourceRequestLine PASS; sau deploy 15 source connection online. |

@@ -60,15 +60,29 @@ func readRequest(conn net.Conn, maxHeader int) (*request, *bufio.Reader, error) 
 		return nil, br, fmt.Errorf("invalid request line")
 	}
 
+	method := strings.ToUpper(fields[0])
+	path := fields[1]
+	proto := "HTTP/1.0"
+	// NTRIP v1 legacy source: "SOURCE <password> <mountpoint>" (không có dấu /).
+	// Một số thiết bị vẫn gửi dạng này; chuẩn hóa về path /mountpoint để dùng
+	// chung luồng source hiện tại.
+	if method == "SOURCE" && len(fields) >= 3 &&
+		!strings.HasPrefix(path, "/") &&
+		!strings.HasPrefix(strings.ToUpper(fields[2]), "HTTP/") {
+		path = "/" + fields[2]
+		if len(fields) >= 4 && strings.HasPrefix(strings.ToUpper(fields[3]), "HTTP/") {
+			proto = strings.ToUpper(fields[3])
+		}
+	} else if len(fields) >= 3 {
+		proto = strings.ToUpper(fields[2])
+	}
+
 	req := &request{
-		Method:        strings.ToUpper(fields[0]),
-		Path:          fields[1],
-		Proto:         "HTTP/1.0",
+		Method:        method,
+		Path:          path,
+		Proto:         proto,
 		Header:        make(map[string]string),
 		ContentLength: -1,
-	}
-	if len(fields) >= 3 {
-		req.Proto = strings.ToUpper(fields[2])
 	}
 	if index := strings.IndexByte(req.Path, '?'); index >= 0 {
 		req.Path = req.Path[:index]

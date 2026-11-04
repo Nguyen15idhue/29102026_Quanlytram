@@ -353,6 +353,24 @@ func TestStartListenerRejectsPortOutsideAllowlist(t *testing.T) {
 	}
 }
 
+func TestLegacySourceRequestLine(t *testing.T) {
+	mountpoint := &MountpointConfig{ID: 1, Name: "M", Enabled: true, SourceNoAuth: true}
+	cfg := &Config{
+		Mountpoints: map[int64]*MountpointConfig{1: mountpoint},
+		Listeners: []*ListenerConfig{
+			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: mountpoint}},
+		},
+	}
+	manager, _ := newTestManager(t, cfg)
+	port := listenerPort(t, manager, 1)
+
+	source, _, status := connect(t, port, "SOURCE 123456 M\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("legacy source status = %q, want ICY 200 OK", status)
+	}
+	_ = source.Close()
+}
+
 func TestAnonymousSourceRejected(t *testing.T) {
 	mountpoint := &MountpointConfig{ID: 1, Name: "M", Enabled: true}
 	cfg := &Config{
