@@ -337,7 +337,7 @@ Còn cần xác nhận khi bắt đầu triển khai:
 | 5. Stack + test nội bộ/staging | PASS 2026-11-04 | 5 service healthy, migrate exit 0; Caddy staging HTTPS 200, `/health` 200, JS asset 200, API unauth 401; WebSocket 101; public 1508/1509/2101 sourcetable 6/26/26, custom 1510 tạo/xóa OK (1 STR), data anonymous 401; không lỗi log. |
 | 6. Backup + restore drill | PASS 2026-11-04 | `/opt/cors/backup.sh` chạy OK; dump `cors-prod-20261104-153215.sql.gz` SHA256 `4272...7a57`; cron `15 2 * * *`, retention 14 ngày; restore sang MySQL tạm PASS, counts 1/2/36/31/3/58/3/67, schema 41/7; không tạo snapshot (người dùng tự làm ngoài VPS). |
 | 7. Smoke + data integrity | PASS 2026-11-04 | Smoke 15 phút: source 269.760 bytes, rover 269.370 bytes, health OK, RAM ~1.76 GB, disk 31%, server/gnss/caddy/web restart 0; mysql RestartCount=1 do init ban đầu, không tăng trong smoke. `CHECK TABLE` 11 bảng OK; orphan 0; cross-company 0; relay enabled 0; account smoke đã xoá, runtime test đã clear; DB vẫn 1/2/36/31/3/58/3/67, schema 41/7. |
-| 8. Runbook + báo cáo | PENDING | |
+| 8. Runbook + báo cáo | PASS 2026-11-04 | Runbook cutover + hướng dẫn OneDash đã thêm; không đổi DNS/cutover; báo cáo readiness bên dưới. |
 
 ## 12. Hướng dẫn bật firewall OneDash (người dùng tự làm sau)
 
@@ -365,3 +365,74 @@ Thao tác trên OneDash:
 - OneDash/IPtables nằm ngoài VPS; Docker publish port có thể bypass UFW nội bộ,
   nên test từ Internet sau khi bật.
 - Nếu bật UFW trên VPS sau này, nhớ allow `24700` trước khi enable.
+
+## 13. Runbook cutover thủ công (người dùng thực hiện)
+
+Trạng thái trước cutover:
+- Stack VPS đang chạy với `.env.production` và **Caddyfile.staging** (`tls internal`).
+- Caddy production `Caddyfile` đã validate nhưng chưa active.
+- DNS `rtktk.online` vẫn trỏ hệ thống cũ; agent không đổi DNS.
+- Không có thiết bị thật kết nối VPS trước cutover.
+
+### T-48h
+1. TTL đã là 300s.
+2. Tạo snapshot ngoài VPS (người dùng tự làm).
+3. Xác nhận backup 02:00 của nhà cung cấp.
+4. Chốt danh sách thiết bị + người tắt/bật.
+
+### T-1 ngày
+1. Dump cuối từ hệ thống cũ, SHA256.
+2. Restore thử vào MySQL tạm trên VPS; so counts.
+3. Kiểm tra lại stack staging, port, WebSocket, sourcetable.
+
+### 20:00–20:05
+1. Dừng nhận ghi trên hệ thống cũ.
+2. Dump cuối `cors_admin` + `cors_runtime`; SHA256; SCP sang VPS.
+3. Restore vào MySQL production trên VPS; kiểm tra counts.
+4. Chạy `/opt/cors/backup.sh` trước cutover.
+
+### 20:05–20:10 — trước khi đổi DNS
+1. `docker compose -f docker-compose.prod.yml up -d`.
+2. `docker compose ps`; migrate exit 0; 5 service healthy.
+3. `curl http://127.0.0.1:4000/health`; `curl http://127.0.0.1:7080/health`;
+   login nội bộ; sourcetable anonymous.
+4. Vẫn giữ Caddy staging để tránh ACME khi DNS chưa trỏ.
+
+### 20:10 — đổi DNS
+1. Đổi A record `rtktk.online` → `43.240.117.54`.
+2. Kiểm tra `dig rtktk.online` / DNS propagation.
+3. **Chỉ sau khi DNS trỏ VPS** mới chuyển Caddy sang production:
+   ```bash
+   cd /opt/cors/app
+   CADDYFILE=Caddyfile docker compose -f docker-compose.prod.yml up -d --force-recreate caddy
+   ```
+4. Chờ Caddy xin Let's Encrypt; kiểm tra:
+   ```bash
+   curl -I https://rtktk.online/
+   curl https://rtktk.online/health
+   ```
+5. Nếu Caddy staging vẫn còn, HTTPS sẽ dùng cert nội bộ; chỉ dùng trong lúc
+   chưa đổi DNS.
+
+### 20:10–20:15
+- Kiểm tra TLS/web `https://rtktk.online`, login superadmin/wally.
+- Kiểm tra API, WebSocket, sourcetable 1508/1509/2101.
+
+### 20:15–20:45
+- Tắt/bật thiết bị NTRIP theo danh sách để nhận IP mới.
+- Theo dõi thiết bị online; ghi nhận thiết bị chưa lên.
+
+### 20:45–21:00
+- Đối chiếu sourcetable 1508/1509/2101 (và port riêng), số trạm online, log 401/403.
+- Chỉ bật relay theo nhóm sau khi sourcetable ổn định.
+
+### 21:00
+- Kết thúc bảo trì; hệ thống mới chính thức.
+- Theo dõi RAM/disk/log/relay; xử lý thiết bị chưa lên.
+
+### Rollback
+1. Giữ hệ thống cũ + dump cuối ít nhất 7 ngày.
+2. Nếu lỗi nghiêm trọng: đổi DNS về IP cũ; thông báo tắt/bật thiết bị lần 2.
+3. Trên VPS: `docker compose down` (giữ volume); không xoá volume/backup.
+4. Dump dữ liệu mới trước khi rollback nếu đã ghi.
+5. Chỉ rollback trong 24h đầu nếu lỗi nghiêm trọng.
