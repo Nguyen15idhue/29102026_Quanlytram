@@ -312,7 +312,8 @@ Lưu ý cutover:
    logic trước/sau cutover.
 4. TLS: **Caddy**, DNS-only, không Cloudflare proxy.
 5. Cutover: **20:00–23:59 (+07)**, dự phòng 30 phút tắt/bật thiết bị.
-6. Không có cloud firewall; chỉ UFW trên VPS.
+6. **Không bật firewall trong pha này**: UFW/OneDash để tắt; người dùng tự bật sau
+   theo hướng dẫn mục 11.
 7. Deploy bằng **dump DB**.
 8. **Không giữ tài nguyên/dữ liệu demo**: chỉ Wally + 36 trạm/31 mountpoint/
    3 listener/3 account/67 relay thật; xoá toàn bộ DOCS/E2E/Metrics/Trạm test.
@@ -324,3 +325,16 @@ Còn cần xác nhận khi bắt đầu triển khai:
 - Nhà cung cấp có cho phép tạo snapshot thủ công trước cutover không.
 - Thời gian retention backup 02:00 (7/14/30 ngày).
 - Danh sách thiết bị + người chịu trách nhiệm tắt/bật trong khung 30 phút.
+
+## 11. Kết quả thực hiện
+
+| Bước | Trạng thái | Bằng chứng |
+|---|---|---|
+| 1. Chuẩn hoá dữ liệu + dump | PASS 2026-11-04 | Backup `cors-mysql-20261104-220116.sql.zip` SHA256 `47D5...B7F1`; DB đích 1 company/2 user/36 station/31 MP/3 listener/58 mapping/3 account/67 relay, 0 demo, 0 cross-company; dump `cors-prod.sql.gz` SHA256 `DB6C...5406`, đã SCP VPS `/root/cors-prod.sql.gz`. |
+| 2. Hardening VPS | PENDING | |
+| 3. Compose production + Caddy | PENDING | |
+| 4. Restore DB | PENDING | |
+| 5. Stack + test nội bộ/staging | PENDING | |
+| 6. Backup + restore drill | PENDING | |
+| 7. Smoke + data integrity | PENDING | |
+| 8. Runbook + báo cáo | PENDING | |
