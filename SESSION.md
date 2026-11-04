@@ -1489,3 +1489,26 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
   khoản mới trước khi sửa cấu hình.
 - NTRIP rover sau GGA: tài khoản tạm 575/2101/BDH1 nhận HTTP 200, 1680 byte, byte đầu d3; xóa 204.
 - Import relay: nếu file cũ có lat/lon nhưng thiếu `nmea_interval_sec`, importer mặc định 5s thay vì 0 (tránh tắt GGA khi import lại). Server 192 test PASS, `tsc --noEmit` PASS.
+
+## Fix form 500 + bộ lọc + trạng thái fix (2026-11-05)
+
+- Lỗi 500 khi lưu form nguồn trạm: `PUT /api/stations/:id/sources` dùng
+  `const [accountRows] = await query()`; `query()` trả thẳng mảng rows nên khi
+  trạm không có NTRIP account quản lý, `accountRows` là `undefined` và
+  `accountRows[0]` ném lỗi. Đã sửa `stations.ts`; sửa luôn 2 chỗ tương tự
+  trong `mountpoints.ts` và `lib/alerts.ts`.
+- Lỗi 500 khi lưu form relay: cột JSON `relay_jobs.tags` nhận object từ DB và bị
+  bind thành `[object Object]`. Thêm `jsonColumn()` chuẩn hóa string/object/
+  null trước khi ghi; áp dụng cho create/update/import.
+- `DOWNSTREAM_BUSY` giờ trả tên + ID relay đang giữ downstream, ví dụ:
+  `Downstream http://servers.onocoy.com:2101/TNNVN đang được relay job "xuanai2" (ID 480) sử dụng`.
+- Tách bộ lọc Trạm: `lock` (đã khóa/mở khóa) + `transport` (online/offline/
+  no_data/đã tắt). Relay: `lock` + `state` (online/offline/no_data/pending/
+  paused/disabled/locked). API lọc server-side, giữ phân trang.
+- Trang Danh sách online: cột Trạng thái dùng `fixType` (fixed/float/single/
+  RTD/lỗi) thay vì luôn "online"; thêm lọc theo hướng source/rover và trạng thái
+  fix. Caster chỉ trả fixType cho rover, source để trống.
+- Đã build/load/deploy `cors-server:prod`, `cors-web:prod`, `cors-gnss:prod`.
+  Kiểm tra: PUT nguồn trạm 675 = 200; PATCH relay 479 = 200; lọc trạm online 21,
+  offline 14; relay online 38, offline 27, disabled 2; connections fixed 19,
+  error 3, none 22; enable 479 = 409 với thông báo nêu rõ xuanai2 (ID 480).

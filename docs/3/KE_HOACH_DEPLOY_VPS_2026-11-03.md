@@ -457,3 +457,8 @@ Trạng thái trước cutover:
 | Relay 5 phút sau GGA | PASS 2026-11-05 | 66 enabled, 39 online, 43 relay có byte tăng; 12.15 MB up/down trong 5 phút. Trong 12 relay lấy nguồn từ rtk.taikhoandodac.vn: 10 online/streaming (YBI_XuanAi, TNN_VoNhai, TNN_DaiTu, TNN_PhoYen, tptnnaitogy, BKN_ChoDon, NDH_TPNamDinh, BNH_GiaBinh, QNH_HaLong, HYN_AnThi). |
 | Relay đích taikhoandodac | BLOCKED 2026-11-05 | 5 relay đích cũ vẫn invalid: CMU3, KGG1, HUG2, TGG2, PYN6 không có trong sourcetable 12101 (52 mount mới: KGG2/KGG3, PYN1...). Lỗi 404/EOF/409; cần CGBAS cấp lại tên mount + tài khoản mới. 2 relay nguồn BGG_TpBacGiang, TQG_TPTuyenQuang trả ICY 200 nhưng không có byte dù đã gửi GGA; nguồn/trạm phía CGBAS không phát dữ liệu. |
 | NTRIP rover sau GGA | PASS 2026-11-05 | Tài khoản tạm 575, listener 2101, mount BDH1: HTTP 200, nhận 1680 byte, byte đầu d3 (RTCM); xóa tài khoản 204. |
+
+| Form 500 | FIXED 2026-11-05 | Sửa destructuring `query()` ở station sources, mountpoints, alerts; chuẩn hóa JSON `relay_jobs.tags`. PUT nguồn trạm 675 và PATCH relay 479 trả 200. |
+| Bộ lọc trạm/relay | DONE 2026-11-05 | Tách `lock` và `transport`/`state`; API trả đúng: trạm online 21/offline 14; relay online 38/offline 27/disabled 2. |
+| Danh sách online | DONE 2026-11-05 | Cột trạng thái hiển thị fixed/float/single/RTD/lỗi theo `fixType`; thêm lọc hướng và trạng thái fix (fixed 19, error 3, none 22). |
+| DOWNSTREAM_BUSY | FIXED 2026-11-05 | Thông báo nêu relay đang giữ downstream: `TNNVN đang được relay job "xuanai2" (ID 480) sử dụng`. |
