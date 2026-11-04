@@ -4,6 +4,7 @@
 
 - Thời điểm: 2026-11-01 09:27 (Asia/Ho_Chi_Minh, +07:00)
 - 2026-11-04: listener mặc định đổi sang **2101** (migration admin 039, copy owner/mountpoint từ 1509; form listener và form trạm mặc định 2101; dev publish 2101). Listener đang bật **không xóa được**: API single trả 409 `LISTENER_ENABLED`, bulk bỏ qua + `skipped`, UI disable nút xóa từng dòng và nút Xóa bulk khi selection có listener bật. Server test 191/191 PASS, Go test PASS, FE build PASS; API 409/bulk skipped PASS; UI default 2101 + nút xóa disabled PASS. Lưu ý: container server test 2 FAIL do thiếu mount `/db/data` (không phải lỗi code); docs lịch sử còn ghi 2101 bị cấm.
+- Cutover kỹ thuật 2026-11-04: DNS trỏ VPS; Caddy production active; HTTPS 200 không -k; cert Let's Encrypt CN=YE1 hạn 2027-02-02; `/health` 200.
 - Deploy VPS bước 8 PASS 2026-11-04: runbook cutover + hướng dẫn OneDash firewall trong docs/3; stack VPS staging sẵn sàng, không đổi DNS/cutover; readiness: 5 service healthy, schema 41/7, public ports OK.
 - Deploy VPS bước 7 PASS 2026-11-04: smoke 15 phút source 269.760B / rover 269.370B, health OK, RAM ~1.76GB, disk 31%, restart server/gnss/caddy/web = 0; CHECK TABLE 11 bảng OK, orphan/cross-company/relay enabled = 0; xoá account smoke + clear runtime test; counts cuối 1/2/36/31/3/58/3/67.
 - Deploy VPS bước 6 PASS 2026-11-04: `/opt/cors/backup.sh` + cron 02:15 retention 14 ngày; dump SHA256 OK; restore drill sang MySQL tạm PASS counts 1/2/36/31/3/58/3/67 schema 41/7; không snapshot.

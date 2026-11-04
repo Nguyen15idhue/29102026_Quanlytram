@@ -436,3 +436,11 @@ Tráº¡ng thÃ¡i trÆ°á»›c cutover:
 3. TrÃªn VPS: `docker compose down` (giá»¯ volume); khÃ´ng xoÃ¡ volume/backup.
 4. Dump dá»¯ liá»‡u má»›i trÆ°á»›c khi rollback náº¿u Ä‘Ã£ ghi.
 5. Chá»‰ rollback trong 24h Ä‘áº§u náº¿u lá»—i nghiÃªm trá»ng.
+
+## 14. K?t qu? cutover k? thu?t (2026-11-04)
+
+| Bı?c | Tr?ng thái | B?ng ch?ng |
+|---|---|---|
+| Caddy production | PASS | DNS tr? VPS; Caddyfile production active; HTTPS 200 không -k; cert Let's Encrypt CN=YE1, h?n 2027-02-02; /health 200. |
+
+**Ğánh giá d? li?u sau cutover:** ch? thu **5 phút liên t?c** cho m?i tr?m/relay m?c tiêu ğ? ğ?m frame, byte, CRC và ki?m tra d? li?u RTCM; không dùng uptime dài h?n làm tiêu chí. M?c tiêu t?i thi?u 3/10 tr?m và 3/10 relay có d? li?u th?c t? trong 5 phút.
