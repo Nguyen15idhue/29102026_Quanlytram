@@ -183,6 +183,7 @@ export function Stations() {
   } | null>(null);
   const [mountpointOptions, setMountpointOptions] = useState<string[]>([]);
   const [mountpointLoading, setMountpointLoading] = useState(false);
+  const [mountpointName, setMountpointName] = useState('');
   const importRef = useRef<HTMLInputElement>(null);
 
   const listQuery = useMemo(() => {
@@ -344,7 +345,12 @@ export function Stations() {
         ...(isSuper && !editing
           ? { company_id: form.company_id === '' ? null : Number(form.company_id) }
           : {}),
-        ...(editing ? {} : sourceBody)
+        ...(editing
+          ? {}
+          : {
+              ...sourceBody,
+              ...(mountpointName.trim() ? { mountpoint_name: mountpointName.trim() } : {})
+            })
       };
       const saved = editing
         ? await apiFetch<{ item: Station; reconcile?: { ok: boolean; errors?: string[] } }>(`/api/stations/${editing.id}`, {
@@ -576,6 +582,7 @@ export function Stations() {
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
+    setMountpointName('');
     setError('');
     setDirty(false);
     setFormOpen(true);
@@ -584,6 +591,7 @@ export function Stations() {
   function openEdit(station: Station) {
     setEditing(station);
     setForm(formFromStation(station));
+    setMountpointName(station.mountpoint_name ?? '');
     setError('');
     setDirty(false);
     setFormOpen(true);
@@ -1139,12 +1147,22 @@ export function Stations() {
                 </Select>
               </Field>
             )}
-            <Field label="Mountpoint tự sinh">
-              <Input
-                readOnly
-                value={editing?.mountpoint_name ?? previewMountpointName(form.name)}
-              />
-            </Field>
+            {editing ? (
+              <Field label="Mountpoint tự sinh" hint="Không đổi tên mountpoint sau khi tạo.">
+                <Input readOnly value={editing.mountpoint_name ?? ''} />
+              </Field>
+            ) : (
+              <Field
+                label="Mountpoint"
+                hint="Để trống để hệ thống tự sinh; có thể sửa nếu muốn tên khác."
+              >
+                <Input
+                  value={mountpointName}
+                  placeholder={previewMountpointName(form.name)}
+                  onChange={(event) => setMountpointName(event.target.value)}
+                />
+              </Field>
+            )}
             <Field label="Loại trạm">
               <Select
                 value={form.station_type}

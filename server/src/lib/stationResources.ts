@@ -2,10 +2,11 @@ import type { PoolConnection } from 'mysql2/promise';
 import { ApiError } from './http';
 import { encryptSecret, secretAad } from './crypto';
 import { hashPassword } from './password';
-import { uniqueMountpointName } from './stationNaming';
+import { uniqueMountpointName, ensureMountpointNameAvailable } from './stationNaming';
 
 export interface StationSourceInput {
   name: string;
+  mountpoint_name?: string;
   enabled: boolean;
   source_role: 'ntrip_client' | 'ntrip_caster';
   caster_listener_id?: number | null;
@@ -39,7 +40,10 @@ export async function createStationResources(
   actorId: number,
   companyId?: number | null
 ): Promise<CreatedStationResources> {
-  const mountpointName = await uniqueMountpointName(conn, data.name);
+  const requestedName = data.mountpoint_name?.trim() ?? '';
+  const mountpointName = requestedName
+    ? await ensureMountpointNameAvailable(conn, requestedName)
+    : await uniqueMountpointName(conn, data.name);
   const mountpointEnabled = data.enabled ? 1 : 0;
   const pausedBy = data.enabled ? null : stationId;
   let resolvedCompanyId = companyId;
@@ -60,7 +64,7 @@ export async function createStationResources(
       stationId,
       mountpointEnabled,
       pausedBy,
-      'Tự sinh khi tạo trạm',
+      requestedName ? 'Tạo cùng trạm' : 'Tự sinh khi tạo trạm',
       ownerId,
       resolvedCompanyId,
       actorId

@@ -119,6 +119,7 @@ const stationBaseSchema = z.object({
 });
 
 const createSchema = stationBaseSchema.extend({
+  mountpoint_name: z.string().trim().max(128).optional(),
   source_role: z.enum(['ntrip_client', 'ntrip_caster']).optional().default('ntrip_caster'),
   caster_listener_id: z.number().int().positive().nullable().optional(),
   caster_username: z.string().max(128).optional().default(''),

@@ -1823,4 +1823,28 @@ cd frontend; npx playwright test tests/guide.spec.ts
 - Chưa làm: hybrid/PMTiles/style_url (chưa có trong mô hình cấu hình hiện tại);
   giấy phép geojson chưa xác định.
 
+---
+
+## Mountpoint thủ công khi tạo trạm (2026-11-05)
+
+### Đã làm
+- Form tạo trạm: ô **Mountpoint** cho phép nhập tay; để trống thì tự sinh theo
+  tên trạm (placeholder là tên dự kiến).
+- Form sửa trạm vẫn read-only, ghi rõ không đổi tên sau khi tạo.
+- API tạo trạm nhận `mountpoint_name`; kiểm tra rỗng/độ dài và trùng tên
+  (409 `MOUNTPOINT_EXISTS`).
+- `createStationResources` dùng tên người dùng nhập thay vì luôn tự sinh.
+
+### Test
+- `server/tests/stationNaming.test.ts`: 3/3 PASS.
+- `frontend/tests/station-mountpoint-custom.spec.ts`: PASS (UI sửa được,
+  API lưu đúng tên, trùng tên trả 409, cleanup).
+- `p1-station.spec.ts`: PASS (không hỏng luồng tạo/sửa trạm).
+
+### Cách chạy
+```powershell
+cd server; npx vitest run tests/stationNaming.test.ts
+cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p1-station.spec.ts
+```
+
 

@@ -71,6 +71,10 @@ Các nhóm trường chính:
 Lưu ý:
 
 - Trường **bất biến** (ví dụ mã định danh) không sửa được sau khi tạo.
+- **Mountpoint** được tự sinh theo tên trạm; có thể sửa trước khi lưu nếu muốn
+  tên khác. Tên phải chưa tồn tại trên hệ thống.
+- Sau khi tạo, tên mountpoint không đổi trong hộp thoại sửa trạm; quản lý tên ở
+  mục **CORS → Mountpoint**.
 - Toạ độ dự phòng dùng khi nguồn chưa gửi bản tin vị trí.
 - Nếu công ty đã được gán, không thể đổi sang công ty khác.
 
