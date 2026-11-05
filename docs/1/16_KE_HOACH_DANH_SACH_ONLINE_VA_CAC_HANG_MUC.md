@@ -373,3 +373,21 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
 - Commit: `eda5943`
 - Việc còn lại: kiểm tra UI trên stack local; chạy SQL kiểm chứng khi lên prod.
 
+## KẾT QUẢ THỰC HIỆN — BƯỚC 2 (2026-11-05)
+
+- Trạng thái: **PASS typecheck**, Playwright chưa chạy (không có stack local).
+- Nguyên nhân: overlay bản đồ dùng z-index 1100–1400 nhưng `.map-shell` không tạo
+  stacking context, nên phủ lên `.sidebar` (z-index 30).
+- File đã sửa:
+  - `frontend/src/styles.css`: `.map-shell { isolation: isolate; z-index: 0; }` —
+    khoá toàn bộ overlay bản đồ trong stacking context của trang, không đánh số lại.
+  - `frontend/src/components/Layout.tsx`: đóng drawer mobile bằng `Esc`.
+  - `frontend/tests/map-mobile-menu.spec.ts`: test mới 390x844, kiểm tra
+    `elementFromPoint` thuộc sidebar + Esc đóng.
+- Test đã chạy:
+  - `cd frontend; npx tsc --noEmit` → PASS.
+- Chưa chạy: `npx playwright test tests/map-mobile-menu.spec.ts tests/ui.spec.ts`
+  (cần stack local tại `127.0.0.1:3000`).
+- Commit: `__COMMIT__`
+- Việc còn lại: kiểm tra thủ công 390/768 trên stack local.
+

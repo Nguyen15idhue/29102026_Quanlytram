@@ -1644,4 +1644,24 @@ cd server; npx vitest run tests/casterListener.test.ts
 cd frontend; npx tsc --noEmit
 ```
 
+---
+
+## Plan 16 — Bước 2: z-index menu mobile vs bản đồ (2026-11-05)
+
+### Đã làm
+- `.map-shell` thêm `isolation: isolate; z-index: 0;` → overlay 1100–1400 không
+  còn vượt ra ngoài trang bản đồ.
+- Layout: Esc đóng drawer mobile.
+- Test mới `frontend/tests/map-mobile-menu.spec.ts` (390x844, elementFromPoint).
+
+### Chưa làm
+- Chưa chạy Playwright: không có stack local ở 127.0.0.1:3000.
+- Chưa kiểm tra thủ công 390/768.
+
+### Cách chạy
+```powershell
+cd frontend; npx tsc --noEmit
+cd frontend; npx playwright test tests/map-mobile-menu.spec.ts tests/ui.spec.ts
+```
+
 

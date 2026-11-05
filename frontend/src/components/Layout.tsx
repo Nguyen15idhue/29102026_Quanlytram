@@ -63,6 +63,16 @@ export function Layout() {
 
   useEffect(() => setOpen(false), [location.pathname]);
 
+  // Đóng drawer mobile bằng Esc (a11y) — không ảnh hưởng desktop.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [open]);
+
   async function handleLogout() {
     await logout();
     navigate('/login', { replace: true });
