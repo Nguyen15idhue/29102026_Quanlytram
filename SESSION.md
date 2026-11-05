@@ -1858,6 +1858,11 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   Dừng nếu có migration hoặc repo bẩn.
 - VPS: `/opt/cors/app`, branch `main`, compose `docker-compose.prod.yml`,
   HTTPS `https://rtktk.online/`.
-- Chưa chạy deploy tại thời điểm ghi mục này (sẽ cập nhật sau khi chạy).
+- Đã deploy ngày 2026-11-05: commit `669a513`, migration runtime `008` đã chạy.
+  Build lần đầu lỗi mạng `proxy.golang.org`; script đã thêm retry với
+  `goproxy.io`/`goproxy.cn`.
+- Kiểm chứng sau deploy: HTTPS 200; `/geo/vietnam-provinces.geojson` 200;
+  `/guide/huong-dan-tong-quat/` 200; web image có `maplibre-gl-worker.mjs`;
+  tất cả container healthy.
 
 
