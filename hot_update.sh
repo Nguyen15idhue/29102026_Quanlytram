@@ -15,6 +15,7 @@ HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-120}"
 PUBLIC_URL="${PUBLIC_URL:-https://rtktk.online/}"
 BUILD_GUIDE="${BUILD_GUIDE:-0}"
 SCOPE="${1:-auto}"
+GOPROXY="${GOPROXY:-https://goproxy.io,direct}"
 
 log() { printf '\n[%s] %s\n' "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" "$*"; }
 die() { printf '\nLỖI: %s\n' "$*" >&2; exit 1; }
@@ -117,7 +118,11 @@ fi
 if [ -n "$BUILD_SERVICES" ]; then
   log "Build: $BUILD_SERVICES"
   # shellcheck disable=SC2086
-  compose build $BUILD_SERVICES
+  if ! compose build --build-arg "GOPROXY=$GOPROXY" $BUILD_SERVICES; then
+    log "Build lỗi, thử lại với GOPROXY dự phòng..."
+    # shellcheck disable=SC2086
+    compose build --build-arg "GOPROXY=https://goproxy.cn,direct" $BUILD_SERVICES
+  fi
   log "Restart: $BUILD_SERVICES"
   # shellcheck disable=SC2086
   compose up -d --no-deps $BUILD_SERVICES

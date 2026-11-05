@@ -12,6 +12,7 @@ BACKUP_SCRIPT="${BACKUP_SCRIPT:-/opt/cors/backup.sh}"
 HEALTH_TIMEOUT="${HEALTH_TIMEOUT:-180}"
 PUBLIC_URL="${PUBLIC_URL:-https://rtktk.online/}"
 BUILD_GUIDE="${BUILD_GUIDE:-0}"
+GOPROXY="${GOPROXY:-https://goproxy.io,direct}"
 
 log() { printf '\n[%s] %s\n' "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" "$*"; }
 die() { printf '\nLỖI: %s\n' "$*" >&2; exit 1; }
@@ -60,7 +61,10 @@ grep -q '^BACKUP_OK ' "$BACKUP_OUT" || die "Backup thất bại, dừng cập nh
 rm -f "$BACKUP_OUT"
 
 log "Build images..."
-compose build --pull
+if ! compose build --pull --build-arg "GOPROXY=$GOPROXY"; then
+  log "Build lỗi, thử lại với GOPROXY dự phòng..."
+  compose build --build-arg "GOPROXY=https://goproxy.cn,direct"
+fi
 
 log "Chạy migration..."
 compose run --rm migrate
