@@ -487,6 +487,6 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
   - `npx playwright test tests/guide.spec.ts --grep-invert "G5"` → 8/8 PASS.
   - G5 (3 vai trò) không chạy được trên local: DB chỉ có `superadmin`, thiếu
     `docs.admin`/`docs.user`; đây là thiếu fixture, không phải lỗi thay đổi.
-- Commit: `__COMMIT__`
+- Commit: `7c91742`
 - Việc còn lại: chạy G5 khi có seed docs fixtures; kiểm tra mắt thường 3 nút hướng dẫn.
 
