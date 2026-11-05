@@ -1795,5 +1795,19 @@ cd frontend; npx playwright test tests/guide.spec.ts
   chuyển đổi qua lại, tự fallback khi lỗi (chưa triển khai).
   Nguyên nhân đã xác minh: build thiếu `maplibre-gl-worker.mjs`, dev thiếu worker,
   không có WebGL check/fallback, test Playwright quá yếu.
+- Bổ sung **Kế hoạch bổ sung 2**: lớp ranh giới + tên 34 tỉnh, toggle trong
+  "Nền bản đồ", áp dụng cả Leaflet/MapLibre (chưa triển khai).
+  Lưu ý: file `vietnam-provinces.geojson` hiện chỉ nằm trong
+  `frontend/public/guide/assets/map/` (thư mục build, gitignore) — phải copy sang
+  `frontend/public/geo/` trước khi code, nếu không sẽ bị `build-guide` xoá.
+
+### Kế hoạch bổ sung 1 — hai renderer + fallback (2026-11-05)
+
+- Đã sửa: `vite.config.ts` (exclude optimizeDeps, worker es, copy worker plugin),
+  `MapCanvas` (WebGL check + fallback), `MaplibreCanvas` (try/catch + timeout 8s),
+  banner fallback ở `UnifiedMap`, test Playwright mạnh hơn.
+- Bằng chứng: build PASS + worker 507.2 KB trong `dist/assets`;
+  Playwright `map-maplibre` 3/3 PASS; hồi quy map 6/6 PASS.
+- Chưa làm: kiểm tra trên trình duyệt/thiết bị thật ngoài Chrome.
 
 

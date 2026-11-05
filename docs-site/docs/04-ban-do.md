@@ -23,6 +23,19 @@ Thanh công cụ bên trái bản đồ cho phép chọn lớp dữ liệu:
 - **Fit**: thu khung nhìn vừa toàn bộ điểm đang hiển thị.
 - **Về mặc định**: trả bản đồ về khung nhìn ban đầu.
 
+## Renderer bản đồ
+
+Super admin chọn **Renderer** trong **Hệ thống → Cấu hình bản đồ**:
+
+| Renderer | Ghi chú |
+|---|---|
+| Leaflet (mặc định) | Ổn định, không cần WebGL |
+| MapLibre | Dùng WebGL, tải theo nhu cầu |
+
+Nếu trình duyệt không hỗ trợ WebGL hoặc MapLibre không tải được, bản đồ tự
+chuyển về Leaflet và hiện banner nêu lý do. Lựa chọn renderer được lưu trong
+cấu hình và giữ sau khi tải lại trang.
+
 ## Bộ lọc, danh sách và chú giải
 
 - Mở **Bộ lọc** để chọn công ty, trạng thái, tỉnh/thành và loại đối tượng.

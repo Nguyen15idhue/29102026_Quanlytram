@@ -26,17 +26,20 @@ test.describe('renderer bản đồ', () => {
   test.skip(!password, 'E2E_PASSWORD is required');
 
   test.afterEach(async ({ page }) => {
-    // Trả cấu hình về Leaflet để các test khác không phụ thuộc thứ tự.
     try {
       await setRenderer(page, 'leaflet');
     } catch {
-      // Bỏ qua: test chính đã thất bại trước khi đăng nhập.
+      // Test chính đã thất bại trước khi đăng nhập.
     }
   });
 
-  test('MapLibre hiển thị nền, attribution và nhận Fit', async ({ page }) => {
+  test('MapLibre: worker 200, tile và marker thực sự render', async ({ page }) => {
     const errors: string[] = [];
+    let tileRequests = 0;
     page.on('pageerror', (error) => errors.push(error.message));
+    page.on('request', (request) => {
+      if (request.url().includes('/api/map/tiles/')) tileRequests += 1;
+    });
     await page.route('**/api/map/tiles/**', (route) =>
       route.fulfill({ status: 200, contentType: 'image/png', body: TILE_PNG })
     );
@@ -45,13 +48,76 @@ test.describe('renderer bản đồ', () => {
     await login(page);
     await setRenderer(page, 'maplibre');
 
+    const worker = page.waitForResponse(
+      (response) => response.url().includes('maplibre-gl-worker'),
+      { timeout: 20_000 }
+    );
     await page.goto('/map');
+    expect((await worker).status()).toBe(200);
+
     await expect(page.locator('.maplibre-canvas')).toBeVisible();
-    await expect(page.locator('.maplibregl-canvas')).toBeVisible();
     await expect(page.locator('.maplibregl-ctrl-attrib')).toContainText('OpenStreetMap');
 
+    await page.waitForFunction(() => {
+      const map = (
+        window as unknown as {
+          __map?: {
+            isSourceLoaded: (id: string) => boolean;
+            querySourceFeatures: (id: string) => unknown[];
+          };
+        }
+      ).__map;
+      return Boolean(
+        map && map.isSourceLoaded('tiles') && map.querySourceFeatures('stations').length > 0
+      );
+    }, undefined, { timeout: 20_000 });
+
+    expect(tileRequests).toBeGreaterThan(0);
     await page.getByRole('button', { name: 'Fit' }).click();
     await expect(page.locator('.maplibre-canvas')).toBeVisible();
     expect(errors).toEqual([]);
+  });
+
+  test('chuyển đổi Leaflet ↔ MapLibre và giữ lựa chọn sau reload', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page);
+
+    await setRenderer(page, 'leaflet');
+    await page.goto('/map');
+    await expect(page.locator('.leaflet-container')).toBeVisible();
+
+    await setRenderer(page, 'maplibre');
+    await page.goto('/map');
+    await expect(page.locator('.maplibre-canvas')).toBeVisible();
+    await page.reload();
+    await expect(page.locator('.maplibre-canvas')).toBeVisible();
+
+    await setRenderer(page, 'leaflet');
+    await page.goto('/map');
+    await expect(page.locator('.leaflet-container')).toBeVisible();
+  });
+
+  test('không có WebGL thì tự fallback Leaflet và hiện banner', async ({ page }) => {
+    await page.addInitScript(() => {
+      const original = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (
+        this: HTMLCanvasElement,
+        type: string,
+        ...args: never[]
+      ) {
+        if (String(type).includes('webgl')) return null;
+        return (original as (...params: never[]) => unknown).call(this, type, ...args);
+      } as typeof HTMLCanvasElement.prototype.getContext;
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page);
+    await setRenderer(page, 'maplibre');
+    await page.goto('/map');
+
+    await expect(page.locator('.leaflet-container')).toBeVisible();
+    await expect(page.getByTestId('renderer-fallback')).toContainText(
+      'Trình duyệt không hỗ trợ WebGL'
+    );
   });
 });

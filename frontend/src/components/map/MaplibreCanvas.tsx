@@ -10,8 +10,10 @@ import {
 } from '../../lib/mapTile';
 import type { MapCanvasProps } from './LeafletCanvas';
 
-const TILE_SOURCE = 'tiles';
-const TILE_LAYER = 'tiles-layer';
+const IS_DEV =
+  (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV === true;
+
+const TILE_SOURCE = 'tiles';const TILE_LAYER = 'tiles-layer';
 const STATION_SOURCE = 'stations';
 const STATION_LAYER = 'stations-layer';
 const ACCOUNT_SOURCE = 'accounts';
@@ -106,6 +108,8 @@ function collection(features: Array<Record<string, unknown>>): Record<string, un
   return { type: 'FeatureCollection', features };
 }
 
+type MaplibreCanvasProps = MapCanvasProps & { onFatal?: (reason: string) => void };
+
 export function MaplibreCanvas({
   config,
   mode,
@@ -117,8 +121,9 @@ export function MaplibreCanvas({
   resetSignal = 0,
   retrySignal = 0,
   onSelect,
-  onTileError
-}: MapCanvasProps) {
+  onTileError,
+  onFatal
+}: MaplibreCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
@@ -126,30 +131,49 @@ export function MaplibreCanvas({
   const archipelagoRef = useRef<maplibregl.Marker[]>([]);
   const onSelectRef = useRef(onSelect);
   const onTileErrorRef = useRef(onTileError);
+  const onFatalRef = useRef(onFatal);
   const tileErrorTimerRef = useRef<number | null>(null);
   const [ready, setReady] = useState(false);
   const initialView = useRef({ center: config.center, zoom: config.zoom });
 
   onSelectRef.current = onSelect;
   onTileErrorRef.current = onTileError;
+  onFatalRef.current = onFatal;
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
-    const map = new maplibregl.Map({
-      container: containerRef.current,
-      style: { version: 8, sources: {}, layers: [] },
-      center: [initialView.current.center.lng, initialView.current.center.lat],
-      zoom: initialView.current.zoom,
-      attributionControl: false
-    });
+    let map: maplibregl.Map;
+    try {
+      map = new maplibregl.Map({
+        container: containerRef.current,
+        style: { version: 8, sources: {}, layers: [] },
+        center: [initialView.current.center.lng, initialView.current.center.lat],
+        zoom: initialView.current.zoom,
+        attributionControl: false
+      });
+    } catch {
+      onFatalRef.current?.('Không khởi tạo được MapLibre (WebGL)');
+      return;
+    }
     map.addControl(new maplibregl.NavigationControl(), 'top-left');
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     mapRef.current = map;
+
+    if (IS_DEV) {
+      (window as unknown as { __map?: maplibregl.Map }).__map = map;
+    }
+
+    let loaded = false;
+    const loadTimer = window.setTimeout(() => {
+      if (!loaded) onFatalRef.current?.('MapLibre không tải xong bản đồ (timeout)');
+    }, 8000);
 
     const observer = new ResizeObserver(() => map.resize());
     observer.observe(containerRef.current);
 
     map.on('load', () => {
+      loaded = true;
+      window.clearTimeout(loadTimer);
       map.addSource(STATION_SOURCE, { type: 'geojson', data: collection([]) as never });
       map.addLayer({
         id: STATION_LAYER,
@@ -227,6 +251,10 @@ export function MaplibreCanvas({
 
     return () => {
       observer.disconnect();
+      window.clearTimeout(loadTimer);
+      if (IS_DEV) {
+        delete (window as unknown as { __map?: maplibregl.Map }).__map;
+      }
       if (tileErrorTimerRef.current !== null) {
         window.clearTimeout(tileErrorTimerRef.current);
         tileErrorTimerRef.current = null;

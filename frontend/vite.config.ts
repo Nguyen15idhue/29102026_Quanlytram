@@ -1,8 +1,32 @@
+import { copyFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 
 const proxyTarget = process.env.VITE_PROXY_TARGET || 'http://localhost:4000';
 const hmrClientPort = Number(process.env.VITE_HMR_CLIENT_PORT || 0);
+
+// MapLibre v6 tự tạo worker bằng new URL('./maplibre-gl-worker.mjs', import.meta.url).
+// Vite không emit file worker sang dist nên phải copy thủ công, nếu thiếu thì
+// tile/marker không xử lý được ở bản build.
+function copyMaplibreWorker(): Plugin {
+  let root = process.cwd();
+  return {
+    name: 'copy-maplibre-worker',
+    apply: 'build',
+    configResolved(config) {
+      root = config.root;
+    },
+    closeBundle() {
+      const source = resolve(root, 'node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs');
+      const target = resolve(root, 'dist/assets/maplibre-gl-worker.mjs');
+      if (!existsSync(source)) {
+        throw new Error(`Không tìm thấy worker MapLibre: ${source}`);
+      }
+      copyFileSync(source, target);
+    }
+  };
+}
 
 function serveGuideIndex(): Plugin {
   return {
@@ -25,7 +49,13 @@ function serveGuideIndex(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), serveGuideIndex()],
+  plugins: [react(), serveGuideIndex(), copyMaplibreWorker()],
+  optimizeDeps: {
+    exclude: ['maplibre-gl']
+  },
+  worker: {
+    format: 'es'
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

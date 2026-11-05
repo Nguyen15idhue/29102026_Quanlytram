@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Maximize2, RotateCcw, X } from 'lucide-react';
+import { AlertTriangle, Maximize2, RotateCcw, X } from 'lucide-react';
 import { apiFetch } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
 import type { MapMode, MapOverviewResponse } from '../types';
@@ -42,6 +42,7 @@ export function UnifiedMap() {
   const { can } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [tileError, setTileError] = useState<string | null>(null);
+  const [rendererFallback, setRendererFallback] = useState<string | null>(null);
   const [retrySignal, setRetrySignal] = useState(0);
   const [fitSignal, setFitSignal] = useState(0);
   const [resetSignal, setResetSignal] = useState(0);
@@ -255,6 +256,7 @@ export function UnifiedMap() {
               applyPatch({ station: id });
             }}
             onTileError={setTileError}
+            onFallback={setRendererFallback}
           />
         )}
 
@@ -396,6 +398,17 @@ export function UnifiedMap() {
             <RotateCcw size={16} aria-hidden="true" /> Về mặc định
           </Button>
         </div>
+
+        {rendererFallback && (
+          <div className="map-error-float">
+            <div className="tile-error-banner" role="status" data-testid="renderer-fallback">
+              <AlertTriangle size={18} aria-hidden="true" />
+              <span>
+                Không dùng được MapLibre — đang dùng Leaflet. Lý do: {rendererFallback}
+              </span>
+            </div>
+          </div>
+        )}
 
         {tileError && (
           <div className="map-error-float">

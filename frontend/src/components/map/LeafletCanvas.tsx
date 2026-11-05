@@ -34,6 +34,7 @@ export interface MapCanvasProps {
   retrySignal?: number;
   onSelect: (id: number) => void;
   onTileError: (message: string | null) => void;
+  onFallback?: (reason: string | null) => void;
 }
 
 function escapeHtml(value: string): string {

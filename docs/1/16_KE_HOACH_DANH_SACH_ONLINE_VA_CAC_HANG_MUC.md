@@ -633,3 +633,154 @@ Cập nhật `frontend/tests/map-maplibre.spec.ts` (và giữ test cũ):
 3D/terrain, vector tile style, cluster nâng cao, provider↔renderer matrix,
 registry runtime đầy đủ như mã nguồn tham chiếu.
 
+## KẾT QUẢ THỰC HIỆN — KẾ HOẠCH BỔ SUNG 1 (2026-11-05)
+
+- Trạng thái: **PASS** (build + Playwright + typecheck).
+- File đã sửa:
+  - `frontend/vite.config.ts`: `optimizeDeps.exclude: ['maplibre-gl']`,
+    `worker.format: 'es'`, plugin `copy-maplibre-worker` (fail build nếu thiếu).
+  - `frontend/src/components/map/MapCanvas.tsx`: phát hiện WebGL, lazy import có
+    bắt lỗi, fallback Leaflet + `onFallback`.
+  - `frontend/src/components/map/MaplibreCanvas.tsx`: try/catch khi tạo map,
+    timeout load 8s, expose `window.__map` ở dev để test.
+  - `frontend/src/components/map/LeafletCanvas.tsx`: thêm prop `onFallback`.
+  - `frontend/src/pages/UnifiedMap.tsx`: banner khi fallback.
+  - `frontend/tests/map-maplibre.spec.ts`: worker 200, tile > 0, marker render,
+    chuyển đổi 2 chiều + reload, fallback khi chặn WebGL.
+  - `scripts/plan16/07-kiem-tra-build-ban-do.ps1`: kiểm tra worker trong `dist`.
+- Bằng chứng:
+  - `cd frontend; npm run build` → PASS; `scripts/plan16/07-kiem-tra-build-ban-do.ps1`
+    → ĐẠT, `maplibre-gl-worker.mjs` 507.2 KB trong `dist/assets`.
+  - Playwright `map-maplibre.spec.ts` → 3/3 PASS.
+  - Playwright hồi quy `map`, `map-upgrade`, `unified-map`, `map-accounts` → 6/6 PASS.
+- Commit: `__COMMIT__`
+- Việc còn lại: kiểm tra thủ công trên trình duyệt thật (Playwright đã phủ Chrome).
+
+---
+
+# KẾ HOẠCH BỔ SUNG 2 — LỚP RANH GIỚI & TÊN TỈNH
+
+> Ngày lập: 2026-11-05
+> Trạng thái: **KẾ HOẠCH — chưa triển khai**
+> Phạm vi: thêm layer ranh giới tỉnh + tên tỉnh, bật/tắt trong mục **Nền bản đồ**.
+> Áp dụng cho **cả Leaflet và MapLibre**, không thêm dependency.
+
+## 1. Hiện trạng đã kiểm tra
+
+| Hạng mục | Kết quả |
+|---|---|
+| File dữ liệu | `frontend/public/guide/assets/map/vietnam-provinces.geojson` |
+| Kích thước | 186.198 bytes |
+| Nội dung | `FeatureCollection`, **34 tỉnh/thành**, geometry `MultiPolygon`, property duy nhất `name` |
+| Vị trí | Nằm trong `frontend/public/guide/` — **thư mục build, đã gitignore** |
+| Rủi ro | `node scripts/build-guide.mjs` xoá và copy lại `frontend/public/guide` → file sẽ **mất** |
+| Repo | Chưa có file `.geojson` nào được track |
+
+**Kết luận:** phải copy file sang vị trí ổn định, ví dụ
+`frontend/public/geo/vietnam-provinces.geojson` (được Vite serve tại
+`/geo/vietnam-provinces.geojson`), rồi mới dùng trong code.
+
+## 2. Thiết kế
+
+### 2.1 Dữ liệu
+
+- Copy file gốc sang `frontend/public/geo/vietnam-provinces.geojson`.
+- Ghi chú nguồn/giấy phép của file (hiện chưa rõ) trong
+  `frontend/public/geo/README.md` hoặc đầu file; nếu không xác định được thì
+  ghi "nguồn do người dùng cung cấp" và không tuyên bố giấy phép.
+- Cache GeoJSON trong bộ nhớ (module-level `Promise`) để bật/tắt không fetch lại.
+
+### 2.2 UI bật/tắt
+
+- Vị trí: popover **Nền bản đồ** trong `frontend/src/pages/UnifiedMap.tsx`
+  (khối `panel === 'modes'`, dưới Select chọn mode).
+- Thêm checkbox:
+  ```tsx
+  <label className="checkbox-field">
+    <input
+      type="checkbox"
+      checked={showProvinces}
+      onChange={(event) => applyPatch({ provinces: event.target.checked ? null : '0' })}
+    />
+    <span>Ranh giới & tên tỉnh</span>
+  </label>
+  ```
+- Trạng thái lưu trên URL: mặc định **bật**; tắt ghi `?provinces=0`.
+  (`applyPatch` đã có sẵn cơ chế lưu/khôi phục query params.)
+- Một toggle cho cả đường ranh giới và tên tỉnh (đúng yêu cầu, tránh rối UI).
+
+### 2.3 Leaflet (`LeafletCanvas.tsx`)
+
+- Thêm prop `showProvinces`.
+- Khi bật:
+  - `fetch('/geo/vietnam-provinces.geojson')` (cache module-level).
+  - `L.geoJSON(data, { style: { color: '#2563eb', weight: 1, dashArray: '4 4', fillOpacity: 0 } })`.
+  - Với mỗi feature: tính tâm từ `layer.getBounds().getCenter()`, gắn
+    `bindTooltip(name, { permanent: true, direction: 'center', className: 'map-province-label' })`.
+  - Ẩn tooltip khi `zoom < 6` (bắt `zoomend`), tránh rối ở mức quốc gia.
+  - Thêm layer vào map; cleanup `map.removeLayer(layer)` khi tắt/unmount.
+- Thứ tự hiển thị: vector nằm ở overlay pane, dưới marker sẵn có.
+
+### 2.4 MapLibre (`MaplibreCanvas.tsx`)
+
+- Thêm prop `showProvinces`.
+- Khi bật:
+  - Thêm source `provinces` (GeoJSON) + layer `provinces-line`:
+    ```ts
+    { id: 'provinces-line', type: 'line', source: 'provinces',
+      paint: { 'line-color': '#2563eb', 'line-width': 1, 'line-dasharray': [4, 4] } }
+    ```
+    chèn **dưới** `stations-layer`.
+  - Tên tỉnh: dùng DOM Marker tại tâm bbox (không dùng `symbol` để tránh phụ
+    thuộc `glyphs`/font ngoài), cùng class `map-province-label`.
+  - Ẩn tên khi `zoom < 6` (`zoomend`), giống Leaflet.
+- Tắt: remove layer/source + markers.
+
+### 2.5 CSS (`frontend/src/styles.css`)
+
+```css
+.map-province-label {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  pointer-events: none;
+  text-shadow: 0 1px 2px var(--surface), 0 0 4px var(--surface);
+  white-space: nowrap;
+}
+```
+
+## 3. Test
+
+Playwright (thêm vào `map.spec.ts` hoặc spec mới `map-provinces.spec.ts`):
+
+1. Mặc định bật: mở `/map` → có label tỉnh (Leaflet: `.map-province-label`;
+   MapLibre: cùng class) và ít nhất 1 đường ranh giới.
+2. Tắt trong **Nền bản đồ** → label/biên biến mất, URL có `provinces=0`;
+   reload vẫn tắt.
+3. Bật lại → xuất hiện; reload vẫn bật.
+4. Chạy cho **cả 2 renderer** (đổi renderer trong Cấu hình bản đồ).
+5. Không có `pageerror`; `tsc --noEmit` PASS.
+
+## 4. Acceptance
+
+- Cả Leaflet và MapLibre hiển thị ranh giới + tên 34 tỉnh.
+- Bật/tắt được trong mục **Nền bản đồ**, trạng thái giữ sau reload.
+- Không thêm dependency; không đổi API/DB.
+- Không ảnh hưởng marker/popup/fit hiện có.
+- File GeoJSON nằm ở vị trí được track, không phụ thuộc `public/guide`.
+
+## 5. Ước lượng & rủi ro
+
+- Ước lượng: **0.5 ngày**.
+- Rủi ro: nhãn tỉnh dày ở zoom thấp (giảm thiểu bằng ngưỡng zoom ≥ 6);
+  dữ liệu 34 tỉnh theo đơn vị hành chính mới — cần xác nhận đúng phiên bản;
+  chưa rõ giấy phép file gốc — phải ghi nguồn trước khi phát hành.
+
+## 6. Không thuộc phạm vi
+
+Sửa ranh giới theo thời gian, tô màu theo trạm, tra cứu địa chỉ theo tỉnh,
+3D/terrain.
+
