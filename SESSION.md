@@ -1764,4 +1764,27 @@ cd frontend; npx tsc --noEmit
 cd frontend; npx playwright test tests/guide.spec.ts
 ```
 
+---
+
+## Plan 16 — Tổng kết (2026-11-05)
+
+### Kết quả
+- Hoàn thành 6/6 bước trên nhánh `feat/plan16`, đã push lên GitHub.
+- Test cuối: Go 12/12 package OK; server 196/196; frontend tsc PASS;
+  Playwright 68 PASS / 1 FAIL (test cũ `p1-station-fix` đổi `caster_username`
+  bị 409 IMMUTABLE_FIELD, không liên quan plan 16) / 1 skipped.
+- Graphify: 4907 nodes / 11066 edges.
+- Migration mới: `db/migrations/runtime/008_relay_events_index.sql` (đã chạy local).
+- Không secret trong diff; không đụng backup; không deploy.
+
+### Cần làm khi lên VPS
+1. Chạy migration runtime 008 (index `relay_events(ts,id)`).
+2. `node scripts/build-guide.mjs` trước khi build/deploy frontend.
+3. Kiểm tra `/online` không còn dòng `—`, `/map` đổi renderer được, tab Tối ưu
+   "Tải lại" đổi số ngay, nút Hướng dẫn mở đúng mục.
+
+### Lỗi tồn tại (không thuộc plan 16)
+- `frontend/tests/p1-station-fix.spec.ts` gửi `caster_username` khác lúc tạo →
+  API trả 409 `IMMUTABLE_FIELD`. Cần sửa test dùng đúng username hoặc bỏ field.
+
 

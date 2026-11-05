@@ -1,7 +1,7 @@
 # 16 — KẾ HOẠCH: DANH SÁCH ONLINE, BẢN ĐỒ & CÁC HẠNG MỤC HỆ THỐNG
 
 > Ngày lập: 2026-11-05
-> Trạng thái: **KẾ HOẠCH — chưa triển khai**
+> Trạng thái: **ĐÃ TRIỂN KHAI LOCAL** (nhánh `feat/plan16`, 2026-11-05) — chưa deploy VPS.
 > Thay thế 2 bản nháp trong `C:\Users\ADMIN\.opencode\plan\` (bản nháp cũ hiểu sai
 > phạm vi: định siết luôn quyền publish của trạm — **không làm**).
 > Tham chiếu: `AGENTS.md`, `docs/1/14_KE_HOACH_KHOA_NTRIP_THEO_CONG_TY.md`,
@@ -489,4 +489,34 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
     `docs.admin`/`docs.user`; đây là thiếu fixture, không phải lỗi thay đổi.
 - Commit: `7c91742`
 - Việc còn lại: chạy G5 khi có seed docs fixtures; kiểm tra mắt thường 3 nút hướng dẫn.
+
+## KẾT QUẢ THỰC HIỆN — BƯỚC 7 (TỔNG KIỂM TRA, 2026-11-05)
+
+- **Go**: `cd gnss; go test ./...` → 12/12 package `ok`, không FAIL.
+- **Node**: `cd server; npx vitest run` → **196/196 test PASS** (40 file).
+- **Frontend typecheck**: `cd frontend; npx tsc --noEmit` → PASS.
+- **Playwright toàn bộ** (sau khi seed fixture local bằng
+  `ALLOW_DOCS_SEED=1 node scripts/seed-docs-fixtures.mjs --apply`):
+  **68 PASS / 1 FAIL / 1 skipped**.
+  - FAIL duy nhất: `tests/p1-station-fix.spec.ts` — test cũ gửi
+    `PUT /api/stations/:id/sources` đổi `caster_username` sau khi tạo, API trả
+    `409 IMMUTABLE_FIELD`. Lỗi **có sẵn**, không liên quan thay đổi plan 16
+    (không sửa `server/src/routes/stations.ts`). Cần cập nhật test hoặc API sau.
+- **Graphify**: `graphify update .` → 4907 nodes / 11066 edges / 340 communities.
+- **Bảo mật**: `git diff main...HEAD` không có PRIVATE KEY / MYSQL_ROOT_PASSWORD /
+  SESSION_SECRET / INTERNAL_HMAC_SECRET; không commit `.env.local`.
+- **Phạm vi**: không đụng `relayrtcm/backup`, không chạy `relay.exe`, không deploy VPS.
+- Ghi chú vận hành: `frontend/public/guide` là thư mục build (gitignore) — khi
+  triển khai phải chạy lại `node scripts/build-guide.mjs`.
+
+### Tổng hợp 6 bước
+
+| Bước | Nội dung | Test chính | Commit |
+|---|---|---|---|
+| 1 | Online chỉ tài khoản NTRIP đã xác thực | Go caster, vitest 7/7, Playwright navigation | `eda5943` |
+| 2 | Menu mobile không bị bản đồ đè | tsc, Playwright mobile menu/ui | `56e63f5` |
+| 3 | MapLibre + lớp tài khoản | vitest 18/18, Playwright 13/13 | `0fee117` |
+| 4 | Optimize fresh | vitest 6/6, Playwright 3/3 | `4e3191d` |
+| 5 | relay_events throttle + index | Go relay/maintenance, EXPLAIN, Playwright 7/7 | `2041ab7` |
+| 6 | Hướng dẫn + deep-link | build-guide PASS, Playwright 8/8 | `7c91742` |
 
