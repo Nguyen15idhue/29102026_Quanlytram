@@ -422,6 +422,6 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
   - Playwright mới `tests/map-accounts.spec.ts`: `counts.accounts` khớp
     `/api/connections.total`, username không rỗng, `hasCoords` khớp `stationId` → PASS.
 - Ghi chú: `GET /api/map/config` vẫn chỉ `requireAuth` (không chứa secret) — giữ nguyên.
-- Commit: `__COMMIT__`
+- Commit: `0fee117`
 - Việc còn lại: kiểm tra thủ công mobile với renderer MapLibre (Playwright đã phủ desktop).
 
