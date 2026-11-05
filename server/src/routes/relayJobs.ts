@@ -576,14 +576,15 @@ relayJobsRouter.get(
     // trong khi relay_hourly chỉ có row sau khi session kết thúc.
     const uptimeOnlineSec =
       sampleUptime.totalSec > 0 ? Math.min(totalSec, sampleUptime.onlineSec) : onlineSec;
-    const errorSessions = sessions.filter((item) =>
+    const finishedSessions = sessions.filter((item) => item.end_ts);
+    const errorSessions = finishedSessions.filter((item) =>
       ['auth_failed', 'timeout', 'network', 'proxy'].includes(String(item.close_reason))
     );
     const errorSummary = {
-      authFailed: sessions.filter((item) => item.close_reason === 'auth_failed').length,
-      timeout: sessions.filter((item) => item.close_reason === 'timeout').length,
-      network: sessions.filter((item) => item.close_reason === 'network').length,
-      proxy: sessions.filter((item) =>
+      authFailed: finishedSessions.filter((item) => item.close_reason === 'auth_failed').length,
+      timeout: finishedSessions.filter((item) => item.close_reason === 'timeout').length,
+      network: finishedSessions.filter((item) => item.close_reason === 'network').length,
+      proxy: finishedSessions.filter((item) =>
         String(item.message ?? '').toLowerCase().includes('proxy')
       ).length
     };
