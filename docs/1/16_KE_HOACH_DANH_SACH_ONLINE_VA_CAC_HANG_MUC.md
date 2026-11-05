@@ -388,6 +388,6 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
   - `cd frontend; npx tsc --noEmit` → PASS.
 - Chưa chạy: `npx playwright test tests/map-mobile-menu.spec.ts tests/ui.spec.ts`
   (cần stack local tại `127.0.0.1:3000`).
-- Commit: `__COMMIT__`
+- Commit: `56e63f5`
 - Việc còn lại: kiểm tra thủ công 390/768 trên stack local.
 
