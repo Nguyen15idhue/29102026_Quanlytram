@@ -488,7 +488,7 @@ func TestListenerGroupsAndSourcetable(t *testing.T) {
 	}
 }
 
-func TestDisconnectAndSourceConflict(t *testing.T) {
+func TestSourceReconnectReplacesStaleSource(t *testing.T) {
 	cfg := &Config{
 		Mountpoints: map[int64]*MountpointConfig{
 			1: {ID: 1, Name: "M", Enabled: true},
@@ -497,31 +497,81 @@ func TestDisconnectAndSourceConflict(t *testing.T) {
 			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: {ID: 1, Name: "M", Enabled: true}}},
 		},
 	}
-	manager, _ := newTestManager(t, cfg)
+	manager, runtime := newTestManager(t, cfg)
 	port := listenerPort(t, manager, 1)
 
-	source, _, status := connect(t, port, "SOURCE /M HTTP/1.0\r\n\r\n")
+	first, _, status := connect(t, port, "SOURCE /M HTTP/1.0\r\n\r\n")
 	if status != "ICY 200 OK" {
-		t.Fatalf("source status = %q", status)
+		t.Fatalf("first source status = %q", status)
 	}
-	defer source.Close()
+	defer first.Close()
 
-	_, _, status = connect(t, port, "SOURCE /M HTTP/1.0\r\n\r\n")
-	if status != "ICY 409 Conflict" {
-		t.Fatalf("second source status = %q", status)
+	rover, roverReader, status := connect(t, port, "GET /M HTTP/1.0\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("rover status = %q", status)
+	}
+	defer rover.Close()
+
+	// Trạm reconnect khi kết nối cũ còn half-open: source mới phải được nhận
+	// ngay, không bị 409/503 chờ hết SourceIdleTimeout.
+	second, _, status := connect(t, port, "SOURCE /M HTTP/1.0\r\n\r\n")
+	if status != "ICY 200 OK" {
+		t.Fatalf("second source status = %q, want ICY 200 OK", status)
+	}
+	defer second.Close()
+
+	// Source cũ phải bị đóng, không còn treo tới 60s.
+	_ = first.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := first.Read(make([]byte, 1)); err == nil {
+		t.Fatal("old source vẫn mở sau khi bị thay thế")
+	} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		t.Fatal("old source không bị đóng, chỉ hết read deadline")
+	}
+
+	payload := []byte{0xD3, 0x00, 0x03, 0x40, 0x00, 0x00}
+	if _, err := second.Write(payload); err != nil {
+		t.Fatalf("second source write: %v", err)
+	}
+	buf := make([]byte, len(payload))
+	_ = rover.SetReadDeadline(time.Now().Add(2 * time.Second))
+	if _, err := io.ReadFull(roverReader, buf); err != nil {
+		t.Fatalf("rover read after source replacement: %v", err)
+	}
+	if !bytes.Equal(buf, payload) {
+		t.Fatalf("rover payload = %x, want %x", buf, payload)
 	}
 
 	connections := manager.Connections()
-	if len(connections) != 1 {
-		t.Fatalf("connections = %d, want 1", len(connections))
+	sources, rovers := 0, 0
+	for _, conn := range connections {
+		switch conn.Direction {
+		case DirectionSource:
+			sources++
+		case DirectionRover:
+			rovers++
+		}
 	}
-	if !manager.Disconnect(connections[0].ID) {
-		t.Fatal("Disconnect returned false")
+	if sources != 1 || rovers != 1 {
+		t.Fatalf("connections source=%d rover=%d, want 1/1", sources, rovers)
 	}
-	time.Sleep(50 * time.Millisecond)
-	if len(manager.Connections()) != 0 {
-		t.Fatal("connection was not removed")
+
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		runtime.mu.Lock()
+		found := false
+		for _, end := range runtime.ends {
+			if end.DisconnectReason == "source_replaced" {
+				found = true
+				break
+			}
+		}
+		runtime.mu.Unlock()
+		if found {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
+	t.Fatal("không thấy end reason source_replaced")
 }
 
 func TestMultiClientFanout(t *testing.T) {
@@ -1166,6 +1216,34 @@ func TestAuthFailureGlobalThrottle(t *testing.T) {
 	}
 	if got := mgr.authBlockedFor("bat-ky", "192.0.2.1"); got <= 0 {
 		t.Fatal("chÆ°a cháº·n toĂ n cá»¥c sau ngÆ°á»¡ng sai")
+	}
+}
+
+func TestPublishFromIgnoresStaleSource(t *testing.T) {
+	h := newHub(&MountpointConfig{ID: 1, Name: "M", Enabled: true}, nil)
+	rover := &connection{id: 1, sendCh: make(chan []byte, 1), done: make(chan struct{})}
+	if !h.addRover(rover) {
+		t.Fatal("addRover failed")
+	}
+	stale := &connection{id: 2, done: make(chan struct{})}
+	current := &connection{id: 3, done: make(chan struct{})}
+	h.source = current
+
+	h.publishFrom(stale, []byte{0x01})
+	select {
+	case got := <-rover.sendCh:
+		t.Fatalf("source cũ vẫn publish được: %x", got)
+	default:
+	}
+
+	h.publishFrom(current, []byte{0x02})
+	select {
+	case got := <-rover.sendCh:
+		if !bytes.Equal(got, []byte{0x02}) {
+			t.Fatalf("payload = %x, want 02", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("source hiện tại không publish được")
 	}
 }
 

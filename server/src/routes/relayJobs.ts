@@ -572,6 +572,10 @@ relayJobsRouter.get(
       targetId: id,
       hours: 24
     });
+    // Ưu tiên dữ liệu quality_samples vì nó bao gồm cả session đang chạy,
+    // trong khi relay_hourly chỉ có row sau khi session kết thúc.
+    const uptimeOnlineSec =
+      sampleUptime.totalSec > 0 ? Math.min(totalSec, sampleUptime.onlineSec) : onlineSec;
     const errorSessions = sessions.filter((item) =>
       ['auth_failed', 'timeout', 'network', 'proxy'].includes(String(item.close_reason))
     );
@@ -587,8 +591,8 @@ relayJobsRouter.get(
       item: attachRuntime(row, state, metrics),
       uptime: {
         windowSec: totalSec,
-        onlineSec,
-        uptimePct: Math.min(100, (onlineSec / totalSec) * 100),
+        onlineSec: uptimeOnlineSec,
+        uptimePct: Math.min(100, (uptimeOnlineSec / totalSec) * 100),
         buckets: hourly.map((item) => ({
           hourStartUtc: item.hour_start_utc,
           onlineSec: Number(item.online_sec ?? 0),
@@ -911,12 +915,17 @@ relayJobsRouter.get(
       const last = samples[samples.length - 1];
       liveAge = now.getTime() - (last.ts.getTime() - last.ageMs);
     }
+    const runtimeState = String(metrics?.state ?? '');
     const currentStatus: 'online' | 'offline' | 'no_data' =
       row.locked || !row.enabled
         ? 'offline'
-        : hasConnectionInfo
-          ? relayLiveStatus(liveAge, connections, now)
-          : statusForLiveAge(liveAge);
+        : runtimeState
+          ? runtimeState === 'streaming'
+            ? statusForLiveAge(liveAge, { connected: true })
+            : 'offline'
+          : hasConnectionInfo
+            ? relayLiveStatus(liveAge, connections, now)
+            : statusForLiveAge(liveAge);
     const downtime = await loadServiceDowntime(from, now);
     const currentReason: 'disabled' | 'system_down' | undefined =
       row.locked || !row.enabled

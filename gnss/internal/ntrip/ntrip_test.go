@@ -186,6 +186,27 @@ func TestGetAuthFailure(t *testing.T) {
 	}
 }
 
+func TestGetRetryAfter(t *testing.T) {
+	server := newTestServer(t, func(conn net.Conn, _ int) {
+		defer conn.Close()
+		if _, _, err := readTestHeaders(conn); err != nil {
+			return
+		}
+		_, _ = io.WriteString(conn, "HTTP/1.1 429 Too Many Requests\r\nRetry-After: 3\r\n\r\n")
+	})
+	_, err := Get(context.Background(), server.endpoint("M", "v2"), 2*time.Second)
+	if err == nil {
+		t.Fatal("expected 429 error")
+	}
+	status, ok := err.(*StatusError)
+	if !ok || status.Code != 429 {
+		t.Fatalf("error = %v", err)
+	}
+	if status.RetryAfter != 3*time.Second {
+		t.Fatalf("RetryAfter = %v, want 3s", status.RetryAfter)
+	}
+}
+
 func TestSourcePostRaw(t *testing.T) {
 	payload := []byte("SOURCE-POST-DATA")
 	captured := make(chan []byte, 1)

@@ -169,7 +169,7 @@ func (c *connection) sourceReadLoop(reader io.Reader, readBuffer int, idleTimeou
 		if n > 0 {
 			c.bytesIn.Add(uint64(n))
 			if payload := filter.Filter(buffer[:n]); len(payload) > 0 {
-				c.hub.publish(payload)
+				c.hub.publishFrom(c, payload)
 			}
 		}
 		if err != nil {

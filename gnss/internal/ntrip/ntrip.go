@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"net/http/httputil"
 	"net/textproto"
 	"strconv"
@@ -48,9 +49,10 @@ func (r *Response) Close() error {
 }
 
 type StatusError struct {
-	Proto  string
-	Code   int
-	Status string
+	Proto      string
+	Code       int
+	Status     string
+	RetryAfter time.Duration
 }
 
 func (e *StatusError) Error() string {
@@ -210,6 +212,26 @@ func readResponse(br *bufio.Reader) (*Response, error) {
 	}, nil
 }
 
+func retryAfter(header textproto.MIMEHeader) time.Duration {
+	raw := strings.TrimSpace(header.Get("Retry-After"))
+	if raw == "" {
+		return 0
+	}
+	if seconds, err := strconv.Atoi(raw); err == nil {
+		if seconds <= 0 {
+			return 0
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	if when, err := http.ParseTime(raw); err == nil {
+		delay := time.Until(when)
+		if delay > 0 {
+			return delay
+		}
+	}
+	return 0
+}
+
 func authorization(endpoint Endpoint) string {
 	if endpoint.Username == "" {
 		return ""
@@ -272,7 +294,12 @@ func Get(ctx context.Context, endpoint Endpoint, timeout time.Duration) (*Respon
 	}
 	if response.Code != 200 {
 		conn.Close()
-		return nil, &StatusError{Proto: response.Proto, Code: response.Code, Status: response.Status}
+		return nil, &StatusError{
+			Proto:      response.Proto,
+			Code:       response.Code,
+			Status:     response.Status,
+			RetryAfter: retryAfter(response.Header),
+		}
 	}
 	if response.Proto == "SOURCETABLE" {
 		conn.Close()
@@ -302,7 +329,7 @@ func Source(ctx context.Context, endpoint Endpoint, mode string, timeout time.Du
 		}
 		conn, sourceErr := openSource(ctx, endpoint, false, timeout)
 		if sourceErr != nil {
-			return nil, fmt.Errorf("post failed (%v); source failed (%w)", err, sourceErr)
+			return nil, fmt.Errorf("post failed: %w; source failed: %w", err, sourceErr)
 		}
 		return conn, nil
 	default:
@@ -357,7 +384,12 @@ func openSource(ctx context.Context, endpoint Endpoint, usePost bool, timeout ti
 	}
 	if response.Code != 200 {
 		conn.Close()
-		return nil, &StatusError{Proto: response.Proto, Code: response.Code, Status: response.Status}
+		return nil, &StatusError{
+			Proto:      response.Proto,
+			Code:       response.Code,
+			Status:     response.Status,
+			RetryAfter: retryAfter(response.Header),
+		}
 	}
 	if response.Proto == "SOURCETABLE" {
 		conn.Close()

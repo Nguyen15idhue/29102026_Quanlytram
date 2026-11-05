@@ -80,8 +80,11 @@ func (j *Job) run(ctx context.Context) {
 		j.writer.State(j.cfg.ID, "connecting", j.cfg.DesiredRevision, "")
 		j.metrics.SetState("connecting", j.cfg.DesiredRevision, "")
 
-		start := time.Now()
+		start := time.Now().UTC().Truncate(time.Millisecond)
 		j.monitor.Reset()
+		if starter, ok := j.writer.(SessionStartWriter); ok {
+			starter.SessionStart(j.cfg.ID, start)
+		}
 		err := RunSession(ctx, j.cfg, sessionOpts, j.monitor, j.metrics)
 		end := time.Now()
 
@@ -105,18 +108,34 @@ func (j *Job) run(ctx context.Context) {
 		if result != "ok" {
 			errorCount = 1
 		}
-		j.writer.Hourly(
-			j.cfg.ID,
-			start.UTC(),
-			duration,
-			1,
-			errorCount,
-			boolToInt(reason == "timeout"),
-			boolToInt(reason == "auth_failed"),
-			boolToInt(strings.Contains(strings.ToLower(message), "proxy")),
-			0,
-			1,
-		)
+		for index, bucket := range splitSessionHours(start, end) {
+			sessions := 0
+			errors := 0
+			timeouts := 0
+			authErrors := 0
+			proxyErrors := 0
+			retries := 0
+			if index == 0 {
+				sessions = 1
+				errors = errorCount
+				timeouts = boolToInt(reason == "timeout")
+				authErrors = boolToInt(reason == "auth_failed")
+				proxyErrors = boolToInt(strings.Contains(strings.ToLower(message), "proxy"))
+				retries = 1
+			}
+			j.writer.Hourly(
+				j.cfg.ID,
+				bucket.hour,
+				bucket.seconds,
+				sessions,
+				errors,
+				timeouts,
+				authErrors,
+				proxyErrors,
+				0,
+				retries,
+			)
+		}
 
 		if ctx.Err() != nil {
 			return
@@ -128,6 +147,9 @@ func (j *Job) run(ctx context.Context) {
 			backoff.Reset()
 		}
 		wait := backoff.Next()
+		if delay := retryDelay(err); delay > wait {
+			wait = delay
+		}
 		j.writer.State(j.cfg.ID, "backoff", j.cfg.DesiredRevision, message)
 		j.metrics.SetState("backoff", j.cfg.DesiredRevision, message)
 
@@ -137,6 +159,17 @@ func (j *Job) run(ctx context.Context) {
 		case <-time.After(wait):
 		}
 	}
+}
+
+func retryDelay(err error) time.Duration {
+	var status *ntrip.StatusError
+	if errors.As(err, &status) && status.RetryAfter > 0 {
+		if status.RetryAfter > 5*time.Minute {
+			return 5 * time.Minute
+		}
+		return status.RetryAfter
+	}
+	return 0
 }
 
 func classify(err error) string {

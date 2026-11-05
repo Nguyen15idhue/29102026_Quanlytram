@@ -83,3 +83,24 @@ xuất hiện, kiểm tra lại quyền của tài khoản và trạng thái mou
 | `HTTP 200` | Yêu cầu HTTP thông thường (ví dụ tải sourcetable) |
 | `ICY 200` | Kết nối NTRIP phiên bản 1 thành công |
 | `SOURCETABLE 200` | Trả danh sách mountpoint thành công |
+
+### Trạm reconnect
+
+Khi trạm mở kết nối nguồn mới cho cùng một mountpoint, caster coi kết nối mới
+nhất là kết nối hiện tại:
+
+- Kết nối mới được nhận ngay, không bị `409 Conflict`.
+- Kết nối cũ bị đóng với lý do `source_replaced`.
+- Rover đang nhận được giữ tối đa `SourceGrace` (mặc định 10 giây) để chờ
+  nguồn mới; không bị đóng oan nếu trạm reconnect nhanh.
+- Dữ liệu còn lại từ kết nối cũ bị bỏ, không trộn vào luồng mới.
+
+Không cấu hình hai thiết bị cùng ghi vào một mountpoint. Caster sẽ để thiết bị
+kết nối sau cùng thắng, nên hai nguồn sẽ tranh nhau nếu cùng chạy.
+
+### Account dùng chung
+
+Nếu nhiều relay hoặc trạm cùng dùng một account NTRIP, kiểm tra
+`ntrip_accounts.max_connections` lớn hơn hoặc bằng số kết nối đồng thời. Nếu
+không, kết nối mới có thể bị `503 Maximum Connections Reached` dù job khác đang
+lỗi. Dùng `scripts/audit-ntrip-accounts.sql` để rà soát.

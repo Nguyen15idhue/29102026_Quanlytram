@@ -133,3 +133,17 @@ Mở chi tiết relay job để xem chất lượng theo hai chiều:
 - Số bản tin, tỷ lệ mất gói, độ trễ.
 - Trạng thái từng chiều (nguồn và đích).
 - Lịch sử phiên và lý do đóng phiên.
+
+## Phiên và uptime
+
+- Phiên relay được ghi **ngay khi bắt đầu**. Trong lúc đang chạy, tab Lịch sử
+  hiển thị **Đang chạy**; khi phiên kết thúc mới có thời lượng và lý do đóng.
+- Khi dịch vụ khởi động lại, các phiên còn mở từ lần chạy trước được đóng với
+  lý do `service_restart` để không treo trạng thái.
+- Thời lượng online được chia theo từng giờ UTC. Uptime 24 giờ lấy từ dữ liệu
+  chất lượng thực tế, nên phiên đang chạy vẫn được tính.
+- Caster đích (ví dụ onocoy) có thể tự reset kết nối TCP khi họ cập nhật hệ
+  thống. Relay sẽ reconnect trong vài giây; đây là reset phía đích, không phải
+  lỗi timeout của relay. Biểu đồ 24 giờ có thể gộp các khoảng ngắt rất ngắn
+  thành một đoạn online; muốn đếm chính xác từng lần ngắt, xem tab Lịch sử →
+  Phiên hoặc cột lỗi/reconnect.

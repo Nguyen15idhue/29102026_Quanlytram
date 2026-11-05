@@ -47,3 +47,17 @@ func TestClassify(t *testing.T) {
 		t.Fatalf("timeout = %q", got)
 	}
 }
+
+func TestRetryDelay(t *testing.T) {
+	if got := retryDelay(authError()); got != 0 {
+		t.Fatalf("401 retry delay = %v, want 0", got)
+	}
+	err := &ntrip.StatusError{Proto: "HTTP", Code: 429, Status: "Too Many Requests", RetryAfter: 3 * time.Second}
+	if got := retryDelay(err); got != 3*time.Second {
+		t.Fatalf("429 retry delay = %v, want 3s", got)
+	}
+	err.RetryAfter = 10 * time.Minute
+	if got := retryDelay(err); got != 5*time.Minute {
+		t.Fatalf("capped retry delay = %v, want 5m", got)
+	}
+}

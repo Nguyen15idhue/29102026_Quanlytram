@@ -58,6 +58,14 @@ func (h *hub) hasSource() bool {
 	return h.source != nil
 }
 
+// currentSource trả source đang giữ mountpoint. Dùng khi trạm mở kết nối mới:
+// kết nối cũ có thể đã half-open nhưng chưa hết SourceIdleTimeout.
+func (h *hub) currentSource() *connection {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.source
+}
+
 func (h *hub) removeSource(c *connection) []*connection {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -120,13 +128,25 @@ func (h *hub) removeRover(c *connection) {
 	h.mu.Unlock()
 }
 
-func (h *hub) publish(data []byte) {
+// publishFrom chỉ nhận dữ liệu từ source đang giữ mountpoint. Source cũ có
+// thể còn đọc được vài byte sau khi bị thay thế; nếu không kiểm tra, byte cũ
+// sẽ xen vào luồng của source mới.
+func (h *hub) publishFrom(source *connection, data []byte) {
 	copied := append([]byte(nil), data...)
-	h.monitor.Feed(copied)
 
 	h.mu.Lock()
+	if source == nil || h.source != source {
+		h.mu.Unlock()
+		return
+	}
 	mountpoint := h.mountpoint
+	rovers := make([]*connection, 0, len(h.rovers))
+	for _, rover := range h.rovers {
+		rovers = append(rovers, rover)
+	}
 	h.mu.Unlock()
+
+	h.monitor.Feed(copied)
 	if h.quality != nil && mountpoint != nil && mountpoint.StationID > 0 {
 		h.quality.Feed(quality.Target{
 			Type:         quality.TargetStation,
@@ -135,13 +155,6 @@ func (h *hub) publish(data []byte) {
 			Direction:    quality.DirectionIngest,
 		}, copied)
 	}
-
-	h.mu.Lock()
-	rovers := make([]*connection, 0, len(h.rovers))
-	for _, rover := range h.rovers {
-		rovers = append(rovers, rover)
-	}
-	h.mu.Unlock()
 
 	for _, rover := range rovers {
 		if !rover.enqueue(copied) {

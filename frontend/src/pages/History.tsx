@@ -204,14 +204,17 @@ export function History() {
               {
                 key: 'start',
                 header: 'Bắt đầu',
-                cell: (row) => (
-                  <div>
-                    <div className="mono">{formatLocal((row as RelaySession).startTs)}</div>
-                    <div className="muted table-subline">
-                      Kết thúc {formatLocal((row as RelaySession).endTs)}
+                cell: (row) => {
+                  const endTs = (row as RelaySession).endTs;
+                  return (
+                    <div>
+                      <div className="mono">{formatLocal((row as RelaySession).startTs)}</div>
+                      <div className="muted table-subline">
+                        {endTs ? `Kết thúc ${formatLocal(endTs)}` : 'Đang chạy'}
+                      </div>
                     </div>
-                  </div>
-                )
+                  );
+                }
               },
               {
                 key: 'duration',
@@ -220,7 +223,10 @@ export function History() {
                 hideOnMobile: true,
                 cell: (row) => {
                   const value = (row as RelaySession).durationSec;
-                  return <span className="mono">{value === null ? '—' : `${value}s`}</span>;
+                  if (value === null) {
+                    return <span className="mono">Đang chạy</span>;
+                  }
+                  return <span className="mono">{value}s</span>;
                 }
               },
               {
@@ -229,7 +235,11 @@ export function History() {
                 hideOnMobile: true,
                 cell: (row) => (
                   <div>
-                    <div>{(row as RelaySession).result || '—'}</div>
+                    <div>
+                      {(row as RelaySession).result === 'streaming'
+                        ? 'Đang chạy'
+                        : (row as RelaySession).result || '—'}
+                    </div>
                     {(row as RelaySession).message && (
                       <div className="muted table-subline">
                         {(row as RelaySession).message}
@@ -242,8 +252,11 @@ export function History() {
                 key: 'close',
                 header: 'Lý do đóng',
                 cell: (row) => {
-                  const reason = (row as RelaySession).closeReason;
-                  return <StatusBadge label={reason} kind={closeKind(reason)} />;
+                  const session = row as RelaySession;
+                  if (!session.endTs) {
+                    return <StatusBadge label="đang chạy" kind="ok" />;
+                  }
+                  return <StatusBadge label={session.closeReason} kind={closeKind(session.closeReason)} />;
                 }
               }
             ]}

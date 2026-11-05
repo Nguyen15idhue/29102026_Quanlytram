@@ -16,10 +16,17 @@ type RuntimeWriter interface {
 	Hourly(jobID int64, hour time.Time, onlineSec, sessions, errors, timeouts, authErrors, proxyErrors, nmeaErrors, retries int)
 }
 
+// SessionStartWriter là writer hỗ trợ mở session ngay khi bắt đầu. Writer cũ
+// chỉ ghi session lúc kết thúc vẫn tương thích qua type assertion.
+type SessionStartWriter interface {
+	SessionStart(jobID int64, start time.Time)
+}
+
 type opKind int
 
 const (
 	opState opKind = iota
+	opSessionStart
 	opSession
 	opEvent
 	opHourly
@@ -99,6 +106,14 @@ func (w *BufferedWriter) State(jobID int64, state string, appliedRevision int64,
 		state:           state,
 		appliedRevision: appliedRevision,
 		lastError:       lastError,
+	})
+}
+
+func (w *BufferedWriter) SessionStart(jobID int64, start time.Time) {
+	w.enqueue(writeOp{
+		kind:  opSessionStart,
+		jobID: jobID,
+		start: start,
 	})
 }
 
@@ -254,16 +269,40 @@ func (w *BufferedWriter) flushMySQL(ctx context.Context, ops []writeOp) error {
 				  last_applied_at = VALUES(last_applied_at),
 				  updated_at = UTC_TIMESTAMP(3)`,
 				op.jobID, op.state, op.appliedRevision, nullIfEmpty(op.lastError))
+		case opSessionStart:
+			_, err = tx.ExecContext(ctx, `
+				INSERT INTO relay_sessions
+				  (relay_job_id, start_ts, result, close_reason, message)
+				VALUES (?, ?, 'streaming', 'network', '')`,
+				op.jobID, op.start.UTC().Truncate(time.Millisecond))
 		case opSession:
 			duration := int(op.end.Sub(op.start).Seconds())
 			if duration < 0 {
 				duration = 0
 			}
-			_, err = tx.ExecContext(ctx, `
-				INSERT INTO relay_sessions
-				  (relay_job_id, start_ts, end_ts, duration_sec, result, close_reason, message)
-				VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				op.jobID, op.start.UTC(), op.end.UTC(), duration, op.result, op.closeReason, op.message)
+			sessionStart := op.start.UTC().Truncate(time.Millisecond)
+			var result sql.Result
+			result, err = tx.ExecContext(ctx, `
+				UPDATE relay_sessions
+				   SET end_ts = ?, duration_sec = ?, result = ?, close_reason = ?, message = ?
+				 WHERE relay_job_id = ? AND start_ts = ? AND end_ts IS NULL`,
+				op.end.UTC(), duration, op.result, op.closeReason, op.message,
+				op.jobID, sessionStart)
+			if err == nil {
+				affected, rowsErr := result.RowsAffected()
+				if rowsErr != nil {
+					err = rowsErr
+				} else if affected == 0 {
+					// SessionStart có thể bị drop khi queue đầy; vẫn phải giữ
+					// lịch sử bằng fallback insert.
+					_, err = tx.ExecContext(ctx, `
+						INSERT INTO relay_sessions
+						  (relay_job_id, start_ts, end_ts, duration_sec, result, close_reason, message)
+						VALUES (?, ?, ?, ?, ?, ?, ?)`,
+						op.jobID, sessionStart, op.end.UTC(), duration,
+						op.result, op.closeReason, op.message)
+				}
+			}
 		case opEvent:
 			_, err = tx.ExecContext(ctx, `
 				INSERT INTO relay_events (relay_job_id, ts, type, message, duration_sec)
@@ -309,16 +348,23 @@ func nullIfZero(value int) any {
 }
 
 type MemoryWriter struct {
-	mu       sync.Mutex
-	states   []writeOp
-	sessions []writeOp
-	events   []writeOp
-	hourly   []writeOp
+	mu            sync.Mutex
+	states        []writeOp
+	sessionStarts []writeOp
+	sessions      []writeOp
+	events        []writeOp
+	hourly        []writeOp
 }
 
 func (m *MemoryWriter) State(jobID int64, state string, appliedRevision int64, lastError string) {
 	m.mu.Lock()
 	m.states = append(m.states, writeOp{jobID: jobID, state: state, appliedRevision: appliedRevision, lastError: lastError})
+	m.mu.Unlock()
+}
+
+func (m *MemoryWriter) SessionStart(jobID int64, start time.Time) {
+	m.mu.Lock()
+	m.sessionStarts = append(m.sessionStarts, writeOp{jobID: jobID, start: start})
 	m.mu.Unlock()
 }
 
@@ -344,6 +390,12 @@ func (m *MemoryWriter) StateWrites() []writeOp {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]writeOp{}, m.states...)
+}
+
+func (m *MemoryWriter) SessionStarts() []writeOp {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]writeOp{}, m.sessionStarts...)
 }
 
 func (m *MemoryWriter) SessionWrites() []writeOp {

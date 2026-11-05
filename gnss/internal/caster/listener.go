@@ -185,9 +185,12 @@ func (lr *listenerRuntime) handleSource(conn net.Conn, br *bufio.Reader, req *re
 		_ = writeRequestError(conn, req, 404, "Not Found")
 		return
 	}
-	if h.hasSource() {
-		_ = writeRequestError(conn, req, 409, "Conflict")
-		return
+	// NTRIP source reconnect: thiết bị/trạm thường mở kết nối mới trước khi
+	// caster kịp timeout kết nối cũ (NAT drop, mất gói, hoặc thiết bị reboot).
+	// Kết nối mới nhất thắng; đóng source cũ để giải phóng slot account và
+	// tránh trạm bị 409 Conflict/503 lặp lại suốt SourceIdleTimeout.
+	if previous := h.currentSource(); previous != nil {
+		previous.closeWithReason("source_replaced")
 	}
 
 	c := &connection{

@@ -71,6 +71,11 @@ func main() {
 
 	store := relay.NewMySQLStore(adminDB, cfg.AppEncKey)
 	writer := relay.NewBufferedWriter(runtimeDB, cfg.QueueSize, cfg.BatchSize, cfg.FlushInterval)
+	if closed, err := relay.CloseStaleSessions(ctx, runtimeDB); err != nil {
+		log.Printf("[relay] close stale sessions failed: %v", err)
+	} else if closed > 0 {
+		log.Printf("[relay] closed %d stale sessions from previous run", closed)
+	}
 	serviceRuns := lifecycle.New(runtimeDB, "go", lifecycle.DefaultInterval)
 
 	qualityStore := quality.NewMySQLStore(runtimeDB)

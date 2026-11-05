@@ -1535,3 +1535,62 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
   mount, 2101 31 mount, tất cả `sorted=true`.
 - Test `TestSourcetableMountpointsSortedABC` PASS; deploy lại `cors-gnss:prod`;
   41 relay vẫn streaming sau khi reconnect.
+
+## Ổn định kết nối trạm & relay (2026-11-05)
+
+### Đã sửa
+
+- **Caster source takeover** (`gnss/internal/caster/listener.go`, `hub.go`):
+  - Trạm reconnect cùng mountpoint không còn bị `409 Conflict`/chờ
+    `SourceIdleTimeout` 60 giây; source mới được nhận ngay.
+  - Source cũ bị đóng với lý do `source_replaced`, giải phóng slot account.
+  - `publishFrom` chỉ nhận byte từ source hiện tại, tránh dữ liệu cũ xen vào.
+- **Relay session lifecycle** (`relay/writer.go`, `job.go`):
+  - `SessionStart` INSERT session mở khi bắt đầu (`end_ts NULL`,
+    `result='streaming'`).
+  - Khi kết thúc, UPDATE đúng row theo `relay_job_id + start_ts` (truncate ms),
+    fallback INSERT nếu SessionStart bị drop.
+  - `CloseStaleSessions` đóng session mồ côi lúc startup với
+    `service_restart`; đã thấy log `closed 1 stale sessions` trên local.
+- **Hourly/uptime**:
+  - `splitSessionHours` chia `online_sec` theo giờ UTC, không còn dồn 7.811s
+    vào bucket bắt đầu.
+  - `GET /api/relay-jobs/:id` dùng `dataUptime` (quality_samples) cho uptime
+    24h, nên session đang chạy vẫn được tính.
+- **UI** (`frontend/src/pages/History.tsx`): phiên chưa kết thúc hiển thị
+  **Đang chạy** thay vì `—`; tab Lịch sử không còn hiển thị lý do đóng giả.
+- **Current status** (`server/src/routes/relayJobs.ts`): timeline lấy
+  `metrics.state` từ Go; `streaming` mới xét tuổi dữ liệu, trạng thái khác trả
+  `offline`. Không còn dòng “offline 10s” cuối timeline khi đang stream.
+- **Retry-After 429** (`ntrip/ntrip.go`, `relay/job.go`): đọc header
+  `Retry-After` (giây hoặc HTTP date), chờ tối đa 5 phút thay vì retry dồn dập.
+- **Audit account dùng chung**: thêm `scripts/audit-ntrip-accounts.sql`; chạy
+  read-only trên prod:
+  - `nguyen`: 18 relay / max 50
+  - `admin`: 14 relay / max 50
+  - `aitogy123`: 5 relay / max 20
+  - Không có account vượt `max_connections`.
+
+### Test local
+
+- `go test ./... -count=1` PASS (caster, relay, ntrip, toàn bộ).
+- `go vet ./...` PASS.
+- `go test -race ./...` trong `golang:1.24` Docker PASS.
+- `TestSourceReconnectReplacesStaleSource`,
+  `TestPublishFromIgnoresStaleSource` PASS.
+- `TestSplitSessionHours`, `TestSplitSessionHoursSameHourAndZero`,
+  `TestSplitSessionHoursCrossDay` PASS.
+- `TestBufferedWriterSessionLifecycleMySQL` PASS với MySQL local:
+  session mở → update đúng 1 row → duration 7.813s → hourly tổng 7.813s.
+- `scripts/e2e-relay-mock.ps1` PASS 2 lần (capture byte, state streaming,
+  session row đóng đúng).
+- Server: `npm run build` PASS, `npm test` 40 file/192 test PASS.
+- Frontend: `npm run build` PASS.
+- Playwright targeted: `metrics-health`, `timeline`, `relay-state` 8/8 PASS.
+- Local compose: `closed 1 stale sessions from previous run` khi restart gnss.
+
+### Chưa làm
+
+- Chưa deploy VPS; chờ gate local PASS và xác nhận.
+- Chưa có test UI riêng cho dòng “Đang chạy” (đã test API/DB + Playwright
+  timeline/relay-state).

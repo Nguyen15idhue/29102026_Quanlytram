@@ -787,3 +787,20 @@ production OK; secret scan 0; Playwright 9 PASS/3 skip/1 FAIL có sẵn (fixture
 - Mọi thay đổi kiến trúc phải cập nhật docs v2 trước.
 - Phase 6 chỉ bổ sung sau khi docs được chốt; không làm thay đổi bất biến
   Node/Go ownership hoặc đường byte RTCM.
+
+## 12. Kế hoạch 16 — Ổn định kết nối trạm & relay (2026-11-05)
+
+Mục tiêu: giảm thời gian chết khi trạm reconnect, không để source cũ xen dữ
+liệu, ghi session relay đúng từ lúc bắt đầu, sửa cách tính uptime và rà soát
+account dùng chung. Không thay đổi kiến trúc Node/Go ownership.
+
+| Bước | Tên | Trạng thái |
+|---|---|---|
+| P16-1 | Baseline + xác nhận schema `relay_sessions` cho phép `end_ts NULL` | DONE (Go/server/FE PASS) |
+| P16-2 | Caster source takeover: source mới thay source cũ, bỏ 409/503 chờ 60s | DONE (unit test PASS) |
+| P16-3 | Caster bỏ byte từ source cũ sau takeover | DONE (unit test PASS) |
+| P16-4 | Relay session mở/đóng + stale recovery khi restart | DONE (MySQL integration PASS) |
+| P16-5 | Chia `relay_hourly` theo giờ + uptime 24h dùng `quality_samples` | DONE (unit + MySQL PASS) |
+| P16-6 | UI Lịch sử hiển thị phiên đang chạy; current status lấy Go metrics | DONE (Playwright 8/8 targeted) |
+| P16-7 | Audit account dùng chung + Retry-After 429 | DONE (script audit; prod hiện 18/50, 14/50, 5/20) |
+| P16-8 | Local E2E + deploy VPS + verify job 461/trạm 667 | PENDING |
