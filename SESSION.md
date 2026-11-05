@@ -1791,5 +1791,9 @@ cd frontend; npx playwright test tests/guide.spec.ts
 - Hướng dẫn: dòng Port đổi thành "Xem trong CORS → Listener để biết port tương ứng
   (ví dụ 2101)", bỏ câu "1508/1509 chỉ để tương thích thiết bị cũ".
   Đã build lại `frontend/public/guide` và `build-guide --check` PASS.
+- Bổ sung **Kế hoạch bổ sung 1** vào cuối `docs/1/16`: hai renderer cùng hoạt động,
+  chuyển đổi qua lại, tự fallback khi lỗi (chưa triển khai).
+  Nguyên nhân đã xác minh: build thiếu `maplibre-gl-worker.mjs`, dev thiếu worker,
+  không có WebGL check/fallback, test Playwright quá yếu.
 
 

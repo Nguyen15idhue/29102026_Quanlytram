@@ -520,3 +520,116 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
 | 5 | relay_events throttle + index | Go relay/maintenance, EXPLAIN, Playwright 7/7 | `2041ab7` |
 | 6 | Hướng dẫn + deep-link | build-guide PASS, Playwright 8/8 | `7c91742` |
 
+---
+
+# KẾ HOẠCH BỔ SUNG 1 — HAI RENDERER CÙNG HOẠT ĐỘNG + FALLBACK
+
+> Ngày lập: 2026-11-05
+> Trạng thái: **KẾ HOẠCH — chưa triển khai**
+> Phạm vi: chỉ ổn định renderer Leaflet/MapLibre, chuyển đổi qua lại và tự fallback.
+> **Không** làm 3D, terrain, vector style, cluster nâng cao hay provider matrix.
+
+## 1. Mục tiêu
+
+1. Leaflet và MapLibre đều render được: nền tile, marker trạm/tài khoản, popup, Fit/Reset.
+2. Chuyển đổi renderer trong **Cấu hình bản đồ**, tải lại trang vẫn giữ lựa chọn.
+3. MapLibre lỗi (WebGL/worker/chunk) → **tự về Leaflet** + banner lý do, không trắng trang.
+4. Không thay đổi dữ liệu/API hiện có (renderer đã lưu đúng trong `settings['map.config']`).
+
+## 2. Nguyên nhân đã xác minh
+
+| # | Vấn đề | Bằng chứng |
+|---|---|---|
+| B1 | Build thiếu worker MapLibre | `dist/assets/MaplibreCanvas-*.js` tham chiếu `new URL('./maplibre-gl-worker.mjs', import.meta.url)` nhưng `dist/assets/` không có file này |
+| B2 | Dev thiếu worker | `.vite/deps` chỉ có `maplibre-gl.js`; chưa `optimizeDeps.exclude` |
+| B3 | Không có WebGL check/fallback | `MapCanvas.tsx` chỉ if/else; `MaplibreCanvas` không try/catch |
+| B4 | Test quá yếu | `map-maplibre.spec.ts` chỉ assert canvas + attribution, không assert tile/marker |
+| — | Lưu cấu hình renderer đúng | `PUT /api/map/config` + `validateMapConfigInput` giữ `renderer` |
+
+## 3. Thay đổi chi tiết
+
+### 3.1 `frontend/vite.config.ts` (sửa gốc)
+
+- Thêm:
+  ```ts
+  optimizeDeps: { exclude: ['maplibre-gl'] },
+  worker: { format: 'es' }
+  ```
+- Thêm plugin `copyMaplibreWorkerPlugin` (chỉ áp dụng khi build):
+  - sau khi build xong, copy `node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs`
+    → `dist/assets/maplibre-gl-worker.mjs`;
+  - nếu không tìm thấy file nguồn hoặc copy lỗi → **fail build** (không để im lặng).
+  - Không cần copy `maplibre-gl-shared.mjs` (hiện 0 byte).
+- (Tùy chọn, không bắt buộc) `manualChunks` tách Leaflet khỏi entry.
+
+### 3.2 `frontend/src/components/map/MapCanvas.tsx` (adapter an toàn)
+
+- Thêm `webglAvailable()`: tạo canvas thử `webgl2`/`webgl`, trả boolean.
+- Thêm state `fallbackReason`.
+- Nếu `renderer === 'maplibre'`:
+  - `!webglAvailable()` → render `LeafletCanvas` + reason "Trình duyệt không hỗ trợ WebGL";
+  - lazy import thất bại (`.catch`) → render Leaflet + reason "Không tải được MapLibre".
+- Truyền `onFallback(reason)` lên `UnifiedMap`.
+- Renderer lạ/không xác định → Leaflet (giữ hành vi an toàn hiện tại).
+
+### 3.3 `frontend/src/components/map/MaplibreCanvas.tsx`
+
+- `try/catch` quanh `new maplibregl.Map(...)`; lỗi → gọi `onFatal(reason)`.
+- Timeout `map.on('load')` 8 giây; quá hạn → `onFatal('MapLibre không khởi tạo được')`.
+- Cleanup timeout khi unmount.
+- Không đổi logic tile/marker/popup/fit hiện có.
+
+### 3.4 `frontend/src/pages/UnifiedMap.tsx`
+
+- Hiển thị banner nhỏ khi fallback (dùng `.map-error-float` sẵn có),
+  nội dung: "Không dùng được MapLibre — đang dùng Leaflet. Lý do: …".
+- Không đổi layout/toolbar.
+
+### 3.5 Test
+
+Cập nhật `frontend/tests/map-maplibre.spec.ts` (và giữ test cũ):
+
+1. **Worker 200**: `page.waitForResponse(url.includes('maplibre-gl-worker'))`.
+2. **Tile thực sự được gọi**: đếm request `/api/map/tiles/` > 0.
+3. **Marker render**: chỉ trong dev expose `window.__map`;
+   assert `map.isSourceLoaded('tiles')` và `map.querySourceFeatures('stations').length > 0`.
+4. **Chuyển đổi 2 chiều**: Leaflet → MapLibre → Leaflet, reload vẫn giữ renderer.
+5. **Fallback**: `page.addInitScript` chặn `getContext('webgl*')` →
+   thấy `.leaflet-container` + banner, không có `pageerror`.
+6. **Build check**: script `scripts/plan16/07-kiem-tra-build-ban-do.ps1` (tiếng Việt,
+   `-DryRun` không cần) fail nếu `dist/assets/maplibre-gl-worker.mjs` thiếu.
+
+### 3.6 Tài liệu
+
+- `docs-site/docs/04-ban-do.md`: thêm mục renderer + fallback.
+- `SESSION.md`: ghi kết quả từng bước.
+
+## 4. Thứ tự thực hiện
+
+1. Vite worker + build check (sửa gốc B1/B2).
+2. Fallback adapter (B3).
+3. Test mạnh + test fallback (B4).
+4. Verify: dev (worker 200, tile > 0, marker), build (có worker), preview.
+5. Docs + commit/push.
+
+## 5. Acceptance
+
+- Dev: worker 200, tile request > 0, marker hiện, chuyển Leaflet ↔ MapLibre 2 chiều.
+- Build: `dist/assets/maplibre-gl-worker.mjs` tồn tại; bản build render được MapLibre.
+- WebGL tắt hoặc worker 404 → tự về Leaflet + banner, không trắng trang.
+- Reload giữ renderer đã chọn.
+- `cd frontend; npx tsc --noEmit` PASS.
+- Playwright map suite PASS (gồm test fallback).
+
+## 6. Ước lượng & rủi ro
+
+- Ước lượng: **0.5–1 ngày**.
+- Rủi ro: đường dẫn copy worker sai giữa dev/build (giảm thiểu bằng build check);
+  `optimizeDeps.exclude` làm dev khởi động chậm hơn;
+  fallback phải tránh vòng lặp (chỉ fallback một lần, hiển thị lý do).
+
+## 7. Không thuộc phạm vi
+
+3D/terrain, vector tile style, cluster nâng cao, provider↔renderer matrix,
+registry runtime đầy đủ như mã nguồn tham chiếu.
+
