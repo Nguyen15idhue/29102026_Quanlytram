@@ -1602,6 +1602,9 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
   - Trạm `667` và relay `461`: frames tăng đều, `gaps=0`, `crc=0`,
     upstream/downstream khớp.
   - Không thấy lỗi 500 trong log server.
+  - Deploy tạo reconnect đồng loạt: 3 job (`447`, `452`, `472`) nhận
+    `429 Too Many Requests` ở lần thử đầu, sau đó tự reconnect; không còn 429
+    sau ổn định. Đây là hiện tượng deploy-storm, không phải lỗi timeout.
 - Lưu ý: row `relay_hourly` `01:00` với `online_sec=11483` là session cũ
   `01:18→04:17` do binary trước fix ghi; không backfill dữ liệu cũ. Session kết
   thúc sau deploy sẽ được chia đúng giờ.
