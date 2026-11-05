@@ -1865,4 +1865,25 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   `/guide/huong-dan-tong-quat/` 200; web image có `maplibre-gl-worker.mjs`;
   tất cả container healthy.
 
+### Sự cố MapLibre trên prod (2026-11-05)
+
+- Triệu chứng: banner "MapLibre không tải xong bản đồ (timeout)", tự fallback Leaflet.
+- Nguyên nhân:
+  1. CSP của nginx chỉ cho `connect-src 'self'` → chặn style/tile/glyph từ
+     `tiles.openfreemap.org`; `load` không bao giờ xảy ra.
+  2. nginx:alpine trả `.mjs` là `application/octet-stream` + `nosniff` → module
+     worker của MapLibre không chạy.
+  3. Timeout 8s quá ngắn cho mạng chậm.
+- Sửa:
+  - `frontend/nginx.conf`: thêm `location ~* \.mjs$ { default_type application/javascript; }`
+    và mở `connect-src` cho OpenFreeMap/Esri/OpenTopoMap, thêm `worker-src 'self'`.
+  - Không dùng directive `types` trong server (ghi đè toàn bộ mime.types, từng làm
+    `/login` trả octet-stream).
+  - `MaplibreCanvas`: timeout load 20s.
+- Đã deploy `7937836` bằng `hot_update.sh`; kiểm chứng:
+  - `/login` → `text/html`; `maplibre-gl-worker.mjs` → `application/javascript`.
+  - Playwright chạy trực tiếp trên `https://rtktk.online`: đăng nhập, chuyển
+    renderer MapLibre, style 200, không fallback, không request lỗi/pageerror;
+    sau test đã trả renderer về Leaflet.
+
 
