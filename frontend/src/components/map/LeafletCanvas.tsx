@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react';
 import L from 'leaflet';
-import type { AccountFixStatus, MapConfig, MapMode, MapStationItem } from '../../types';
+import type { AccountFixStatus, MapAccountItem, MapConfig, MapMode, MapStationItem } from '../../types';
 import { ACCOUNT_FIX_LABELS } from '../../lib/mapStatusLabels';
 import { accountPinMarkup } from './AccountPin';
 import { loadProvinces, provinceCollection } from '../../lib/provinces';
@@ -37,6 +37,7 @@ export interface MapCanvasProps {
   onTileError: (message: string | null) => void;
   onFallback?: (reason: string | null) => void;
   showProvinces?: boolean;
+  accounts?: MapAccountItem[];
 }
 
 function escapeHtml(value: string): string {

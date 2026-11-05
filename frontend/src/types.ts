@@ -1092,6 +1092,7 @@ export interface MapStationItem {
 }
 
 export interface MapAccountItem {
+  connectionId: number;
   accountId: number;
   username: string;
   mountpointId: number;

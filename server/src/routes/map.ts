@@ -345,10 +345,11 @@ mapRouter.get(
       }
     }
 
-    // Lớp tài khoản NTRIP: cùng định nghĩa với trang "Danh sách online"
-    // (direction=rover, có account_id). Tài khoản gắn mountpoint không có
-    // station_id vẫn được đếm nhưng không vẽ marker vì thiếu toạ độ.
+    // Lớp tài khoản NTRIP: mỗi kết nối rover đã xác thực là một phần tử,
+    // khớp với trang "Danh sách online" (một tài khoản có thể mở nhiều
+    // mountpoint/kết nối). Mountpoint không có station_id vẫn được đếm.
     interface MapAccount {
+      connectionId: number;
       accountId: number;
       username: string;
       mountpointId: number;
@@ -359,7 +360,7 @@ mapRouter.get(
       bytesIn: number;
       bytesOut: number;
     }
-    const accountMap = new Map<number, MapAccount>();
+    const accounts: MapAccount[] = [];
     if (connectionsAllowed && casterAvailable) {
       for (const item of casterConnections) {
         if (item.direction !== 'rover') continue;
@@ -371,28 +372,22 @@ mapRouter.get(
         // Không xác định được trạm => không kiểm chứng được scope; chỉ super
         // admin mới thấy các tài khoản ngoài trạm.
         if (stationId === null && !isSuper) continue;
-        const username = item.accountUsername || accountUsernameById.get(accountId) || '';
-        if (username.trim() === '') continue;
-        const fixType = normalizeFixType(item.fixType);
-        const previous = accountMap.get(accountId);
-        const resolvedStation = stationId ?? previous?.stationId ?? null;
-        accountMap.set(accountId, {
+        const username = (item.accountUsername || accountUsernameById.get(accountId) || '').trim();
+        if (username === '') continue;
+        accounts.push({
+          connectionId: Number(item.id),
           accountId,
           username,
-          mountpointId: previous?.mountpointId ?? mountpointId,
-          stationId: resolvedStation,
-          hasCoords: resolvedStation !== null,
-          fixType: previous
-            ? aggregateFixStatus([previous.fixType, fixType]) ?? fixType
-            : fixType,
-          startTs:
-            previous && previous.startTs < item.startTs ? previous.startTs : item.startTs,
-          bytesIn: (previous?.bytesIn ?? 0) + Number(item.bytesIn ?? 0),
-          bytesOut: (previous?.bytesOut ?? 0) + Number(item.bytesOut ?? 0)
+          mountpointId,
+          stationId,
+          hasCoords: stationId !== null,
+          fixType: normalizeFixType(item.fixType),
+          startTs: item.startTs,
+          bytesIn: Number(item.bytesIn ?? 0),
+          bytesOut: Number(item.bytesOut ?? 0)
         });
       }
     }
-    const accounts = [...accountMap.values()];
     const accountsOutsideStations = accounts.filter((item) => item.stationId === null).length;
 
     const now = Date.now();

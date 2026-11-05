@@ -259,6 +259,7 @@ export function UnifiedMap() {
             onTileError={setTileError}
             onFallback={setRendererFallback}
             showProvinces={showProvinces}
+            accounts={overview.data?.accounts ?? []}
           />
         )}
 

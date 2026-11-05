@@ -1886,4 +1886,16 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
     renderer MapLibre, style 200, không fallback, không request lỗi/pageerror;
     sau test đã trả renderer về Leaflet.
 
+### Sửa đếm tài khoản & icon MapLibre (2026-11-06)
+
+- Nguyên nhân: `/api/map/overview` gộp tài khoản theo `accountId` nên 26 kết nối
+  rover chỉ còn 3 tài khoản; MapLibre vẽ tài khoản bằng circle layer (giống trạm).
+- Sửa:
+  - `accounts[]` giờ là **mỗi kết nối rover** (`connectionId`), khớp trang
+    Danh sách online; `counts.accounts` và `accountStatus` đếm theo kết nối.
+  - MapLibre dùng DOM marker `accountPinMarkup` (pin hình người) thay circle layer,
+    có offset khi nhiều kết nối cùng trạm, popup/click giữ nguyên.
+- Test: `map-accounts` PASS (counts khớp `/api/connections`), `map-account-pins`
+  PASS (số pin = số account có toạ độ), `map-maplibre` + `map-provinces` PASS.
+
 

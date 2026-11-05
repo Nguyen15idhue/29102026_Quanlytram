@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { AccountFixStatus, MapMode, MapStationItem } from '../../types';
+import type { AccountFixStatus, MapAccountItem, MapMode, MapStationItem } from '../../types';
 import { ACCOUNT_FIX_LABELS } from '../../lib/mapStatusLabels';
 import type { MapCanvasProps } from './LeafletCanvas';
+import { accountPinMarkup } from './AccountPin';
 import {
   featureCenter,
   loadProvinces,
@@ -16,8 +17,6 @@ const IS_DEV =
 
 const STATION_SOURCE = 'stations';
 const STATION_LAYER = 'stations-layer';
-const ACCOUNT_SOURCE = 'accounts';
-const ACCOUNT_LAYER = 'accounts-layer';
 const PROVINCE_SOURCE = 'provinces';
 const PROVINCE_LAYER = 'provinces-line';
 const STREETS_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
@@ -143,7 +142,7 @@ function buildPopup(item: MapStationItem, permissions: MapCanvasProps['permissio
 
 function buildAccountPopup(
   item: MapStationItem,
-  account: MapStationItem['connectedAccounts'][number]
+  account: { username: string; fixType: AccountFixStatus }
 ): string {
   return [
     `<strong>${escapeHtml(account.username)}</strong>`,
@@ -184,7 +183,8 @@ export function MaplibreCanvas({
   onSelect,
   onTileError,
   onFatal,
-  showProvinces = false
+  showProvinces = false,
+  accounts = []
 }: MaplibreCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
@@ -192,6 +192,7 @@ export function MaplibreCanvas({
   const tempRef = useRef<maplibregl.Marker | null>(null);
   const archipelagoRef = useRef<maplibregl.Marker[]>([]);
   const provinceMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const accountMarkersRef = useRef(new Map<number, maplibregl.Marker>());
   const provinceSyncRef = useRef<(() => void) | null>(null);
   const onSelectRef = useRef(onSelect);
   const onTileErrorRef = useRef(onTileError);
@@ -200,7 +201,6 @@ export function MaplibreCanvas({
   const [ready, setReady] = useState(false);
   const initialView = useRef({ center: config.center, zoom: config.zoom });
   const stationDataRef = useRef<Record<string, unknown>>(collection([]));
-  const accountDataRef = useRef<Record<string, unknown>>(collection([]));
   const provinceFeaturesRef = useRef<ProvinceFeature[] | null>(null);
   const showProvincesRef = useRef(showProvinces);
   const styleKey = `${mode}|${config.provider}|${config.tileMode}|${config.tileUrl}|${retrySignal}`;
@@ -226,25 +226,6 @@ export function MaplibreCanvas({
           'circle-color': ['get', 'color'] as never,
           'circle-stroke-width': 2,
           'circle-stroke-color': '#ffffff'
-        }
-      });
-    }
-    if (!map.getSource(ACCOUNT_SOURCE)) {
-      map.addSource(ACCOUNT_SOURCE, {
-        type: 'geojson',
-        data: accountDataRef.current as never
-      });
-      map.addLayer({
-        id: ACCOUNT_LAYER,
-        type: 'circle',
-        source: ACCOUNT_SOURCE,
-        paint: {
-          'circle-radius': ['case', ['==', ['get', 'selected'], true], 7, 5] as never,
-          'circle-color': ['get', 'color'] as never,
-          'circle-stroke-width': 1.5,
-          'circle-stroke-color': '#ffffff',
-          'circle-translate': [0, -16],
-          'circle-translate-anchor': 'viewport'
         }
       });
     }
@@ -307,17 +288,10 @@ export function MaplibreCanvas({
       if (Number.isFinite(id) && id > 0) onSelectRef.current(id);
     };
     map.on('click', STATION_LAYER, showPopup);
-    map.on('click', ACCOUNT_LAYER, showPopup);
     map.on('mouseenter', STATION_LAYER, () => {
       map.getCanvas().style.cursor = 'pointer';
     });
     map.on('mouseleave', STATION_LAYER, () => {
-      map.getCanvas().style.cursor = '';
-    });
-    map.on('mouseenter', ACCOUNT_LAYER, () => {
-      map.getCanvas().style.cursor = 'pointer';
-    });
-    map.on('mouseleave', ACCOUNT_LAYER, () => {
       map.getCanvas().style.cursor = '';
     });
 
@@ -358,6 +332,8 @@ export function MaplibreCanvas({
       archipelagoRef.current = [];
       for (const marker of provinceMarkersRef.current) marker.remove();
       provinceMarkersRef.current = [];
+      for (const marker of accountMarkersRef.current.values()) marker.remove();
+      accountMarkersRef.current.clear();
       map.remove();
       mapRef.current = null;
       setReady(false);
@@ -374,7 +350,7 @@ export function MaplibreCanvas({
     map.setStyle(maplibreBaseStyle(mode) as never);
   }, [styleKey, mode, ready]);
 
-  // Marker trạm + marker tài khoản.
+  // Marker trạm (tài khoản dùng DOM marker bên dưới).
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
@@ -390,29 +366,78 @@ export function MaplibreCanvas({
           })
         )
     );
-    const accounts = collection(
-      items.flatMap((item) =>
-        (permissions.online ? item.connectedAccounts : [])
-          .filter(() => item.lat !== null && item.lon !== null)
-          .map((account) =>
-            pointFeature(item.lon as number, item.lat as number, {
-              id: item.id,
-              color: accountColor(account.fixType),
-              selected: item.id === selectedId,
-              popup: buildAccountPopup(item, account)
-            })
-          )
-      )
-    );
     stationDataRef.current = stations;
-    accountDataRef.current = accounts;
     (map.getSource(STATION_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(
       stations as never
     );
-    (map.getSource(ACCOUNT_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(
-      accounts as never
-    );
   }, [items, permissions, selectedId, ready]);
+
+  // Marker tài khoản: dùng pin hình người (DOM) giống Leaflet.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+    const stationById = new Map(items.map((item) => [item.id, item]));
+    const grouped = new Map<number, MapAccountItem[]>();
+    if (permissions.online) {
+      for (const account of accounts) {
+        if (account.stationId === null) continue;
+        const list = grouped.get(account.stationId) ?? [];
+        list.push(account);
+        grouped.set(account.stationId, list);
+      }
+    }
+
+    const seen = new Set<number>();
+    for (const [stationId, list] of grouped) {
+      const station = stationById.get(stationId);
+      if (!station || station.lat === null || station.lon === null) continue;
+      const lat = station.lat;
+      const lon = station.lon;
+      list.sort((a, b) => a.connectionId - b.connectionId);
+      list.forEach((account, index) => {
+        const offsetX = (index - (list.length - 1) / 2) * 22;
+        const html = accountPinMarkup(accountColor(account.fixType));
+        const popup = new maplibregl.Popup({
+          closeButton: true,
+          maxWidth: '320px'
+        }).setHTML(buildAccountPopup(station, account));
+        seen.add(account.connectionId);
+
+        let marker = accountMarkersRef.current.get(account.connectionId);
+        if (!marker) {
+          const element = document.createElement('div');
+          element.className = 'map-account-pin';
+          element.innerHTML = html;
+          element.addEventListener('click', (event) => {
+            event.stopPropagation();
+            onSelectRef.current(station.id);
+          });
+          marker = new maplibregl.Marker({
+            element,
+            anchor: 'bottom',
+            offset: [offsetX, 0]
+          })
+            .setLngLat([lon, lat])
+            .setPopup(popup)
+            .addTo(map);
+          accountMarkersRef.current.set(account.connectionId, marker);
+        } else {
+          marker.setLngLat([lon, lat]);
+          marker.setOffset([offsetX, 0]);
+          const element = marker.getElement();
+          element.innerHTML = html;
+          marker.setPopup(popup);
+        }
+      });
+    }
+
+    for (const [connectionId, marker] of accountMarkersRef.current) {
+      if (!seen.has(connectionId)) {
+        marker.remove();
+        accountMarkersRef.current.delete(connectionId);
+      }
+    }
+  }, [accounts, items, permissions.online, ready]);
 
   // Nhãn quần đảo: dùng Marker DOM để không phụ thuộc glyphs của MapLibre.
   useEffect(() => {
