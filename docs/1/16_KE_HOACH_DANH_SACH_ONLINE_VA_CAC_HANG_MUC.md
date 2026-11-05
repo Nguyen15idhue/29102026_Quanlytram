@@ -653,7 +653,7 @@ registry runtime đầy đủ như mã nguồn tham chiếu.
     → ĐẠT, `maplibre-gl-worker.mjs` 507.2 KB trong `dist/assets`.
   - Playwright `map-maplibre.spec.ts` → 3/3 PASS.
   - Playwright hồi quy `map`, `map-upgrade`, `unified-map`, `map-accounts` → 6/6 PASS.
-- Commit: `__COMMIT__`
+- Commit: `b7ef3bc`
 - Việc còn lại: kiểm tra thủ công trên trình duyệt thật (Playwright đã phủ Chrome).
 
 ---
