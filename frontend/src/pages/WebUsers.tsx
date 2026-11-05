@@ -90,6 +90,11 @@ export function WebUsers() {
     queryKey: ['roles', 'options'],
     queryFn: () => apiFetch<RoleList>('/api/roles')
   });
+  const myLevel = user?.role.level ?? 0;
+  const assignableRoles = useMemo(
+    () => (roles.data?.items ?? []).filter((role) => isSuper || role.level < myLevel),
+    [roles.data, isSuper, myLevel]
+  );
   const companies = useQuery({
     queryKey: ['companies', 'options'],
     queryFn: () => apiFetch<CompanyList>('/api/companies?pageSize=100'),
@@ -303,7 +308,7 @@ export function WebUsers() {
               onChange={(event) => setParam('roleId', event.target.value || null)}
             >
               <option value="">Mọi vai trò</option>
-              {(roles.data?.items ?? []).map((role) => (
+              {(assignableRoles ?? []).map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name}
                 </option>
@@ -551,7 +556,7 @@ export function WebUsers() {
               required
             >
               <option value="">Chọn role</option>
-              {roles.data?.items.map((role) => (
+              {assignableRoles.map((role) => (
                 <option key={role.id} value={role.id}>
                   {role.name} ({role.code})
                 </option>

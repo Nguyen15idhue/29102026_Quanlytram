@@ -102,5 +102,6 @@ export function canAssignRole(
   actorIsSuper: boolean
 ): boolean {
   if (actorIsSuper) return true;
-  return targetLevel <= actorLevel;
+  // Không được gán role cùng cấp hoặc cao hơn (chống nâng quyền).
+  return targetLevel < actorLevel;
 }

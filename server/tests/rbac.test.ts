@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canManageRole, inScope, scopeClause } from '../src/rbac/scope';
+import { canAssignRole, canManageRole, inScope, scopeClause } from '../src/rbac/scope';
 import { redact } from '../src/lib/audit';
 import { emailField } from '../src/lib/validation';
 
@@ -53,6 +53,15 @@ describe('canManageRole', () => {
     expect(canManageRole(50, 50, false)).toBe(false);
     expect(canManageRole(50, 100, false)).toBe(false);
     expect(canManageRole(50, 100, true)).toBe(true);
+  });
+});
+
+describe('canAssignRole', () => {
+  it('không cho gán role cùng cấp hoặc cao hơn', () => {
+    expect(canAssignRole(50, 10, false)).toBe(true);
+    expect(canAssignRole(50, 50, false)).toBe(false);
+    expect(canAssignRole(50, 100, false)).toBe(false);
+    expect(canAssignRole(50, 100, true)).toBe(true);
   });
 });
 

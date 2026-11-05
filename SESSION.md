@@ -1902,4 +1902,18 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   30 (fixed 23, single 3, error 4); browser MapLibre có đúng 30 pin hình người
   `.map-account-pin`, legend "Tổng tài khoản online: 30".
 
+### Chống nâng quyền role web user (2026-11-06)
+
+- Lỗi: admin vẫn thấy/chọn được `super_admin` và `admin` trong form tạo web user.
+- Sửa:
+  - `canAssignRole` đổi sang **`targetLevel < actorLevel`**; admin không gán được
+    role cùng cấp hoặc cao hơn.
+  - `WebUsers.tsx` chỉ render role có `level < level` của người đang đăng nhập;
+    super admin vẫn thấy tất cả.
+- Test:
+  - `server/tests/rbac.test.ts`: thêm test `canAssignRole` (cùng cấp bị chặn).
+  - Playwright `web-users-role.spec.ts`: admin chỉ thấy role thấp hơn; API trả
+    403 với `super_admin`/`admin`; tạo `user` thành công và dọn dẹp.
+  - `p1-rbac.spec.ts` 4/4 PASS.
+
 
