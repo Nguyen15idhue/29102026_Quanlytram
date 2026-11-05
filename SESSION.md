@@ -1897,5 +1897,9 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
     có offset khi nhiều kết nối cùng trạm, popup/click giữ nguyên.
 - Test: `map-accounts` PASS (counts khớp `/api/connections`), `map-account-pins`
   PASS (số pin = số account có toạ độ), `map-maplibre` + `map-provinces` PASS.
+- Đã deploy `7711739` bằng `hot_update.sh` (server + web-prod).
+- Kiểm chứng prod: `/api/connections` 30 kết nối, `/api/map/overview.accounts`
+  30 (fixed 23, single 3, error 4); browser MapLibre có đúng 30 pin hình người
+  `.map-account-pin`, legend "Tổng tài khoản online: 30".
 
 
