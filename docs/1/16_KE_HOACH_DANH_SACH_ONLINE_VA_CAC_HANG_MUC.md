@@ -812,5 +812,5 @@ Sửa ranh giới theo thời gian, tô màu theo trạm, tra cứu địa chỉ
     `docs/1/evidence/plan16-map-maplibre.png`.
 - Ghi chú: mode `hybrid` và PMTiles/`style_url` không áp dụng vì mô hình cấu hình
   hiện tại chỉ có 3 mode raster và chưa có trường `style_url`/PMTiles.
-- Commit: `__COMMIT__`
+- Commit: `0e029a0`
 
