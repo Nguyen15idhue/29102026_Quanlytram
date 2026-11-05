@@ -1634,7 +1634,7 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
   frontend `tsc --noEmit` PASS.
 
 ### Chưa làm
-- Playwright `navigation.spec.ts` chưa chạy: không có stack local ở 127.0.0.1:3000.
+- Playwright bổ sung sau: `navigation.spec.ts` đã PASS khi dựng stack local.
 - Chưa chạy SQL kiểm chứng trên prod (chỉ chạy khi triển khai).
 
 ### Cách chạy
@@ -1655,13 +1655,41 @@ cd frontend; npx tsc --noEmit
 - Test mới `frontend/tests/map-mobile-menu.spec.ts` (390x844, elementFromPoint).
 
 ### Chưa làm
-- Chưa chạy Playwright: không có stack local ở 127.0.0.1:3000.
-- Chưa kiểm tra thủ công 390/768.
+- Playwright `map-mobile-menu.spec.ts` + `ui.spec.ts` đã PASS khi dựng stack local.
+- Chưa kiểm tra thủ công 390/768 (Playwright đã phủ 390x844).
 
 ### Cách chạy
 ```powershell
 cd frontend; npx tsc --noEmit
 cd frontend; npx playwright test tests/map-mobile-menu.spec.ts tests/ui.spec.ts
+```
+
+---
+
+## Plan 16 — Bước 3: Bản đồ MapLibre + lớp tài khoản (2026-11-05)
+
+### Đã làm
+- Thêm `renderer` vào `MapConfig` (default `leaflet`, không migration); Select trong
+  Cấu hình bản đồ; tách `MapCanvas` → `LeafletCanvas` + `MaplibreCanvas` (lazy).
+- MapLibre: raster tile proxy, marker trạm/tài khoản, popup, Fit/Reset, nhãn quần đảo
+  bằng Marker DOM, attribution bắt buộc.
+- `/api/map/overview`: thêm `accounts[]`, `counts.accounts`,
+  `counts.accountsOutsideStations`, `truncated`; bucket `none` cho "chưa gửi GGA".
+- Legend hiển thị tổng tài khoản + tài khoản ngoài trạm.
+
+### Test
+- vitest `map`, `mapAccountStatus`, `mapConfigCache`: 18/18 PASS.
+- `tsc --noEmit`: PASS.
+- Playwright: `navigation`, `map-mobile-menu`, `ui`, `map`, `map-config`,
+  `unified-map`, `map-upgrade` → 11/11 PASS.
+- Playwright mới: `map-maplibre.spec.ts` PASS; `map-accounts.spec.ts` PASS
+  (`counts.accounts` khớp `/api/connections.total`).
+
+### Cách chạy
+```powershell
+cd server; npx vitest run tests/map.test.ts tests/mapAccountStatus.test.ts tests/mapConfigCache.test.ts
+cd frontend; npx tsc --noEmit
+cd frontend; npx playwright test tests/map-maplibre.spec.ts tests/map-accounts.spec.ts
 ```
 
 

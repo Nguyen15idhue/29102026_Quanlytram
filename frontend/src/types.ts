@@ -1064,7 +1064,7 @@ export interface MountpointExplorerDetailResponse {
 
 export type CoordSource = '1005' | 'station' | 'none';
 
-export type AccountFixStatus = 'single' | 'fixed' | 'float' | 'rtd' | 'error';
+export type AccountFixStatus = 'none' | 'single' | 'fixed' | 'float' | 'rtd' | 'error';
 
 export interface MapStationItem {
   id: number;
@@ -1091,14 +1091,30 @@ export interface MapStationItem {
   ownerName: string | null;
 }
 
+export interface MapAccountItem {
+  accountId: number;
+  username: string;
+  mountpointId: number;
+  stationId: number | null;
+  hasCoords: boolean;
+  fixType: AccountFixStatus;
+  startTs: string;
+  bytesIn: number;
+  bytesOut: number;
+}
+
 export interface MapOverviewResponse {
   items: MapStationItem[];
   total: number;
+  truncated: boolean;
+  accounts: MapAccountItem[];
   counts: {
     all: number;
     online: number;
     issues: number;
     online_accounts: number;
+    accounts: number;
+    accountsOutsideStations: number;
     withCoords: number;
     missingCoords: number;
     missing_1005: number;
@@ -1111,6 +1127,7 @@ export interface MapOverviewResponse {
       unknown: number;
     };
     accountStatus: {
+      none: number;
       single: number;
       fixed: number;
       float: number;
@@ -1148,6 +1165,7 @@ export interface MapModeConfig {
 
 export interface MapConfig {
   version: number;
+  renderer: 'leaflet' | 'maplibre';
   provider: string;
   tileMode: 'proxy' | 'direct';
   tileUrl: string;

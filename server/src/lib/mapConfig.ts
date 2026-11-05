@@ -5,6 +5,7 @@ import { ApiError } from './http';
 
 export type MapMode = 'streets' | 'satellite' | 'terrain';
 export type TileMode = 'proxy' | 'direct';
+export type MapRenderer = 'leaflet' | 'maplibre';
 
 export interface MapModeConfig {
   provider?: string;
@@ -18,6 +19,7 @@ export interface MapModeConfig {
 
 export interface MapConfig {
   version: number;
+  renderer: MapRenderer;
   provider: string;
   tileMode: TileMode;
   tileUrl: string;
@@ -85,6 +87,7 @@ const SECRET_KEY = /key|token|secret|pass|passwd|authorization|cookie/i;
 
 export const DEFAULT_MAP_CONFIG: MapConfig = {
   version: 1,
+  renderer: 'leaflet',
   provider: 'osm-de',
   tileMode: 'proxy',
   tileUrl: '/api/map/tiles/{z}/{x}/{y}',
@@ -134,6 +137,7 @@ const modeSchema = z
 const configSchema = z
   .object({
     version: z.number().int().min(1).max(1000),
+    renderer: z.enum(['leaflet', 'maplibre']).default('leaflet'),
     provider: z.string().min(1).max(64),
     tileMode: z.enum(['proxy', 'direct']),
     tileUrl: z.string().min(1).max(1024),

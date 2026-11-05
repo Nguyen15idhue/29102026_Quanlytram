@@ -11,6 +11,14 @@ import {
 import { resolveStationCoords } from '../src/lib/mapCoords';
 
 describe('map config', () => {
+  it('mặc định dùng Leaflet và cho phép chuyển sang MapLibre', () => {
+    expect(DEFAULT_MAP_CONFIG.renderer).toBe('leaflet');
+    expect(normalizeMapConfig({}).renderer).toBe('leaflet');
+    expect(normalizeMapConfig({ renderer: 'maplibre' }).renderer).toBe('maplibre');
+    expect(normalizeMapConfig({ renderer: 'canvas' }).renderer).toBe('leaflet');
+    expect(validateMapConfigInput({ renderer: 'maplibre' }).renderer).toBe('maplibre');
+  });
+
   it('bật nhãn quần đảo mặc định từ zoom 6 và cấu hình được', () => {
     expect(DEFAULT_MAP_CONFIG.archipelagoLabels).toBe(true);
     expect(DEFAULT_MAP_CONFIG.archipelagoMinZoom).toBe(6);

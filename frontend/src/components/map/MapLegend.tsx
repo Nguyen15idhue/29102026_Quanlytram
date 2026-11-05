@@ -73,6 +73,7 @@ export function MapLegend({ stationCounts, accountCounts, showAccounts = false }
   ];
 
   const accountItems: LegendItem[] = [
+    { key: 'none', label: 'Chưa gửi GGA', count: accountCounts?.none, color: COLORS.gray, shape: 'user' },
     { key: 'single', label: 'Single', count: accountCounts?.single, color: COLORS.red, shape: 'user' },
     { key: 'fixed', label: 'Fixed', count: accountCounts?.fixed, color: COLORS.green, shape: 'user' },
     { key: 'float', label: 'Float', count: accountCounts?.float, color: COLORS.amber, shape: 'user' },

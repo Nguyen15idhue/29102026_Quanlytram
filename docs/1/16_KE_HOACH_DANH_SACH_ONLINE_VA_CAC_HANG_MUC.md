@@ -366,8 +366,8 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
   - `cd gnss; go test ./internal/caster/...` → `ok cors/gnss/internal/caster`.
   - `cd server; npx vitest run tests/casterListener.test.ts` → 7/7 PASS.
   - `cd frontend; npx tsc --noEmit` → PASS (không lỗi).
-- Chưa chạy: Playwright `tests/navigation.spec.ts` — không có stack local tại
-  `127.0.0.1:3000`; sẽ kiểm tra thủ công sau.
+- Đã chạy bổ sung: Playwright `tests/navigation.spec.ts` **PASS** sau khi dựng
+  stack local (web 3000/server 4000/gnss 7080/mysql 3307) — không còn mục "chưa chạy".
 - Không đổi hành vi publish của trạm (`SourceNoAuth`, `handleSource`,
   `request.go` giữ nguyên); không migration.
 - Commit: `eda5943`
@@ -386,8 +386,42 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
     `elementFromPoint` thuộc sidebar + Esc đóng.
 - Test đã chạy:
   - `cd frontend; npx tsc --noEmit` → PASS.
-- Chưa chạy: `npx playwright test tests/map-mobile-menu.spec.ts tests/ui.spec.ts`
-  (cần stack local tại `127.0.0.1:3000`).
+  - Playwright `tests/map-mobile-menu.spec.ts` + `tests/ui.spec.ts` → PASS
+    (390x844; `elementFromPoint` thuộc sidebar; Esc đóng).
 - Commit: `56e63f5`
 - Việc còn lại: kiểm tra thủ công 390/768 trên stack local.
+
+## KẾT QUẢ THỰC HIỆN — BƯỚC 3 (2026-11-05)
+
+- Trạng thái: **PASS** (vitest + typecheck + Playwright, gồm cả renderer MapLibre).
+- Renderer:
+  - `server/src/lib/mapConfig.ts`: thêm `renderer: 'leaflet' | 'maplibre'`
+    (default `leaflet`, lưu trong `settings.map.config`, **không migration**).
+  - `frontend/src/pages/SystemMapConfig.tsx`: Select "Renderer".
+  - Tách `MapCanvas.tsx` thành switch; `LeafletCanvas.tsx` giữ nguyên hành vi;
+    `MaplibreCanvas.tsx` dùng raster tile proxy, marker trạm + tài khoản,
+    popup, Fit/Reset, nhãn quần đảo bằng Marker DOM, lazy-load `maplibre-gl`.
+- Lớp tài khoản:
+  - `server/src/routes/map.ts`: thêm `accounts[]` (rover + `accountId`), mỗi item
+    `accountId, username, mountpointId, stationId|null, hasCoords, fixType,
+    startTs, bytesIn/out`; gộp theo tài khoản duy nhất; thêm
+    `counts.accounts`, `counts.accountsOutsideStations`, `truncated`.
+  - Tài khoản gắn mountpoint `station_id NULL`: `hasCoords=false`, không vẽ marker,
+    chỉ super admin thấy (không kiểm chứng được scope).
+  - `mapAccountStatus.ts`: thêm bucket `none` ("chưa gửi GGA"), unknown khác rỗng
+    mới là `error`; legend/nhãn cập nhật.
+  - `UnifiedMap.tsx`: legend hiển thị tổng tài khoản + số tài khoản ngoài trạm.
+- Test đã chạy:
+  - `cd server; npx vitest run tests/map.test.ts tests/mapAccountStatus.test.ts tests/mapConfigCache.test.ts`
+    → 18/18 PASS.
+  - `cd frontend; npx tsc --noEmit` → PASS.
+  - Playwright: `navigation`, `map-mobile-menu`, `ui`, `map`, `map-config`,
+    `unified-map`, `map-upgrade` → 11/11 PASS.
+  - Playwright mới `tests/map-maplibre.spec.ts`: đổi renderer → lưu → `/map`
+    hiển thị MapLibre + attribution, Fit không lỗi → PASS (tự trả cấu hình về Leaflet).
+  - Playwright mới `tests/map-accounts.spec.ts`: `counts.accounts` khớp
+    `/api/connections.total`, username không rỗng, `hasCoords` khớp `stationId` → PASS.
+- Ghi chú: `GET /api/map/config` vẫn chỉ `requireAuth` (không chứa secret) — giữ nguyên.
+- Commit: `__COMMIT__`
+- Việc còn lại: kiểm tra thủ công mobile với renderer MapLibre (Playwright đã phủ desktop).
 

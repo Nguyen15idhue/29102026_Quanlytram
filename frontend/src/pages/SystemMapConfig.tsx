@@ -129,6 +129,17 @@ export function SystemMapConfig() {
       <div className="panel form-section">
         <fieldset className="form-grid">
           <legend>Chung</legend>
+          <Field label="Renderer" hint="Leaflet ổn định; MapLibre dùng WebGL và chỉ tải khi được chọn.">
+            <Select
+              value={form.renderer}
+              onChange={(event) =>
+                update({ renderer: event.target.value as MapConfig['renderer'] })
+              }
+            >
+              <option value="leaflet">Leaflet (mặc định)</option>
+              <option value="maplibre">MapLibre</option>
+            </Select>
+          </Field>
           <Field label="Provider">
             <Input
               value={form.provider}

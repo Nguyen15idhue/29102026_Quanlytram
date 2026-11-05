@@ -9,18 +9,20 @@ describe('map account fix status', () => {
     }
   });
 
-  it('falls back to error for unknown values', () => {
-    expect(normalizeFixType(undefined)).toBe('error');
-    expect(normalizeFixType('')).toBe('error');
+  it('phân biệt chưa gửi GGA với lỗi thật', () => {
+    expect(normalizeFixType(undefined)).toBe('none');
+    expect(normalizeFixType('')).toBe('none');
+    expect(normalizeFixType('   ')).toBe('none');
     expect(normalizeFixType('dgps')).toBe('error');
   });
 
-  it('aggregates by best accuracy: fixed > float > rtd > single > error', () => {
-    expect(aggregateFixStatus(['error', 'single', 'fixed'])).toBe('fixed');
-    expect(aggregateFixStatus(['error', 'single', 'float'])).toBe('float');
-    expect(aggregateFixStatus(['error', 'single', 'rtd'])).toBe('rtd');
-    expect(aggregateFixStatus(['error', 'single'])).toBe('single');
-    expect(aggregateFixStatus(['error'])).toBe('error');
+  it('aggregates by best accuracy: fixed > float > rtd > single > error > none', () => {
+    expect(aggregateFixStatus(['none', 'error', 'single', 'fixed'])).toBe('fixed');
+    expect(aggregateFixStatus(['none', 'error', 'single', 'float'])).toBe('float');
+    expect(aggregateFixStatus(['none', 'error', 'single', 'rtd'])).toBe('rtd');
+    expect(aggregateFixStatus(['none', 'error', 'single'])).toBe('single');
+    expect(aggregateFixStatus(['none', 'error'])).toBe('error');
+    expect(aggregateFixStatus(['none'])).toBe('none');
     expect(aggregateFixStatus([])).toBeNull();
   });
 });

@@ -284,6 +284,13 @@ export function UnifiedMap() {
               accountCounts={counts?.accountStatus}
               showAccounts={permissions.online}
             />
+            {permissions.online && counts && (
+              <div className="map-legend-note muted">
+                Tổng tài khoản online: {counts.accounts}
+                {counts.accountsOutsideStations > 0 &&
+                  ` · ngoài trạm: ${counts.accountsOutsideStations}`}
+              </div>
+            )}
           </div>
         )}
 

@@ -10,7 +10,7 @@ import {
   parseTileCoord,
   MapMode
 } from '../lib/mapConfig';
-import { fetchCasterConnections } from '../lib/caster';
+import { fetchCasterConnections, GoConnection } from '../lib/caster';
 import {
   aggregateFixStatus,
   AccountFixStatus,
@@ -292,8 +292,12 @@ mapRouter.get(
       fixTypeByStationAccount.set(stationId, fixMap);
     }
 
+    let casterAvailable = false;
+    let casterConnections: GoConnection[] = [];
     if (connectionsAllowed) {
       const caster = await fetchCasterConnections();
+      casterAvailable = caster.available;
+      casterConnections = caster.items;
       if (caster.available) {
         for (const item of caster.items) {
           if (item.direction !== 'rover') continue;
@@ -340,6 +344,56 @@ mapRouter.get(
         }
       }
     }
+
+    // Lớp tài khoản NTRIP: cùng định nghĩa với trang "Danh sách online"
+    // (direction=rover, có account_id). Tài khoản gắn mountpoint không có
+    // station_id vẫn được đếm nhưng không vẽ marker vì thiếu toạ độ.
+    interface MapAccount {
+      accountId: number;
+      username: string;
+      mountpointId: number;
+      stationId: number | null;
+      hasCoords: boolean;
+      fixType: AccountFixStatus;
+      startTs: string;
+      bytesIn: number;
+      bytesOut: number;
+    }
+    const accountMap = new Map<number, MapAccount>();
+    if (connectionsAllowed && casterAvailable) {
+      for (const item of casterConnections) {
+        if (item.direction !== 'rover') continue;
+        if (item.accountId === null || item.accountId === undefined) continue;
+        const accountId = Number(item.accountId);
+        if (!Number.isFinite(accountId) || accountId <= 0) continue;
+        const mountpointId = Number(item.mountpointId);
+        const stationId = stationByMountpoint.get(mountpointId) ?? null;
+        // Không xác định được trạm => không kiểm chứng được scope; chỉ super
+        // admin mới thấy các tài khoản ngoài trạm.
+        if (stationId === null && !isSuper) continue;
+        const username = item.accountUsername || accountUsernameById.get(accountId) || '';
+        if (username.trim() === '') continue;
+        const fixType = normalizeFixType(item.fixType);
+        const previous = accountMap.get(accountId);
+        const resolvedStation = stationId ?? previous?.stationId ?? null;
+        accountMap.set(accountId, {
+          accountId,
+          username,
+          mountpointId: previous?.mountpointId ?? mountpointId,
+          stationId: resolvedStation,
+          hasCoords: resolvedStation !== null,
+          fixType: previous
+            ? aggregateFixStatus([previous.fixType, fixType]) ?? fixType
+            : fixType,
+          startTs:
+            previous && previous.startTs < item.startTs ? previous.startTs : item.startTs,
+          bytesIn: (previous?.bytesIn ?? 0) + Number(item.bytesIn ?? 0),
+          bytesOut: (previous?.bytesOut ?? 0) + Number(item.bytesOut ?? 0)
+        });
+      }
+    }
+    const accounts = [...accountMap.values()];
+    const accountsOutsideStations = accounts.filter((item) => item.stationId === null).length;
 
     const now = Date.now();
     const actorId = req.auth!.id;
@@ -491,27 +545,14 @@ mapRouter.get(
     }
 
     const accountStatusCounts: Record<AccountFixStatus, number> = {
+      none: 0,
       single: 0,
       fixed: 0,
       float: 0,
       rtd: 0,
       error: 0
     };
-    if (connectionsAllowed) {
-      const uniqueAccounts = new Map<number, AccountFixStatus>();
-      for (const item of filtered) {
-        for (const account of item.connectedAccounts) {
-          const previous = uniqueAccounts.get(account.id);
-          uniqueAccounts.set(
-            account.id,
-            previous
-              ? aggregateFixStatus([previous, account.fixType]) ?? account.fixType
-              : account.fixType
-          );
-        }
-      }
-      for (const status of uniqueAccounts.values()) accountStatusCounts[status] += 1;
-    }
+    for (const account of accounts) accountStatusCounts[account.fixType] += 1;
 
     const counts = {
       all: items.length,
@@ -525,6 +566,8 @@ mapRouter.get(
       online_accounts: connectionsAllowed
         ? items.filter((item) => item.onlineAccounts > 0).length
         : 0,
+      accounts: connectionsAllowed ? accounts.length : 0,
+      accountsOutsideStations: connectionsAllowed ? accountsOutsideStations : 0,
       withCoords: items.filter((item) => item.hasCoords).length,
       missingCoords: items.filter((item) => !item.hasCoords).length,
       missing_1005: items.filter((item) => item.qualityVisible && !item.has1005).length,
@@ -538,6 +581,8 @@ mapRouter.get(
         .slice(0, 1000)
         .map(({ qualityVisible: _qualityVisible, ...item }) => item),
       total: filtered.length,
+      truncated: filtered.length > 1000,
+      accounts: connectionsAllowed ? accounts : [],
       counts,
       layersAvailable,
       regions: regionRows.map((row) => String(row.region)),

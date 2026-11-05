@@ -1859,6 +1859,11 @@ label.check input {
   box-shadow: var(--shadow-float);
 }
 
+.map-legend-note {
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .map-popover {
   position: absolute;
   top: 64px;
