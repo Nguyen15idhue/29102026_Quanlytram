@@ -370,6 +370,6 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
   `127.0.0.1:3000`; sẽ kiểm tra thủ công sau.
 - Không đổi hành vi publish của trạm (`SourceNoAuth`, `handleSource`,
   `request.go` giữ nguyên); không migration.
-- Commit: `ab6f0d0`
+- Commit: `eda5943`
 - Việc còn lại: kiểm tra UI trên stack local; chạy SQL kiểm chứng khi lên prod.
 
