@@ -498,18 +498,34 @@ async function collect() {
 let cache: { at: number; data: any } | null = null;
 let inflight: Promise<any> | null = null;
 
-export async function getSystemOptimize(): Promise<any> {
+export async function getSystemOptimize(options: { fresh?: boolean } = {}): Promise<any> {
+  if (options.fresh === true) {
+    const data = await collect();
+    cache = { at: Date.now(), data };
+    return withMeta(data, false);
+  }
   if (cache && Date.now() - cache.at < CACHE_TTL_MS) {
-    return { ...cache.data, cached: true };
+    return withMeta(cache.data, true);
   }
   if (inflight) return inflight;
   inflight = collect()
     .then((data) => {
       cache = { at: Date.now(), data };
-      return data;
+      return withMeta(data, false);
     })
     .finally(() => {
       inflight = null;
     });
   return inflight;
+}
+
+// `generatedAt` = lúc số liệu được tính; `fetchedAt` = lúc phản hồi được trả.
+// Khi phục vụ cache, hai mốc này khác nhau để UI biết dữ liệu cũ hay mới.
+function withMeta(data: any, cached: boolean): any {
+  return {
+    ...data,
+    cached,
+    computedAt: data.generatedAt,
+    fetchedAt: new Date().toISOString()
+  };
 }

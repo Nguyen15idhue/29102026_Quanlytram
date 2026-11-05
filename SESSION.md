@@ -1692,4 +1692,24 @@ cd frontend; npx tsc --noEmit
 cd frontend; npx playwright test tests/map-maplibre.spec.ts tests/map-accounts.spec.ts
 ```
 
+---
+
+## Plan 16 — Bước 4: Optimize làm mới đúng (2026-11-05)
+
+### Đã làm
+- `getSystemOptimize({ fresh })`: bỏ cache khi `fresh`; thêm `computedAt`/`fetchedAt`.
+- `/api/system/optimize?fresh=1`; OptimizeTab nút "Tải lại" gọi fresh, `staleTime: 0`,
+  hiển thị hai mốc thời gian + nhãn "ước lượng" và ghi chú InnoDB.
+
+### Test
+- vitest `systemOptimize`: 6/6 PASS; `tsc --noEmit`: PASS.
+- Playwright `system-ops.spec.ts`: 3/3 PASS (bắt request `fresh=1`).
+
+### Cách chạy
+```powershell
+cd server; npx vitest run tests/systemOptimize.test.ts
+cd frontend; npx tsc --noEmit
+cd frontend; npx playwright test tests/system-ops.spec.ts
+```
+
 

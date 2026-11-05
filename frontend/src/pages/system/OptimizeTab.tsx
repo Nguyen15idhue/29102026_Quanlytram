@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { AlertTriangle, Info, RefreshCw, ShieldAlert } from 'lucide-react';
@@ -32,6 +33,8 @@ interface Recommendation {
 
 interface OptimizeResponse {
   generatedAt: string;
+  computedAt: string;
+  fetchedAt: string;
   cacheTtlSec: number;
   cached: boolean;
   database: {
@@ -123,9 +126,14 @@ function qualityValue(quality: Record<string, unknown> | null, key: string): num
 
 export function OptimizeTab() {
   const [params, setParams] = useSearchParams();
+  const [nonce, setNonce] = useState(0);
   const query = useQuery({
-    queryKey: ['system-optimize'],
-    queryFn: () => apiFetch<OptimizeResponse>('/api/system/optimize'),
+    queryKey: ['system-optimize', nonce],
+    queryFn: () =>
+      apiFetch<OptimizeResponse>(
+        `/api/system/optimize${nonce > 0 ? '?fresh=1' : ''}`
+      ),
+    staleTime: 0,
     refetchInterval: 30_000
   });
   const data = query.data;
@@ -150,7 +158,7 @@ export function OptimizeTab() {
         title="Tối ưu chỉ số"
         description="Dung lượng dữ liệu, hàng đợi Go, tài nguyên Node và gợi ý xử lý. Chỉ đọc, không tự sửa tham số."
         actions={
-          <Button variant="ghost" onClick={() => query.refetch()} loading={query.isFetching}>
+          <Button variant="ghost" onClick={() => setNonce((value) => value + 1)} loading={query.isFetching}>
             <RefreshCw size={16} aria-hidden="true" /> Tải lại
           </Button>
         }
@@ -178,7 +186,8 @@ export function OptimizeTab() {
               </div>
             </div>
             <div className="muted">
-              Cập nhật {formatLocal(data.generatedAt)} · cache {data.cacheTtlSec}s · tự làm mới 30s
+              Tính lúc {formatLocal(data.computedAt ?? data.generatedAt)} · tải lúc{' '}
+              {formatLocal(data.fetchedAt)} · cache {data.cacheTtlSec}s · tự làm mới 30s
             </div>
           </div>
 
@@ -227,7 +236,10 @@ export function OptimizeTab() {
                 <div><dt>Pool</dt><dd className="mono">{data.database.pool?.totalConnections ?? '—'} / {data.database.pool?.connectionLimit ?? '—'}</dd></div>
                 <div><dt>Hàng đợi</dt><dd className="mono">{data.database.pool?.queue ?? '—'}</dd></div>
               </dl>
-              <p className="health-note">Dung lượng lấy từ information_schema, làm tròn theo InnoDB.</p>
+              <p className="health-note">
+                Dung lượng và số dòng lấy từ information_schema — InnoDB ước lượng, DELETE
+                không giải phóng dung lượng ngay.
+              </p>
             </article>
 
             <article className="health-card">
@@ -316,6 +328,7 @@ export function OptimizeTab() {
           <section className="panel">
             <header className="panel-head">
               <h2>Bảng lớn nhất</h2>
+              <StatusBadge label="ước lượng" kind="info" />
             </header>
             <div className="table-wrap">
               <table className="data-table">

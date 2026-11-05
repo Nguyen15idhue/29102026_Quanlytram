@@ -50,6 +50,25 @@ test.describe('P07 system optimize and automation', () => {
     expect(errors).toEqual([]);
   });
 
+  test('nút Tải lại gọi fresh=1 và hiển thị mốc tính/tải', async ({ page }) => {
+    await page.goto('/login');
+    await page.getByLabel('Tên đăng nhập').fill('superadmin');
+    await page.getByLabel('Mật khẩu').fill(password);
+    await page.getByRole('button', { name: 'Đăng nhập' }).click();
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible();
+
+    await page.goto('/system?tab=optimize');
+    await expect(page.getByText(/Tính lúc/)).toBeVisible();
+    await expect(page.getByText('ước lượng').first()).toBeVisible();
+
+    const freshRequest = page.waitForRequest((request) =>
+      request.url().includes('/api/system/optimize?fresh=1')
+    );
+    await page.getByRole('button', { name: 'Tải lại' }).click();
+    expect((await freshRequest).url()).toContain('fresh=1');
+    await expect(page.getByText(/tải lúc/)).toBeVisible();
+  });
+
   test('user không thấy tab Tối ưu/Tự động hóa và API 403', async ({ page }) => {
     test.skip(!userPassword, 'E2E_USER_PASSWORD is required');
     await page.goto('/login');

@@ -425,3 +425,22 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
 - Commit: `0fee117`
 - Việc còn lại: kiểm tra thủ công mobile với renderer MapLibre (Playwright đã phủ desktop).
 
+## KẾT QUẢ THỰC HIỆN — BƯỚC 4 (2026-11-05)
+
+- Trạng thái: **PASS** (vitest + typecheck + Playwright).
+- File đã sửa:
+  - `server/src/lib/systemOptimize.ts`: `getSystemOptimize({ fresh })` bỏ cache khi
+    `fresh`; payload thêm `computedAt` (lúc tính) và `fetchedAt` (lúc trả), giữ
+    `generatedAt`.
+  - `server/src/routes/system.ts`: `/optimize` nhận `?fresh=1` (vẫn `system_ops.view`).
+  - `frontend/src/pages/system/OptimizeTab.tsx`: nút "Tải lại" tăng `nonce` →
+    gọi `?fresh=1`, `staleTime: 0`; hiển thị "Tính lúc … · tải lúc …"; nhãn
+    "ước lượng" + ghi chú InnoDB/DELETE.
+- Test đã chạy:
+  - `cd server; npx vitest run tests/systemOptimize.test.ts` → 6/6 PASS.
+  - `cd frontend; npx tsc --noEmit` → PASS.
+  - Playwright `tests/system-ops.spec.ts` → 3/3 PASS, gồm test bắt request
+    `/api/system/optimize?fresh=1` và mốc "tải lúc".
+- Commit: `__COMMIT__`
+- Việc còn lại: không.
+

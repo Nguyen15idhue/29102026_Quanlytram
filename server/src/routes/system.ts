@@ -34,8 +34,9 @@ systemRouter.get(
 systemRouter.get(
   '/optimize',
   requirePermission('system_ops', 'view'),
-  asyncHandler(async (_req, res) => {
-    res.json(await getSystemOptimize());
+  asyncHandler(async (req, res) => {
+    const fresh = ['1', 'true'].includes(String(req.query.fresh ?? '').toLowerCase());
+    res.json(await getSystemOptimize({ fresh }));
   })
 );
 
