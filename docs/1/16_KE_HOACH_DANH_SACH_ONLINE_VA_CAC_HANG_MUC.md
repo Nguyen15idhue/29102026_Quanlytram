@@ -463,6 +463,6 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
     `idx_relay_events_ts`; `EXPLAIN` dùng `idx_relay_events_ts` + `Using index`.
   - Playwright `tests/history-events.spec.ts` PASS (bắt request `type=reconnect`);
     `tests/relay-state.spec.ts` + `tests/timeline.spec.ts` → 6/6 PASS.
-- Commit: `__COMMIT__`
+- Commit: `2041ab7`
 - Việc còn lại: chạy migration trên staging/prod khi triển khai (chưa deploy).
 
