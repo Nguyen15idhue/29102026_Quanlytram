@@ -1847,4 +1847,17 @@ cd server; npx vitest run tests/stationNaming.test.ts
 cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p1-station.spec.ts
 ```
 
+---
+
+## Script cập nhật VPS (2026-11-05)
+
+- `update.sh`: pull main, backup MySQL (`/opt/cors/backup.sh`), build images,
+  chạy migrate, `up -d`, health check + smoke test HTTPS.
+- `hot_update.sh`: pull main, tự phát hiện service theo file thay đổi
+  (web/server/gnss/stack), build + restart đúng service, không backup/migrate.
+  Dừng nếu có migration hoặc repo bẩn.
+- VPS: `/opt/cors/app`, branch `main`, compose `docker-compose.prod.yml`,
+  HTTPS `https://rtktk.online/`.
+- Chưa chạy deploy tại thời điểm ghi mục này (sẽ cập nhật sau khi chạy).
+
 

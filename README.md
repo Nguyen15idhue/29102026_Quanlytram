@@ -81,6 +81,22 @@ curl http://localhost:4000/health
 curl http://localhost:7080/health
 ```
 
+## 5.1 Cập nhật trên VPS
+
+Chạy tại `/opt/cors/app` (cần quyền Docker):
+
+```bash
+bash update.sh        # full: pull, backup MySQL, build, migrate, restart, health check
+bash hot_update.sh    # nhỏ: pull + build/restart service thay đổi, không migrate
+```
+
+Tùy chọn:
+
+- `BRANCH=main` (mặc định), `BUILD_GUIDE=1` để build lại `/guide`.
+- `bash hot_update.sh web|server|gnss|stack` khi muốn chỉ định service.
+- Hot update tự dừng nếu có thay đổi trong `db/migrations/`.
+- Cả hai dừng khi repo bẩn, backup lỗi hoặc health check quá thời gian.
+
 ## 6. Cổng dịch vụ
 
 | Thành phần | Port |
