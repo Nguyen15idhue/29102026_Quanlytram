@@ -279,7 +279,7 @@ export function MaplibreCanvas({
     let loaded = false;
     const loadTimer = window.setTimeout(() => {
       if (!loaded) onFatalRef.current?.('MapLibre không tải xong bản đồ (timeout)');
-    }, 8000);
+    }, 20000);
 
     const observer = new ResizeObserver(() => map.resize());
     observer.observe(containerRef.current);
