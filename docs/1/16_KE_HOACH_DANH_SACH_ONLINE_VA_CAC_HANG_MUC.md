@@ -441,6 +441,6 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
   - `cd frontend; npx tsc --noEmit` → PASS.
   - Playwright `tests/system-ops.spec.ts` → 3/3 PASS, gồm test bắt request
     `/api/system/optimize?fresh=1` và mốc "tải lúc".
-- Commit: `__COMMIT__`
+- Commit: `4e3191d`
 - Việc còn lại: không.
 
