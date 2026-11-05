@@ -1915,5 +1915,9 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   - Playwright `web-users-role.spec.ts`: admin chỉ thấy role thấp hơn; API trả
     403 với `super_admin`/`admin`; tạo `user` thành công và dọn dẹp.
   - `p1-rbac.spec.ts` 4/4 PASS.
+- Đã deploy `3bf224c` bằng `hot_update.sh` (server + web-prod).
+- Kiểm chứng prod: tạo tạm admin GEOTEX, đăng nhập admin thấy role options chỉ
+  còn `user`; POST `super_admin`/`admin` đều **403**, POST `user` **201**;
+  tài khoản tạm đã xóa sau test.
 
 
