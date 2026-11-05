@@ -94,7 +94,7 @@ func pruneEvents(ctx context.Context, db execer, days, batch int) (int64, error)
 	return pruneLoop(ctx, db,
 		`DELETE FROM relay_events
 		  WHERE ts < UTC_TIMESTAMP(3) - INTERVAL ? DAY
-		  ORDER BY id
+		  ORDER BY ts, id
 		  LIMIT ?`,
 		days, batch)
 }

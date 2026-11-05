@@ -47,6 +47,9 @@ func TestPruneOnceUsesRetentionAndBatches(t *testing.T) {
 	if !strings.Contains(exec.calls[2].query, "relay_events") {
 		t.Fatalf("event prune query = %s", exec.calls[2].query)
 	}
+	if !strings.Contains(exec.calls[2].query, "ORDER BY ts, id") {
+		t.Fatalf("event prune phải dùng index (ts, id): %s", exec.calls[2].query)
+	}
 	if !strings.Contains(exec.calls[3].query, "relay_hourly") {
 		t.Fatalf("hourly prune query = %s", exec.calls[3].query)
 	}

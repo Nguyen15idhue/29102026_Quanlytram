@@ -1712,4 +1712,28 @@ cd frontend; npx tsc --noEmit
 cd frontend; npx playwright test tests/system-ops.spec.ts
 ```
 
+---
+
+## Plan 16 — Bước 5: relay_events chống trùng + index (2026-11-05)
+
+### Đã làm
+- `BufferedWriter.Event`: tối đa 1 event/(jobID,type)/60s; số gộp ghi vào message
+  event kế tiếp.
+- Migration `db/migrations/runtime/008_relay_events_index.sql` thêm `(ts, id)`.
+- Prune đổi `ORDER BY ts, id` (relay + maintenance) để dùng index.
+- History tab Sự kiện: lọc theo `type` (URL `?type=`).
+
+### Test
+- `go test ./internal/relay/... ./internal/maintenance/...`: PASS (throttle 100→1).
+- `tsc --noEmit`: PASS.
+- Local migration applied; `EXPLAIN` dùng `idx_relay_events_ts`, `Using index`.
+- Playwright `history-events` PASS; `relay-state` + `timeline` 6/6 PASS.
+
+### Cách chạy
+```powershell
+cd gnss; go test ./internal/relay/... ./internal/maintenance/...
+cd frontend; npx tsc --noEmit
+cd frontend; npx playwright test tests/history-events.spec.ts tests/relay-state.spec.ts tests/timeline.spec.ts
+```
+
 

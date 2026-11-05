@@ -22,7 +22,7 @@ var specs = map[string]spec{
 	"relay-events": {
 		table:   "relay_events",
 		where:   func(days int) string { return fmt.Sprintf("ts < UTC_TIMESTAMP(3) - INTERVAL %d DAY", days) },
-		orderBy: "id",
+		orderBy: "ts, id",
 	},
 	"relay-hourly": {
 		table:   "relay_hourly",

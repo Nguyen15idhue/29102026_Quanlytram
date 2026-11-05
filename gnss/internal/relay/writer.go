@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -69,6 +70,18 @@ type BufferedWriter struct {
 	dropped      atomic.Uint64
 	done         chan struct{}
 	lastErrorLog time.Time
+
+	// Chống trùng sự kiện: tối đa 1 event/(jobID, type)/eventWindow.
+	eventWindow     time.Duration
+	eventMu         sync.Mutex
+	eventLast       map[eventKey]time.Time
+	eventSuppressed map[eventKey]int
+	now             func() time.Time
+}
+
+type eventKey struct {
+	jobID     int64
+	eventType string
 }
 
 func NewBufferedWriter(db *sql.DB, queueSize, batchSize int, interval time.Duration) *BufferedWriter {
@@ -82,12 +95,16 @@ func NewBufferedWriter(db *sql.DB, queueSize, batchSize int, interval time.Durat
 		interval = time.Second
 	}
 	w := &BufferedWriter{
-		db:        db,
-		enqueueCh: make(chan writeOp, queueSize),
-		queue:     queueSize,
-		batch:     batchSize,
-		interval:  interval,
-		done:      make(chan struct{}),
+		db:              db,
+		enqueueCh:       make(chan writeOp, queueSize),
+		queue:           queueSize,
+		batch:           batchSize,
+		interval:        interval,
+		done:            make(chan struct{}),
+		eventWindow:     60 * time.Second,
+		eventLast:       make(map[eventKey]time.Time),
+		eventSuppressed: make(map[eventKey]int),
+		now:             time.Now,
 	}
 	w.flushFn = w.flushMySQL
 	return w
@@ -130,6 +147,27 @@ func (w *BufferedWriter) Session(jobID int64, start, end time.Time, result, clos
 }
 
 func (w *BufferedWriter) Event(jobID int64, eventType, message string, durationSec int) {
+	if w.eventWindow > 0 {
+		key := eventKey{jobID: jobID, eventType: eventType}
+		w.eventMu.Lock()
+		now := w.now()
+		last, seen := w.eventLast[key]
+		if seen && now.Sub(last) < w.eventWindow {
+			w.eventSuppressed[key]++
+			w.eventMu.Unlock()
+			return
+		}
+		suppressed := w.eventSuppressed[key]
+		delete(w.eventSuppressed, key)
+		w.eventLast[key] = now
+		w.eventMu.Unlock()
+		if suppressed > 0 {
+			message = fmt.Sprintf(
+				"%s (gộp %d sự kiện trong %s)",
+				message, suppressed, w.eventWindow,
+			)
+		}
+	}
 	w.enqueue(writeOp{
 		kind:        opEvent,
 		jobID:       jobID,

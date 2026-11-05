@@ -74,7 +74,8 @@ export function History() {
   const jobId = getParam('jobId');
   const from = getParam('from');
   const to = getParam('to');
-  const activeFilterCount = [from, to].filter(Boolean).length;
+  const eventType = getParam('type');
+  const activeFilterCount = [from, to, tab === 'events' ? eventType : ''].filter(Boolean).length;
 
   const jobs = useQuery({
     queryKey: ['relay-jobs', 'history-options'],
@@ -82,7 +83,7 @@ export function History() {
   });
 
   const list = useQuery({
-    queryKey: ['relay-history', tab, page, pageSize, jobId, from, to],
+    queryKey: ['relay-history', tab, page, pageSize, jobId, from, to, eventType],
     enabled: tab !== 'audit',
     queryFn: () => {
       const params = new URLSearchParams({
@@ -92,6 +93,7 @@ export function History() {
       if (jobId) params.set('jobId', jobId);
       if (from) params.set('from', toIso(from));
       if (to) params.set('to', toIso(to));
+      if (tab === 'events' && eventType) params.set('type', eventType);
       return apiFetch<HistoryList>(`/api/history/${tab}?${params.toString()}`);
     }
   });
@@ -186,6 +188,15 @@ export function History() {
               onChange={(event) => setParam('to', event.target.value)}
             />
           </Field>
+          {tab === 'events' && (
+            <Field label="Loại sự kiện">
+              <Input
+                value={eventType}
+                onChange={(event) => setParam('type', event.target.value)}
+                placeholder="VD: reconnect"
+              />
+            </Field>
+          )}
         </TableToolbar>
 
         {tab === 'sessions' && (

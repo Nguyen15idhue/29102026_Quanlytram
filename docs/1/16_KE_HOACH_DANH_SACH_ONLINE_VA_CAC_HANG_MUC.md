@@ -444,3 +444,25 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
 - Commit: `4e3191d`
 - Việc còn lại: không.
 
+## KẾT QUẢ THỰC HIỆN — BƯỚC 5 (2026-11-05)
+
+- Trạng thái: **PASS** (Go unit + typecheck + Playwright + EXPLAIN local).
+- File đã sửa:
+  - `gnss/internal/relay/writer.go`: throttle `(jobID, eventType)` tối đa 1 event/60s;
+    số bị gộp ghi vào message của event kế tiếp dạng `(gộp N sự kiện trong 1m0s)`.
+  - `db/migrations/runtime/008_relay_events_index.sql`: thêm `idx_relay_events_ts (ts, id)`.
+  - `gnss/internal/relay/retention.go`, `gnss/internal/maintenance/retention.go`:
+    prune `ORDER BY ts, id` để dùng index mới.
+  - `frontend/src/pages/History.tsx`: tab Sự kiện có lọc "Loại sự kiện"
+    (`?type=`), giữ bộ lọc job/thời gian.
+- Test đã chạy:
+  - `cd gnss; go test ./internal/relay/... ./internal/maintenance/...` → PASS
+    (gồm `TestEventThrottlesByJobAndType`: 100 lần/10s → 1 event + gộp 99).
+  - `cd frontend; npx tsc --noEmit` → PASS.
+  - Migration local: `runtime 008_relay_events_index.sql applied`; `SHOW INDEX` có
+    `idx_relay_events_ts`; `EXPLAIN` dùng `idx_relay_events_ts` + `Using index`.
+  - Playwright `tests/history-events.spec.ts` PASS (bắt request `type=reconnect`);
+    `tests/relay-state.spec.ts` + `tests/timeline.spec.ts` → 6/6 PASS.
+- Commit: `__COMMIT__`
+- Việc còn lại: chạy migration trên staging/prod khi triển khai (chưa deploy).
+
