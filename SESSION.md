@@ -1589,8 +1589,31 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
 - Playwright targeted: `metrics-health`, `timeline`, `relay-state` 8/8 PASS.
 - Local compose: `closed 1 stale sessions from previous run` khi restart gnss.
 
+### Deploy VPS (2026-11-05)
+
+- Commit/deploy: `f0c16c4` (stability), `06bd2e5` (GOPROXY override),
+  `98b6967` (exclude open session khỏi error summary).
+- Build gnss trên VPS gặp lỗi mạng Docker bridge khi tải Go module; build lại
+  bằng `docker build --network=host --build-arg GOPROXY=https://goproxy.cn,direct`.
+- `cors-prod-{gnss,server,web-prod}-1` healthy; `https://rtktk.online/` = 200.
+- Verify:
+  - Job `461`: `runtime_state=streaming`, open session `04:17:55.840`, 1 row.
+  - Không có job nào có >1 open session.
+  - Trạm `667` và relay `461`: frames tăng đều, `gaps=0`, `crc=0`,
+    upstream/downstream khớp.
+  - Không thấy lỗi 500 trong log server.
+- Lưu ý: row `relay_hourly` `01:00` với `online_sec=11483` là session cũ
+  `01:18→04:17` do binary trước fix ghi; không backfill dữ liệu cũ. Session kết
+  thúc sau deploy sẽ được chia đúng giờ.
+- Rollback image cũ trước deploy:
+  - server `sha256:4c70bc27a6ce92241207c6f8ccfbf0456e205c8aab65092f25fa9b84216d552d`
+  - gnss `sha256:3c3f5e0f552093c4d7646d3f28658e0e93fc9de1cc888e66ca6857d0a73c570f`
+  - web `sha256:bdc4f01aabd96679dc739fd3f32a7836e6f9b34d37f07505d2ae32748a961fe5`
+  - git cũ `cc67f9d`
+
 ### Chưa làm
 
-- Chưa deploy VPS; chờ gate local PASS và xác nhận.
 - Chưa có test UI riêng cho dòng “Đang chạy” (đã test API/DB + Playwright
   timeline/relay-state).
+- Chưa backfill `relay_hourly` cũ; chỉ dữ liệu mới được chia đúng giờ.
+
