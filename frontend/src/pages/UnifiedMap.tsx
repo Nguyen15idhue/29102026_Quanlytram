@@ -67,6 +67,7 @@ export function UnifiedMap() {
     [searchParams]
   );
   const mode = normalizeMode(searchParams.get('mode'));
+  const showProvinces = searchParams.get('provinces') !== '0';
   const stationParam = Number(searchParams.get('station') || 0);
   const stationId = Number.isInteger(stationParam) && stationParam > 0 ? stationParam : null;
 
@@ -257,6 +258,7 @@ export function UnifiedMap() {
             }}
             onTileError={setTileError}
             onFallback={setRendererFallback}
+            showProvinces={showProvinces}
           />
         )}
 
@@ -372,6 +374,16 @@ export function UnifiedMap() {
                 </option>
               ))}
             </Select>
+            <label className="map-toggle">
+              <input
+                type="checkbox"
+                checked={showProvinces}
+                onChange={(event) =>
+                  applyPatch({ provinces: event.target.checked ? null : '0' })
+                }
+              />
+              <span>Ranh giới &amp; tên tỉnh</span>
+            </label>
           </div>
         )}
 

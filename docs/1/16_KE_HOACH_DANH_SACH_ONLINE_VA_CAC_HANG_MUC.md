@@ -784,3 +784,33 @@ Playwright (thêm vào `map.spec.ts` hoặc spec mới `map-provinces.spec.ts`):
 Sửa ranh giới theo thời gian, tô màu theo trạm, tra cứu địa chỉ theo tỉnh,
 3D/terrain.
 
+## KẾT QUẢ THỰC HIỆN — KẾ HOẠCH BỔ SUNG 2 (2026-11-05)
+
+- Trạng thái: **PASS** (build + Playwright + backend tests).
+- Dữ liệu:
+  - Copy `vietnam-provinces.geojson` (186.198 bytes, 34 tỉnh, property `name`)
+    về `frontend/public/geo/vietnam-provinces.geojson`.
+  - Thêm `frontend/public/geo/README.md` ghi nguồn (người dùng cung cấp, chưa rõ
+    giấy phép) và cảnh báo không đặt trong `public/guide`.
+- UI: checkbox **Ranh giới & tên tỉnh** trong popover **Nền bản đồ**; mặc định bật,
+  tắt ghi `?provinces=0` và giữ sau reload.
+- Leaflet: `L.geoJSON` nét đứt `#2563eb` + nhãn tại tâm bbox trong pane riêng
+  (z-index 450, dưới marker trạm).
+- MapLibre: line layer `provinces-line` + nhãn DOM (không phụ thuộc glyphs).
+- **Sửa nền MapLibre theo đúng provider**:
+  - streets → `https://tiles.openfreemap.org/styles/liberty` (vector OSM);
+  - satellite → Esri World Imagery (raster);
+  - terrain → OpenTopoMap (raster, maxzoom 17).
+  - Đổi mode dùng `setStyle` + dựng lại layer ứng dụng từ ref (trạm, tài khoản, tỉnh).
+- Nhãn tỉnh có **nền trắng**, padding, bo góc, shadow nhẹ (cả 2 renderer).
+- Test:
+  - `cd server; npx vitest run` → 196/196 PASS.
+  - `cd frontend; npm run build` → PASS; script kiểm tra worker → ĐẠT (507.2 KB).
+  - Playwright: `map-maplibre` 3/3, `map-provinces` 2/2, `map-renderers-visual` 1/1,
+    hồi quy map 11/11 PASS.
+  - Ảnh minh chứng: `docs/1/evidence/plan16-map-leaflet.png`,
+    `docs/1/evidence/plan16-map-maplibre.png`.
+- Ghi chú: mode `hybrid` và PMTiles/`style_url` không áp dụng vì mô hình cấu hình
+  hiện tại chỉ có 3 mode raster và chưa có trường `style_url`/PMTiles.
+- Commit: `__COMMIT__`
+

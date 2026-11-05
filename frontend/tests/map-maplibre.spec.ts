@@ -38,7 +38,12 @@ test.describe('renderer bản đồ', () => {
     let tileRequests = 0;
     page.on('pageerror', (error) => errors.push(error.message));
     page.on('request', (request) => {
-      if (request.url().includes('/api/map/tiles/')) tileRequests += 1;
+      if (
+        request.url().includes('tiles.openfreemap.org') ||
+        request.url().includes('/api/map/tiles/')
+      ) {
+        tileRequests += 1;
+      }
     });
     await page.route('**/api/map/tiles/**', (route) =>
       route.fulfill({ status: 200, contentType: 'image/png', body: TILE_PNG })
@@ -52,8 +57,13 @@ test.describe('renderer bản đồ', () => {
       (response) => response.url().includes('maplibre-gl-worker'),
       { timeout: 20_000 }
     );
+    const styleResponse = page.waitForResponse(
+      (response) => response.url().includes('tiles.openfreemap.org/styles/liberty'),
+      { timeout: 20_000 }
+    );
     await page.goto('/map');
     expect((await worker).status()).toBe(200);
+    expect((await styleResponse).status()).toBe(200);
 
     await expect(page.locator('.maplibre-canvas')).toBeVisible();
     await expect(page.locator('.maplibregl-ctrl-attrib')).toContainText('OpenStreetMap');
@@ -62,13 +72,13 @@ test.describe('renderer bản đồ', () => {
       const map = (
         window as unknown as {
           __map?: {
-            isSourceLoaded: (id: string) => boolean;
+            isStyleLoaded: () => boolean;
             querySourceFeatures: (id: string) => unknown[];
           };
         }
       ).__map;
       return Boolean(
-        map && map.isSourceLoaded('tiles') && map.querySourceFeatures('stations').length > 0
+        map && map.isStyleLoaded() && map.querySourceFeatures('stations').length > 0
       );
     }, undefined, { timeout: 20_000 });
 

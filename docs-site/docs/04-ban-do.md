@@ -36,6 +36,25 @@ Nếu trình duyệt không hỗ trợ WebGL hoặc MapLibre không tải đư�
 chuyển về Leaflet và hiện banner nêu lý do. Lựa chọn renderer được lưu trong
 cấu hình và giữ sau khi tải lại trang.
 
+### Nền bản đồ theo renderer
+
+Leaflet dùng tile proxy hiện có. MapLibre dùng nguồn riêng theo mode:
+
+| Mode | Nền MapLibre | Loại |
+|---|---|---|
+| Đường phố (mặc định) | OpenFreeMap Liberty (`tiles.openfreemap.org`) | Vector OSM |
+| Vệ tinh | Esri World Imagery | Raster |
+| Địa hình | OpenTopoMap (zoom tối đa 17) | Raster |
+
+Attribution của từng nguồn được hiển thị ở góc bản đồ.
+
+## Ranh giới và tên tỉnh
+
+- Bật/tắt trong **Nền bản đồ → Ranh giới & tên tỉnh**.
+- Mặc định bật; trạng thái lưu trên đường dẫn (`provinces=0` khi tắt).
+- Hiển thị ranh giới và tên 34 tỉnh/thành; tên có nền trắng để dễ đọc.
+- Tên tỉnh tự ẩn khi zoom nhỏ hơn 6 để tránh rối.
+
 ## Bộ lọc, danh sách và chú giải
 
 - Mở **Bộ lọc** để chọn công ty, trạng thái, tỉnh/thành và loại đối tượng.

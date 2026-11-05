@@ -1,23 +1,84 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type { AccountFixStatus, MapStationItem } from '../../types';
+import type { AccountFixStatus, MapMode, MapStationItem } from '../../types';
 import { ACCOUNT_FIX_LABELS } from '../../lib/mapStatusLabels';
-import {
-  attributionForMode,
-  maxZoomForMode,
-  tileUrlForMode
-} from '../../lib/mapTile';
 import type { MapCanvasProps } from './LeafletCanvas';
+import {
+  featureCenter,
+  loadProvinces,
+  provinceCollection,
+  type ProvinceFeature
+} from '../../lib/provinces';
 
 const IS_DEV =
   (import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV === true;
 
-const TILE_SOURCE = 'tiles';const TILE_LAYER = 'tiles-layer';
 const STATION_SOURCE = 'stations';
 const STATION_LAYER = 'stations-layer';
 const ACCOUNT_SOURCE = 'accounts';
 const ACCOUNT_LAYER = 'accounts-layer';
+const PROVINCE_SOURCE = 'provinces';
+const PROVINCE_LAYER = 'provinces-line';
+const STREETS_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
+
+function rasterStyle(
+  tiles: string,
+  attribution: string,
+  maxzoom: number
+): Record<string, unknown> {
+  return {
+    version: 8,
+    sources: {
+      basemap: { type: 'raster', tiles: [tiles], tileSize: 256, attribution, maxzoom }
+    },
+    layers: [{ id: 'basemap', type: 'raster', source: 'basemap' }]
+  };
+}
+
+/**
+ * Nền MapLibre theo mode:
+ * - streets: OpenFreeMap liberty (vector, OSM)
+ * - satellite: Esri World Imagery (raster)
+ * - terrain: OpenTopoMap (raster, maxzoom 17)
+ */
+export function maplibreBaseStyle(mode: MapMode): string | Record<string, unknown> {
+  if (mode === 'satellite') {
+    return rasterStyle(
+      'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      '© Esri',
+      19
+    );
+  }
+  if (mode === 'terrain') {
+    return rasterStyle('https://a.tile.opentopomap.org/{z}/{x}/{y}.png', '© OpenTopoMap', 17);
+  }
+  return STREETS_STYLE;
+}
+
+function addProvinceLayer(map: maplibregl.Map, features: ProvinceFeature[]) {
+  if (map.getLayer(PROVINCE_LAYER)) return;
+  if (!map.getSource(PROVINCE_SOURCE)) {
+    map.addSource(PROVINCE_SOURCE, {
+      type: 'geojson',
+      data: provinceCollection(features) as never
+    });
+  }
+  map.addLayer(
+    {
+      id: PROVINCE_LAYER,
+      type: 'line',
+      source: PROVINCE_SOURCE,
+      paint: {
+        'line-color': '#2563eb',
+        'line-width': 1,
+        'line-opacity': 0.85,
+        'line-dasharray': [4, 4]
+      }
+    },
+    map.getLayer(STATION_LAYER) ? STATION_LAYER : undefined
+  );
+}
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (char) => {
@@ -122,23 +183,75 @@ export function MaplibreCanvas({
   retrySignal = 0,
   onSelect,
   onTileError,
-  onFatal
+  onFatal,
+  showProvinces = false
 }: MaplibreCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const tempRef = useRef<maplibregl.Marker | null>(null);
   const archipelagoRef = useRef<maplibregl.Marker[]>([]);
+  const provinceMarkersRef = useRef<maplibregl.Marker[]>([]);
+  const provinceSyncRef = useRef<(() => void) | null>(null);
   const onSelectRef = useRef(onSelect);
   const onTileErrorRef = useRef(onTileError);
   const onFatalRef = useRef(onFatal);
   const tileErrorTimerRef = useRef<number | null>(null);
   const [ready, setReady] = useState(false);
   const initialView = useRef({ center: config.center, zoom: config.zoom });
+  const stationDataRef = useRef<Record<string, unknown>>(collection([]));
+  const accountDataRef = useRef<Record<string, unknown>>(collection([]));
+  const provinceFeaturesRef = useRef<ProvinceFeature[] | null>(null);
+  const showProvincesRef = useRef(showProvinces);
+  const styleKey = `${mode}|${config.provider}|${config.tileMode}|${config.tileUrl}|${retrySignal}`;
+  const styleKeyRef = useRef(styleKey);
 
   onSelectRef.current = onSelect;
   onTileErrorRef.current = onTileError;
   onFatalRef.current = onFatal;
+  showProvincesRef.current = showProvinces;
+
+  const addOverlayLayers = (map: maplibregl.Map) => {
+    if (!map.getSource(STATION_SOURCE)) {
+      map.addSource(STATION_SOURCE, {
+        type: 'geojson',
+        data: stationDataRef.current as never
+      });
+      map.addLayer({
+        id: STATION_LAYER,
+        type: 'circle',
+        source: STATION_SOURCE,
+        paint: {
+          'circle-radius': ['case', ['==', ['get', 'selected'], true], 9, 7] as never,
+          'circle-color': ['get', 'color'] as never,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff'
+        }
+      });
+    }
+    if (!map.getSource(ACCOUNT_SOURCE)) {
+      map.addSource(ACCOUNT_SOURCE, {
+        type: 'geojson',
+        data: accountDataRef.current as never
+      });
+      map.addLayer({
+        id: ACCOUNT_LAYER,
+        type: 'circle',
+        source: ACCOUNT_SOURCE,
+        paint: {
+          'circle-radius': ['case', ['==', ['get', 'selected'], true], 7, 5] as never,
+          'circle-color': ['get', 'color'] as never,
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#ffffff',
+          'circle-translate': [0, -16],
+          'circle-translate-anchor': 'viewport'
+        }
+      });
+    }
+    if (showProvincesRef.current && provinceFeaturesRef.current) {
+      addProvinceLayer(map, provinceFeaturesRef.current);
+    }
+  };
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -146,7 +259,7 @@ export function MaplibreCanvas({
     try {
       map = new maplibregl.Map({
         container: containerRef.current,
-        style: { version: 8, sources: {}, layers: [] },
+        style: maplibreBaseStyle(mode) as never,
         center: [initialView.current.center.lng, initialView.current.center.lat],
         zoom: initialView.current.zoom,
         attributionControl: false
@@ -174,33 +287,11 @@ export function MaplibreCanvas({
     map.on('load', () => {
       loaded = true;
       window.clearTimeout(loadTimer);
-      map.addSource(STATION_SOURCE, { type: 'geojson', data: collection([]) as never });
-      map.addLayer({
-        id: STATION_LAYER,
-        type: 'circle',
-        source: STATION_SOURCE,
-        paint: {
-          'circle-radius': ['case', ['==', ['get', 'selected'], true], 9, 7] as never,
-          'circle-color': ['get', 'color'] as never,
-          'circle-stroke-width': 2,
-          'circle-stroke-color': '#ffffff'
-        }
-      });
-      map.addSource(ACCOUNT_SOURCE, { type: 'geojson', data: collection([]) as never });
-      map.addLayer({
-        id: ACCOUNT_LAYER,
-        type: 'circle',
-        source: ACCOUNT_SOURCE,
-        paint: {
-          'circle-radius': ['case', ['==', ['get', 'selected'], true], 7, 5] as never,
-          'circle-color': ['get', 'color'] as never,
-          'circle-stroke-width': 1.5,
-          'circle-stroke-color': '#ffffff',
-          'circle-translate': [0, -16],
-          'circle-translate-anchor': 'viewport'
-        }
-      });
+      addOverlayLayers(map);
       setReady(true);
+    });
+    map.on('style.load', () => {
+      addOverlayLayers(map);
     });
 
     const showPopup = (event: maplibregl.MapLayerMouseEvent) => {
@@ -241,7 +332,7 @@ export function MaplibreCanvas({
       }, 1000);
     });
     map.on('sourcedata', (event: maplibregl.MapSourceDataEvent) => {
-      if (event.sourceId !== TILE_SOURCE || !event.isSourceLoaded) return;
+      if (!event.isSourceLoaded) return;
       if (tileErrorTimerRef.current !== null) {
         window.clearTimeout(tileErrorTimerRef.current);
         tileErrorTimerRef.current = null;
@@ -265,31 +356,23 @@ export function MaplibreCanvas({
       tempRef.current = null;
       for (const marker of archipelagoRef.current) marker.remove();
       archipelagoRef.current = [];
+      for (const marker of provinceMarkersRef.current) marker.remove();
+      provinceMarkersRef.current = [];
       map.remove();
       mapRef.current = null;
       setReady(false);
     };
   }, []);
 
-  // Nền bản đồ: đổi mode / cấu hình / retry thì thay source raster.
+  // Đổi mode/cấu hình thì đổi hẳn style nền:
+  // streets = OpenFreeMap liberty (vector), satellite = Esri, terrain = OpenTopoMap.
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    if (map.getLayer(TILE_LAYER)) map.removeLayer(TILE_LAYER);
-    if (map.getSource(TILE_SOURCE)) map.removeSource(TILE_SOURCE);
-    const url = new URL(tileUrlForMode(config, mode), window.location.origin).toString();
-    map.addSource(TILE_SOURCE, {
-      type: 'raster',
-      tiles: [url],
-      tileSize: 256,
-      attribution: attributionForMode(config, mode),
-      maxzoom: maxZoomForMode(config, mode)
-    });
-    map.addLayer(
-      { id: TILE_LAYER, type: 'raster', source: TILE_SOURCE },
-      map.getLayer(STATION_LAYER) ? STATION_LAYER : undefined
-    );
-  }, [config, mode, retrySignal, ready]);
+    if (styleKeyRef.current === styleKey) return;
+    styleKeyRef.current = styleKey;
+    map.setStyle(maplibreBaseStyle(mode) as never);
+  }, [styleKey, mode, ready]);
 
   // Marker trạm + marker tài khoản.
   useEffect(() => {
@@ -321,6 +404,8 @@ export function MaplibreCanvas({
           )
       )
     );
+    stationDataRef.current = stations;
+    accountDataRef.current = accounts;
     (map.getSource(STATION_SOURCE) as maplibregl.GeoJSONSource | undefined)?.setData(
       stations as never
     );
@@ -361,6 +446,70 @@ export function MaplibreCanvas({
       map.off('zoomend', sync);
     };
   }, [config.archipelagoLabels, config.archipelagoMinZoom, ready]);
+
+  // Ranh giới + tên tỉnh: line layer + DOM marker (không phụ thuộc glyphs).
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !ready) return;
+
+    const removeLayers = () => {
+      if (provinceSyncRef.current) {
+        map.off('zoomend', provinceSyncRef.current);
+        provinceSyncRef.current = null;
+      }
+      for (const marker of provinceMarkersRef.current) marker.remove();
+      provinceMarkersRef.current = [];
+      if (map.getLayer(PROVINCE_LAYER)) map.removeLayer(PROVINCE_LAYER);
+      if (map.getSource(PROVINCE_SOURCE)) map.removeSource(PROVINCE_SOURCE);
+    };
+
+    if (!showProvinces) {
+      provinceFeaturesRef.current = null;
+      removeLayers();
+      return;
+    }
+
+    let cancelled = false;
+    loadProvinces()
+      .then((features) => {
+        if (cancelled || !mapRef.current) return;
+        provinceFeaturesRef.current = features;
+        removeLayers();
+        addProvinceLayer(map, features);
+
+        provinceMarkersRef.current = features
+          .map((feature) => {
+            const center = featureCenter(feature);
+            const name = String(feature.properties?.name ?? '').trim();
+            if (!center || !name) return null;
+            const element = document.createElement('span');
+            element.className = 'map-province-label';
+            element.textContent = name;
+            return new maplibregl.Marker({ element, anchor: 'center' })
+              .setLngLat(center)
+              .addTo(map);
+          })
+          .filter((marker): marker is maplibregl.Marker => marker !== null);
+
+        const sync = () => {
+          const visible = map.getZoom() >= 6;
+          for (const marker of provinceMarkersRef.current) {
+            marker.getElement().style.display = visible ? '' : 'none';
+          }
+        };
+        provinceSyncRef.current = sync;
+        sync();
+        map.on('zoomend', sync);
+      })
+      .catch(() => {
+        // Lớp phụ: lỗi tải không làm hỏng bản đồ chính.
+      });
+
+    return () => {
+      cancelled = true;
+      removeLayers();
+    };
+  }, [showProvinces, ready]);
 
   useEffect(() => {
     const map = mapRef.current;

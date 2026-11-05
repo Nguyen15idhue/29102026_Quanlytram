@@ -3,6 +3,7 @@ import L from 'leaflet';
 import type { AccountFixStatus, MapConfig, MapMode, MapStationItem } from '../../types';
 import { ACCOUNT_FIX_LABELS } from '../../lib/mapStatusLabels';
 import { accountPinMarkup } from './AccountPin';
+import { loadProvinces, provinceCollection } from '../../lib/provinces';
 import {
   attributionForMode,
   maxNativeZoomForMode,
@@ -35,6 +36,7 @@ export interface MapCanvasProps {
   onSelect: (id: number) => void;
   onTileError: (message: string | null) => void;
   onFallback?: (reason: string | null) => void;
+  showProvinces?: boolean;
 }
 
 function escapeHtml(value: string): string {
@@ -132,7 +134,8 @@ export function LeafletCanvas({
   resetSignal = 0,
   retrySignal = 0,
   onSelect,
-  onTileError
+  onTileError,
+  showProvinces = false
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -143,6 +146,9 @@ export function LeafletCanvas({
   const markerSignaturesRef = useRef(new Map<number, string>());
   const tempRef = useRef<L.CircleMarker | null>(null);
   const archipelagoRef = useRef<L.LayerGroup | null>(null);
+  const provinceLayerRef = useRef<L.GeoJSON | null>(null);
+  const provinceLabelRef = useRef<L.LayerGroup | null>(null);
+  const provinceSyncRef = useRef<(() => void) | null>(null);
   const onTileErrorRef = useRef(onTileError);
   const onSelectRef = useRef(onSelect);
   const tileErrorTimerRef = useRef<number | null>(null);
@@ -160,12 +166,18 @@ export function LeafletCanvas({
     });
     markerLayerRef.current = L.layerGroup().addTo(map);
     mapRef.current = map;
+    if ((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV) {
+      (window as unknown as { __leafletMap?: L.Map }).__leafletMap = map;
+    }
     const observer = new ResizeObserver(() => map.invalidateSize());
     observer.observe(containerRef.current);
     return () => {
       observer.disconnect();
       map.remove();
       mapRef.current = null;
+      if ((import.meta as unknown as { env?: { DEV?: boolean } }).env?.DEV) {
+        delete (window as unknown as { __leafletMap?: L.Map }).__leafletMap;
+      }
       tileRef.current = null;
       markerLayerRef.current = null;
       stationMarkersRef.current.clear();
@@ -426,6 +438,95 @@ export function LeafletCanvas({
       }
     };
   }, [tempMarker]);
+
+  // Ranh giới + tên tỉnh: lớp phụ, bật/tắt theo prop.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const removeLayers = () => {
+      if (provinceSyncRef.current) {
+        map.off('zoomend', provinceSyncRef.current);
+        provinceSyncRef.current = null;
+      }
+      if (provinceLayerRef.current && map.hasLayer(provinceLayerRef.current)) {
+        map.removeLayer(provinceLayerRef.current);
+      }
+      provinceLayerRef.current = null;
+      if (provinceLabelRef.current && map.hasLayer(provinceLabelRef.current)) {
+        map.removeLayer(provinceLabelRef.current);
+      }
+      provinceLabelRef.current = null;
+    };
+
+    if (!showProvinces) {
+      removeLayers();
+      return;
+    }
+
+    let cancelled = false;
+    loadProvinces()
+      .then((features) => {
+        if (cancelled || !mapRef.current) return;
+        removeLayers();
+        const pane = map.getPane('provinceLabels') ?? map.createPane('provinceLabels');
+        pane.style.zIndex = '450';
+        pane.style.pointerEvents = 'none';
+
+        const labels = L.layerGroup();
+        const layer = L.geoJSON(provinceCollection(features) as never, {
+          style: {
+            color: '#2563eb',
+            weight: 1,
+            opacity: 0.85,
+            dashArray: '4 4',
+            fillOpacity: 0
+          },
+          onEachFeature: (feature, featureLayer) => {
+            const name = String(
+              (feature.properties as { name?: string } | null)?.name ?? ''
+            ).trim();
+            if (!name) return;
+            const center = (featureLayer as L.Polygon).getBounds().getCenter();
+            labels.addLayer(
+              L.marker(center, {
+                pane: 'provinceLabels',
+                interactive: false,
+                keyboard: false,
+                icon: L.divIcon({
+                  className: 'map-province-label-wrap',
+                  html: `<span class="map-province-label">${escapeHtml(name)}</span>`,
+                  iconSize: [0, 0]
+                })
+              })
+            );
+          }
+        });
+
+        layer.addTo(map);
+        labels.addTo(map);
+        provinceLayerRef.current = layer;
+        provinceLabelRef.current = labels;
+
+        const sync = () => {
+          const labelPane = map.getPane('provinceLabels');
+          if (labelPane) {
+            labelPane.style.display = map.getZoom() >= 6 ? '' : 'none';
+          }
+        };
+        provinceSyncRef.current = sync;
+        sync();
+        map.on('zoomend', sync);
+      })
+      .catch(() => {
+        // Lớp phụ: lỗi tải không làm hỏng bản đồ chính.
+      });
+
+    return () => {
+      cancelled = true;
+      removeLayers();
+    };
+  }, [showProvinces]);
 
   const className = useMemo(() => 'panel map-canvas leaflet-canvas', []);
 

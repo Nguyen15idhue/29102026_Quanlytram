@@ -1810,4 +1810,17 @@ cd frontend; npx playwright test tests/guide.spec.ts
   Playwright `map-maplibre` 3/3 PASS; hồi quy map 6/6 PASS.
 - Chưa làm: kiểm tra trên trình duyệt/thiết bị thật ngoài Chrome.
 
+### Kế hoạch bổ sung 2 — ranh giới & tên tỉnh (2026-11-05)
+
+- Đã copy geojson về `frontend/public/geo/` (34 tỉnh, property `name`) + README nguồn.
+- Thêm toggle **Ranh giới & tên tỉnh** trong "Nền bản đồ"; lưu URL `provinces=0`.
+- Leaflet: geojson nét đứt + nhãn tâm bbox; MapLibre: line layer + nhãn DOM.
+- Nhãn có nền trắng, bo góc; ẩn khi zoom < 6.
+- Sửa nền MapLibre đúng provider: streets = OpenFreeMap Liberty (vector),
+  satellite = Esri, terrain = OpenTopoMap; đổi mode dựng lại layer ứng dụng.
+- Test: server 196/196; build PASS + worker ĐẠT; Playwright map 11/11,
+  provinces 2/2, visual 1/1. Ảnh: `docs/1/evidence/plan16-map-{leaflet,maplibre}.png`.
+- Chưa làm: hybrid/PMTiles/style_url (chưa có trong mô hình cấu hình hiện tại);
+  giấy phép geojson chưa xác định.
+
 
