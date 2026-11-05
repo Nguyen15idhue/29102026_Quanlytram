@@ -268,8 +268,8 @@ tài khoản không GGA vẫn hiện, không bị tính "Lỗi"; tenant/subtree 
 1. `## Tạo trạm {#tao-tram}`
 2. `## Tạo mountpoint {#tao-mountpoint}`
 3. `## Tạo tài khoản NTRIP {#tao-tai-khoan}`
-4. `## Thông tin kết nối {#thong-tin-ket-noi}` — Host/IP, Port (2101; 1508/1509 legacy),
-   Mountpoint, Username, Password, NTRIP v2 khuyến nghị.
+4. `## Thông tin kết nối {#thong-tin-ket-noi}` — Host/IP, Port (xem CORS → Listener,
+   ví dụ 2101), Mountpoint, Username, Password, NTRIP v2 khuyến nghị.
 5. `## Kiểm tra & lỗi thường gặp {#kiem-tra-ket-noi}` — 401/403/404.
 
 Bắt buộc ảnh minh hoạ (build-guide `--check`).
@@ -472,8 +472,8 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
 - File đã sửa:
   - `docs-site/docs/02a-huong-dan-tong-quat.md` (mới): 5 mục có anchor
     `#tao-tram`, `#tao-mountpoint`, `#tao-tai-khoan`, `#thong-tin-ket-noi`,
-    `#kiem-tra-ket-noi`; mỗi mục có ảnh; bảng thông tin kết nối (2101 mặc định,
-    1508/1509 legacy, NTRIP v2) và bảng lỗi 401/403/404/429/503.
+    `#kiem-tra-ket-noi`; mỗi mục có ảnh; bảng thông tin kết nối (Port xem trong
+    CORS → Listener, ví dụ 2101; NTRIP v2) và bảng lỗi 401/403/404/429/503.
   - `frontend/src/guide.ts`: `guideUrl()` (validate slug/anchor) và `guideHref()`.
   - `frontend/src/pages/Guide.tsx`: đọc `?doc=&anchor=`, iframe `src` + `key`,
     link "Mở toàn màn hình" theo đúng chương.

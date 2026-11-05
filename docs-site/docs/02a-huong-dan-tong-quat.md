@@ -56,7 +56,7 @@ hoặc relay không phải tài khoản, nên được xem ở **CORS → Listen
 | Trường | Giá trị |
 | --- | --- |
 | Host/IP | Tên miền hoặc IP của caster (ví dụ `rtktk.online`) |
-| Port | **2101** (mặc định); 1508/1509 chỉ để tương thích thiết bị cũ |
+| Port | Xem trong **CORS → Listener** để biết port của listener tương ứng (ví dụ 2101) |
 | Mountpoint | Tên mountpoint đã tạo, ví dụ `YBI_XuanAI` |
 | Username | Tài khoản NTRIP đã cấp |
 | Password | Mật khẩu của tài khoản đó |
@@ -66,7 +66,7 @@ Ví dụ cấu hình rover/RTK:
 
 ```text
 Host: rtktk.online
-Port: 2101
+Port: 2101   # port của listener tương ứng trong CORS → Listener
 Mountpoint: YBI_XuanAI
 Username: tram_ybi
 Password: ********

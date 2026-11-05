@@ -1787,4 +1787,9 @@ cd frontend; npx playwright test tests/guide.spec.ts
 - `frontend/tests/p1-station-fix.spec.ts` gửi `caster_username` khác lúc tạo →
   API trả 409 `IMMUTABLE_FIELD`. Cần sửa test dùng đúng username hoặc bỏ field.
 
+### Cập nhật sau tổng kết
+- Hướng dẫn: dòng Port đổi thành "Xem trong CORS → Listener để biết port tương ứng
+  (ví dụ 2101)", bỏ câu "1508/1509 chỉ để tương thích thiết bị cũ".
+  Đã build lại `frontend/public/guide` và `build-guide --check` PASS.
+
 
