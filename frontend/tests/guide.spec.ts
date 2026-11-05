@@ -160,4 +160,31 @@ test.describe('Trang hướng dẫn', () => {
     expect(guideFailures, `tài nguyên lỗi: ${guideFailures.join(', ')}`).toEqual([]);
     expect(errors).toEqual([]);
   });
+
+  test('G9 — deep-link từ 3 trang mở đúng mục hướng dẫn', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await login(page, 'superadmin', superPassword);
+
+    const cases = [
+      { path: '/ntrip-accounts', anchor: 'tao-tai-khoan', heading: 'Tạo tài khoản NTRIP' },
+      { path: '/stations', anchor: 'tao-tram', heading: 'Tạo trạm' },
+      { path: '/mountpoints', anchor: 'tao-mountpoint', heading: 'Tạo mountpoint' }
+    ];
+
+    for (const item of cases) {
+      await page.goto(item.path);
+      await page.getByRole('link', { name: 'Hướng dẫn', exact: true }).first().click();
+      await expect(page).toHaveURL(
+        new RegExp(`/guide\\?doc=huong-dan-tong-quat&anchor=${item.anchor}`)
+      );
+
+      const frame = page.frameLocator(GUIDE_IFRAME);
+      await expect(
+        frame.getByRole('heading', { name: item.heading, level: 2 })
+      ).toBeVisible();
+    }
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/mountpoints/);
+  });
 });

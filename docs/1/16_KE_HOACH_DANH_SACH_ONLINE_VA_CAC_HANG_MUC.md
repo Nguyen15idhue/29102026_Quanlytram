@@ -466,3 +466,27 @@ Có thể làm song song P2/P4/P5. P3 làm sau P1 để số liệu tài khoản
 - Commit: `2041ab7`
 - Việc còn lại: chạy migration trên staging/prod khi triển khai (chưa deploy).
 
+## KẾT QUẢ THỰC HIỆN — BƯỚC 6 (2026-11-05)
+
+- Trạng thái: **PASS** (build tài liệu + typecheck + Playwright 8/8, trừ G5 do thiếu fixture local).
+- File đã sửa:
+  - `docs-site/docs/02a-huong-dan-tong-quat.md` (mới): 5 mục có anchor
+    `#tao-tram`, `#tao-mountpoint`, `#tao-tai-khoan`, `#thong-tin-ket-noi`,
+    `#kiem-tra-ket-noi`; mỗi mục có ảnh; bảng thông tin kết nối (2101 mặc định,
+    1508/1509 legacy, NTRIP v2) và bảng lỗi 401/403/404/429/503.
+  - `frontend/src/guide.ts`: `guideUrl()` (validate slug/anchor) và `guideHref()`.
+  - `frontend/src/pages/Guide.tsx`: đọc `?doc=&anchor=`, iframe `src` + `key`,
+    link "Mở toàn màn hình" theo đúng chương.
+  - `Stations.tsx`, `Mountpoints.tsx`, `NtripAccounts.tsx`: nút "Hướng dẫn"
+    (icon `BookOpen`) mở đúng anchor.
+  - `frontend/tests/guide.spec.ts`: thêm G9 kiểm tra deep-link từ cả 3 trang.
+- Test đã chạy:
+  - `node scripts/build-guide.mjs --check` → PASS (14 chương, 19 route).
+  - `node scripts/build-guide.mjs` → build Docusaurus + copy `frontend/public/guide` PASS.
+  - `cd frontend; npx tsc --noEmit` → PASS.
+  - `npx playwright test tests/guide.spec.ts --grep-invert "G5"` → 8/8 PASS.
+  - G5 (3 vai trò) không chạy được trên local: DB chỉ có `superadmin`, thiếu
+    `docs.admin`/`docs.user`; đây là thiếu fixture, không phải lỗi thay đổi.
+- Commit: `__COMMIT__`
+- Việc còn lại: chạy G5 khi có seed docs fixtures; kiểm tra mắt thường 3 nút hướng dẫn.
+

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, Lock, LockOpen, Pencil, Plus, Power, PowerOff, Trash2, Upload } from 'lucide-react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { BookOpen, Download, Lock, LockOpen, Pencil, Plus, Power, PowerOff, Trash2, Upload } from 'lucide-react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { guideHref } from '../guide';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
@@ -650,6 +651,9 @@ export function Stations() {
         description="Hồ sơ trạm, thiết bị, kết nối nguồn và chất lượng realtime."
         actions={
           <div className="toolbar">
+            <Link className="btn ghost" to={guideHref('tao-tram')}>
+              <BookOpen size={16} aria-hidden="true" /> Hướng dẫn
+            </Link>
             {can('stations', 'view') && (
               <Button variant="ghost" onClick={() => void exportExcel()}>
                 <Download size={16} aria-hidden="true" /> Excel

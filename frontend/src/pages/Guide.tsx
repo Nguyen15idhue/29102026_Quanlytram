@@ -1,10 +1,18 @@
 ﻿import { useEffect, useState } from 'react';
-import { GUIDE_BUILD_HINT, GUIDE_ENTRY, GUIDE_PATH, GUIDE_TITLE } from '../guide';
+import { useSearchParams } from 'react-router-dom';
+import {
+  GUIDE_BUILD_HINT,
+  GUIDE_ENTRY,
+  GUIDE_TITLE,
+  guideUrl
+} from '../guide';
 
 type GuideStatus = 'checking' | 'ready' | 'missing';
 
 export function Guide() {
   const [status, setStatus] = useState<GuideStatus>('checking');
+  const [params] = useSearchParams();
+  const target = guideUrl(params.get('doc'), params.get('anchor'));
 
   useEffect(() => {
     let alive = true;
@@ -51,13 +59,14 @@ export function Guide() {
     <div className="guide-frame">
       <div className="guide-frame-bar">
         <span className="muted">Tài liệu hướng dẫn sử dụng</span>
-        <a href={GUIDE_PATH} target="_blank" rel="noreferrer">
+        <a href={target} target="_blank" rel="noreferrer">
           Mở toàn màn hình
         </a>
       </div>
       <iframe
+        key={target}
         title={GUIDE_TITLE}
-        src={GUIDE_PATH}
+        src={target}
         referrerPolicy="same-origin"
         className="guide-frame-body"
       />

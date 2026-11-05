@@ -1736,4 +1736,32 @@ cd frontend; npx tsc --noEmit
 cd frontend; npx playwright test tests/history-events.spec.ts tests/relay-state.spec.ts tests/timeline.spec.ts
 ```
 
+---
+
+## Plan 16 — Bước 6: Hướng dẫn tổng quát + deep-link (2026-11-05)
+
+### Đã làm
+- Thêm chương `docs-site/docs/02a-huong-dan-tong-quat.md` (slug
+  `/huong-dan-tong-quat`) với 5 anchor và ảnh minh hoạ; nội dung host/port/
+  mountpoint/username/password/NTRIP v2 + bảng lỗi.
+- `guide.ts`: `guideUrl()`, `guideHref()` (validate slug/anchor).
+- `Guide.tsx`: nhận `?doc=&anchor=`, iframe đổi `src` + `key`.
+- Nút "Hướng dẫn" ở Trạm, Mountpoint, Tài khoản NTRIP.
+- Playwright G9 kiểm tra deep-link từ cả 3 trang.
+
+### Test
+- `build-guide --check`: PASS (14 chương/19 route).
+- `build-guide`: PASS, copy `frontend/public/guide`.
+- `tsc --noEmit`: PASS.
+- Playwright guide (trừ G5): 8/8 PASS.
+- G5 chưa chạy: local DB thiếu `docs.admin`/`docs.user` (chỉ có `superadmin`).
+
+### Cách chạy
+```powershell
+node scripts/build-guide.mjs --check
+node scripts/build-guide.mjs
+cd frontend; npx tsc --noEmit
+cd frontend; npx playwright test tests/guide.spec.ts
+```
+
 

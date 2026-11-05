@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { apiFetch, ApiClientError } from '../api/client';
 import { useAuth } from '../auth/AuthProvider';
+import { guideHref } from '../guide';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
@@ -203,11 +205,16 @@ export function Mountpoints() {
         title="Mountpoint"
         description="Endpoint dữ liệu; một trạm có thể có nhiều mountpoint."
         actions={
-          can('mountpoints', 'add') && (
-            <Button variant="primary" onClick={openCreate}>
-              <Plus size={16} aria-hidden="true" /> Thêm mountpoint
-            </Button>
-          )
+          <div className="toolbar">
+            <Link className="btn ghost" to={guideHref('tao-mountpoint')}>
+              <BookOpen size={16} aria-hidden="true" /> Hướng dẫn
+            </Link>
+            {can('mountpoints', 'add') && (
+              <Button variant="primary" onClick={openCreate}>
+                <Plus size={16} aria-hidden="true" /> Thêm mountpoint
+              </Button>
+            )}
+          </div>
         }
       />
 
