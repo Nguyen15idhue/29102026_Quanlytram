@@ -13,6 +13,7 @@ import {
   listenerUpdateSchema,
   publicConnection,
   publicListener,
+  selectOnlineConnections,
   WALLY_COMPANY_CODE
 } from '../lib/caster';
 import { asyncHandler, ApiError } from '../lib/http';
@@ -640,7 +641,9 @@ async function listConnections(req: Request, res: any): Promise<void> {
   const { pageSize, offset } = pageFrom(req);
   const q = String(req.query.q || '').trim().toLowerCase();
   const allowed = await writableMountpointIds(req);
-  const connections = (await fetchConnections()).filter((item) =>
+  // Trang "Danh sách online" chỉ dành cho tài khoản NTRIP đã xác thực:
+  // direction=rover, có account_id. Nguồn publish (source) thuộc /caster.
+  const connections = selectOnlineConnections(await fetchConnections()).filter((item) =>
     allowed === null ? true : allowed.has(Number(item.mountpointId))
   );
 
@@ -680,14 +683,18 @@ async function listConnections(req: Request, res: any): Promise<void> {
     for (const row of rows) accountNames.set(Number(row.id), String(row.username));
   }
 
-  let items = connections.map((item) =>
-    publicConnection(
-      item,
-      listenerNames.get(Number(item.listenerId)),
-      mountpointNames.get(Number(item.mountpointId)),
-      item.accountId === null ? undefined : accountNames.get(Number(item.accountId))
+  let items = connections
+    .map((item) =>
+      publicConnection(
+        item,
+        listenerNames.get(Number(item.listenerId)),
+        mountpointNames.get(Number(item.mountpointId)),
+        item.accountId === null ? undefined : accountNames.get(Number(item.accountId))
+      )
     )
-  );
+    // Phòng thủ: account bị xoá giữa lúc kết nối thì loại khỏi danh sách,
+    // không hiển thị dòng "Tài khoản = —".
+    .filter((item) => item.accountUsername.trim() !== '');
   if (q) {
     items = items.filter((item) =>
       [item.remoteAddr, item.userAgent, item.mountpointName, item.listenerName, item.accountUsername]
@@ -695,10 +702,6 @@ async function listConnections(req: Request, res: any): Promise<void> {
         .toLowerCase()
         .includes(q)
     );
-  }
-  const direction = String(req.query.direction || '').trim();
-  if (direction === 'source' || direction === 'rover') {
-    items = items.filter((item) => item.direction === direction);
   }
   const fix = String(req.query.fix || '').trim();
   if (fix === 'none') {

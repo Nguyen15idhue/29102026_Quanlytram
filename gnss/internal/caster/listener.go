@@ -308,7 +308,7 @@ func (m *manager) sourcetableMountpoints(cfg *ListenerConfig) []*MountpointConfi
 
 func (m *manager) authorize(req *request, mountpoint *MountpointConfig, listener *ListenerConfig, remoteIP string) (*AccountConfig, int, string) {
 	username, password, ok := ParseBasic(req.Authorization)
-	if !ok {
+	if !ok || strings.TrimSpace(username) == "" {
 		m.recordAuthFailure("", remoteIP)
 		return nil, 401, "Unauthorized"
 	}

@@ -102,6 +102,7 @@ var (
 	errMaxConns      = errors.New("maximum connections reached")
 	errSourceExists  = errors.New("mountpoint already has a source")
 	errInvalidConfig = errors.New("configuration is no longer valid")
+	errAuthRequired  = errors.New("authentication required")
 )
 
 type manager struct {
@@ -396,6 +397,13 @@ func (m *manager) register(conn *connection, account *AccountConfig) error {
 	if !m.reserveSlotLocked(remoteIP) {
 		m.mu.Unlock()
 		return errMaxConns
+	}
+	// Bất biến: connection rover bắt buộc có account đã xác thực. Không cho
+	// phép tạo connection vô danh kể cả khi luồng gọi bị sai.
+	if conn.direction == DirectionRover && account == nil {
+		m.releaseSlotLocked(remoteIP)
+		m.mu.Unlock()
+		return errAuthRequired
 	}
 	if account != nil {
 		count := m.accountConnsLocked(account.ID) + m.pending[account.ID]

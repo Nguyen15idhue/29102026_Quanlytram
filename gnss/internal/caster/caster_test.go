@@ -1307,3 +1307,36 @@ func TestSourceConnectionHasNoFixType(t *testing.T) {
 		t.Fatalf("source fixType = %q, want empty", got)
 	}
 }
+
+func TestAuthorizeRejectsEmptyUsername(t *testing.T) {
+	cfg := registerTestConfig(4)
+	mgr := NewManager(&memoryStore{cfg: cfg}, &memoryRuntime{}, Options{
+		DBTimeout:  time.Second,
+		ReadBuffer: 1024,
+		QueueSize:  4,
+	})
+	seedRegisterConfig(mgr, cfg)
+
+	// Basic ":register" => username rỗng, password đúng. Phải bị 401 vì
+	// không có tài khoản NTRIP hợp lệ.
+	req := &request{Authorization: "Basic " + base64.StdEncoding.EncodeToString([]byte(":register"))}
+	account, code, _ := mgr.authorize(req, cfg.Mountpoints[1], cfg.Listeners[0], "127.0.0.1")
+	if account != nil || code != 401 {
+		t.Fatalf("account = %v, code = %d, want nil/401", account, code)
+	}
+}
+
+func TestRegisterRejectsNilAccountForRover(t *testing.T) {
+	cfg := registerTestConfig(4)
+	mgr := NewManager(&memoryStore{cfg: cfg}, &memoryRuntime{}, Options{
+		DBTimeout:  time.Second,
+		ReadBuffer: 1024,
+		QueueSize:  4,
+	})
+	seedRegisterConfig(mgr, cfg)
+	defer clearRegisteredConns(mgr)
+
+	if err := mgr.register(testConnection(), nil); err != errAuthRequired {
+		t.Fatalf("register rover without account = %v, want errAuthRequired", err)
+	}
+}

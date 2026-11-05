@@ -45,7 +45,7 @@ function fixBadge(value?: string): { label: string; kind: 'ok' | 'warn' | 'error
     case 'error':
       return { label: 'lỗi', kind: 'error' };
     default:
-      return { label: '—', kind: 'neutral' };
+      return { label: 'chưa gửi GGA', kind: 'neutral' };
   }
 }
 
@@ -56,15 +56,13 @@ export function OnlineList() {
   const { page, pageSize, q, setPage, setPageSize, setQ, getParam, setParam } =
     useListParams();
   const fix = getParam('fix');
-  const direction = getParam('direction');
 
   const list = useQuery({
-    queryKey: ['online-connections', page, pageSize, q, fix, direction],
+    queryKey: ['online-connections', page, pageSize, q, fix],
     queryFn: () =>
       apiFetch<ConnectionList>(
         `/api/connections?page=${page}&pageSize=${pageSize}&q=${encodeURIComponent(q)}` +
-          (fix ? `&fix=${encodeURIComponent(fix)}` : '') +
-          (direction ? `&direction=${encodeURIComponent(direction)}` : '')
+          (fix ? `&fix=${encodeURIComponent(fix)}` : '')
       )
   });
 
@@ -83,21 +81,12 @@ export function OnlineList() {
     <section className="page">
       <PageHeader
         title="Danh sách online"
-        description="Tài khoản NTRIP đang kết nối caster, kèm trạng thái tọa độ."
+        description="Tài khoản NTRIP đã xác thực đang kết nối caster. Không phụ thuộc GGA hay trạng thái fix."
         actions={<Unplug size={20} className="muted" aria-hidden="true" />}
       />
       <div className="panel">
         <div className="table-head">
           <SearchInput value={q} onChange={setQ} placeholder="Tìm tài khoản, mountpoint, IP" />
-          <Select
-            value={direction}
-            onChange={(event) => setParam('direction', event.target.value || null)}
-            aria-label="Lọc theo hướng kết nối"
-          >
-            <option value="">Mọi hướng</option>
-            <option value="rover">Rover</option>
-            <option value="source">Source</option>
-          </Select>
           <Select
             value={fix}
             onChange={(event) => setParam('fix', event.target.value || null)}
@@ -120,15 +109,14 @@ export function OnlineList() {
           rowKey={(item) => item.id}
           loading={list.isLoading}
           error={list.isError ? 'Không tải được danh sách online.' : undefined}
-          empty="Chưa có tài khoản online."
+          empty="Chưa có tài khoản NTRIP online."
           columns={[
             {
               key: 'account',
               header: 'Tài khoản',
               cell: (item) => (
                 <div>
-                  <strong>{item.accountUsername || '—'}</strong>
-                  <div className="muted table-subline">{item.direction}</div>
+                  <strong>{item.accountUsername}</strong>
                 </div>
               )
             },

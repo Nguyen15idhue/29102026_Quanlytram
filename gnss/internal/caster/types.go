@@ -69,17 +69,18 @@ type EndInfo struct {
 }
 
 type ConnectionSnapshot struct {
-	ID           int64  `json:"id"`
-	Direction    string `json:"direction"`
-	ListenerID   int64  `json:"listenerId"`
-	MountpointID int64  `json:"mountpointId"`
-	AccountID    *int64 `json:"accountId"`
-	RemoteAddr   string `json:"remoteAddr"`
-	UserAgent    string `json:"userAgent"`
-	StartTs      string `json:"startTs"`
-	BytesIn      uint64 `json:"bytesIn"`
-	BytesOut     uint64 `json:"bytesOut"`
-	FixType      string `json:"fixType"`
+	ID              int64  `json:"id"`
+	Direction       string `json:"direction"`
+	ListenerID      int64  `json:"listenerId"`
+	MountpointID    int64  `json:"mountpointId"`
+	AccountID       *int64 `json:"accountId"`
+	AccountUsername string `json:"accountUsername"`
+	RemoteAddr      string `json:"remoteAddr"`
+	UserAgent       string `json:"userAgent"`
+	StartTs         string `json:"startTs"`
+	BytesIn         uint64 `json:"bytesIn"`
+	BytesOut        uint64 `json:"bytesOut"`
+	FixType         string `json:"fixType"`
 }
 
 type ListenerSnapshot struct {

@@ -50,17 +50,18 @@ func (c *connection) currentFixType() string {
 
 func (c *connection) snapshot() ConnectionSnapshot {
 	return ConnectionSnapshot{
-		ID:           c.id,
-		Direction:    c.direction,
-		ListenerID:   c.listenerID,
-		MountpointID: c.mountpointID,
-		AccountID:    c.accountID,
-		RemoteAddr:   c.remoteAddr,
-		UserAgent:    c.userAgent,
-		StartTs:      c.start.UTC().Format(time.RFC3339Nano),
-		BytesIn:      c.bytesIn.Load(),
-		BytesOut:     c.bytesOut.Load(),
-		FixType:      c.currentFixType(),
+		ID:              c.id,
+		Direction:       c.direction,
+		ListenerID:      c.listenerID,
+		MountpointID:    c.mountpointID,
+		AccountID:       c.accountID,
+		AccountUsername: c.accountUsername,
+		RemoteAddr:      c.remoteAddr,
+		UserAgent:       c.userAgent,
+		StartTs:         c.start.UTC().Format(time.RFC3339Nano),
+		BytesIn:         c.bytesIn.Load(),
+		BytesOut:        c.bytesOut.Load(),
+		FixType:         c.currentFixType(),
 	}
 }
 

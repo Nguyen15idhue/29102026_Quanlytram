@@ -91,12 +91,24 @@ export interface GoConnection {
   listenerId: number;
   mountpointId: number;
   accountId: number | null;
+  accountUsername?: string;
   remoteAddr: string;
   userAgent: string;
   startTs: string;
   bytesIn: number;
   bytesOut: number;
   fixType?: string;
+}
+
+/**
+ * Danh sách online chỉ gồm tài khoản NTRIP đã xác thực: chiều rover và có
+ * account_id. Nguồn publish (source) không thuộc trang này; nó hiển thị ở
+ * CORS → Listener → Kết nối.
+ */
+export function selectOnlineConnections(items: GoConnection[]): GoConnection[] {
+  return items.filter(
+    (item) => item.direction === 'rover' && item.accountId !== null && item.accountId !== undefined
+  );
 }
 
 export async function fetchCasterConnections(): Promise<{
@@ -129,7 +141,7 @@ export function publicConnection(
     mountpointId: Number(item.mountpointId),
     mountpointName: mountpointName ?? '',
     accountId: item.accountId === null ? null : Number(item.accountId),
-    accountUsername: accountUsername ?? '',
+    accountUsername: accountUsername || item.accountUsername || '',
     remoteAddr: item.remoteAddr ?? '',
     userAgent: item.userAgent ?? '',
     startTs: item.startTs,

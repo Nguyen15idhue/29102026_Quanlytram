@@ -1620,3 +1620,28 @@ Kế hoạch: `docs/1/13_KE_HOACH_CHUYEN_DU_LIEU_CU.md`.
   timeline/relay-state).
 - Chưa backfill `relay_hourly` cũ; chỉ dữ liệu mới được chia đúng giờ.
 
+---
+
+## Plan 16 — Bước 1: Danh sách online chỉ tài khoản NTRIP (2026-11-05)
+
+### Đã làm
+- `GET /api/connections` chỉ trả `direction=rover` + `accountId`; bỏ query `direction`;
+  loại item có username rỗng. `/api/caster/connections` giữ nguyên (source + rover).
+- OnlineList: bỏ bộ lọc hướng, bỏ fallback `—`, nhãn "chưa gửi GGA".
+- Go: `authorize()` từ chối username rỗng; `register()` từ chối rover không account;
+  snapshot có `accountUsername`. Không đổi `SourceNoAuth`/`handleSource`.
+- Test: Go `./internal/caster/...` PASS; vitest `casterListener` 7/7 PASS;
+  frontend `tsc --noEmit` PASS.
+
+### Chưa làm
+- Playwright `navigation.spec.ts` chưa chạy: không có stack local ở 127.0.0.1:3000.
+- Chưa chạy SQL kiểm chứng trên prod (chỉ chạy khi triển khai).
+
+### Cách chạy
+```powershell
+cd gnss; go test ./internal/caster/...
+cd server; npx vitest run tests/casterListener.test.ts
+cd frontend; npx tsc --noEmit
+```
+
+
