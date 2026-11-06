@@ -1,0 +1,52 @@
+# PLAN 17 — BƯỚC 5 EVIDENCE
+
+Ngày: 2026-11-06 (Asia/Ho_Chi_Minh)
+
+## Test suite
+- `cd gnss; go test ./...` → PASS toàn bộ package.
+- `cd server; npx vitest run` → 41 file, 204/204 test PASS.
+- `cd frontend; npx tsc --noEmit` → PASS.
+- `npx playwright test tests/system-ops.spec.ts tests/navigation.spec.ts --reporter=line`
+  → 4/4 PASS (19.6s).
+
+## SQL acceptance
+- 8 job retention = 7 ngày:
+  acked-alerts, caster-connections, quality-alerts, quality-samples,
+  relay-events, relay-sessions, rtcm-message-stats, station-sessions.
+- `quality_alerts` cũ hơn 7 ngày = 0; recent = 489.
+- `alerts` admin cũ hơn 7 ngày = 0; recent = 195.
+- Index `idx_quality_alerts_last_seen` tồn tại.
+- Index `idx_alerts_created` tồn tại.
+- `log_bin = OFF`.
+- `innodb_buffer_pool_size=536870912`, `max_connections=60`,
+  `performance_schema=ON`.
+
+## Health
+- Node `/health`: status ok, db ok, schemaVersion 43.
+- Go `/health`: status ok, db ok, relayDegraded=false, schemaVersion 9.
+
+## Graphify
+- `graphify update .` → 5089 nodes, 11349 edges, 361 communities.
+- graph.json/graph.html/GRAPH_REPORT.md updated (gitignored).
+
+## Bảo mật / diff
+- `git diff main...HEAD` không có PRIVATE KEY / password / secret pattern.
+- Không commit `.env.local`.
+- Không đụng relayrtcm/backup.
+
+## Tài nguyên local cuối
+- Docker system df:
+  - Images: 15.19GB
+  - Containers: 2.949GB
+  - Local Volumes: 3.158GB
+  - Build Cache: 4.435GB
+- Docker stats:
+  - mysql: 538.7 MiB
+  - gnss: 42.75 MiB
+  - server: 332.3 MiB
+  - web: 126.3 MiB
+
+## Kết luận
+- Toàn bộ bước 0–4 PASS local.
+- Không deploy VPS, không sửa prod.
+- Chờ chủ dự án kiểm tra thủ công.

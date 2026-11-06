@@ -1017,3 +1017,24 @@ Ghi chú:
 - Bằng chứng: `docs/1/evidence/plan17/step4.txt`.
 - Commit: `feat(plan17): bước 4 - tắt binlog và dọn Docker local`.
 - Việc còn lại: không; chưa deploy prod.
+
+### BƯỚC 5 — Tổng kiểm tra + tài liệu + kết thúc (2026-11-06)
+- Trạng thái: **PASS**
+- Test đã chạy:
+  - `go test ./...` → PASS toàn bộ.
+  - `npx vitest run` → 204/204 PASS, 41 file.
+  - `npx tsc --noEmit` → PASS.
+  - Playwright `system-ops` + `navigation` → 4/4 PASS.
+- SQL acceptance:
+  - 8 job retention = 7 ngày.
+  - `quality_alerts` cũ >7 ngày = 0; `alerts` admin cũ >7 ngày = 0.
+  - Index `idx_quality_alerts_last_seen` + `idx_alerts_created` tồn tại.
+  - `log_bin = OFF`; buffer pool 512M; max_connections 60;
+    performance_schema ON.
+- Health: Node ok/schema 43, Go ok/schema 9.
+- Graphify: 5089 nodes, 11349 edges, 361 communities.
+- Bảo mật: diff không có secret/password/private key; không commit `.env.local`.
+- Docker local sau dọn: Images 15.19GB, Build Cache 4.435GB.
+- Bằng chứng: `docs/1/evidence/plan17/step5.txt`.
+- Commit: `docs(plan17): bước 5 - tổng kiểm tra và kết quả`.
+- Việc còn lại: chủ dự án kiểm tra thủ công; **chưa deploy VPS**.
