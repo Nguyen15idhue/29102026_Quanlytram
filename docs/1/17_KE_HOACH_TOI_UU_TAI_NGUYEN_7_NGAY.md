@@ -1000,3 +1000,20 @@ Ghi chú:
 - Bằng chứng: `docs/1/evidence/plan17/step3.txt`.
 - Commit: `feat(plan17): bước 3 - giảm buffer relay`.
 - Việc còn lại: không; byte RTCM không đổi, test byte-exact PASS.
+
+### BƯỚC 4 — Tắt binlog + dọn Docker local (2026-11-06)
+- Trạng thái: **PASS**
+- File đã sửa:
+  - `docker-compose.yml`
+  - `docker-compose.prod.yml`
+- Thay đổi: thêm `--skip-log-bin`; backup DB trước; purge binlog cũ;
+  recreate MySQL local; `docker builder prune -f` + `docker image prune -f`.
+- Test đã chạy:
+  - `SHOW VARIABLES LIKE 'log_bin'` → OFF.
+  - `SHOW BINARY LOGS` → lỗi 1381 (không dùng binary logging).
+  - Load test mock 5 job sau khi tắt binlog → `streaming=5/5`.
+  - Node/Go health OK; Go schemaVersion 9.
+  - Docker build cache 25.8GB → 4.435GB; image prune 187.7MB.
+- Bằng chứng: `docs/1/evidence/plan17/step4.txt`.
+- Commit: `feat(plan17): bước 4 - tắt binlog và dọn Docker local`.
+- Việc còn lại: không; chưa deploy prod.

@@ -1,0 +1,37 @@
+# PLAN 17 — BƯỚC 4 EVIDENCE
+
+Ngày: 2026-11-06 (Asia/Ho_Chi_Minh)
+
+## Backup trước khi tắt binlog
+- File: `F:\3.Laptrinh\1. Project\1. GNSS\Backup\cors-mysql-20261106-233319.sql.zip`
+- SHA256: E4568F690066ED1B4679EDCB3B55B3AC1818D595947F652E5D1E6857B950AFC6
+
+## Trước thay đổi
+- `log_bin = ON`
+- `docker system df`: Images 36.18GB / Build Cache 25.8GB
+- Binlog đã purge trước khi tắt; còn 3 file gần nhất.
+
+## Thay đổi
+- `docker-compose.yml` và `docker-compose.prod.yml`: thêm `--skip-log-bin`.
+- Recreate MySQL local.
+
+## Sau thay đổi
+- `log_bin = OFF`
+- `SHOW BINARY LOGS` trả lỗi 1381 (không dùng binary logging).
+- `max_connections=60`, `innodb_buffer_pool_size=512M`, `performance_schema=ON`.
+- Load test mock 5 job sau khi tắt binlog: PASS `streaming=5/5`.
+- Health:
+  - Node `/health` ok, schemaVersion 43.
+  - Go `/health` ok, schemaVersion 9.
+
+## Dọn Docker local
+- `docker builder prune -f`: reclaimed 21.36GB build cache.
+- `docker image prune -f`: reclaimed 187.7MB image cũ.
+- Sau dọn: Images 15.19GB / Build Cache 4.435GB.
+- Không xoá volume; không dùng `docker system prune -a --volumes`.
+
+## Acceptance
+- Không còn binlog mới: PASS (`log_bin=OFF`).
+- Disk local giảm: PASS (Docker cache 25.8GB -> 4.435GB).
+- Backup/restore không ảnh hưởng: backup trước thay đổi đã tạo.
+- Stack vẫn healthy: PASS.
