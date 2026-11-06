@@ -198,6 +198,37 @@ export async function loadStationOptions(scope: ScopeClause): Promise<StationOpt
   return rows.map((row) => stationOption(row, mountpoints.get(Number(row.id)) ?? []));
 }
 
+async function findRelayReadCredential(
+  mountpointId: number,
+  companyId: number | null
+): Promise<{ id: number; username: string; passwordEnc: string } | null> {
+  // Trạm legacy thường không lưu mật khẩu caster (thiết bị đẩy no-auth), nhưng
+  // chiều đọc caster luôn cần account. Tái sử dụng credential relay đã lưu của
+  // một account nội bộ có ACL đọc đúng mountpoint, ưu tiên credential đang được
+  // job đang bật dùng để giảm khả năng chọn mật khẩu cũ.
+  const rows = await query<RowDataPacket[]>(
+    `SELECT rc.id, rc.username, rc.password_enc
+       FROM ntrip_accounts a
+       JOIN account_mountpoint_acl am ON am.account_id = a.id
+       JOIN relay_credentials rc ON rc.username = a.username
+       LEFT JOIN relay_jobs r
+         ON (r.upstream_credential_id = rc.id OR r.downstream_credential_id = rc.id)
+        AND r.deleted_at IS NULL AND r.enabled = 1
+      WHERE am.mountpoint_id = ? AND a.enabled = 1 AND rc.password_enc <> ''
+        AND (? IS NULL OR a.company_id = ?)
+      ORDER BY (r.id IS NOT NULL) DESC, r.id DESC, rc.id DESC
+      LIMIT 1`,
+    [mountpointId, companyId, companyId]
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    id: Number(row.id),
+    username: String(row.username),
+    passwordEnc: String(row.password_enc)
+  };
+}
+
 export async function resolveStationEndpoint(
   scope: ScopeClause,
   stationId: number,
@@ -254,13 +285,21 @@ export async function resolveStationEndpoint(
     };
     username = String(row.caster_username ?? '');
     encrypted = row.caster_password_enc;
-    requiresAuth = selected.requiresAuth;
+    requiresAuth = direction === 'source' ? true : selected.requiresAuth;
     // Trạm nguồn no-auth: đẩy dữ liệu vào mountpoint local không cần credential
     // (chiều đọc vẫn do requires_auth của mountpoint quyết định).
     if (direction === 'destination' && Number(row.caster_requires_auth ?? 1) === 0) {
       requiresAuth = false;
       username = '';
       encrypted = null;
+    }
+    if (direction === 'source' && !encrypted) {
+      const fallback = await findRelayReadCredential(selected.id, row.company_id);
+      if (fallback) {
+        username = fallback.username;
+        encrypted = fallback.passwordEnc;
+        aad = secretAad('relay_credentials', 'password_enc', fallback.id);
+      }
     }
   } else if (direction === 'source') {
     const client = clientEndpoint(row);

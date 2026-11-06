@@ -21,7 +21,9 @@
    `mount=tên mountpoint`, credential = `caster_username/caster_password` của trạm.
    Trạm `ntrip_client` dùng `client_host/port/mount/tls` + `client_username/client_password`
    cho chiều nguồn (mountpoint nội bộ của trạm này không có dữ liệu), và vẫn dùng
-   mountpoint nội bộ cho chiều đích.
+   mountpoint nội bộ cho chiều đích. Trạm `ntrip_caster` không lưu mật khẩu caster
+   (legacy no-auth) được fallback sang credential relay của account nội bộ có ACL
+   đọc đúng mountpoint; nếu không có thì trả `STATION_CREDENTIAL_REQUIRED`.
 2. Mật khẩu trạm được copy kín ở server sang `relay_credentials` (AAD mới), không trả
    plaintext về trình duyệt.
 3. Trạm có nhiều mountpoint: hiện thêm select mountpoint (chỉ khi >1).
