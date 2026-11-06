@@ -65,6 +65,67 @@ describe('relayStation', () => {
     expect(resolved.mountpointId).toBe(9);
   });
 
+  it('trạm ntrip_client: nguồn dùng client_* kể cả khi có mountpoint nội bộ', async () => {
+    mockQueries(
+      [
+        {
+          ...baseStation,
+          source_role: 'ntrip_client',
+          client_host: 'rtk.example',
+          client_port: 2101,
+          client_mount: 'EXT',
+          client_tls: 1,
+          client_username: 'ext-user',
+          client_password_enc: encryptSecret(
+            'ext-pass',
+            KEY,
+            secretAad('station_sources', 'client_password_enc', 5)
+          ),
+          listener_port: 1509
+        }
+      ],
+      [mountpoint]
+    );
+
+    const resolved = await resolveStationEndpoint(SCOPE, 5, 9, 'source');
+
+    expect(resolved.endpoint).toMatchObject({
+      host: 'rtk.example',
+      port: 2101,
+      mount: 'EXT',
+      ssl: true
+    });
+    expect(resolved.credential).toEqual({ username: 'ext-user', password: 'ext-pass' });
+    expect(resolved.mountpointId).toBeNull();
+  });
+
+  it('trạm ntrip_client: đích vẫn dùng mountpoint nội bộ', async () => {
+    mockQueries(
+      [
+        {
+          ...baseStation,
+          source_role: 'ntrip_client',
+          client_host: 'rtk.example',
+          client_port: 2101,
+          client_mount: 'EXT',
+          client_username: 'ext-user',
+          client_password_enc: null,
+          listener_port: 1509
+        }
+      ],
+      [mountpoint]
+    );
+
+    const resolved = await resolveStationEndpoint(SCOPE, 5, null, 'destination');
+
+    expect(resolved.endpoint).toMatchObject({
+      host: '127.0.0.1',
+      port: 1509,
+      mount: 'HL_RTCM'
+    });
+    expect(resolved.mountpointId).toBe(9);
+  });
+
   it('trạm ntrip_client không có mountpoint: fallback client_* và giải mã AAD', async () => {
     mockQueries(
       [

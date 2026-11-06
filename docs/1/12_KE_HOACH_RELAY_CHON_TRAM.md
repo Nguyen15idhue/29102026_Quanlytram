@@ -19,8 +19,9 @@
 1. “Chọn trạm” ưu tiên mountpoint của trạm trên caster nội bộ:
    `host=127.0.0.1`, `port=caster_listeners.port` (qua `station_sources.caster_listener_id`),
    `mount=tên mountpoint`, credential = `caster_username/caster_password` của trạm.
-   Trạm `ntrip_client` không có mountpoint thì fallback `client_host/port/mount/tls` +
-   `client_username/client_password`.
+   Trạm `ntrip_client` dùng `client_host/port/mount/tls` + `client_username/client_password`
+   cho chiều nguồn (mountpoint nội bộ của trạm này không có dữ liệu), và vẫn dùng
+   mountpoint nội bộ cho chiều đích.
 2. Mật khẩu trạm được copy kín ở server sang `relay_credentials` (AAD mới), không trả
    plaintext về trình duyệt.
 3. Trạm có nhiều mountpoint: hiện thêm select mountpoint (chỉ khi >1).

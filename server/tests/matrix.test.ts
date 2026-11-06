@@ -51,8 +51,8 @@ describe('roleMatrix company scope (P05-2)', () => {
 });
 
 describe('peer admin policy (D05-1/D05-2/D05-5)', () => {
-  it('admin được tạo peer admin nhưng không sửa/xóa peer admin', () => {
-    expect(canAssignRole(50, 50, false)).toBe(true);
+  it('admin không tạo/sửa/xóa peer admin', () => {
+    expect(canAssignRole(50, 50, false)).toBe(false);
     expect(canAssignRole(50, 10, false)).toBe(true);
     expect(canManageRole(50, 50, false)).toBe(false);
     expect(canManageRole(50, 10, false)).toBe(true);

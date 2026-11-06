@@ -150,6 +150,10 @@ function clientEndpoint(row: StationRow): EndpointOption | null {
   };
 }
 
+function isClientSource(row: StationRow): boolean {
+  return row.source_role === 'ntrip_client' && Boolean(row.client_host && row.client_mount);
+}
+
 function stationOption(
   row: StationRow,
   mountpoints: StationMountpointOption[]
@@ -158,8 +162,12 @@ function stationOption(
     (mountpoint) => mountpoint.port !== null || row.listener_port !== null
   );
   const first = internal[0] ?? null;
-  const source =
-    first && (first.port ?? row.listener_port) !== null
+  // Trạm ntrip_client lấy dữ liệu từ caster bên ngoài: nguồn phải là endpoint
+  // client_host/client_mount, không phải mountpoint nội bộ (mountpoint nội bộ
+  // chỉ có dữ liệu khi thiết bị đẩy trực tiếp vào caster của hệ thống).
+  const source = isClientSource(row)
+    ? clientEndpoint(row)
+    : first && (first.port ?? row.listener_port) !== null
       ? internalEndpoint(row, first, Number(first.port ?? row.listener_port))
       : clientEndpoint(row);
   return {
@@ -223,8 +231,19 @@ export async function resolveStationEndpoint(
   let encrypted: string | null = null;
   let aad: string | undefined;
   let requiresAuth = false;
+  const fromClientSource = direction === 'source' && isClientSource(row);
 
-  if (selected && port !== null) {
+  if (fromClientSource) {
+    const client = clientEndpoint(row);
+    if (!client) {
+      throw new ApiError(400, 'STATION_NO_ENDPOINT', 'Trạm chưa có nguồn NTRIP');
+    }
+    endpoint = { ...client, proxy: '' };
+    username = client.username;
+    encrypted = row.client_password_enc;
+    aad = secretAad('station_sources', 'client_password_enc', stationId);
+    requiresAuth = Boolean(client.username || encrypted);
+  } else if (selected && port !== null) {
     endpoint = {
       host: '127.0.0.1',
       port: Number(port),
@@ -252,7 +271,7 @@ export async function resolveStationEndpoint(
     username = client.username;
     encrypted = row.client_password_enc;
     aad = secretAad('station_sources', 'client_password_enc', stationId);
-    requiresAuth = true;
+    requiresAuth = Boolean(client.username || encrypted);
   } else {
     throw new ApiError(400, 'STATION_NO_ENDPOINT', 'Trạm đích chưa có mountpoint trên caster');
   }
@@ -275,6 +294,6 @@ export async function resolveStationEndpoint(
     endpoint,
     credential,
     stationId,
-    mountpointId: selected ? selected.id : null
+    mountpointId: fromClientSource ? null : selected ? selected.id : null
   };
 }
