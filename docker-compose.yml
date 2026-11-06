@@ -15,8 +15,8 @@ services:
       - --default-time-zone=+00:00
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
-      - --innodb-buffer-pool-size=1G
-      - --max-connections=200
+      - --innodb-buffer-pool-size=512M
+      - --max-connections=60
     env_file:
       - .env.local
     ports:
@@ -99,6 +99,11 @@ services:
     cpus: 1.0
     env_file:
       - .env.local
+    environment:
+      GOMEMLIMIT: 450MiB
+      GOGC: "50"
+      QUALITY_QUEUE_BYTES: "8388608"
+      QUALITY_QUEUE_SIZE: "1024"
     logging:
       driver: json-file
       options:

@@ -966,3 +966,21 @@ Ghi chú:
 - Bằng chứng: `docs/1/evidence/plan17/step1.txt`.
 - Commit: `feat(plan17): bước 1 - retention 7 ngày và xoá alert theo tuổi`.
 - Việc còn lại: không; fixture đã dọn.
+
+### BƯỚC 2 — RAM config local (2026-11-06)
+- Trạng thái: **PASS**
+- File đã sửa:
+  - `docker-compose.yml`
+  - `docker-compose.prod.yml`
+- Cấu hình:
+  - MySQL: `innodb_buffer_pool_size=512M`, `max_connections=60`.
+  - Go: `GOMEMLIMIT=450MiB`, `GOGC=50`, quality queue 8 MB/1024.
+  - Giữ `performance_schema=ON`.
+- Test đã chạy:
+  - `docker compose up -d` → mysql, server, gnss, web healthy.
+  - `scripts/load-test-mock.ps1 -Jobs 20` → `streaming=20/20 PASS`.
+  - Docker stats/cgroup: gnss peak 24.1 MiB, swap 0; MySQL current 478.8 MiB,
+    peak 501.7 MiB, swap 0.
+- Bằng chứng: `docs/1/evidence/plan17/step2.txt`.
+- Commit: `feat(plan17): bước 2 - cấu hình RAM local`.
+- Việc còn lại: không; đây là cấu hình local, chưa deploy.

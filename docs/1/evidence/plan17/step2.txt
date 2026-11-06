@@ -1,0 +1,39 @@
+# PLAN 17 — BƯỚC 2 EVIDENCE
+
+Ngày: 2026-11-06 (Asia/Ho_Chi_Minh)
+
+## Cấu hình local sau thay đổi
+- innodb_buffer_pool_size = 536870912 (512 MB)
+- max_connections = 60
+- performance_schema = ON
+- gnss env: GOMEMLIMIT=450MiB, GOGC=50,
+  QUALITY_QUEUE_BYTES=8388608, QUALITY_QUEUE_SIZE=1024
+
+## Docker stats trước load test (sau recreate)
+- gnss: 13.91 MiB; cgroup current=20,213,760; peak=20,721,664; swap=0
+- mysql: 427.1 MiB; cgroup current=466,976,768; peak=514,314,240; swap=0
+- server: 340.3 MiB
+- web: 361 MiB
+
+## Load test mock
+Command:
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/load-test-mock.ps1 -Jobs 20
+
+Kết quả:
+- CREATED 20 relay jobs -> mock host.docker.internal:2102
+- STARTED 20 mock rovers
+- SNAPSHOT relays=20 streaming=20 connections=0
+- LOAD_RESULT PASS streaming=20/20 (mock only, port 2102)
+
+## Docker stats sau load test
+- gnss: 18.02 MiB; cgroup current=23,932,928; peak=25,280,512 (24.1 MiB); swap=0
+- mysql: 478.8 MiB; cgroup current=526,110,720; peak=526,110,720 (501.7 MiB); swap=0
+- server: 351.2 MiB
+- web: 108.7 MiB
+
+## Acceptance
+- streaming=20/20: PASS
+- không downstream backlog: PASS
+- Go peak < 450 MB: PASS (24.1 MiB)
+- MySQL giảm so baseline: PASS (540.3 MiB -> 478.8 MiB)
+- swap delta: PASS (0)
