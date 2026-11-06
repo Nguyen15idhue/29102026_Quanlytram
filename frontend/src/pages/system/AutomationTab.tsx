@@ -635,7 +635,13 @@ export function AutomationTab() {
         title="Chạy dọn dẹp thật"
         description={
           runTarget
-            ? `Xóa dữ liệu cũ hơn ${runTarget.retentionDays} ngày của ${runTarget.label} (${runTarget.table}). Hành động không thể hoàn tác.`
+            ? `Xóa dữ liệu cũ hơn ${runTarget.retentionDays} ngày của ${runTarget.label} (${runTarget.table}).${
+                runTarget.key === 'quality-alerts'
+                  ? ' Xóa tất cả quality alert cũ, kể cả chưa resolve.'
+                  : runTarget.key === 'acked-alerts'
+                    ? ' Xóa tất cả alert admin cũ, kể cả open/chưa ack.'
+                    : ''
+              } Hành động không thể hoàn tác.`
             : ''
         }
         confirmLabel="Chạy ngay"

@@ -54,9 +54,9 @@ func DefaultOptions() Options {
 	return Options{
 		DialTimeout:      15 * time.Second,
 		IdleTimeout:      60 * time.Second,
-		MonitorBuffer:    256,
-		ReadBuffer:       32 * 1024,
-		DownstreamBuffer: 256,
+		MonitorBuffer:    32,
+		ReadBuffer:       8 * 1024,
+		DownstreamBuffer: 64,
 		NMEAInterval:     10 * time.Second,
 		RetryMin:         time.Second,
 		RetryMax:         30 * time.Second,

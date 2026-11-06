@@ -7,7 +7,7 @@ import { Button, EmptyState, Pagination, Select, StatusBadge } from './ui';
 import type { EntityTimelineKind } from './EntityTimeline';
 
 type LevelFilter = 'all' | 'error' | 'warning' | 'info';
-type HistoryRange = '24h' | '7d' | '30d';
+type HistoryRange = '24h' | '7d';
 
 interface HistoryResponse extends Omit<StationHistoryResponse, 'probeHistory'> {
   probeHistory?: StationHistoryResponse['probeHistory'];
@@ -15,8 +15,7 @@ interface HistoryResponse extends Omit<StationHistoryResponse, 'probeHistory'> {
 
 const RANGES: Array<{ value: HistoryRange; label: string }> = [
   { value: '24h', label: '24 giờ' },
-  { value: '7d', label: '7 ngày' },
-  { value: '30d', label: '30 ngày' }
+  { value: '7d', label: '7 ngày' }
 ];
 
 const LEVELS: Array<{ value: LevelFilter; label: string }> = [
@@ -58,7 +57,7 @@ export function EntityHistoryPanel({ kind, id }: { kind: EntityTimelineKind; id:
   const [range, setRange] = useState<HistoryRange>('24h');
   const [level, setLevel] = useState<LevelFilter>('all');
   const from = useMemo(() => {
-    const hours = range === '24h' ? 24 : range === '7d' ? 24 * 7 : 24 * 30;
+    const hours = range === '24h' ? 24 : 24 * 7;
     return new Date(Date.now() - hours * 3600_000).toISOString();
   }, [range]);
   const history = useQuery({

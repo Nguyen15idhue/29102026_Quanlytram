@@ -1,0 +1,127 @@
+﻿# PLAN 17 BASELINE - 2026-11-06 23:13:01 +07:00
+
+## Docker PS
+NAMES              STATUS                    PORTS
+cors-mvp-gnss-1    Up 33 minutes (healthy)   127.0.0.1:1508-1599->1508-1599/tcp, 127.0.0.1:2101->2101/tcp, 127.0.0.1:7080->7080/tcp
+cors-mvp-mysql-1   Up 33 minutes (healthy)   127.0.0.1:3307->3306/tcp
+
+## Docker Stats
+NAME               CPU %     MEM USAGE / LIMIT   MEM %     PIDS
+cors-mvp-gnss-1    0.01%     21.3MiB / 1GiB      2.08%     14
+cors-mvp-mysql-1   5.09%     540.3MiB / 2GiB     26.38%    47
+
+## Host
+OS: Microsoft Windows 11 Home Single Language 10.0.26300
+RAM total MB: 16121
+RAM free MB: 2272
+Disk F: used GB=363.86 free GB=567.64
+
+## MySQL
++------------------+
+| section          |
++------------------+
+| maintenance_jobs |
++------------------+
++--------------------+---------+-------------------------+----------------+------------+--------------+---------+-----------------------+
+| job_key            | scope   | table_name              | retention_days | batch_size | interval_sec | enabled | label                 |
++--------------------+---------+-------------------------+----------------+------------+--------------+---------+-----------------------+
+| acked-alerts       | admin   | alerts                  |            180 |       1000 |        86400 |       1 | C?nh b�o ?� x�c nh?n  |
+| audit-logs         | admin   | audit_logs              |            365 |       1000 |        86400 |       1 | Nh?t k� audit         |
+| caster-connections | runtime | caster_connections      |             90 |       1000 |         3600 |       1 | Phi�n k?t n?i caster  |
+| quality-alerts     | runtime | quality_alerts          |             90 |       1000 |        21600 |       1 | C?nh b�o ch?t l??ng   |
+| quality-samples    | runtime | quality_samples         |             35 |       1000 |        21600 |       1 | M?u ch?t l??ng RTCM   |
+| relay-events       | runtime | relay_events            |             30 |       1000 |         3600 |       1 | S? ki?n relay         |
+| relay-hourly       | runtime | relay_hourly            |             90 |       1000 |         3600 |       1 | T?ng h?p gi? relay    |
+| relay-sessions     | runtime | relay_sessions          |             90 |       1000 |         3600 |       1 | Phi�n relay           |
+| rtcm-message-stats | runtime | rtcm_message_stats      |            365 |       1000 |        21600 |       1 | Th?ng k� lo?i b?n tin |
+| station-sessions   | runtime | station_source_sessions |             90 |       1000 |         3600 |       1 | Phi�n ngu?n tr?m      |
+| web-sessions       | admin   | web_sessions            |              7 |       1000 |         3600 |       1 | Phi�n ??ng nh?p web   |
++--------------------+---------+-------------------------+----------------+------------+--------------+---------+-----------------------+
++---------+
+| section |
++---------+
+| counts  |
++---------+
++---------------------+----+
+| tbl                 | n  |
++---------------------+----+
+| quality_alerts      | 19 |
+| quality_samples     | 83 |
+| alerts_admin        |  8 |
+| relay_sessions      | 20 |
+| quality_hourly_rows | 10 |
++---------------------+----+
++---------+
+| section |
++---------+
+| binlog  |
++---------+
++---------------+-------+
+| Variable_name | Value |
++---------------+-------+
+| log_bin       | ON    |
++---------------+-------+
++----------------------------+---------+
+| Variable_name              | Value   |
++----------------------------+---------+
+| binlog_expire_logs_seconds | 2592000 |
++----------------------------+---------+
++---------------+-----------+-----------+
+| Log_name      | File_size | Encrypted |
++---------------+-----------+-----------+
+| binlog.000001 |   3002116 | No        |
+| binlog.000002 |    255175 | No        |
+| binlog.000003 |    866379 | No        |
+| binlog.000004 |  20228876 | No        |
+| binlog.000005 |  11057950 | No        |
+| binlog.000006 |  90128433 | No        |
+| binlog.000007 |   5134155 | No        |
+| binlog.000008 |  20852660 | No        |
+| binlog.000009 |   1223225 | No        |
+| binlog.000010 |   2737104 | No        |
+| binlog.000011 |  90254569 | No        |
+| binlog.000012 |   6282112 | No        |
+| binlog.000013 |   3839021 | No        |
+| binlog.000014 |   2513530 | No        |
+| binlog.000015 |    130810 | No        |
+| binlog.000016 |    694078 | No        |
+| binlog.000017 |  49276250 | No        |
+| binlog.000018 |   2533161 | No        |
+| binlog.000019 |  13436614 | No        |
+| binlog.000020 |   4403706 | No        |
+| binlog.000021 |  19018023 | No        |
+| binlog.000022 |   2728882 | No        |
++---------------+-----------+-----------+
++---------+
+| section |
++---------+
+| indexes |
++---------+
++----------------+------------+---------------------------+--------------+---------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| Table          | Non_unique | Key_name                  | Seq_in_index | Column_name   | Collation | Cardinality | Sub_part | Packed | Null | Index_type | Comment | Index_comment | Visible | Expression |
++----------------+------------+---------------------------+--------------+---------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| quality_alerts |          0 | PRIMARY                   |            1 | id            | A         |          19 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| quality_alerts |          1 | idx_quality_alerts_open   |            1 | resolved_at   | A         |           4 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| quality_alerts |          1 | idx_quality_alerts_open   |            2 | last_seen     | A         |           7 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| quality_alerts |          1 | idx_quality_alerts_target |            1 | target_type   | A         |           2 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| quality_alerts |          1 | idx_quality_alerts_target |            2 | target_id     | A         |           6 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| quality_alerts |          1 | idx_quality_alerts_target |            3 | mountpoint_id | A         |           6 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| quality_alerts |          1 | idx_quality_alerts_target |            4 | direction     | A         |          10 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| quality_alerts |          1 | idx_quality_alerts_target |            5 | last_seen     | A         |          12 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| quality_alerts |          1 | idx_quality_alerts_code   |            1 | code          | A         |           2 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| quality_alerts |          1 | idx_quality_alerts_code   |            2 | last_seen     | A         |           9 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
++----------------+------------+---------------------------+--------------+---------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
++--------+------------+---------------------------+--------------+-------------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| Table  | Non_unique | Key_name                  | Seq_in_index | Column_name       | Collation | Cardinality | Sub_part | Packed | Null | Index_type | Comment | Index_comment | Visible | Expression |
++--------+------------+---------------------------+--------------+-------------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+
+| alerts |          0 | PRIMARY                   |            1 | id                | A         |           8 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| alerts |          1 | idx_alerts_status_created |            1 | status            | A         |           2 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| alerts |          1 | idx_alerts_status_created |            2 | created_at        | A         |           8 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| alerts |          1 | idx_alerts_target         |            1 | target_type       | A         |           3 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| alerts |          1 | idx_alerts_target         |            2 | target_id         | A         |           8 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| alerts |          1 | idx_alerts_dedupe         |            1 | dedupe_key        | A         |           8 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| alerts |          1 | idx_alerts_dedupe         |            2 | created_at        | A         |           8 |     NULL |   NULL |      | BTREE      |         |               | YES     | NULL       |
+| alerts |          1 | idx_alerts_owner          |            1 | owner_web_user_id | A         |           3 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| alerts |          1 | fk_alerts_acked_by        |            1 | acked_by          | A         |           1 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
+| alerts |          1 | idx_alerts_company        |            1 | company_id        | A         |           2 |     NULL |   NULL | YES  | BTREE      |         |               | YES     | NULL       |
++--------+------------+---------------------------+--------------+-------------------+-----------+-------------+----------+--------+------+------------+---------+---------------+---------+------------+

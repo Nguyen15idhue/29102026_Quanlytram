@@ -35,10 +35,8 @@ var specs = map[string]spec{
 		orderBy: "id",
 	},
 	"quality-alerts": {
-		table: "quality_alerts",
-		where: func(days int) string {
-			return fmt.Sprintf("resolved_at IS NOT NULL AND last_seen < UTC_TIMESTAMP(3) - INTERVAL %d DAY", days)
-		},
+		table:   "quality_alerts",
+		where:   func(days int) string { return fmt.Sprintf("last_seen < UTC_TIMESTAMP(3) - INTERVAL %d DAY", days) },
 		orderBy: "id",
 	},
 	"caster-connections": {

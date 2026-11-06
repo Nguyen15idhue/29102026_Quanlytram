@@ -17,8 +17,9 @@ services:
       - --default-time-zone=+00:00
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_0900_ai_ci
-      - --innodb-buffer-pool-size=768M
-      - --max-connections=150
+      - --innodb-buffer-pool-size=512M
+      - --max-connections=60
+      - --skip-log-bin
     env_file:
       - .env.production
     volumes:
@@ -87,6 +88,11 @@ services:
     logging: *default-logging
     env_file:
       - .env.production
+    environment:
+      GOMEMLIMIT: 450MiB
+      GOGC: "50"
+      QUALITY_QUEUE_BYTES: "8388608"
+      QUALITY_QUEUE_SIZE: "1024"
     ports:
       - "127.0.0.1:7080:7080"
       - "1508:1508"

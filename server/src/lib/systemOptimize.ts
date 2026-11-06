@@ -49,7 +49,7 @@ const CACHE_TTL_MS = 20_000;
 const MAX_TABLES = 20;
 const LARGE_TABLE_BYTES = 2 * 1024 ** 3;
 
-const BACKLOG_SQL: Record<string, { schema: 'admin' | 'runtime'; table: string; condition: (days: number) => string }> = {
+export const BACKLOG_SQL: Record<string, { schema: 'admin' | 'runtime'; table: string; condition: (days: number) => string }> = {
   'relay-sessions': {
     schema: 'runtime',
     table: 'relay_sessions',
@@ -73,7 +73,7 @@ const BACKLOG_SQL: Record<string, { schema: 'admin' | 'runtime'; table: string; 
   'quality-alerts': {
     schema: 'runtime',
     table: 'quality_alerts',
-    condition: (days) => `resolved_at IS NOT NULL AND last_seen < UTC_TIMESTAMP(3) - INTERVAL ${days} DAY`
+    condition: (days) => `last_seen < UTC_TIMESTAMP(3) - INTERVAL ${days} DAY`
   },
   'caster-connections': {
     schema: 'runtime',
@@ -103,7 +103,7 @@ const BACKLOG_SQL: Record<string, { schema: 'admin' | 'runtime'; table: string; 
   'acked-alerts': {
     schema: 'admin',
     table: 'alerts',
-    condition: (days) => `status = 'acked' AND acked_at IS NOT NULL AND acked_at < UTC_TIMESTAMP(3) - INTERVAL ${days} DAY`
+    condition: (days) => `created_at < UTC_TIMESTAMP(3) - INTERVAL ${days} DAY`
   }
 };
 

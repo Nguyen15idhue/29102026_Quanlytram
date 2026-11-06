@@ -19,6 +19,19 @@ import (
 	"cors/gnss/internal/rtcm"
 )
 
+func TestDefaultBuffersBoundedForManyJobs(t *testing.T) {
+	opts := DefaultOptions()
+	if opts.MonitorBuffer > 32 {
+		t.Fatalf("MonitorBuffer = %d, want <= 32", opts.MonitorBuffer)
+	}
+	if opts.DownstreamBuffer > 64 {
+		t.Fatalf("DownstreamBuffer = %d, want <= 64", opts.DownstreamBuffer)
+	}
+	if opts.ReadBuffer > 8*1024 {
+		t.Fatalf("ReadBuffer = %d, want <= 8192", opts.ReadBuffer)
+	}
+}
+
 type mockServer struct {
 	listener  net.Listener
 	wg        sync.WaitGroup

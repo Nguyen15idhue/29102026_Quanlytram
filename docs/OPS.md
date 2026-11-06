@@ -53,12 +53,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restore-mysql.ps1 `
 
 - Cấu hình nằm trong `cors_admin.maintenance_jobs` (11 job) và
   `cors_admin.maintenance_settings` (lịch chạy), không dùng ENV.
-- Migration: `db/migrations/admin/034_maintenance.sql`.
+- Migration: `034_maintenance.sql`, `042_retention_7d.sql`,
+  `043_alerts_created_index.sql`, runtime `009_quality_alerts_last_seen_index.sql`.
+- Chính sách Plan 17: dữ liệu chi tiết giữ **7 ngày**; `relay-hourly` giữ 90 ngày,
+  `audit-logs` giữ 365 ngày.
 - Go dọn `cors_runtime`: `relay_*`, `quality_*`, `caster_connections`,
   `station_source_sessions`, `rtcm_message_stats`.
-- Node dọn `cors_admin`: `web_sessions`, `audit_logs`, `alerts` (chỉ `acked`).
-- Không bao giờ xóa session/connection đang mở, alert `open`,
-  `quality_alerts` chưa resolve, `relay_job_state`.
+- Node dọn `cors_admin`: `web_sessions`, `audit_logs`, `alerts`.
+- `quality_alerts`: xóa **tất cả** bản ghi cũ hơn 7 ngày, kể cả chưa resolve.
+- `alerts` admin: xóa **tất cả** alert cũ hơn 7 ngày, kể cả `open`/chưa ack.
+- Vẫn không xóa session/connection đang mở và `relay_job_state`.
 - Chạy thử/chạy tay và lịch sử: UI `/system?tab=automation` (P07-5).
 - API: `GET/PUT /api/system/maintenance/jobs`, `GET/PUT .../settings`,
   `GET .../runs`, `POST .../run` (`system_ops.view/edit`).

@@ -1,0 +1,34 @@
+# PLAN 17 — BƯỚC 3 EVIDENCE
+
+Ngày: 2026-11-06 (Asia/Ho_Chi_Minh)
+
+## Thay đổi
+- gnss/internal/relay/bridge.go DefaultOptions:
+  - MonitorBuffer: 256 -> 32
+  - DownstreamBuffer: 256 -> 64
+  - ReadBuffer: 32KB -> 8KB
+- Thêm test TestDefaultBuffersBoundedForManyJobs.
+
+## Test
+- cd gnss; go test ./... => PASS (relay 6.697s, toàn bộ package ok)
+- Byte-exact/bridge tests hiện có PASS.
+
+## Load test mock
+20 job:
+- LOAD_RESULT PASS streaming=20/20 (mock only, port 2102)
+- gnss cgroup peak=17,137,664 (16.3 MiB), swap=0
+
+50 job:
+- LOAD_RESULT PASS streaming=50/50 (mock only, port 2102)
+- gnss cgroup peak=32,407,552 (30.9 MiB), swap=0
+- mysql cgroup peak=557,412,352 (531.6 MiB), swap=29,539,776 (28.2 MiB)
+- server 339.1 MiB, web 90.6 MiB
+
+## Log
+- Không thấy backlog/quality drop/monitor error trong 10 phút gần nhất.
+
+## Acceptance
+- Không downstream backlog: PASS
+- monitorDrop/quality dropped không tăng bất thường: PASS
+- Peak Go <= 300-450MB: PASS (30.9 MiB)
+- Không đổi nội dung byte RTCM: PASS (go test)

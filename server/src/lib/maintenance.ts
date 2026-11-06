@@ -44,8 +44,7 @@ const ADMIN_SPECS: Record<string, AdminSpec> = {
   },
   'acked-alerts': {
     table: 'alerts',
-    where: (days) =>
-      `status = 'acked' AND acked_at IS NOT NULL AND acked_at < UTC_TIMESTAMP(3) - INTERVAL ${days} DAY`,
+    where: (days) => `created_at < UTC_TIMESTAMP(3) - INTERVAL ${days} DAY`,
     orderBy: 'id'
   }
 };

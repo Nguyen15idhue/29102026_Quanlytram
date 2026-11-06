@@ -35,13 +35,14 @@ test.describe('P09 timeline trạng thái', () => {
     const timeline = page.locator('.entity-timeline');
     await expect(timeline).toBeVisible({ timeout: 15_000 });
 
-    for (const label of ['1 giờ', '24 giờ', '7 ngày', '30 ngày']) {
+    for (const label of ['1 giờ', '24 giờ', '7 ngày']) {
       await page.getByRole('button', { name: label, exact: true }).click();
       await expect(timeline).toBeVisible();
       await expect(timeline).toContainText('Tỷ lệ online');
     }
 
-    await page.getByRole('button', { name: '30 ngày', exact: true }).click();
+    await expect(page.getByRole('button', { name: '30 ngày', exact: true })).toHaveCount(0);
+    await page.getByRole('button', { name: '7 ngày', exact: true }).click();
     await expect(timeline).toContainText('trước khi tạo');
     const noneSegment = page.locator('.timeline-segment.none').first();
     await expect(noneSegment).toHaveCount(1);
@@ -101,7 +102,7 @@ test.describe('P09 timeline trạng thái', () => {
 
       await page.goto(`/stations/${station.id}?tab=data`);
       await expect(page.locator('.entity-timeline')).toBeVisible({ timeout: 15_000 });
-      await page.getByRole('button', { name: '30 ngày', exact: true }).click();
+      await page.getByRole('button', { name: '7 ngày', exact: true }).click();
       await expect(page.locator('.entity-timeline')).toContainText('trước khi tạo');
 
       await page.screenshot({
