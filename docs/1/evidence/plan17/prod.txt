@@ -1,0 +1,64 @@
+# PLAN 17 — TRIỂN KHAI PROD EVIDENCE
+
+Ngày: 2026-11-07 (Asia/Ho_Chi_Minh)
+
+## Trước triển khai
+- Commit prod: `02527b0`
+- Disk: 18G used / 40G (43%), free 23G
+- RAM: 2.7Gi used; swap 824Mi
+- Binlog: 2 file cũ + active ~2.05GB; log_bin=ON
+- Relay: 44 streaming, 12 backoff, 3 connecting, 8 disabled
+- `quality_alerts`: 4.714 rows; `quality_samples`: 346.632 rows; `alerts`: 9.036 rows
+- Backup trước deploy:
+  - `/opt/cors/backups/cors-prod-20261106-171649.sql.gz`
+  - SHA256: `74c8ae53dd81a58d3f29b3b08162cafed167b812600346cd87b85844a1fcee7f`
+  - Backup lần 2 do update.sh: `/opt/cors/backups/cors-prod-20261106-171834.sql.gz`
+  - SHA256: `61da8804ceeebdfb43bd853c4452cf4eddc4d77e8f6ab6c4afc98ca46a82ce45`
+- Đã purge binlog cũ trước khi tắt; chỉ còn active binlog.
+
+## Triển khai
+- Merge `feat/plan17-resource-7d` vào `main`, commit `920ad10`.
+- Chạy `/opt/cors/app/update.sh` trên VPS:
+  - pull `02527b0 -> 920ad10`
+  - build lại server/gnss/web
+  - migrate: admin 042, admin 043, runtime 009 applied
+  - recreate mysql/server/gnss/web
+  - smoke test HTTPS 200
+- Runtime mới:
+  - `log_bin=OFF`
+  - `innodb_buffer_pool_size=512M`, `max_connections=60`, `performance_schema=ON`
+  - `--skip-log-bin` trong compose prod
+
+## Sau triển khai
+- Health:
+  - Node: `status=ok`, `db=ok`, `schemaVersion=43`
+  - Go: `status=ok`, `db=ok`, `relayDegraded=false`, `schemaVersion=9`
+  - Public HTTPS: 200
+- Retention:
+  - 8 job = 7 ngày (quality-samples, quality-alerts, relay-events,
+    relay-sessions, caster-connections, station-sessions, rtcm-message-stats,
+    acked-alerts)
+  - relay-hourly = 90 ngày; audit-logs = 365 ngày; web-sessions = 7 ngày
+  - `acked-alerts` label = "Tất cả cảnh báo"
+- Dữ liệu:
+  - `quality_alerts` cũ >7 ngày = 0
+  - `alerts` admin cũ >7 ngày = 0
+  - Index `idx_quality_alerts_last_seen` + `idx_alerts_created` tồn tại
+- Relay: 45 streaming, 11 backoff, 3 connecting, 8 disabled
+- Tài nguyên:
+  - Disk: 13G used / 40G (32%), free 28G
+  - RAM: 1.9Gi used; swap 127Mi
+  - Docker stats: mysql 717.2MiB, gnss 75.86MiB, server 102.6MiB,
+    caddy 49.5MiB, web 3.4MiB
+  - Docker prune: build cache 3.547GB -> 358MB; image prune 544.1MB;
+    images 2.326GB -> 1.695GB
+- Log:
+  - Không có lỗi deploy.
+  - Còn log quality score error/recovered cho relay_job 507/509 — lỗi relay
+    flapping có sẵn, không phải lỗi deploy.
+
+## Ghi chú
+- Không đụng `relayrtcm/backup`, không chạy `relay.exe`.
+- Không đổi DNS/Caddy.
+- Rollback code: `git checkout 02527b0 && bash update.sh`.
+- Binlog đã tắt; PITR không còn (theo quyết định 3B), backup định kỳ vẫn chạy.

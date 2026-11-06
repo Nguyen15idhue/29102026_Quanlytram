@@ -1061,3 +1061,31 @@ Ghi chú:
   `cors-mysql-20261106-233319.sql.zip`; không ảnh hưởng prod.
 - Commit: `fix(plan17): bước 6 - bỏ mốc 30 ngày khỏi tab dữ liệu`.
 - Việc còn lại: chủ dự án kiểm tra lại UI local; **chưa deploy VPS**.
+
+### BƯỚC 7 — TRIỂN KHAI PROD (2026-11-07)
+- Trạng thái: **PASS**
+- Commit prod: `920ad10` (merge plan 17 vào main).
+- Backup:
+  - `cors-prod-20261106-171649.sql.gz`
+  - `cors-prod-20261106-171834.sql.gz` (update.sh tự backup)
+- Migration prod:
+  - admin 042_retention_7d.sql
+  - admin 043_alerts_created_index.sql
+  - runtime 009_quality_alerts_last_seen_index.sql
+- Kết quả:
+  - Node health ok/schema 43; Go health ok/schema 9; HTTPS 200.
+  - 8 job retention = 7 ngày; relay-hourly 90; audit 365.
+  - `quality_alerts` cũ >7 ngày = 0; `alerts` admin cũ >7 ngày = 0.
+  - Index mới tồn tại.
+  - `log_bin=OFF`; buffer pool 512M; max_connections 60;
+    performance_schema ON.
+  - Relay: 45 streaming, 11 backoff, 3 connecting, 8 disabled.
+  - Disk 18G → **13G used / 28G free**.
+  - RAM 2.7Gi → **1.9Gi used**; swap 824Mi → **127Mi**.
+  - Docker: mysql 717MiB, gnss 75.9MiB, server 102.6MiB, caddy 49.5MiB, web 3.4MiB.
+  - Build cache 3.547GB → 358MB; image prune 544MB.
+- Bằng chứng: `docs/1/evidence/plan17/prod.txt`.
+- Ghi chú: còn log quality score error/recovered của relay 507/509 — lỗi flapping
+  có sẵn, không phải lỗi deploy.
+- Rollback code: `git checkout 02527b0 && bash update.sh`.
+- Việc còn lại: theo dõi relay 11 backoff/3 connecting; không còn việc deploy.
