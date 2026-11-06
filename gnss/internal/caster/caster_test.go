@@ -1219,6 +1219,41 @@ func TestAuthFailureGlobalThrottle(t *testing.T) {
 	}
 }
 
+func TestStationTapReceivesSourceBytes(t *testing.T) {
+	h := newHub(&MountpointConfig{ID: 1, Name: "M", Enabled: true}, nil)
+	source := &connection{id: 1, done: make(chan struct{})}
+	h.source = source
+
+	tap, err := h.openTap()
+	if err != nil {
+		t.Fatalf("openTap: %v", err)
+	}
+	defer h.removeTap(tap)
+
+	h.publishFrom(source, []byte{0x01, 0x02, 0x03})
+	buffer := make([]byte, 8)
+	n, err := tap.Read(buffer)
+	if err != nil {
+		t.Fatalf("tap.Read: %v", err)
+	}
+	if !bytes.Equal(buffer[:n], []byte{0x01, 0x02, 0x03}) {
+		t.Fatalf("payload = %x", buffer[:n])
+	}
+
+	h.detachSource(source)
+	h.takeRoversIfNoSource()
+	if _, err := tap.Read(buffer); err == nil {
+		t.Fatal("tap phải EOF khi mất source")
+	}
+}
+
+func TestOpenTapRequiresSource(t *testing.T) {
+	h := newHub(nil, nil)
+	if _, err := h.openTap(); err == nil {
+		t.Fatal("openTap phải lỗi khi chưa có source")
+	}
+}
+
 func TestPublishFromIgnoresStaleSource(t *testing.T) {
 	h := newHub(&MountpointConfig{ID: 1, Name: "M", Enabled: true}, nil)
 	rover := &connection{id: 1, sendCh: make(chan []byte, 1), done: make(chan struct{})}

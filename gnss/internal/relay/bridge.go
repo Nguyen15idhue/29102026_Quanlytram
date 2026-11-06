@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -13,6 +14,23 @@ import (
 	"cors/gnss/internal/quality"
 	"cors/gnss/internal/rtcm"
 )
+
+type sessionUpstream struct {
+	body    io.Reader
+	conn    net.Conn
+	closeFn func() error
+}
+
+func (u *sessionUpstream) Read(p []byte) (int, error) {
+	return u.body.Read(p)
+}
+
+func (u *sessionUpstream) Close() error {
+	if u.closeFn == nil {
+		return nil
+	}
+	return u.closeFn()
+}
 
 type Options struct {
 	DialTimeout      time.Duration
@@ -27,6 +45,9 @@ type Options struct {
 	StopTimeout      time.Duration
 	OnFirstByte      func()
 	Quality          *quality.Analyzer
+	// StationTap mở luồng đọc trực tiếp source của mountpoint nội bộ cho relay
+	// chọn trạm nguồn; nil nghĩa là luôn dùng NTRIP.
+	StationTap func(mountpointID int64) (io.ReadCloser, error)
 }
 
 func DefaultOptions() Options {
@@ -114,23 +135,38 @@ func RunSession(
 	}
 	userAgent += "-relay"
 
-	upstream, err := ntrip.Get(ctx, toNtripEndpoint(cfg.Upstream, userAgent), opts.DialTimeout)
-	if err != nil {
-		return err
+	var upstream *sessionUpstream
+	if cfg.UpstreamDirect && opts.StationTap != nil {
+		tap, err := opts.StationTap(cfg.UpstreamMountpointID)
+		if err != nil {
+			return err
+		}
+		upstream = &sessionUpstream{body: tap, closeFn: tap.Close}
+	} else {
+		ntripUpstream, err := ntrip.Get(ctx, toNtripEndpoint(cfg.Upstream, userAgent), opts.DialTimeout)
+		if err != nil {
+			return err
+		}
+		upstream = &sessionUpstream{
+			body:    ntripUpstream.Body,
+			conn:    ntripUpstream.Conn,
+			closeFn: ntripUpstream.Close,
+		}
 	}
 	defer upstream.Close()
 
 	// GGA mở hàng phải gửi trước khi mở downstream. Caster VRS chỉ bắt đầu
-	// trả dòng RTCM sau khi biết vị trí rover.
+	// trả dòng RTCM sau khi biết vị trí rover. Relay đọc trực tiếp source nội bộ
+	// không có kết nối upstream để gửi GGA.
 	var lastData atomic.Int64
 	var sender *nmeaSender
-	if cfg.Lat != nil && cfg.Lon != nil {
+	if upstream.conn != nil && cfg.Lat != nil && cfg.Lon != nil {
 		interval := time.Duration(cfg.NMEAIntervalSec) * time.Second
 		if interval <= 0 {
 			interval = opts.NMEAInterval
 		}
 		sender = newNMEASender(cfg.ID, *cfg.Lat, *cfg.Lon, interval)
-		if err := sender.sendInitial(upstream.Conn); err != nil {
+		if err := sender.sendInitial(upstream.conn); err != nil {
 			return fmt.Errorf("nmea initial: %w", err)
 		}
 	}
@@ -169,7 +205,7 @@ func RunSession(
 	defer stopNMEA()
 	nmeaErr := make(chan error, 1)
 	if sender != nil {
-		go sender.run(nmeaCtx, upstream.Conn, &lastData, nmeaErr)
+		go sender.run(nmeaCtx, upstream.conn, &lastData, nmeaErr)
 	}
 
 	writeCh := make(chan []byte, opts.DownstreamBuffer)
@@ -217,10 +253,10 @@ func RunSession(
 			return err
 		default:
 		}
-		if upstream.Conn != nil {
-			_ = upstream.Conn.SetReadDeadline(time.Now().Add(opts.IdleTimeout))
+		if upstream.conn != nil {
+			_ = upstream.conn.SetReadDeadline(time.Now().Add(opts.IdleTimeout))
 		}
-		n, readErr := upstream.Body.Read(buffer)
+		n, readErr := upstream.Read(buffer)
 		if n > 0 {
 			lastData.Store(time.Now().UnixNano())
 			metrics.AddUp(n)

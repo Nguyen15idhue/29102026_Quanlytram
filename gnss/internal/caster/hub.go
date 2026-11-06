@@ -12,9 +12,11 @@ type hub struct {
 	monitor    *rtcm.Monitor
 	quality    *quality.Analyzer
 
-	mu     sync.Mutex
-	source *connection
-	rovers map[int64]*connection
+	mu      sync.Mutex
+	source  *connection
+	rovers  map[int64]*connection
+	taps    map[int64]*stationTap
+	nextTap int64
 }
 
 func newHub(mountpoint *MountpointConfig, analyzer *quality.Analyzer) *hub {
@@ -23,6 +25,7 @@ func newHub(mountpoint *MountpointConfig, analyzer *quality.Analyzer) *hub {
 		monitor:    rtcm.NewMonitor(64 * 1024),
 		quality:    analyzer,
 		rovers:     make(map[int64]*connection),
+		taps:       make(map[int64]*stationTap),
 	}
 }
 
@@ -73,6 +76,7 @@ func (h *hub) removeSource(c *connection) []*connection {
 		return nil
 	}
 	h.source = nil
+	h.closeTapsLocked()
 	rovers := make([]*connection, 0, len(h.rovers))
 	for _, rover := range h.rovers {
 		rovers = append(rovers, rover)
@@ -95,7 +99,11 @@ func (h *hub) detachSource(c *connection) {
 func (h *hub) takeRoversIfNoSource() []*connection {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.source != nil || len(h.rovers) == 0 {
+	if h.source != nil {
+		return nil
+	}
+	h.closeTapsLocked()
+	if len(h.rovers) == 0 {
 		return nil
 	}
 	rovers := make([]*connection, 0, len(h.rovers))
@@ -128,6 +136,36 @@ func (h *hub) removeRover(c *connection) {
 	h.mu.Unlock()
 }
 
+// openTap tạo subscriber in-process cho relay. Chỉ mở khi source đang giữ
+// mountpoint để relay nhận lỗi và backoff giống một lần GET thất bại.
+func (h *hub) openTap() (*stationTap, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.source == nil {
+		return nil, errNoSource
+	}
+	h.nextTap++
+	tap := newStationTap(h.nextTap)
+	h.taps[tap.id] = tap
+	return tap, nil
+}
+
+func (h *hub) removeTap(tap *stationTap) {
+	h.mu.Lock()
+	if h.taps[tap.id] == tap {
+		delete(h.taps, tap.id)
+	}
+	h.mu.Unlock()
+	tap.close()
+}
+
+func (h *hub) closeTapsLocked() {
+	for _, tap := range h.taps {
+		tap.close()
+	}
+	h.taps = make(map[int64]*stationTap)
+}
+
 // publishFrom chỉ nhận dữ liệu từ source đang giữ mountpoint. Source cũ có
 // thể còn đọc được vài byte sau khi bị thay thế; nếu không kiểm tra, byte cũ
 // sẽ xen vào luồng của source mới.
@@ -144,6 +182,10 @@ func (h *hub) publishFrom(source *connection, data []byte) {
 	for _, rover := range h.rovers {
 		rovers = append(rovers, rover)
 	}
+	taps := make([]*stationTap, 0, len(h.taps))
+	for _, tap := range h.taps {
+		taps = append(taps, tap)
+	}
 	h.mu.Unlock()
 
 	h.monitor.Feed(copied)
@@ -159,6 +201,11 @@ func (h *hub) publishFrom(source *connection, data []byte) {
 	for _, rover := range rovers {
 		if !rover.enqueue(copied) {
 			rover.closeWithReason("slow_client")
+		}
+	}
+	for _, tap := range taps {
+		if !tap.trySend(copied) {
+			h.removeTap(tap)
 		}
 	}
 }

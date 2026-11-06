@@ -103,13 +103,6 @@ func main() {
 	options.RetryMax = 30 * time.Second
 	options.Quality = analyzer
 
-	manager := relay.NewManager(store, writer, options)
-	stationSourceManager := relay.NewStationSourceManager(
-		relay.NewStationSourceStore(adminDB, cfg.AppEncKey),
-		relay.NewStationSourceSessionStore(runtimeDB),
-		relay.StationSourceOptions{Options: options, IdleTimeout: cfg.StationSourceIdleTimeout},
-	)
-
 	casterOptions := caster.DefaultOptions()
 	casterOptions.BindAddr = cfg.CasterBindAddr
 	casterOptions.PollInterval = cfg.CasterPollInterval
@@ -131,6 +124,13 @@ func main() {
 		caster.NewMySQLStore(adminDB),
 		caster.NewMySQLRuntimeStore(runtimeDB),
 		casterOptions,
+	)
+	options.StationTap = casterManager.OpenStationTap
+	manager := relay.NewManager(store, writer, options)
+	stationSourceManager := relay.NewStationSourceManager(
+		relay.NewStationSourceStore(adminDB, cfg.AppEncKey),
+		relay.NewStationSourceSessionStore(runtimeDB),
+		relay.StationSourceOptions{Options: options, IdleTimeout: cfg.StationSourceIdleTimeout},
 	)
 
 	probeOptions := probe.DefaultOptions()

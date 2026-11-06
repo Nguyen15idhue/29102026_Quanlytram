@@ -293,6 +293,74 @@ func rtcmFrame(payload []byte) []byte {
 	return append(frame, byte(crc>>16), byte(crc>>8), byte(crc))
 }
 
+func TestRunSessionStationTapBypassesNtrip(t *testing.T) {
+	downstream := newMockServer(t, downstreamHandler(downstreamOptions{}))
+	host, port := downstream.hostPort()
+	cfg := &JobConfig{
+		ID:                   99,
+		Name:                 "tap",
+		Enabled:              true,
+		UpstreamDirect:       true,
+		UpstreamMountpointID: 9,
+		Downstream: EndpointConfig{
+			Host:         host,
+			Port:         port,
+			Mount:        "DOWN",
+			NtripVersion: "v2",
+		},
+		DownstreamMode: "source",
+	}
+	cfg.Upstream.Key = "tap://9"
+	cfg.Downstream.Key = EndpointKey(cfg.Downstream)
+
+	reader, writer := io.Pipe()
+	defer writer.Close()
+	called := make(chan int64, 1)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- RunSession(ctx, cfg, Options{
+			DialTimeout:   2 * time.Second,
+			MonitorBuffer: 16,
+			ReadBuffer:    1024,
+			StationTap: func(mountpointID int64) (io.ReadCloser, error) {
+				called <- mountpointID
+				return reader, nil
+			},
+		}, rtcm.NewMonitor(1<<20), &Metrics{})
+	}()
+
+	select {
+	case id := <-called:
+		if id != 9 {
+			t.Fatalf("mountpointID = %d, want 9", id)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("không gọi StationTap")
+	}
+
+	payload := []byte("tap-payload")
+	go func() {
+		_, _ = writer.Write(payload)
+		_ = writer.Close()
+	}()
+	got := waitCaptured(t, downstream, 3*time.Second)
+	if !bytes.Equal(got, payload) {
+		t.Fatalf("downstream = %q, want %q", got, payload)
+	}
+
+	cancel()
+	select {
+	case err := <-done:
+		if !acceptableBridgeError(err) {
+			t.Fatalf("RunSession: %v", err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("RunSession không dừng")
+	}
+}
+
 func Test2T1ByteExactSource(t *testing.T) {
 	for _, size := range []int{1024, 1024 * 1024} {
 		t.Run(fmt.Sprintf("%d", size), func(t *testing.T) {

@@ -57,6 +57,7 @@ func jobRow(upstreamPasswordEnc string, upstreamCredentialID int64, downstreamPa
 		int64(7), "ext-7", "Job 7", 1, int64(3),
 		"up.example", 2101, "UP", "", 0, "v2",
 		"up-user", upstreamPasswordEnc, upstreamCredentialID,
+		int64(0), int64(0), "",
 		"down.example", 2101, "DOWN", "", 0, "v2",
 		"down-user", downstreamPasswordEnc, downstreamCredentialID,
 		"source", sql.NullFloat64{}, sql.NullFloat64{}, "", 0, "manual",
@@ -101,6 +102,34 @@ func TestScanJobDecryptsV2CredentialWithRecordAAD(t *testing.T) {
 	}
 	if !job.Enabled {
 		t.Fatal("job phải enabled")
+	}
+}
+
+func TestScanJobMarksDirectUpstreamOnlyForCasterStation(t *testing.T) {
+	store := NewMySQLStore(nil, testKey(8))
+
+	direct := jobRow("", 0, "", 0)
+	direct[14] = int64(5)
+	direct[15] = int64(9)
+	direct[16] = "ntrip_caster"
+	job, err := store.scanJob(&fakeRow{values: direct})
+	if err != nil {
+		t.Fatalf("scanJob direct: %v", err)
+	}
+	if !job.UpstreamDirect {
+		t.Fatal("trạm ntrip_caster phải đọc trực tiếp")
+	}
+
+	client := jobRow("", 0, "", 0)
+	client[14] = int64(5)
+	client[15] = int64(9)
+	client[16] = "ntrip_client"
+	job, err = store.scanJob(&fakeRow{values: client})
+	if err != nil {
+		t.Fatalf("scanJob client: %v", err)
+	}
+	if job.UpstreamDirect {
+		t.Fatal("trạm ntrip_client không được đọc trực tiếp caster")
 	}
 }
 

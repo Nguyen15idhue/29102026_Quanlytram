@@ -16,14 +16,14 @@
 
 ## 2. Quyết định đã chốt
 
-1. “Chọn trạm” ưu tiên mountpoint của trạm trên caster nội bộ:
-   `host=127.0.0.1`, `port=caster_listeners.port` (qua `station_sources.caster_listener_id`),
-   `mount=tên mountpoint`, credential = `caster_username/caster_password` của trạm.
-   Trạm `ntrip_client` dùng `client_host/port/mount/tls` + `client_username/client_password`
-   cho chiều nguồn (mountpoint nội bộ của trạm này không có dữ liệu), và vẫn dùng
-   mountpoint nội bộ cho chiều đích. Trạm `ntrip_caster` không lưu mật khẩu caster
-   (legacy no-auth) được fallback sang credential relay của account nội bộ có ACL
-   đọc đúng mountpoint; nếu không có thì trả `STATION_CREDENTIAL_REQUIRED`.
+1. “Chọn trạm” lấy trực tiếp nguồn của trạm:
+   - Trạm `ntrip_caster`: Go đọc thẳng source đang publish vào caster nội bộ
+     qua station tap in-process, không cần NTRIP account, không đi listener TCP.
+     Job lưu `upstream_station_id` + `upstream_mountpoint_id`; host/port/mount
+     nội bộ chỉ để hiển thị và kiểm tra trùng endpoint.
+   - Trạm `ntrip_client`: dùng `client_host/port/mount/tls` +
+     `client_username/client_password` cho chiều nguồn (mountpoint nội bộ của
+     trạm này không có dữ liệu), và vẫn dùng mountpoint nội bộ cho chiều đích.
 2. Mật khẩu trạm được copy kín ở server sang `relay_credentials` (AAD mới), không trả
    plaintext về trình duyệt.
 3. Trạm có nhiều mountpoint: hiện thêm select mountpoint (chỉ khi >1).

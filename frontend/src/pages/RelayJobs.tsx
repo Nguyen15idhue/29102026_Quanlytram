@@ -913,9 +913,11 @@ export function RelayJobs() {
                   )}
                   <p className="form-hint">
                     {upstreamStation?.source
-                      ? `Sẽ dùng ${upstreamStation.source.host}:${upstreamStation.source.port}/${upstreamStation.source.mount} · NTRIP ${upstreamStation.source.ntripVersion.toUpperCase()} · ${
-                          upstreamStation.source.username || 'không tài khoản'
-                        }`
+                      ? upstreamStation.source.direct
+                        ? 'Đọc trực tiếp source của trạm trên caster nội bộ · không cần tài khoản NTRIP'
+                        : `Sẽ dùng ${upstreamStation.source.host}:${upstreamStation.source.port}/${upstreamStation.source.mount} · NTRIP ${upstreamStation.source.ntripVersion.toUpperCase()} · ${
+                            upstreamStation.source.username || 'không tài khoản'
+                          }`
                       : 'Trạm này chưa có listener hoặc cấu hình nguồn NTRIP.'}
                   </p>
                 </>

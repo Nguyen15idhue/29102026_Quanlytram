@@ -38,13 +38,11 @@ Form chia 3 phần: **Nguồn dữ liệu**, **Đích đến dữ liệu**, **Th
 2. **Nguồn dữ liệu**: chọn Mode
    - `Nhập thủ công` (mặc định): nhập host, cổng, mountpoint, proxy, SSL,
      phiên bản NTRIP, username, mật khẩu.
-   - `Chọn trạm`: chọn một trạm có sẵn trong phạm vi quyền. Hệ thống tự dùng
-     nguồn của trạm: trạm `ntrip_caster` dùng mountpoint trên caster nội bộ;
-     trạm `ntrip_client` dùng `client_host/client_port/client_mount` (nguồn NTRIP
-     bên ngoài) vì mountpoint nội bộ không có dữ liệu. Mật khẩu đã lưu được
-     dùng tự động; nếu trạm caster không lưu mật khẩu, hệ thống dùng credential
-     của tài khoản NTRIP nội bộ có ACL đọc đúng mountpoint. Form chỉ hiện dòng
-     tóm tắt để kiểm tra.
+   - `Chọn trạm`: chọn một trạm có sẵn trong phạm vi quyền. Hệ thống lấy trực
+     tiếp nguồn của trạm: trạm `ntrip_caster` đọc thẳng source đang publish vào
+     caster nội bộ (không cần tài khoản NTRIP); trạm `ntrip_client` dùng
+     `client_host/client_port/client_mount` + credential nguồn của trạm (nguồn
+     NTRIP bên ngoài). Form chỉ hiện dòng tóm tắt để kiểm tra.
 3. **Đích đến dữ liệu**: cấu trúc tương tự, kèm **Đích mode** (`auto`/`post`/
    `source`). Nếu trạm có nhiều mountpoint thì chọn thêm mountpoint.
 4. Chỉ được chọn trạm ở **một phía**. Khi một phía dùng `Chọn trạm`, phía còn

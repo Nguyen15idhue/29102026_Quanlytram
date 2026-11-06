@@ -35,6 +35,7 @@ const jobColumns = `
   j.id, COALESCE(j.external_key, ''), j.name, j.enabled, j.desired_revision,
   j.upstream_host, j.upstream_port, j.upstream_mount, j.upstream_proxy, j.upstream_ssl, j.upstream_ntrip_version,
   COALESCE(uc.username, ''), COALESCE(uc.password_enc, ''), IFNULL(j.upstream_credential_id, 0),
+  IFNULL(j.upstream_station_id, 0), IFNULL(j.upstream_mountpoint_id, 0), COALESCE(uss.source_role, ''),
   j.downstream_host, j.downstream_port, j.downstream_mount, j.downstream_proxy, j.downstream_ssl, j.downstream_ntrip_version,
   COALESCE(dc.username, ''), COALESCE(dc.password_enc, ''), IFNULL(j.downstream_credential_id, 0),
   j.downstream_mode, j.lat, j.lon, j.ua_prefix, j.nmea_interval_sec, j.origin,
@@ -43,6 +44,7 @@ const jobColumns = `
 FROM relay_jobs j
 LEFT JOIN relay_credentials uc ON uc.id = j.upstream_credential_id
 LEFT JOIN relay_credentials dc ON dc.id = j.downstream_credential_id
+LEFT JOIN station_sources uss ON uss.station_id = j.upstream_station_id
 LEFT JOIN mountpoints sm ON sm.name = j.upstream_mount
 LEFT JOIN stations s ON s.id = sm.station_id`
 
@@ -68,6 +70,8 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 		upstreamUsername, upstreamPasswordEnc        string
 		downstreamUsername, downstreamPasswordEnc    string
 		upstreamCredentialID, downstreamCredentialID int64
+		upstreamStationID, upstreamMountpointID      int64
+		upstreamStationRole                          string
 		dbUpstreamKey, dbDownstreamKey               string
 		deletedAt                                    sql.NullTime
 		locked, stationEnabled                       int
@@ -88,6 +92,9 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 		&upstreamUsername,
 		&upstreamPasswordEnc,
 		&upstreamCredentialID,
+		&upstreamStationID,
+		&upstreamMountpointID,
+		&upstreamStationRole,
 		&job.Downstream.Host,
 		&job.Downstream.Port,
 		&job.Downstream.Mount,
@@ -160,6 +167,11 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 
 	job.Upstream.Key = EndpointKey(job.Upstream)
 	job.Downstream.Key = EndpointKey(job.Downstream)
+	job.UpstreamStationID = upstreamStationID
+	job.UpstreamMountpointID = upstreamMountpointID
+	job.UpstreamDirect = upstreamStationID > 0 &&
+		upstreamMountpointID > 0 &&
+		upstreamStationRole == "ntrip_caster"
 	_ = dbUpstreamKey
 	_ = dbDownstreamKey
 	return &job, nil

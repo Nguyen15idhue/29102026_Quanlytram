@@ -474,6 +474,7 @@ export interface RelayStationOption {
     username: string;
     hasPassword: boolean;
     mountpointId: number | null;
+    direct?: boolean;
   } | null;
   destination: RelayStationOption['source'];
 }

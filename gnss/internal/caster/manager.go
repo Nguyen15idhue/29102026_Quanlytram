@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"sort"
@@ -790,4 +791,33 @@ func (m *manager) hubFor(mountpointID int64) *hub {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.hubs[mountpointID]
+}
+
+type stationTapReader struct {
+	hub *hub
+	tap *stationTap
+}
+
+func (r *stationTapReader) Read(p []byte) (int, error) {
+	return r.tap.Read(p)
+}
+
+func (r *stationTapReader) Close() error {
+	r.hub.removeTap(r.tap)
+	return nil
+}
+
+// OpenStationTap mở luồng đọc trực tiếp byte source của mountpoint nội bộ.
+// Dùng cho relay chọn trạm nguồn: không cần NTRIP account và không đi qua
+// listener TCP của caster.
+func (m *manager) OpenStationTap(mountpointID int64) (io.ReadCloser, error) {
+	h := m.hubFor(mountpointID)
+	if h == nil {
+		return nil, errNoSource
+	}
+	tap, err := h.openTap()
+	if err != nil {
+		return nil, err
+	}
+	return &stationTapReader{hub: h, tap: tap}, nil
 }

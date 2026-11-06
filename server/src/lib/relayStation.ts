@@ -12,6 +12,7 @@ export interface EndpointOption {
   username: string;
   hasPassword: boolean;
   mountpointId: number | null;
+  direct?: boolean;
 }
 
 export interface StationMountpointOption {
@@ -132,7 +133,8 @@ function internalEndpoint(
     ntripVersion: row.caster_version ?? 'v2',
     username: String(row.caster_username ?? ''),
     hasPassword: Boolean(row.caster_password_enc),
-    mountpointId: mountpoint.id
+    mountpointId: mountpoint.id,
+    direct: false
   };
 }
 
@@ -146,7 +148,8 @@ function clientEndpoint(row: StationRow): EndpointOption | null {
     ntripVersion: row.ntrip_version ?? 'v2',
     username: String(row.client_username ?? ''),
     hasPassword: Boolean(row.client_password_enc),
-    mountpointId: null
+    mountpointId: null,
+    direct: false
   };
 }
 
@@ -165,11 +168,20 @@ function stationOption(
   // Trạm ntrip_client lấy dữ liệu từ caster bên ngoài: nguồn phải là endpoint
   // client_host/client_mount, không phải mountpoint nội bộ (mountpoint nội bộ
   // chỉ có dữ liệu khi thiết bị đẩy trực tiếp vào caster của hệ thống).
-  const source = isClientSource(row)
-    ? clientEndpoint(row)
-    : first && (first.port ?? row.listener_port) !== null
-      ? internalEndpoint(row, first, Number(first.port ?? row.listener_port))
-      : clientEndpoint(row);
+  // Trạm ntrip_caster: relay đọc trực tiếp source nội bộ, không dùng credential.
+  let source: EndpointOption | null;
+  if (isClientSource(row)) {
+    source = clientEndpoint(row);
+  } else if (first && (first.port ?? row.listener_port) !== null) {
+    source = {
+      ...internalEndpoint(row, first, Number(first.port ?? row.listener_port)),
+      username: '',
+      hasPassword: false,
+      direct: true
+    };
+  } else {
+    source = clientEndpoint(row);
+  }
   return {
     id: Number(row.id),
     name: String(row.name),
@@ -196,37 +208,6 @@ export async function loadStationOptions(scope: ScopeClause): Promise<StationOpt
   );
   const mountpoints = await loadMountpoints(rows.map((row) => Number(row.id)));
   return rows.map((row) => stationOption(row, mountpoints.get(Number(row.id)) ?? []));
-}
-
-async function findRelayReadCredential(
-  mountpointId: number,
-  companyId: number | null
-): Promise<{ id: number; username: string; passwordEnc: string } | null> {
-  // Trạm legacy thường không lưu mật khẩu caster (thiết bị đẩy no-auth), nhưng
-  // chiều đọc caster luôn cần account. Tái sử dụng credential relay đã lưu của
-  // một account nội bộ có ACL đọc đúng mountpoint, ưu tiên credential đang được
-  // job đang bật dùng để giảm khả năng chọn mật khẩu cũ.
-  const rows = await query<RowDataPacket[]>(
-    `SELECT rc.id, rc.username, rc.password_enc
-       FROM ntrip_accounts a
-       JOIN account_mountpoint_acl am ON am.account_id = a.id
-       JOIN relay_credentials rc ON rc.username = a.username
-       LEFT JOIN relay_jobs r
-         ON (r.upstream_credential_id = rc.id OR r.downstream_credential_id = rc.id)
-        AND r.deleted_at IS NULL AND r.enabled = 1
-      WHERE am.mountpoint_id = ? AND a.enabled = 1 AND rc.password_enc <> ''
-        AND (? IS NULL OR a.company_id = ?)
-      ORDER BY (r.id IS NOT NULL) DESC, r.id DESC, rc.id DESC
-      LIMIT 1`,
-    [mountpointId, companyId, companyId]
-  );
-  const row = rows[0];
-  if (!row) return null;
-  return {
-    id: Number(row.id),
-    username: String(row.username),
-    passwordEnc: String(row.password_enc)
-  };
 }
 
 export async function resolveStationEndpoint(
@@ -283,22 +264,22 @@ export async function resolveStationEndpoint(
       ssl: false,
       ntripVersion: row.caster_version ?? 'v2'
     };
-    username = String(row.caster_username ?? '');
-    encrypted = row.caster_password_enc;
-    requiresAuth = direction === 'source' ? true : selected.requiresAuth;
-    // Trạm nguồn no-auth: đẩy dữ liệu vào mountpoint local không cần credential
-    // (chiều đọc vẫn do requires_auth của mountpoint quyết định).
-    if (direction === 'destination' && Number(row.caster_requires_auth ?? 1) === 0) {
-      requiresAuth = false;
+    if (direction === 'source') {
+      // Relay chọn trạm nguồn nội bộ: Go đọc trực tiếp source đang publish vào
+      // caster (station tap), không đi qua listener/NTRIP account.
       username = '';
       encrypted = null;
-    }
-    if (direction === 'source' && !encrypted) {
-      const fallback = await findRelayReadCredential(selected.id, row.company_id);
-      if (fallback) {
-        username = fallback.username;
-        encrypted = fallback.passwordEnc;
-        aad = secretAad('relay_credentials', 'password_enc', fallback.id);
+      requiresAuth = false;
+    } else {
+      username = String(row.caster_username ?? '');
+      encrypted = row.caster_password_enc;
+      requiresAuth = selected.requiresAuth;
+      // Trạm nguồn no-auth: đẩy dữ liệu vào mountpoint local không cần credential
+      // (chiều đọc vẫn do requires_auth của mountpoint quyết định).
+      if (Number(row.caster_requires_auth ?? 1) === 0) {
+        requiresAuth = false;
+        username = '';
+        encrypted = null;
       }
     }
   } else if (direction === 'source') {

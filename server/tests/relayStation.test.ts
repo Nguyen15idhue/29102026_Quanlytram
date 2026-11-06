@@ -50,7 +50,7 @@ describe('relayStation', () => {
     queryMock.mockReset();
   });
 
-  it('chọn trạm nguồn: dùng mountpoint nội bộ + credential của trạm', async () => {
+  it('chọn trạm nguồn nội bộ: dùng mountpoint, không cần credential NTRIP', async () => {
     mockQueries([baseStation], [mountpoint]);
 
     const resolved = await resolveStationEndpoint(SCOPE, 5, 9, 'source');
@@ -61,51 +61,8 @@ describe('relayStation', () => {
       mount: 'HL_RTCM',
       ntripVersion: 'v2'
     });
-    expect(resolved.credential).toEqual({ username: 'hl-source', password: 'hl-pass' });
+    expect(resolved.credential).toBeNull();
     expect(resolved.mountpointId).toBe(9);
-  });
-
-  it('trạm nguồn: tái dùng credential relay có ACL khi trạm thiếu mật khẩu caster', async () => {
-    const credentialId = 170;
-    queryMock.mockImplementation(async (sql: string) => {
-      if (sql.includes('FROM stations')) {
-        return [{ ...baseStation, caster_password_enc: null }];
-      }
-      if (sql.includes('FROM ntrip_accounts')) {
-        return [
-          {
-            id: credentialId,
-            username: 'reader',
-            password_enc: encryptSecret(
-              'read-pass',
-              KEY,
-              secretAad('relay_credentials', 'password_enc', credentialId)
-            )
-          }
-        ];
-      }
-      return [mountpoint];
-    });
-
-    const resolved = await resolveStationEndpoint(SCOPE, 5, 9, 'source');
-
-    expect(resolved.endpoint).toMatchObject({ host: '127.0.0.1', mount: 'HL_RTCM' });
-    expect(resolved.credential).toEqual({ username: 'reader', password: 'read-pass' });
-    expect(resolved.mountpointId).toBe(9);
-  });
-
-  it('trạm nguồn thiếu mật khẩu và không có credential dự phòng bị từ chối', async () => {
-    queryMock.mockImplementation(async (sql: string) => {
-      if (sql.includes('FROM stations')) {
-        return [{ ...baseStation, caster_password_enc: null }];
-      }
-      if (sql.includes('FROM ntrip_accounts')) return [];
-      return [mountpoint];
-    });
-
-    await expect(resolveStationEndpoint(SCOPE, 5, 9, 'source')).rejects.toMatchObject({
-      code: 'STATION_CREDENTIAL_REQUIRED'
-    });
   });
 
   it('trạm ntrip_client: nguồn dùng client_* kể cả khi có mountpoint nội bộ', async () => {
