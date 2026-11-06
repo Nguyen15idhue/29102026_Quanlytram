@@ -86,7 +86,7 @@ describe('maintenance runJob', () => {
     expect(String(deleteCall?.[0])).toContain('LIMIT');
   });
 
-  it('acked-alerts chỉ xóa alert đã xác nhận', async () => {
+  it('acked-alerts xóa tất cả alert theo created_at, kể cả open', async () => {
     mocks.getJob.mockResolvedValue(adminJob('acked-alerts'));
     mocks.adminQuery.mockImplementation((sql: string) => {
       if (sql.includes('INSERT INTO maintenance_runs')) return Promise.resolve([{ insertId: 9 }]);
@@ -97,7 +97,10 @@ describe('maintenance runJob', () => {
     const deleteCall = mocks.adminQuery.mock.calls.find((call) =>
       String(call[0]).includes('DELETE FROM')
     );
-    expect(String(deleteCall?.[0])).toContain("status = 'acked'");
+    const sql = String(deleteCall?.[0]);
+    expect(sql).toContain('created_at');
+    expect(sql).not.toContain("status = 'acked'");
+    expect(sql).not.toContain('acked_at');
   });
 
   it('job runtime gọi Go prune', async () => {

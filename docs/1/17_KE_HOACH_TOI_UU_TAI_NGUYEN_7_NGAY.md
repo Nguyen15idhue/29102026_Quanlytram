@@ -925,3 +925,44 @@ Ghi chú:
 - Sampling quality giữ **60 giây** (quyết định 4A); `quality_samples` 7 ngày ~1.3 GB.
 - Không export CSV `quality_alerts` (quyết định 10C); chỉ backup DB theo quy trình chung.
 - Toàn bộ làm local trước; **không sửa prod**; chỉ deploy sau khi chủ dự án duyệt thủ công.
+
+---
+
+## 13. KẾT QUẢ THỰC HIỆN
+
+### BƯỚC 0 — Baseline & nhánh (2026-11-06)
+- Trạng thái: **PASS**
+- File:
+  - `docs/1/evidence/plan17/baseline.txt`
+  - `docs/1/17_KE_HOACH_TOI_UU_TAI_NGUYEN_7_NGAY.md`
+- Test: không có.
+- Bằng chứng: baseline local (Docker, RAM/disk, maintenance_jobs, counts, binlog,
+  index) đã ghi.
+- Commit: `docs(plan17): bước 0 - baseline và nhánh thực hiện`.
+- Việc còn lại: không.
+
+### BƯỚC 1 — Retention 7 ngày + quality-alerts/alerts admin xoá tất cả (2026-11-06)
+- Trạng thái: **PASS**
+- File đã sửa:
+  - `db/migrations/admin/042_retention_7d.sql`
+  - `db/migrations/admin/043_alerts_created_index.sql`
+  - `db/migrations/runtime/009_quality_alerts_last_seen_index.sql`
+  - `gnss/internal/maintenance/retention.go`
+  - `gnss/internal/quality/store.go`
+  - `gnss/internal/maintenance/runner_test.go`
+  - `server/src/lib/maintenance.ts`
+  - `server/src/lib/systemOptimize.ts`
+  - `server/tests/maintenance.test.ts`
+  - `server/tests/systemOptimize.test.ts`
+  - `frontend/src/pages/system/AutomationTab.tsx`
+  - `docs/OPS.md`
+- Test đã chạy:
+  - `go test ./...` → PASS toàn bộ.
+  - `npx vitest run` → 204/204 PASS, 41 file.
+  - `npx tsc --noEmit` → PASS.
+  - Migration local: admin 042, admin 043, runtime 009 applied; schema_version = 9.
+  - Fixture quality_alerts: old_open + old_resolved bị xoá; recent_open còn.
+  - Fixture alerts admin: old_open + old_acked bị xoá; recent_open còn.
+- Bằng chứng: `docs/1/evidence/plan17/step1.txt`.
+- Commit: `feat(plan17): bước 1 - retention 7 ngày và xoá alert theo tuổi`.
+- Việc còn lại: không; fixture đã dọn.

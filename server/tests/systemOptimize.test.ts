@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildRecommendations, splitTables, type TableRow } from '../src/lib/systemOptimize';
+import {
+  BACKLOG_SQL,
+  buildRecommendations,
+  splitTables,
+  type TableRow
+} from '../src/lib/systemOptimize';
 
 function tableRow(schema: string, name: string, total: number): TableRow {
   return {
@@ -33,6 +38,21 @@ describe('systemOptimize splitTables', () => {
     );
     const result = splitTables(rows, 'cors_admin');
     expect(result.admin.tables).toHaveLength(20);
+  });
+});
+
+describe('systemOptimize backlog SQL', () => {
+  it('quality-alerts xóa cả open theo last_seen', () => {
+    const sql = BACKLOG_SQL['quality-alerts'].condition(7);
+    expect(sql).toContain('last_seen');
+    expect(sql).not.toContain('resolved_at');
+  });
+
+  it('acked-alerts xóa cả open theo created_at', () => {
+    const sql = BACKLOG_SQL['acked-alerts'].condition(7);
+    expect(sql).toContain('created_at');
+    expect(sql).not.toContain("status = 'acked'");
+    expect(sql).not.toContain('acked_at');
   });
 });
 

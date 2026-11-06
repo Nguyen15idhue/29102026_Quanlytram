@@ -65,7 +65,6 @@ func TestSpecsKeepOpenRows(t *testing.T) {
 		"relay-sessions":     "end_ts IS NOT NULL",
 		"caster-connections": "end_ts IS NOT NULL",
 		"station-sessions":   "end_ts IS NOT NULL",
-		"quality-alerts":     "resolved_at IS NOT NULL",
 	}
 	for key, guard := range cases {
 		spec, ok := specs[key]
@@ -75,6 +74,20 @@ func TestSpecsKeepOpenRows(t *testing.T) {
 		if !strings.Contains(spec.where(30), guard) {
 			t.Fatalf("spec %s does not guard %q: %s", key, guard, spec.where(30))
 		}
+	}
+}
+
+func TestQualityAlertsDeletesAllOldRows(t *testing.T) {
+	spec, ok := specs["quality-alerts"]
+	if !ok {
+		t.Fatal("missing quality-alerts spec")
+	}
+	where := spec.where(7)
+	if strings.Contains(where, "resolved_at") {
+		t.Fatalf("quality-alerts must delete open rows too: %s", where)
+	}
+	if !strings.Contains(where, "last_seen") {
+		t.Fatalf("quality-alerts must filter by last_seen: %s", where)
 	}
 }
 

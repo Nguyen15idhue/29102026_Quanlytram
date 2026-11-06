@@ -1,0 +1,52 @@
+# PLAN 17 — BƯỚC 1 EVIDENCE
+
+Ngày: 2026-11-06 (Asia/Ho_Chi_Minh)
+
+## Migration local
+- admin 042_retention_7d.sql: applied
+- admin 043_alerts_created_index.sql: applied
+- runtime 009_quality_alerts_last_seen_index.sql: applied
+- runtime_meta.schema_version = 9
+
+## Retention sau migration
+Các job sau đều retention_days = 7:
+quality-samples, quality-alerts, relay-events, relay-sessions,
+caster-connections, station-sessions, rtcm-message-stats, acked-alerts.
+relay-hourly = 90; audit-logs = 365; web-sessions = 7.
+
+## Index
+- cors_admin.alerts.idx_alerts_created (created_at)
+- cors_runtime.quality_alerts.idx_quality_alerts_last_seen (last_seen, id)
+
+## Kiểm chứng xoá quality_alerts
+Fixture local:
+- test.old_open: last_seen 10 ngày, resolved_at NULL
+- test.old_resolved: last_seen 9 ngày, đã resolve
+- test.recent_open: last_seen 1 ngày, resolved_at NULL
+
+Chạy job quality-alerts (Go internal API, dryRun=false):
+- Lần 1: rows=2 (xoá old_open + old_resolved)
+- Còn lại: test.recent_open
+- quality_alerts cũ hơn 7 ngày = 0
+
+## Kiểm chứng xoá alerts admin
+Fixture local:
+- test.old_open: created_at 10 ngày, status open
+- test.old_acked: created_at 10 ngày, status acked
+- test.recent_open: created_at 1 ngày, status open
+
+Chạy job acked-alerts (Node runJob, dryRun=false):
+- rowsDeleted = 2 (xoá old_open + old_acked)
+- Còn lại: test.recent_open
+- alerts cũ hơn 7 ngày = 0
+
+Đã dọn toàn bộ fixture test.* / test:* sau kiểm chứng.
+
+## Test suite
+- cd gnss; go test ./... => PASS (all packages)
+- cd server; npx vitest run => 204/204 PASS, 41 file
+- cd frontend; npx tsc --noEmit => PASS
+
+## Ghi chú
+- Không sửa prod; chỉ local.
+- Không commit secret/.env.local.

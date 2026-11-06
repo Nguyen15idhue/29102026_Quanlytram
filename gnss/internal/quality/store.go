@@ -173,7 +173,7 @@ func (s *MySQLStore) Prune(ctx context.Context, sampleBefore time.Time, alertBef
 		return err
 	}
 	_, err := s.db.ExecContext(ctx,
-		fmt.Sprintf(`DELETE FROM quality_alerts WHERE resolved_at IS NOT NULL AND last_seen < ? ORDER BY id LIMIT %d`, batch),
+		fmt.Sprintf(`DELETE FROM quality_alerts WHERE last_seen < ? ORDER BY id LIMIT %d`, batch),
 		alertBefore.UTC(),
 	)
 	return err
