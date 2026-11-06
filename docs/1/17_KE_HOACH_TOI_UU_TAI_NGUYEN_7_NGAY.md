@@ -984,3 +984,19 @@ Ghi chú:
 - Bằng chứng: `docs/1/evidence/plan17/step2.txt`.
 - Commit: `feat(plan17): bước 2 - cấu hình RAM local`.
 - Việc còn lại: không; đây là cấu hình local, chưa deploy.
+
+### BƯỚC 3 — Giảm buffer relay (2026-11-06)
+- Trạng thái: **PASS**
+- File đã sửa:
+  - `gnss/internal/relay/bridge.go`
+  - `gnss/internal/relay/bridge_test.go`
+- Thay đổi: `MonitorBuffer 256→32`, `DownstreamBuffer 256→64`,
+  `ReadBuffer 32KB→8KB`; thêm test giới hạn buffer.
+- Test đã chạy:
+  - `go test ./...` → PASS toàn bộ.
+  - Load test mock 20 job → `streaming=20/20`; Go peak 16.3 MiB.
+  - Load test mock 50 job → `streaming=50/50`; Go peak 30.9 MiB; swap 0.
+  - Không thấy backlog/quality drop/monitor error trong log.
+- Bằng chứng: `docs/1/evidence/plan17/step3.txt`.
+- Commit: `feat(plan17): bước 3 - giảm buffer relay`.
+- Việc còn lại: không; byte RTCM không đổi, test byte-exact PASS.
