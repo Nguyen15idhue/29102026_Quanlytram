@@ -26,8 +26,7 @@ interface TimelineSegment {
 const RANGES: Array<{ value: TimelineRange; label: string }> = [
   { value: '1h', label: '1 giờ' },
   { value: '24h', label: '24 giờ' },
-  { value: '7d', label: '7 ngày' },
-  { value: '1m', label: '30 ngày' }
+  { value: '7d', label: '7 ngày' }
 ];
 
 const STATUS_LABEL: Record<TimelineStatus, string> = {

@@ -1038,3 +1038,26 @@ Ghi chú:
 - Bằng chứng: `docs/1/evidence/plan17/step5.txt`.
 - Commit: `docs(plan17): bước 5 - tổng kiểm tra và kết quả`.
 - Việc còn lại: chủ dự án kiểm tra thủ công; **chưa deploy VPS**.
+
+### BƯỚC 6 — Rà soát UI 30 ngày (2026-11-06)
+- Trạng thái: **PASS**
+- Vấn đề: tab `Dữ liệu` và `Lịch sử` vẫn còn nút `30 ngày` dù retention 7 ngày.
+- File đã sửa:
+  - `frontend/src/components/EntityTimeline.tsx`
+  - `frontend/src/components/EntityHistory.tsx`
+  - `frontend/tests/timeline.spec.ts`
+  - `scripts/load-test-mock.ps1`
+- Thay đổi:
+  - Bỏ range `1m`/`30 ngày` khỏi tab Dữ liệu; còn 1 giờ, 24 giờ, 7 ngày.
+  - Bỏ range `30d` khỏi tab Lịch sử; còn 24 giờ, 7 ngày.
+  - Test khẳng định không còn nút `30 ngày`.
+  - Cleanup load test disable job + chờ Go nhả runtime state trước khi xoá.
+- Test:
+  - `npx tsc --noEmit` → PASS.
+  - `npx playwright test tests/timeline.spec.ts` → 3/3 PASS.
+  - Load test mock 2 job → `streaming=2/2`; không còn job test sống.
+- Bằng chứng: `docs/1/evidence/plan17/step6.txt`.
+- Ghi chú local: trong lúc dọn test đã restore DB local từ backup
+  `cors-mysql-20261106-233319.sql.zip`; không ảnh hưởng prod.
+- Commit: `fix(plan17): bước 6 - bỏ mốc 30 ngày khỏi tab dữ liệu`.
+- Việc còn lại: chủ dự án kiểm tra lại UI local; **chưa deploy VPS**.

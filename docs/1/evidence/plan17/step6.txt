@@ -1,0 +1,33 @@
+# PLAN 17 — BƯỚC 6 (RÀ SOÁT UI 30 NGÀY) EVIDENCE
+
+Ngày: 2026-11-06 (Asia/Ho_Chi_Minh)
+
+## Vấn đề phát hiện
+- Tab `Dữ liệu` của Trạm/Relay vẫn hiển thị nút `30 ngày`.
+- Tab `Lịch sử` vẫn có range `30 ngày`.
+- Nguyên nhân: `EntityTimeline` còn range `1m` (label 30 ngày),
+  `EntityHistory` còn range `30d`.
+- Đây là thiếu sót UI so với retention 7 ngày; backend vẫn hỗ trợ range cũ
+  nhưng UI không còn hiển thị.
+
+## Sửa local
+- `frontend/src/components/EntityTimeline.tsx`: bỏ `1m`/30 ngày; còn 1 giờ, 24 giờ, 7 ngày.
+- `frontend/src/components/EntityHistory.tsx`: bỏ `30d`; còn 24 giờ, 7 ngày.
+- `frontend/tests/timeline.spec.ts`: bỏ kỳ vọng 30 ngày; thêm assert không còn nút 30 ngày;
+  dùng 7 ngày cho kiểm tra `trước khi tạo`.
+- `scripts/load-test-mock.ps1`: cleanup phải disable job, chờ Go nhả runtime state
+  rồi mới delete; tránh 409 RELAY_ONLINE và job test bị bỏ lại.
+
+## Dọn dữ liệu test local
+- Đã dọn 90 job `load-mock-*` còn sót sau các lần load test.
+- Trong quá trình dọn, script tìm kiếm cũ đã xoá nhầm toàn bộ relay job local;
+  đã restore lại DB local từ backup `cors-mysql-20261106-233319.sql.zip`
+  rồi dọn riêng `load-mock-*` theo tên.
+- Hiện local: 72 relay job sống (67 job thật + 5 fixture/docs), 0 load-mock.
+- Không ảnh hưởng prod.
+
+## Test
+- `cd frontend; npx tsc --noEmit` → PASS.
+- `npx playwright test tests/timeline.spec.ts --reporter=line` → 3/3 PASS.
+- Load test mock 2 job sau khi sửa cleanup → `streaming=2/2`,
+  không còn job `load-mock-*` sống.

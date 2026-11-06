@@ -112,10 +112,25 @@ try {
     try { if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force } } catch {}
   }
   if ($login -and -not $Keep) {
+    # Phải tắt job và chờ Go nhả runtime state trước khi xoá; nếu xoá ngay
+    # API trả 409 RELAY_ONLINE và job test bị bỏ lại.
     foreach ($id in $jobIds) {
       try {
-        Invoke-RestMethod -Uri "$Api/api/relay-jobs/$id" -Method Delete -Headers $csrf -WebSession $session | Out-Null
+        Invoke-RestMethod -Uri "$Api/api/relay-jobs/$id/disable" -Method Post -Headers $csrf -WebSession $session | Out-Null
       } catch {}
+    }
+    Start-Sleep -Seconds 12
+    foreach ($id in $jobIds) {
+      $deleted = $false
+      for ($try = 1; $try -le 4 -and -not $deleted; $try++) {
+        try {
+          Invoke-RestMethod -Uri "$Api/api/relay-jobs/$id" -Method Delete -Headers $csrf -WebSession $session | Out-Null
+          $deleted = $true
+        } catch {
+          if ($try -lt 4) { Start-Sleep -Seconds 4 }
+        }
+      }
+      if (-not $deleted) { Write-Output "CLEANUP_FAIL job=$id" }
     }
   }
   if ($Keep) {
