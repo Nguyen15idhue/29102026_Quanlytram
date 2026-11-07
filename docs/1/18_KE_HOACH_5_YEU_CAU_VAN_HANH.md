@@ -655,6 +655,35 @@ Yêu cầu:
 - Cập nhật 2 spec cũ: `caster-company` kỳ vọng port trống; `relay-station-mode`
   nhập `Nguồn port=1509` khi tạo thủ công.
 
+### P18-7 — Deploy production (2026-11-07)
+
+- Deploy bằng `update.sh` trên VPS `43.240.117.54`; commit `a8e67f2`
+  (gồm 7 commit P18 + fix Dockerfile).
+- Backup trước deploy:
+  `/opt/cors/backups/cors-prod-20261107-083339.sql.gz`
+  SHA256 `5b9f6aae…b884dbe7`.
+- Migration áp dụng: admin `044`, `045`, `046`; schema admin **46**,
+  runtime **9**.
+- Build `gnss` trên VPS ban đầu lỗi `go mod download` do proxy reset zip;
+  đã thêm `apk add git` vào `gnss/Dockerfile` để dùng `GOPROXY=direct`
+  (GitHub), sau đó build lại bằng mirror `goproxy.io`/`proxy.golang.com.cn`
+  PASS.
+- Smoke sau deploy:
+  - 5 container healthy; `https://rtktk.online/` → 200;
+    `/api/system/health` schema 46; web asset mới `index-Qh1gJV3d.js`.
+  - Sourcetable 2101 trả **28 STR**.
+  - RBAC: `admin.caster.edit=tenant`, `add/delete=none`; `user` chỉ view.
+  - `ntrip_accounts.listener_all/mountpoint_all` có dữ liệu; 3 tài khoản Wally
+    `listener_all=1`, `mountpoint_all=0`.
+  - `stations.port`, `relay_jobs.upstream_port/downstream_port` không còn
+    DEFAULT.
+  - 68 relay job; 48 streaming / 4 connecting / 1 backoff / 15 disabled;
+    job station-mode 452/489 `streaming`, `last_error=NULL` (tap nội bộ hoạt
+    động), station source 661/676 đang mở phiên.
+  - 55 kết nối caster đang mở.
+- Chưa thay đổi dữ liệu nghiệp vụ ngoài migration; rollback code:
+  `git checkout 920ad10 && bash update.sh`, restore dump nếu cần.
+
 ## 13. Rủi ro và rollback
 
 - **Double-feed quality**: nếu external publish cũng feed quality, số liệu
