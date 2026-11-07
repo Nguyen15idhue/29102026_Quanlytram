@@ -434,6 +434,8 @@ export interface NtripAccount {
   ownerName?: string | null;
   companyId?: number | null;
   companyName?: string | null;
+  listenerAll?: boolean;
+  mountpointAll?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

@@ -76,6 +76,10 @@ export function NtripAccounts() {
   const [error, setError] = useState('');
   const [aclIds, setAclIds] = useState<number[]>([]);
   const [listenerIds, setListenerIds] = useState<number[]>([]);
+  const [formListenerAll, setFormListenerAll] = useState(true);
+  const [formMountpointAll, setFormMountpointAll] = useState(true);
+  const [formListenerIds, setFormListenerIds] = useState<number[]>([]);
+  const [formMountpointIds, setFormMountpointIds] = useState<number[]>([]);
 
   const list = useQuery({
     queryKey: ['ntrip-accounts', listQuery],
@@ -103,6 +107,17 @@ export function NtripAccounts() {
       apiFetch<{ items: CasterListener[] }>('/api/caster/listeners?page=1&pageSize=50'),
     enabled: Boolean(detail) && can('caster', 'view')
   });
+  const formListeners = useQuery({
+    queryKey: ['caster-listeners', 'form-options'],
+    queryFn: () =>
+      apiFetch<{ items: CasterListener[] }>('/api/caster/listeners?page=1&pageSize=100'),
+    enabled: formOpen && can('caster', 'view')
+  });
+  const formMountpoints = useQuery({
+    queryKey: ['mountpoints', 'form-options'],
+    queryFn: () => apiFetch<MountpointList>('/api/mountpoints?pageSize=100'),
+    enabled: formOpen && can('mountpoints', 'view')
+  });
   const listenerAcl = useQuery({
     queryKey: ['ntrip-listener-acl', detail?.id],
     queryFn: () =>
@@ -123,6 +138,12 @@ export function NtripAccounts() {
 
   const save = useMutation({
     mutationFn: async () => {
+      if (!formListenerAll && formListenerIds.length === 0) {
+        throw new ApiClientError(400, 'LISTENER_REQUIRED', 'Phải chọn ít nhất 1 listener hoặc bật “Tất cả”');
+      }
+      if (!formMountpointAll && formMountpointIds.length === 0) {
+        throw new ApiClientError(400, 'MOUNTPOINT_REQUIRED', 'Phải chọn ít nhất 1 mountpoint hoặc bật “Tất cả”');
+      }
       const body: Record<string, unknown> = {
         username: form.username,
         enabled: form.enabled,
@@ -133,7 +154,11 @@ export function NtripAccounts() {
         valid_from: form.valid_from ? new Date(form.valid_from).toISOString() : null,
         valid_to: form.valid_to ? new Date(form.valid_to).toISOString() : null,
         available_area: form.available_area,
-        notes: form.notes
+        notes: form.notes,
+        listener_all: formListenerAll,
+        mountpoint_all: formMountpointAll,
+        ...(formListenerAll ? {} : { listenerIds: formListenerIds }),
+        ...(formMountpointAll ? {} : { mountpointIds: formMountpointIds })
       };
       if (form.password) body.password = form.password;
       if (isSuper && !editing && form.company_id) {
@@ -222,6 +247,10 @@ export function NtripAccounts() {
   function openCreate() {
     setEditing(null);
     setForm(emptyForm);
+    setFormListenerAll(true);
+    setFormMountpointAll(true);
+    setFormListenerIds([]);
+    setFormMountpointIds([]);
     setError('');
     setDirty(false);
     setFormOpen(true);
@@ -229,6 +258,25 @@ export function NtripAccounts() {
 
   function openEdit(account: NtripAccount) {
     setEditing(account);
+    setFormListenerAll(account.listenerAll ?? true);
+    setFormMountpointAll(account.mountpointAll ?? true);
+    setFormListenerIds([]);
+    setFormMountpointIds([]);
+    if (!account.listenerAll || !account.mountpointAll) {
+      apiFetch<{
+        item: { listenerIds: number[]; effectiveMountpoints: Mountpoint[] };
+      }>(`/api/ntrip-accounts/${account.id}`)
+        .then((detailData) => {
+          setFormListenerIds(detailData.item.listenerIds ?? []);
+          setFormMountpointIds(
+            (detailData.item.effectiveMountpoints ?? []).map((item) => item.id)
+          );
+        })
+        .catch(() => {
+          setFormListenerIds([]);
+          setFormMountpointIds([]);
+        });
+    }
     setForm({
       username: account.username,
       password: '',
@@ -571,6 +619,38 @@ export function NtripAccounts() {
           <Field label="Ghi chú">
             <Input value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} />
           </Field>
+          {(formListeners.data?.items.length || formMountpoints.data?.items.length) ? (
+            <>
+              <SearchableMultiSelect
+                items={formListeners.data?.items ?? []}
+                selectedIds={formListenerIds}
+                onChange={setFormListenerIds}
+                getId={(item) => item.id}
+                getLabel={(item) => `${item.name} :${item.port}`}
+                label="Listener (bắt buộc)"
+                placeholder="Tìm listener..."
+                allSelected={formListenerAll}
+                onToggleAll={setFormListenerAll}
+                allLabel="Tất cả listener (động)"
+              />
+              <SearchableMultiSelect
+                items={formMountpoints.data?.items ?? []}
+                selectedIds={formMountpointIds}
+                onChange={setFormMountpointIds}
+                getId={(item) => item.id}
+                getLabel={(item) => item.name}
+                label="Mountpoint (bắt buộc)"
+                placeholder="Tìm mountpoint..."
+                allSelected={formMountpointAll}
+                onToggleAll={setFormMountpointAll}
+                allLabel="Tất cả mountpoint (động)"
+              />
+              <p className="form-hint">
+                Mỗi trường bắt buộc ít nhất 1 lựa chọn hoặc bật “Tất cả”.
+                Khi Listener là “Tất cả”, mountpoint gồm toàn bộ mountpoint cùng công ty.
+              </p>
+            </>
+          ) : null}
           <label className="check">
             <input
               type="checkbox"
@@ -623,6 +703,14 @@ export function NtripAccounts() {
                 <dd>{detail.companyName ?? (detail.companyId ? `#${detail.companyId}` : '—')}</dd>
               </div>
               <div>
+                <dt>Listener</dt>
+                <dd>{detail.listenerAll ?? true ? 'Tất cả (động)' : 'Danh sách tĩnh'}</dd>
+              </div>
+              <div>
+                <dt>Mountpoint</dt>
+                <dd>{detail.mountpointAll ?? true ? 'Tất cả (động)' : 'Danh sách tĩnh'}</dd>
+              </div>
+              <div>
                 <dt>Liên hệ</dt>
                 <dd>{[detail.contactName, detail.email, detail.phone].filter(Boolean).join(' · ') || '—'}</dd>
               </div>
@@ -653,6 +741,8 @@ export function NtripAccounts() {
                     size="sm"
                     onClick={() => saveListener.mutate()}
                     loading={saveListener.isPending}
+                    disabled={detail.listenerAll ?? true}
+                    title={(detail.listenerAll ?? true) ? 'Đang dùng “Tất cả listener”; tắt ở form Sửa trước' : undefined}
                   >
                     <KeyRound size={14} aria-hidden="true" /> Lưu listener
                   </Button>
@@ -682,7 +772,13 @@ export function NtripAccounts() {
               <div className="table-head">
                 <h2>ACL mountpoint</h2>
                 {can('ntrip_accounts', 'edit') && (
-                  <Button size="sm" onClick={() => saveAcl.mutate()} loading={saveAcl.isPending}>
+                  <Button
+                    size="sm"
+                    onClick={() => saveAcl.mutate()}
+                    loading={saveAcl.isPending}
+                    disabled={detail.mountpointAll ?? true}
+                    title={(detail.mountpointAll ?? true) ? 'Đang dùng “Tất cả mountpoint”; tắt ở form Sửa trước' : undefined}
+                  >
                     <KeyRound size={14} aria-hidden="true" /> Lưu ACL
                   </Button>
                 )}

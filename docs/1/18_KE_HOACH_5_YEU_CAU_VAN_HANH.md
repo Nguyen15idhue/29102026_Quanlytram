@@ -808,3 +808,29 @@ Bằng chứng test:
 - `npx playwright test tests/p18-3-ntrip-account-all.spec.ts` → 1 PASS:
   tạo mặc định all=true, validate thiếu ids khi tắt all, effective trả mảng.
 
+### P18-4 — YC3 frontend (2026-11-07)
+
+Đã triển khai:
+
+- **`frontend/src/components/ui.tsx` (`SearchableMultiSelect`)**
+  - Thêm props `allSelected/onToggleAll/allLabel` (“Tất cả (động)”).
+  - Tìm kiếm có `Esc` để xóa; `role=listbox/option`, `aria-selected`,
+    `aria-disabled`; khi bật “Tất cả” thì vô hiệu hóa chọn lẻ và hiện ghi chú.
+- **`frontend/src/pages/NtripAccounts.tsx`**
+  - Form tạo/sửa có 2 trường bắt buộc **Listener** và **Mountpoint**, mặc định
+    “Tất cả (động)”; tắt “Tất cả” mà không chọn lẻ → lỗi client
+    `LISTENER_REQUIRED`/`MOUNTPOINT_REQUIRED`.
+  - `save` gửi `listener_all/mountpoint_all` + `listenerIds/mountpointIds` khi
+    tắt all; sửa tải ACL hiện có khi tài khoản đang dùng chế độ tĩnh.
+  - Chi tiết hiển thị trạng thái “Tất cả (động)”/“Danh sách tĩnh”; nút
+    “Lưu listener/ACL” bị khóa khi đang bật all (server cũng 400).
+- **`frontend/src/types.ts`**: `NtripAccount` thêm `listenerAll/mountpointAll`.
+
+Bằng chứng test:
+
+- `cd frontend && npm run build` PASS.
+- `npx playwright test tests/p18-4-ntrip-account-form.spec.ts` → 3 PASS:
+  form có 2 multiselect mặc định checked + validate ít nhất 1;
+  tạo tài khoản all qua UI và thấy cờ ở chi tiết (có dọn dữ liệu);
+  dialog không tràn ngang ở 390px.
+

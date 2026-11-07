@@ -363,7 +363,10 @@ export function SearchableMultiSelect<T>({
   getMeta,
   label,
   placeholder = 'Tìm và chọn...',
-  disabled = false
+  disabled = false,
+  allSelected = false,
+  onToggleAll,
+  allLabel = 'Tất cả (động)'
 }: {
   items: T[];
   selectedIds: number[];
@@ -374,6 +377,9 @@ export function SearchableMultiSelect<T>({
   label?: string;
   placeholder?: string;
   disabled?: boolean;
+  allSelected?: boolean;
+  onToggleAll?: (value: boolean) => void;
+  allLabel?: string;
 }) {
   const [query, setQuery] = useState('');
   const normalized = query.trim().toLowerCase();
@@ -390,15 +396,33 @@ export function SearchableMultiSelect<T>({
   };
   return (
     <div className="multi-select">
-      {label && <span className="field-label">{label}</span>}
+      {label && <span className="field-label" id={label ? undefined : undefined}>{label}</span>}
+      {onToggleAll && (
+        <label className="multi-select-option multi-select-all">
+          <input
+            type="checkbox"
+            checked={allSelected}
+            disabled={disabled}
+            onChange={(event) => onToggleAll(event.target.checked)}
+            aria-label={allLabel}
+          />
+          <span>
+            <strong>{allLabel}</strong>
+            <small className="muted">tự cập nhật khi thêm/bớt</small>
+          </span>
+        </label>
+      )}
       <div className="multi-select-input">
         <Search size={14} aria-hidden="true" />
         <input
           className="input"
           value={query}
           placeholder={placeholder}
-          disabled={disabled}
+          disabled={disabled || allSelected}
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') setQuery('');
+          }}
           aria-label={label ? `${label} tìm kiếm` : placeholder}
         />
       </div>
@@ -406,7 +430,7 @@ export function SearchableMultiSelect<T>({
         <button
           type="button"
           className="link-btn"
-          disabled={disabled}
+          disabled={disabled || allSelected}
           onClick={() => onChange([...new Set([...selectedIds, ...filtered.map(getId)])])}
         >
           Chọn tất cả{normalized ? ' kết quả' : ''}
@@ -414,25 +438,34 @@ export function SearchableMultiSelect<T>({
         <button
           type="button"
           className="link-btn"
-          disabled={disabled}
+          disabled={disabled || allSelected}
           onClick={() => onChange([])}
         >
           Bỏ chọn
         </button>
-        <span className="muted">{selectedIds.length} đã chọn</span>
+        <span className="muted">
+          {allSelected ? 'Đang dùng “Tất cả”' : `${selectedIds.length} đã chọn`}
+        </span>
       </div>
-      <div className="multi-select-list" role="group" aria-label={label ?? 'Danh sách lựa chọn'}>
-        {filtered.length === 0 ? (
+      <div
+        className="multi-select-list"
+        role="listbox"
+        aria-label={label ?? 'Danh sách lựa chọn'}
+        aria-disabled={disabled || allSelected}
+      >
+        {allSelected ? (
+          <div className="table-state">Đang dùng “Tất cả” — bỏ chọn để gán lẻ.</div>
+        ) : filtered.length === 0 ? (
           <div className="table-state">Không tìm thấy lựa chọn.</div>
         ) : (
           filtered.map((item) => {
             const id = getId(item);
             return (
-              <label key={id} className="multi-select-option">
+              <label key={id} className="multi-select-option" role="option" aria-selected={selected.has(id)}>
                 <input
                   type="checkbox"
                   checked={selected.has(id)}
-                  disabled={disabled}
+                  disabled={disabled || allSelected}
                   onChange={() => toggle(id)}
                   aria-label={getLabel(item)}
                 />
