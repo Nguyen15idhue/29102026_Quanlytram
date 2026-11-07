@@ -46,7 +46,7 @@ const WALLY_COMPANY_CODE = 'WALLY';
 
 const emptyForm = {
   name: '',
-  port: 2101,
+  port: '' as string | number,
   enabled: true,
   role: 'both',
   description: '',
@@ -107,9 +107,13 @@ function ListenerPanel() {
 
   const save = useMutation({
     mutationFn: async () => {
+      if (!editing && form.port === '') {
+        throw new ApiClientError(400, 'PORT_REQUIRED', 'Nhập port listener (1508/1509/2101 hoặc 1510–1599)');
+      }
       const body = {
         name: form.name,
-        port: Number(form.port),
+        ...(editing ? {} : { port: Number(form.port) }),
+        ...(editing && form.port !== '' ? { port: Number(form.port) } : {}),
         enabled: form.enabled,
         role: form.role,
         description: form.description,
@@ -197,7 +201,7 @@ function ListenerPanel() {
     setForm({
       ...emptyForm,
       company_id: defaultCompany?.id ?? '',
-      port: defaultCompany?.code === WALLY_COMPANY_CODE ? 2101 : CUSTOM_LISTENER_PORT_MIN
+      port: ''
     });
     setMountpointIds([]);
     setError('');
@@ -469,8 +473,11 @@ function ListenerPanel() {
               min={1508}
               max={2101}
               value={form.port}
+              placeholder="Nhập port"
               disabled={Boolean(editing) && !isSuper}
-              onChange={(event) => setForm({ ...form, port: Number(event.target.value) })}
+              onChange={(event) =>
+                setForm({ ...form, port: event.target.value === '' ? '' : Number(event.target.value) })
+              }
               required
             />
           </Field>

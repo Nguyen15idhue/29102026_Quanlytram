@@ -45,7 +45,7 @@ interface DictionaryItem {
 const DEFAULT_CASTER_LISTENER_PORT = 2101;
 
 const emptyForm = {
-  name: '', host: '', port: 1509, connection_type: 'ntrip',
+  name: '', host: '', port: '' as string | number, connection_type: 'ntrip',
   source_type: 'manual', ntrip_version: 'v1', ntrip_mode: 'v1_noauth',
   lat: '', lon: '', notes: '', station_type: 'reference', enabled: true,
   coordinate_type: 'wgs84', province: '', ward: '', address_detail: '',
@@ -54,7 +54,7 @@ const emptyForm = {
   contractor: '', region: '', address: '', device_id: '',
   network_type: '', network_mode: '', protocol: 'ntrip',
   source_role: 'ntrip_caster' as 'ntrip_client' | 'ntrip_caster',
-  client_host: '', client_port: 1509, client_mount: '', client_username: '',
+  client_host: '', client_port: '' as string | number, client_mount: '', client_username: '',
   client_password: '', client_tls: false, client_send_gga: false,
   client_nmea_interval_sec: 0, client_gga_lat: '', client_gga_lon: '',
   caster_version: 'v2' as 'v1' | 'v2',
@@ -286,10 +286,15 @@ export function Stations() {
 
   const save = useMutation({
     mutationFn: async () => {
+      if (form.source_role === 'ntrip_client' && form.client_port === '') {
+        throw new ApiClientError(400, 'PORT_REQUIRED', 'Nhập port NTRIP client (1–65535)');
+      }
       const sourceBody = {
         source_role: form.source_role,
         client_host: form.client_host,
-        client_port: Number(form.client_port),
+        ...(form.source_role === 'ntrip_client'
+          ? { client_port: Number(form.client_port) }
+          : {}),
         client_mount: form.client_mount,
         client_username: form.client_username,
         ...(form.client_password ? { client_password: form.client_password } : {}),
@@ -1457,9 +1462,14 @@ export function Stations() {
                     min={1}
                     max={65535}
                     value={form.client_port}
+                    placeholder="Nhập port"
                     onChange={(event) =>
-                      setForm({ ...form, client_port: Number(event.target.value) })
+                      setForm({
+                        ...form,
+                        client_port: event.target.value === '' ? '' : Number(event.target.value)
+                      })
                     }
+                    required
                   />
                 </Field>
                 <Field label="Client mountpoint">

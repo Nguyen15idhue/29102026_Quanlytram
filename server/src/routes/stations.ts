@@ -126,7 +126,7 @@ const createSchema = stationBaseSchema.extend({
   caster_password: z.string().max(512).optional(),
   caster_requires_auth: z.boolean().optional().default(true),
   client_host: z.string().max(190).optional().default(''),
-  client_port: z.number().int().min(1).max(65535).optional().default(1509),
+  client_port: z.number().int().min(1).max(65535).optional(),
   client_mount: z.string().max(128).optional().default(''),
   client_username: z.string().max(128).optional().default(''),
   client_password: z.string().max(512).optional(),
@@ -2450,7 +2450,7 @@ stationsRouter.post(
     const body = z
       .object({
         host: z.string().trim().min(1).max(190),
-        port: z.number().int().min(1).max(65535).default(1509),
+        port: z.number().int().min(1).max(65535),
         tls: z.boolean().optional().default(false),
         username: z.string().max(128).optional().default(''),
         password: z.string().max(512).optional().default(''),
@@ -2558,7 +2558,7 @@ stationsRouter.post(
 const sourceSchema = z.object({
   source_role: z.enum(['ntrip_client', 'ntrip_caster']).default('ntrip_caster'),
   client_host: z.string().max(190).optional().default(''),
-  client_port: z.number().int().min(1).max(65535).optional().default(1509),
+  client_port: z.number().int().min(1).max(65535).optional(),
   client_mount: z.string().max(128).optional().default(''),
   client_username: z.string().max(128).optional().default(''),
   client_password: z.string().max(512).optional(),

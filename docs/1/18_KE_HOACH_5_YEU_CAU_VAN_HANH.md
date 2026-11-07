@@ -834,3 +834,29 @@ Bằng chứng test:
   tạo tài khoản all qua UI và thấy cờ ở chi tiết (có dọn dữ liệu);
   dialog không tràn ngang ở 390px.
 
+### P18-5 — YC1 (2026-11-07)
+
+Đã triển khai:
+
+- **DB `046_drop_port_defaults.sql`**: bỏ `DEFAULT 1509` của
+  `stations.port`, `relay_jobs.upstream_port/downstream_port`; giữ `NOT NULL`.
+- **Backend**:
+  - `relayJobs.ts`: `endpointSchema.port` bắt buộc 1–65535, không default.
+  - `stations.ts`: `client_port` (create + source) và probe `port` bỏ default;
+    giữ fallback `?? 1509` khi đọc dữ liệu cũ/import.
+- **Frontend**:
+  - `RelayJobs.tsx`: `upstreamPort/downstreamPort` khởi tạo `''`, placeholder
+    “Nhập port”, `required` khi nhập thủ công; chặn submit khi bỏ trống.
+  - `Stations.tsx`: `port/client_port` khởi tạo `''`; chỉ gửi `client_port`
+    khi `source_role='ntrip_client'`; port caster hiển thị read-only theo listener.
+  - `Caster.tsx`: tạo mới `port=''` với placeholder; sửa giữ read-only cho
+    công ty (P18-2).
+
+Bằng chứng test:
+
+- `cd server && npx tsc --noEmit` PASS; `npm test` → 45 file / 216 test PASS.
+- Migration dev: `046_drop_port_defaults.sql applied`.
+- `cd frontend && npm run build` PASS.
+- `npx playwright test tests/p18-5-no-port-prefill.spec.ts` → 3 PASS:
+  relay port trống + chặn submit; caster tạo mới port trống; trạm client port trống.
+

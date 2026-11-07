@@ -55,7 +55,7 @@ const emptyForm = {
   upstreamStationId: 0,
   upstreamMountpointId: 0,
   upstreamHost: '',
-  upstreamPort: 1509,
+  upstreamPort: '' as string | number,
   upstreamMount: '',
   upstreamProxy: '',
   upstreamSsl: false,
@@ -67,7 +67,7 @@ const emptyForm = {
   downstreamMountpointId: 0,
   downstreamTargetMode: 'auto' as 'auto' | 'post' | 'source',
   downstreamHost: '',
-  downstreamPort: 1509,
+  downstreamPort: '' as string | number,
   downstreamMount: '',
   downstreamProxy: '',
   downstreamSsl: false,
@@ -268,6 +268,12 @@ export function RelayJobs() {
       const useStationUpstream = form.upstreamMode === 'station' && form.upstreamStationId > 0;
       const useStationDownstream =
         form.downstreamMode === 'station' && form.downstreamStationId > 0;
+      if (!useStationUpstream && form.upstreamPort === '') {
+        throw new ApiClientError(400, 'PORT_REQUIRED', 'Nhập port nguồn (1–65535)');
+      }
+      if (!useStationDownstream && form.downstreamPort === '') {
+        throw new ApiClientError(400, 'PORT_REQUIRED', 'Nhập port đích (1–65535)');
+      }
       const body = {
         externalKey: form.externalKey || null,
         name: form.name,
@@ -919,9 +925,14 @@ export function RelayJobs() {
                       min={1}
                       max={65535}
                       value={form.upstreamPort}
+                      placeholder="Nhập port"
                       onChange={(event) =>
-                        setForm({ ...form, upstreamPort: Number(event.target.value) })
+                        setForm({
+                          ...form,
+                          upstreamPort: event.target.value === '' ? '' : Number(event.target.value)
+                        })
                       }
+                      required
                     />
                   </Field>
                   <Field label="Nguồn mount">
@@ -1076,9 +1087,14 @@ export function RelayJobs() {
                       min={1}
                       max={65535}
                       value={form.downstreamPort}
+                      placeholder="Nhập port"
                       onChange={(event) =>
-                        setForm({ ...form, downstreamPort: Number(event.target.value) })
+                        setForm({
+                          ...form,
+                          downstreamPort: event.target.value === '' ? '' : Number(event.target.value)
+                        })
                       }
+                      required
                     />
                   </Field>
                   <Field label="Đích mount">
