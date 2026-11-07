@@ -734,3 +734,37 @@ Bằng chứng test:
   form nguồn chọn trạm không có mountpoint + lưu `upstreamMountpointId=null`;
   mountpoint tạo mới auto-map vào listener cùng công ty.
 
+### P18-2 — YC2 (2026-11-07)
+
+Đã triển khai:
+
+- **Migration `044_caster_edit_company.sql**
+  - `admin.caster.edit = 'tenant'`; `user` giữ `caster.view='tenant'`,
+    `caster.edit/add/delete='none'`.
+- **Server `server/src/routes/caster.ts**
+  - `PATCH /listeners/:id`: non-super đổi `port` → `400 IMMUTABLE_FIELD`,
+    đổi `company_id` → `400 COMPANY_IMMUTABLE`; kèm `console.warn` để audit
+    tối thiểu.
+  - Cho phép `name/role/description/enabled/mountpointIds`; giữ
+    `assertRecordScope`.
+  - `PUT /listeners/:id/mountpoints` và `PATCH` gắn mountpoint: dùng
+    `assertMountpointsSameCompany` theo company của listener, bỏ kiểm tra
+    `writableMountpointIds` cá nhân (D18-5).
+  - `GET /listeners/:id/mountpoints` và chi tiết: chấp nhận mountpoint
+    `company_id IS NULL` thuộc công ty (D18-10).
+- **UI `frontend/src/pages/Caster.tsx**
+  - Ô `Port` disabled khi sửa và không phải super_admin; hint ghi rõ port do
+    super admin quản lý.
+  - Thêm cảnh báo khi tắt listener: ngắt toàn bộ client đang kết nối.
+  - Admin: có nút Sửa, ẩn Tạo/Xóa (qua `can('caster',...)`); user: chỉ xem.
+
+Bằng chứng test:
+
+- `cd server && npx tsc --noEmit -p tsconfig.json` PASS.
+- `cd server && npm test -- tests/casterCompanyEdit.test.ts
+  tests/casterListener.test.ts` → 10 PASS.
+- `cd frontend && npm run build` PASS.
+- `npx playwright test tests/caster-company.spec.ts` → 3 PASS (không hồi quy P15).
+- `npx playwright test tests/p18-2-listener-company-edit.spec.ts` → 2 PASS:
+  admin sửa tên, port read-only, API chặn đổi port/company; user chỉ xem.
+

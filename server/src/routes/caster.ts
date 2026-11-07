@@ -132,7 +132,7 @@ async function assertMountpointsSameCompany(
     throw new ApiError(400, 'INVALID_MOUNTPOINT', 'Mountpoint không tồn tại');
   }
   if (companyId === null) return;
-  if (rows.some((row) => Number(row.company_id) !== companyId)) {
+  if (rows.some((row) => row.company_id !== null && Number(row.company_id) !== companyId)) {
     throw new ApiError(400, 'CROSS_COMPANY_MOUNTPOINT', 'Mountpoint phải cùng công ty với listener');
   }
 }
@@ -144,7 +144,7 @@ async function listenerMountpointIds(id: number, req?: Request): Promise<number[
       `SELECT lm.mountpoint_id
          FROM caster_listener_mountpoints lm
          JOIN mountpoints m ON m.id = lm.mountpoint_id
-        WHERE lm.listener_id = ? AND m.company_id = ?
+        WHERE lm.listener_id = ? AND (m.company_id = ? OR m.company_id IS NULL)
         ORDER BY lm.mountpoint_id`,
       [id, Number(req.auth.companyId)]
     );
@@ -333,6 +333,28 @@ casterRouter.patch(
       listenerCompanyId(before)
     );
     const body = listenerUpdateSchema.parse(req.body);
+    const isSuper = req.auth!.roleCode === 'super_admin';
+    if (!isSuper) {
+      if (body.port !== undefined && Number(body.port) !== Number(before.port)) {
+        console.warn(
+          `[caster] từ chối đổi port listener ${id} bởi user ${req.auth!.id}: ${before.port} -> ${body.port}`
+        );
+        throw new ApiError(
+          400,
+          'IMMUTABLE_FIELD',
+          'Công ty không được đổi port của listener; liên hệ super admin'
+        );
+      }
+      if (
+        body.company_id !== undefined &&
+        (body.company_id === null ? null : Number(body.company_id)) !== listenerCompanyId(before)
+      ) {
+        console.warn(
+          `[caster] từ chối đổi công ty listener ${id} bởi user ${req.auth!.id}`
+        );
+        throw new ApiError(400, 'COMPANY_IMMUTABLE', 'Không được đổi công ty của listener');
+      }
+    }
     let companyId = listenerCompanyId(before);
     if (body.company_id !== undefined) {
       if (companyId !== null && Number(body.company_id) !== companyId) {
@@ -365,10 +387,8 @@ casterRouter.patch(
       body.mountpointIds === undefined ? null : validateMountpointIds(body.mountpointIds);
     if (mountpointIds) {
       await assertMountpointsSameCompany(mountpointIds, companyId);
-      const writable = await writableMountpointIds(req);
-      if (writable && mountpointIds.some((mountpointId) => !writable.has(mountpointId))) {
-        throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
-      }
+      // Admin công ty được gắn mountpoint của người khác trong cùng công ty
+      // (D18-5); phạm vi công ty đã được kiểm tra ở trên.
     }
     try {
       await withTransaction(async (conn) => {
@@ -581,7 +601,7 @@ casterRouter.get(
     if (!listener) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy listener');
     const companyId = listenerCompanyId(listener);
     await assertRecordScope(req, listener.owner_web_user_id, 'owner_web_user_id', companyId);
-    const companyFilter = companyId === null ? '' : ' AND m.company_id = ?';
+    const companyFilter = companyId === null ? '' : ' AND (m.company_id = ? OR m.company_id IS NULL)';
     const params: unknown[] = companyId === null ? [id] : [id, companyId];
     const rows = await query<RowDataPacket[]>(
       `SELECT m.id, m.name, m.station_id, s.name AS station_name
@@ -607,10 +627,8 @@ casterRouter.put(
     const body = listenerMountpointsSchema.parse(req.body);
     const mountpointIds = validateMountpointIds(body.mountpointIds);
     await assertMountpointsSameCompany(mountpointIds, companyId);
-    const writable = await writableMountpointIds(req);
-    if (writable && mountpointIds.some((mountpointId) => !writable.has(mountpointId))) {
-      throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy mountpoint');
-    }
+    // Chỉ admin công ty (caster.edit = tenant) gọi được route này; mountpoint
+    // cùng công ty là đủ, không giới hạn theo owner cá nhân (D18-5).
     const beforeMountpointIds = await listenerMountpointIds(id);
     await withTransaction(async (conn) => {
       await conn.query('DELETE FROM caster_listener_mountpoints WHERE listener_id = ?', [id]);

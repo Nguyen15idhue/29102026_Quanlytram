@@ -462,13 +462,14 @@ function ListenerPanel() {
           )}
           <Field
             label="Port"
-            hint="Wally: 1508/1509/2101; công ty khác: 1510–1599"
+            hint={Boolean(editing) && !isSuper ? 'Port do super admin quản lý; công ty không được đổi.' : 'Wally: 1508/1509/2101; công ty khác: 1510–1599'}
           >
             <Input
               type="number"
               min={1508}
               max={2101}
               value={form.port}
+              disabled={Boolean(editing) && !isSuper}
               onChange={(event) => setForm({ ...form, port: Number(event.target.value) })}
               required
             />
@@ -497,6 +498,11 @@ function ListenerPanel() {
             />
             Bật listener
           </label>
+          {Boolean(editing) && !form.enabled && (
+            <p className="form-hint" role="note">
+              Tắt listener sẽ ngắt toàn bộ client (source/rover) đang kết nối qua cổng này.
+            </p>
+          )}
           {mountpoints.data?.items.length ? (
             <SearchableMultiSelect
               items={mountpoints.data.items}
