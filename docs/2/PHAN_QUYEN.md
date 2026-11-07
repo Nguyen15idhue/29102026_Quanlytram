@@ -257,9 +257,9 @@ Ký hiệu: `all` = toàn hệ thống, `tenant` = toàn company, `own` = của 
 | `alerts.view` | all | tenant | own |
 | `alerts.ack` | all | tenant | none |
 | `audit.view` | all | tenant | none |
-| `caster.view` | all | all | none |
+| `caster.view` | all | tenant | tenant |
 | `caster.add` | all | none | none |
-| `caster.edit` | all | none | none |
+| `caster.edit` | all | tenant | none |
 | `caster.delete` | all | none | none |
 | `companies.view` | all | none | none |
 | `companies.add` | all | none | none |
@@ -632,12 +632,12 @@ User chỉ xem relay company; không thêm/sửa/xóa.
 | GET | `/listeners` | `caster.view` | Xem company mình | Xem company mình |
 | GET | `/listeners/:id` | `caster.view` | Xem company mình; `mountpointIds` cùng company | Xem company mình |
 | POST | `/listeners` | `caster.add` | 403 | 403 |
-| PATCH | `/listeners/:id` | `caster.edit` | 403 | 403 |
-| POST | `/listeners/bulk` | `caster.edit/delete` | 403 | 403 |
+| PATCH | `/listeners/:id` | `caster.edit` | Sửa company mình (trừ port/company) | 403 |
+| POST | `/listeners/bulk` | `caster.edit/delete` | enable/disable được; delete 403 | 403 |
 | DELETE | `/listeners/:id` | `caster.delete` | 403 | 403 |
-| POST | `/:id/enable|disable` | `caster.edit` | 403 | 403 |
+| POST | `/:id/enable|disable` | `caster.edit` | Được (company mình) | 403 |
 | GET | `/:id/mountpoints` | `caster.view` | Mountpoint cùng company | Mountpoint cùng company |
-| PUT | `/:id/mountpoints` | `caster.edit` | 403 | 403 |
+| PUT | `/:id/mountpoints` | `caster.edit` | Gắn mountpoint cùng company (D18-5) | 403 |
 
 - Listener response: `global: false`, `companyId`, `companyName`,
   `ownerWebUserId`, `ownerName`.

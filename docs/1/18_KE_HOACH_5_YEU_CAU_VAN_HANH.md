@@ -621,26 +621,39 @@ Yêu cầu:
 
 ## 12. Checklist nghiệm thu
 
-- [ ] Chọn trạm nguồn `ntrip_client` không tạo kết nối ra hệ thống ngoài.
-- [ ] Relay nhận byte từ station source nội bộ; source chết → lỗi, không
+- [x] Chọn trạm nguồn `ntrip_client` không tạo kết nối ra hệ thống ngoài.
+- [x] Relay nhận byte từ station source nội bộ; source chết → lỗi, không
       fallback.
-- [ ] Mountpoint `ntrip_client` được map listener và rover nhận dữ liệu qua
+- [x] Mountpoint `ntrip_client` được map listener và rover nhận dữ liệu qua
       caster hub.
-- [ ] Không double-feed quality.
-- [ ] Form không còn prefill 1509/2101; port bắt buộc khi nhập thủ công.
-- [ ] Admin công ty sửa listener được; không đổi port/company; không xóa.
-- [ ] User chỉ xem listener.
-- [ ] User không gắn được mountpoint của người khác.
-- [ ] Form NTRIP account có 2 multiselect bắt buộc, mặc định “Tất cả”.
-- [ ] “Tất cả mountpoint” động: thêm/bớt mountpoint listener → quyền đổi ngay
+- [x] Không double-feed quality.
+- [x] Form không còn prefill 1509/2101; port bắt buộc khi nhập thủ công.
+- [x] Admin công ty sửa listener được; không đổi port/company; không xóa.
+- [x] User chỉ xem listener.
+- [x] User không gắn được mountpoint của người khác.
+- [x] Form NTRIP account có 2 multiselect bắt buộc, mặc định “Tất cả”.
+- [x] “Tất cả mountpoint” động: thêm/bớt mountpoint listener → quyền đổi ngay
       sau reconcile.
-- [ ] `mountpoint_all` chỉ admin công ty đặt được.
-- [ ] Mountpoint tạo từ mọi đường đều map listener cùng company.
-- [ ] Mountpoint company NULL map toàn bộ listener (theo D18-10).
-- [ ] Listener mới không tự backfill mountpoint (D18-9).
-- [ ] Sourcetable công khai vẫn trả đủ mountpoint enabled.
-- [ ] Server test, Go test/vet, frontend build, Playwright PASS.
-- [ ] Không secret trong diff; không chạm `relayrtcm/backup`.
+- [x] `mountpoint_all` chỉ admin công ty đặt được.
+- [x] Mountpoint tạo từ mọi đường đều map listener cùng company.
+- [x] Mountpoint company NULL map toàn bộ listener (theo D18-10).
+- [x] Listener mới không tự backfill mountpoint (D18-9).
+- [x] Sourcetable công khai vẫn trả đủ mountpoint enabled.
+- [x] Server test, Go test/vet, frontend build, Playwright PASS.
+- [x] Không secret trong diff; không chạm `relayrtcm/backup`.
+
+### P18-6 — Tổng kiểm tra và regression (2026-11-07)
+
+- `cd gnss && go test ./...` PASS (toàn bộ package); `go vet ./...` PASS.
+- `cd server && npx tsc --noEmit` PASS; `npm test` → 45 file / 216 test PASS.
+- `cd frontend && npm run build` PASS.
+- Playwright (sau restart server/web, migration 044–046 đã áp dụng):
+  - `p18-1` (2), `p18-2` (2), `p18-3` (1), `p18-4` (3), `p18-5` (3) → 11 PASS.
+  - `caster-company.spec.ts` (3) + `relay-station-mode.spec.ts` (1) → 4 PASS
+    sau khi cập nhật 2 assertion cũ theo YC1 (form không prefill 2101;
+    relay thủ công phải nhập port).
+- Cập nhật 2 spec cũ: `caster-company` kỳ vọng port trống; `relay-station-mode`
+  nhập `Nguồn port=1509` khi tạo thủ công.
 
 ## 13. Rủi ro và rollback
 

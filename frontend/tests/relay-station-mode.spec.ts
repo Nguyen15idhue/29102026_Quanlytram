@@ -71,6 +71,7 @@ test.describe('Relay — chọn trạm nguồn/đích', () => {
 
     const name = `E2E-STATION-UI-${Date.now()}`;
     await sections.nth(0).getByLabel('Nguồn host').fill('example.invalid');
+    await sections.nth(0).getByLabel('Nguồn port').fill('1509');
     await sections.nth(0).getByLabel('Nguồn mount').fill(`${name}-UP`);
     await sections.nth(2).getByLabel('Tên').fill(name);
     await page.getByRole('button', { name: 'Thêm', exact: true }).click();

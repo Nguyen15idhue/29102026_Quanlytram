@@ -35,7 +35,8 @@ test.describe('P15 listener theo công ty', () => {
     await page.getByRole('button', { name: 'Thêm listener' }).click();
     const dialog = page.getByRole('dialog');
     await expect(dialog.locator('select').first()).toBeVisible();
-    await expect(dialog.locator('input[type="number"]')).toHaveValue('2101');
+    // P18-5 YC1: form tạo mới không prefill port.
+    await expect(dialog.locator('input[type="number"]')).toHaveValue('');
     await dialog.getByRole('button', { name: 'Hủy' }).click();
   });
 
