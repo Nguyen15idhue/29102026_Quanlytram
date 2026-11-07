@@ -56,6 +56,55 @@ export function isForbiddenCasterPort(port: number): boolean {
   return FORBIDDEN_CASTER_PORTS.has(port);
 }
 
+/** Kết nối tối thiểu dùng được cho helper (pool hoặc transaction). */
+export interface Queryable {
+  query: (sql: string, values?: any) => Promise<any>;
+}
+
+/**
+ * YC4 — gán một mountpoint vào listener hiện có cùng công ty.
+ * companyId = null nghĩa là mountpoint toàn cục (D18-10): gán vào mọi listener.
+ * Dùng INSERT IGNORE để chống trùng và chạy được trong transaction.
+ */
+export async function mapMountpointToCompanyListeners(
+  conn: Queryable,
+  mountpointId: number,
+  companyId: number | null
+): Promise<number> {
+  const [result] = await conn.query(
+    companyId === null
+      ? `INSERT IGNORE INTO caster_listener_mountpoints (listener_id, mountpoint_id)
+         SELECT id, ? FROM caster_listeners`
+      : `INSERT IGNORE INTO caster_listener_mountpoints (listener_id, mountpoint_id)
+         SELECT id, ? FROM caster_listeners WHERE company_id = ?`,
+    companyId === null ? [mountpointId] : [mountpointId, companyId]
+  );
+  return Number(result?.affectedRows ?? 0);
+}
+
+/**
+ * Remap toàn bộ mountpoint → listener cùng công ty. Dùng cho import để xử lý
+ * trường hợp listener được tạo sau mountpoint. company NULL áp dụng mọi listener.
+ */
+export async function remapAllMountpointsToCompanyListeners(conn: Queryable): Promise<number> {
+  await conn.query(
+    `DELETE lm FROM caster_listener_mountpoints lm
+       JOIN mountpoints m ON m.id = lm.mountpoint_id
+       JOIN caster_listeners l ON l.id = lm.listener_id
+      WHERE m.company_id IS NOT NULL
+        AND l.company_id IS NOT NULL
+        AND m.company_id <> l.company_id`
+  );
+  const [result] = await conn.query(
+    `INSERT IGNORE INTO caster_listener_mountpoints (listener_id, mountpoint_id)
+     SELECT l.id, m.id
+       FROM mountpoints m
+       JOIN caster_listeners l
+         ON (m.company_id IS NULL OR l.company_id = m.company_id)`
+  );
+  return Number(result?.affectedRows ?? 0);
+}
+
 export function isListenerEnabled(row: { enabled: unknown }): boolean {
   return Number(row.enabled) === 1;
 }

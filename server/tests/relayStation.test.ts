@@ -50,7 +50,7 @@ describe('relayStation', () => {
     queryMock.mockReset();
   });
 
-  it('chọn trạm nguồn nội bộ: dùng mountpoint, không cần credential NTRIP', async () => {
+  it('chọn trạm nguồn nội bộ: bỏ qua mountpoint, không cần credential NTRIP', async () => {
     mockQueries([baseStation], [mountpoint]);
 
     const resolved = await resolveStationEndpoint(SCOPE, 5, 9, 'source');
@@ -59,13 +59,15 @@ describe('relayStation', () => {
       host: '127.0.0.1',
       port: 1509,
       mount: 'HL_RTCM',
-      ntripVersion: 'v2'
+      ntripVersion: 'v2',
+      direct: true
     });
     expect(resolved.credential).toBeNull();
-    expect(resolved.mountpointId).toBe(9);
+    expect(resolved.mountpointId).toBeNull();
+    expect(resolved.direct).toBe(true);
   });
 
-  it('trạm ntrip_client: nguồn dùng client_* kể cả khi có mountpoint nội bộ', async () => {
+  it('trạm ntrip_client: nguồn chỉ hiển thị client_*, không dùng để kết nối', async () => {
     mockQueries(
       [
         {
@@ -93,10 +95,12 @@ describe('relayStation', () => {
       host: 'rtk.example',
       port: 2101,
       mount: 'EXT',
-      ssl: true
+      ssl: true,
+      direct: true
     });
-    expect(resolved.credential).toEqual({ username: 'ext-user', password: 'ext-pass' });
+    expect(resolved.credential).toBeNull();
     expect(resolved.mountpointId).toBeNull();
+    expect(resolved.direct).toBe(true);
   });
 
   it('trạm ntrip_client: đích vẫn dùng mountpoint nội bộ', async () => {
@@ -126,7 +130,7 @@ describe('relayStation', () => {
     expect(resolved.mountpointId).toBe(9);
   });
 
-  it('trạm ntrip_client không có mountpoint: fallback client_* và giải mã AAD', async () => {
+  it('trạm ntrip_client không có mountpoint: vẫn trả nguồn hiển thị nội bộ và không credential', async () => {
     mockQueries(
       [
         {
@@ -154,9 +158,11 @@ describe('relayStation', () => {
       host: 'rtk.example',
       port: 2101,
       mount: 'EXT',
-      ssl: true
+      ssl: true,
+      direct: true
     });
-    expect(resolved.credential).toEqual({ username: 'ext-user', password: 'ext-pass' });
+    expect(resolved.credential).toBeNull();
+    expect(resolved.mountpointId).toBeNull();
   });
 
   it('trạm đích có nguồn no-auth thì không cần credential', async () => {

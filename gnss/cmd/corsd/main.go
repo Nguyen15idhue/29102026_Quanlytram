@@ -126,12 +126,18 @@ func main() {
 		casterOptions,
 	)
 	options.StationTap = casterManager.OpenStationTap
-	manager := relay.NewManager(store, writer, options)
 	stationSourceManager := relay.NewStationSourceManager(
 		relay.NewStationSourceStore(adminDB, cfg.AppEncKey),
 		relay.NewStationSourceSessionStore(runtimeDB),
-		relay.StationSourceOptions{Options: options, IdleTimeout: cfg.StationSourceIdleTimeout},
+		relay.StationSourceOptions{
+			Options:     options,
+			IdleTimeout: cfg.StationSourceIdleTimeout,
+			Publish:     casterManager.PublishStationSource,
+			SessionEnd:  casterManager.DetachStationSource,
+		},
 	)
+	options.StationSourceTap = stationSourceManager.OpenTap
+	manager := relay.NewManager(store, writer, options)
 
 	probeOptions := probe.DefaultOptions()
 	probeOptions.PollInterval = cfg.ProbePollInterval

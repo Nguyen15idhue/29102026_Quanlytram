@@ -105,7 +105,7 @@ func TestScanJobDecryptsV2CredentialWithRecordAAD(t *testing.T) {
 	}
 }
 
-func TestScanJobMarksDirectUpstreamOnlyForCasterStation(t *testing.T) {
+func TestScanJobMarksDirectUpstreamForAnyStation(t *testing.T) {
 	store := NewMySQLStore(nil, testKey(8))
 
 	direct := jobRow("", 0, "", 0)
@@ -119,17 +119,35 @@ func TestScanJobMarksDirectUpstreamOnlyForCasterStation(t *testing.T) {
 	if !job.UpstreamDirect {
 		t.Fatal("trạm ntrip_caster phải đọc trực tiếp")
 	}
+	if job.Upstream.Key != "station://5" {
+		t.Fatalf("upstream key = %q", job.Upstream.Key)
+	}
 
 	client := jobRow("", 0, "", 0)
 	client[14] = int64(5)
-	client[15] = int64(9)
+	client[15] = int64(0)
 	client[16] = "ntrip_client"
 	job, err = store.scanJob(&fakeRow{values: client})
 	if err != nil {
 		t.Fatalf("scanJob client: %v", err)
 	}
+	if !job.UpstreamDirect {
+		t.Fatal("trạm ntrip_client phải đọc trực tiếp station source nội bộ")
+	}
+	if job.Upstream.Key != "station://5" {
+		t.Fatalf("upstream key client = %q", job.Upstream.Key)
+	}
+
+	manual := jobRow("", 0, "", 0)
+	manual[14] = int64(0)
+	manual[15] = int64(0)
+	manual[16] = ""
+	job, err = store.scanJob(&fakeRow{values: manual})
+	if err != nil {
+		t.Fatalf("scanJob manual: %v", err)
+	}
 	if job.UpstreamDirect {
-		t.Fatal("trạm ntrip_client không được đọc trực tiếp caster")
+		t.Fatal("job nhập thủ công không được đọc trực tiếp")
 	}
 }
 

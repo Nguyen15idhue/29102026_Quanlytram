@@ -276,7 +276,7 @@ export function RelayJobs() {
         ...(useStationUpstream
           ? {
               upstreamStationId: form.upstreamStationId,
-              upstreamMountpointId: form.upstreamMountpointId || null
+              upstreamMountpointId: null
             }
           : {
               upstreamStationId: null,
@@ -878,11 +878,10 @@ export function RelayJobs() {
                       value={form.upstreamStationId}
                       onChange={(event) => {
                         const stationId = Number(event.target.value);
-                        const station = stationItems.find((item) => item.id === stationId);
                         setForm({
                           ...form,
                           upstreamStationId: stationId,
-                          upstreamMountpointId: station?.mountpoints[0]?.id ?? 0
+                          upstreamMountpointId: 0
                         });
                       }}
                     >
@@ -895,30 +894,14 @@ export function RelayJobs() {
                       ))}
                     </Select>
                   </Field>
-                  {upstreamStation && upstreamStation.mountpoints.length > 1 && (
-                    <Field label="Mountpoint nguồn">
-                      <Select
-                        value={form.upstreamMountpointId}
-                        onChange={(event) =>
-                          setForm({ ...form, upstreamMountpointId: Number(event.target.value) })
-                        }
-                      >
-                        {upstreamStation.mountpoints.map((mountpoint) => (
-                          <option key={mountpoint.id} value={mountpoint.id}>
-                            {mountpoint.name}
-                          </option>
-                        ))}
-                      </Select>
-                    </Field>
-                  )}
                   <p className="form-hint">
                     {upstreamStation?.source
                       ? upstreamStation.source.direct
-                        ? 'Đọc trực tiếp source của trạm trên caster nội bộ · không cần tài khoản NTRIP'
+                        ? 'Đọc trực tiếp nguồn của trạm trên hệ thống · không mở kết nối NTRIP ra ngoài'
                         : `Sẽ dùng ${upstreamStation.source.host}:${upstreamStation.source.port}/${upstreamStation.source.mount} · NTRIP ${upstreamStation.source.ntripVersion.toUpperCase()} · ${
                             upstreamStation.source.username || 'không tài khoản'
                           }`
-                      : 'Trạm này chưa có listener hoặc cấu hình nguồn NTRIP.'}
+                      : 'Trạm này chưa có nguồn dữ liệu nội bộ.'}
                   </p>
                 </>
               ) : (

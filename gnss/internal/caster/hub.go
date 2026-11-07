@@ -14,6 +14,9 @@ type hub struct {
 
 	mu      sync.Mutex
 	source  *connection
+	// externalSourceID đánh dấu source của trạm ntrip_client được bridge từ
+	// station source manager vào hub này (single-writer theo stationID).
+	externalSourceID int64
 	rovers  map[int64]*connection
 	taps    map[int64]*stationTap
 	nextTap int64
@@ -44,7 +47,7 @@ func (h *hub) snapshotMountpoint() *MountpointConfig {
 func (h *hub) addSource(c *connection) bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.source != nil || c.isClosed() {
+	if h.source != nil || h.externalSourceID != 0 || c.isClosed() {
 		return false
 	}
 	h.source = c
@@ -58,7 +61,7 @@ func (h *hub) addSource(c *connection) bool {
 func (h *hub) hasSource() bool {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	return h.source != nil
+	return h.source != nil || h.externalSourceID != 0
 }
 
 // currentSource trả source đang giữ mountpoint. Dùng khi trạm mở kết nối mới:
@@ -99,7 +102,7 @@ func (h *hub) detachSource(c *connection) {
 func (h *hub) takeRoversIfNoSource() []*connection {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.source != nil {
+	if h.source != nil || h.externalSourceID != 0 {
 		return nil
 	}
 	h.closeTapsLocked()
@@ -141,7 +144,7 @@ func (h *hub) removeRover(c *connection) {
 func (h *hub) openTap() (*stationTap, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if h.source == nil {
+	if h.source == nil && h.externalSourceID == 0 {
 		return nil, errNoSource
 	}
 	h.nextTap++
@@ -212,4 +215,71 @@ func (h *hub) publishFrom(source *connection, data []byte) {
 
 func (h *hub) stats() rtcm.Stats {
 	return h.monitor.Snapshot()
+}
+
+// attachExternal đánh dấu hub đang được bridge bởi station source của trạm.
+// Trả false khi hub đã có source thật hoặc đang do trạm khác bridge.
+func (h *hub) attachExternal(stationID int64) bool {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.source != nil {
+		return false
+	}
+	if h.externalSourceID == 0 {
+		h.externalSourceID = stationID
+		return true
+	}
+	return h.externalSourceID == stationID
+}
+
+// publishExternal nhận byte từ station source manager. Không feed quality vì
+// station source manager đã feed quality ingest cho cùng trạm.
+func (h *hub) publishExternal(stationID int64, data []byte) {
+	copied := append([]byte(nil), data...)
+
+	h.mu.Lock()
+	if stationID == 0 || h.externalSourceID != stationID {
+		h.mu.Unlock()
+		return
+	}
+	rovers := make([]*connection, 0, len(h.rovers))
+	for _, rover := range h.rovers {
+		rovers = append(rovers, rover)
+	}
+	taps := make([]*stationTap, 0, len(h.taps))
+	for _, tap := range h.taps {
+		taps = append(taps, tap)
+	}
+	h.mu.Unlock()
+
+	h.monitor.Feed(copied)
+
+	for _, rover := range rovers {
+		if !rover.enqueue(copied) {
+			rover.closeWithReason("slow_client")
+		}
+	}
+	for _, tap := range taps {
+		if !tap.trySend(copied) {
+			h.removeTap(tap)
+		}
+	}
+}
+
+// detachExternal chuyển hub về "no source" khi phiên station source kết thúc.
+// Tap bị đóng để relay nhận EOF; rover được trả về cho manager xử lý grace.
+func (h *hub) detachExternal(stationID int64) []*connection {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.externalSourceID != stationID {
+		return nil
+	}
+	h.externalSourceID = 0
+	h.closeTapsLocked()
+	rovers := make([]*connection, 0, len(h.rovers))
+	for _, rover := range h.rovers {
+		rovers = append(rovers, rover)
+	}
+	h.rovers = make(map[int64]*connection)
+	return rovers
 }

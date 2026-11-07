@@ -821,3 +821,106 @@ func (m *manager) OpenStationTap(mountpointID int64) (io.ReadCloser, error) {
 	}
 	return &stationTapReader{hub: h, tap: tap}, nil
 }
+
+// OpenStationSourceTap mở luồng đọc source của trạm ntrip_caster theo
+// stationID. Chọn hub đang có source theo mountpoint ID tăng dần; nếu không
+// hub nào có source trả errNoSource để relay báo station_source_offline.
+func (m *manager) OpenStationSourceTap(stationID int64) (io.ReadCloser, error) {
+	if stationID <= 0 {
+		return nil, errNoSource
+	}
+	m.mu.Lock()
+	ids := make([]int64, 0)
+	for id, mountpoint := range m.mountpoints {
+		if mountpoint.StationID == stationID && mountpoint.Enabled {
+			ids = append(ids, id)
+		}
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	hubs := make([]*hub, 0, len(ids))
+	for _, id := range ids {
+		if h := m.hubs[id]; h != nil {
+			hubs = append(hubs, h)
+		}
+	}
+	m.mu.Unlock()
+
+	for _, h := range hubs {
+		tap, err := h.openTap()
+		if err == nil {
+			return &stationTapReader{hub: h, tap: tap}, nil
+		}
+	}
+	return nil, errNoSource
+}
+
+// PublishStationSource bridge byte station source (ntrip_client) vào mọi
+// mountpoint enabled của trạm để rover ở bất kỳ listener nào cũng nhận dữ
+// liệu. Chỉ một stationID được bridge trên mỗi hub (single-writer).
+func (m *manager) PublishStationSource(stationID int64, data []byte) {
+	if stationID <= 0 || len(data) == 0 {
+		return
+	}
+	m.mu.Lock()
+	hubs := make([]*hub, 0)
+	for id, mountpoint := range m.mountpoints {
+		if mountpoint.StationID != stationID || !mountpoint.Enabled {
+			continue
+		}
+		if h := m.hubs[id]; h != nil {
+			hubs = append(hubs, h)
+		}
+	}
+	m.mu.Unlock()
+	for _, h := range hubs {
+		if h.attachExternal(stationID) {
+			h.publishExternal(stationID, data)
+		}
+	}
+}
+
+// DetachStationSource chuyển các hub của trạm về "no source" khi phiên station
+// source kết thúc. Rover được đóng sau SourceGrace như khi source thật ngắt.
+func (m *manager) DetachStationSource(stationID int64) {
+	if stationID <= 0 {
+		return
+	}
+	m.mu.Lock()
+	hubs := make([]*hub, 0)
+	for id, mountpoint := range m.mountpoints {
+		if mountpoint.StationID != stationID {
+			continue
+		}
+		if h := m.hubs[id]; h != nil {
+			hubs = append(hubs, h)
+		}
+	}
+	grace := m.opts.SourceGrace
+	m.mu.Unlock()
+
+	for _, h := range hubs {
+		rovers := h.detachExternal(stationID)
+		if len(rovers) == 0 {
+			continue
+		}
+		if grace <= 0 {
+			for _, rover := range rovers {
+				rover.closeWithReason("source_disconnected")
+			}
+			continue
+		}
+		go func(h *hub, rovers []*connection) {
+			timer := time.NewTimer(grace)
+			defer timer.Stop()
+			<-timer.C
+			if h.hasSource() {
+				return
+			}
+			for _, rover := range rovers {
+				if !rover.isClosed() {
+					rover.closeWithReason("source_disconnected")
+				}
+			}
+		}(h, rovers)
+	}
+}

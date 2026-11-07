@@ -514,3 +514,48 @@ func TestStationSourceReconcileBeforeRunDoesNotPanic(t *testing.T) {
 	m.Reconcile(context.Background())
 	m.Shutdown(context.Background())
 }
+
+func TestStationSourceTapReceivesBytesAndCloses(t *testing.T) {
+	m := NewStationSourceManager(&fakeStationStore{}, nil, testManagerOptions(time.Second))
+	m.setActive(7, true)
+	reader, err := m.OpenTap(7)
+	if err != nil {
+		t.Fatalf("OpenTap: %v", err)
+	}
+	m.publishTaps(7, []byte{0x01, 0x02, 0x03})
+	buf := make([]byte, 3)
+	if _, err := io.ReadFull(reader, buf); err != nil {
+		t.Fatalf("read tap: %v", err)
+	}
+	if !bytes.Equal(buf, []byte{0x01, 0x02, 0x03}) {
+		t.Fatalf("tap bytes = %v", buf)
+	}
+	m.closeStationTaps(7)
+	m.setActive(7, false)
+	if _, err := reader.Read(buf); !errors.Is(err, io.EOF) {
+		t.Fatalf("read closed tap = %v, muốn io.EOF", err)
+	}
+	if _, err := m.OpenTap(7); !errors.Is(err, errStationSourceOffline) {
+		t.Fatalf("OpenTap offline = %v, muốn station_source_offline", err)
+	}
+}
+
+func TestStationSourceTapSlowSubscriberDoesNotBlock(t *testing.T) {
+	m := NewStationSourceManager(&fakeStationStore{}, nil, testManagerOptions(time.Second))
+	m.setActive(9, true)
+	reader, err := m.OpenTap(9)
+	if err != nil {
+		t.Fatalf("OpenTap: %v", err)
+	}
+	// Không đọc: hàng đợi đầy thì tap bị gỡ, publish không được panic hay chặn.
+	for i := 0; i < 300; i++ {
+		m.publishTaps(9, []byte{byte(i)})
+	}
+	m.mu.Lock()
+	remaining := len(m.taps[9])
+	m.mu.Unlock()
+	if remaining != 0 {
+		t.Fatalf("tap chậm phải bị gỡ, còn %d", remaining)
+	}
+	_ = reader.Close()
+}

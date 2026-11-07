@@ -48,6 +48,9 @@ type Options struct {
 	// StationTap mở luồng đọc trực tiếp source của mountpoint nội bộ cho relay
 	// chọn trạm nguồn; nil nghĩa là luôn dùng NTRIP.
 	StationTap func(mountpointID int64) (io.ReadCloser, error)
+	// StationSourceTap mở luồng đọc trực tiếp source của trạm (theo stationID)
+	// cho relay chọn trạm nguồn. Ưu tiên hơn StationTap khi được cấu hình.
+	StationSourceTap func(stationID int64) (io.ReadCloser, error)
 }
 
 func DefaultOptions() Options {
@@ -136,12 +139,23 @@ func RunSession(
 	userAgent += "-relay"
 
 	var upstream *sessionUpstream
-	if cfg.UpstreamDirect && opts.StationTap != nil {
-		tap, err := opts.StationTap(cfg.UpstreamMountpointID)
-		if err != nil {
-			return err
+	if cfg.UpstreamDirect {
+		switch {
+		case opts.StationSourceTap != nil && cfg.UpstreamStationID > 0:
+			tap, err := opts.StationSourceTap(cfg.UpstreamStationID)
+			if err != nil {
+				return err
+			}
+			upstream = &sessionUpstream{body: tap, closeFn: tap.Close}
+		case opts.StationTap != nil && cfg.UpstreamMountpointID > 0:
+			tap, err := opts.StationTap(cfg.UpstreamMountpointID)
+			if err != nil {
+				return err
+			}
+			upstream = &sessionUpstream{body: tap, closeFn: tap.Close}
+		default:
+			return fmt.Errorf("station source tap is not configured")
 		}
-		upstream = &sessionUpstream{body: tap, closeFn: tap.Close}
 	} else {
 		ntripUpstream, err := ntrip.Get(ctx, toNtripEndpoint(cfg.Upstream, userAgent), opts.DialTimeout)
 		if err != nil {

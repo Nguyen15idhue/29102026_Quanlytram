@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"io"
 	"log"
 	"sync"
 	"time"
@@ -43,6 +44,12 @@ type StationSourceConfig struct {
 type StationSourceOptions struct {
 	Options
 	IdleTimeout time.Duration
+	// Publish nhận byte của phiên nguồn trạm để bridge sang caster hub nội bộ.
+	// Không dùng để feed quality (quality đã được feed trong cùng hàm).
+	Publish func(stationID int64, data []byte)
+	// SessionEnd được gọi khi phiên nguồn trạm kết thúc; dùng để caster hub
+	// chuyển sang trạng thái "no source" và đóng tap/rover liên quan.
+	SessionEnd func(stationID int64)
 }
 
 func (o StationSourceOptions) withDefaults() StationSourceOptions {
@@ -327,6 +334,9 @@ type StationSourceManager struct {
 	rootCtx      context.Context
 	sessions     map[int64]context.CancelFunc
 	fingerprints map[int64]string
+	taps         map[int64]map[int64]*stationSourceTap
+	nextTap      int64
+	active       map[int64]bool
 	wg           sync.WaitGroup
 }
 
@@ -341,21 +351,91 @@ func NewStationSourceManager(
 		opts:         opts.withDefaults(),
 		sessions:     make(map[int64]context.CancelFunc),
 		fingerprints: make(map[int64]string),
+		taps:         make(map[int64]map[int64]*stationSourceTap),
+		active:       make(map[int64]bool),
 	}
 	m.feedFor = func(cfg *StationSourceConfig) func([]byte) {
 		return func(data []byte) {
-			if m.opts.Quality == nil {
-				return
+			if m.opts.Quality != nil {
+				m.opts.Quality.Feed(quality.Target{
+					Type:         quality.TargetStation,
+					ID:           cfg.StationID,
+					MountpointID: cfg.MountpointID,
+					Direction:    quality.DirectionIngest,
+				}, data)
 			}
-			m.opts.Quality.Feed(quality.Target{
-				Type:         quality.TargetStation,
-				ID:           cfg.StationID,
-				MountpointID: cfg.MountpointID,
-				Direction:    quality.DirectionIngest,
-			}, data)
+			m.publishTaps(cfg.StationID, data)
+			if m.opts.Publish != nil {
+				m.opts.Publish(cfg.StationID, data)
+			}
 		}
 	}
 	return m
+}
+
+// OpenTap mở luồng đọc trực tiếp byte của phiên nguồn trạm đang chạy.
+// Trả errStationSourceOffline khi trạm không có phiên nguồn hoạt động; relay
+// nhận lỗi và backoff, không fallback sang kết nối ngoài.
+func (m *StationSourceManager) OpenTap(stationID int64) (io.ReadCloser, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.active[stationID] {
+		return nil, errStationSourceOffline
+	}
+	m.nextTap++
+	tap := newStationSourceTap(m.nextTap)
+	if m.taps[stationID] == nil {
+		m.taps[stationID] = make(map[int64]*stationSourceTap)
+	}
+	m.taps[stationID][tap.id] = tap
+	return &stationSourceTapReader{mgr: m, stationID: stationID, tap: tap}, nil
+}
+
+func (m *StationSourceManager) removeTap(stationID int64, tap *stationSourceTap) {
+	m.mu.Lock()
+	if group := m.taps[stationID]; group != nil && group[tap.id] == tap {
+		delete(group, tap.id)
+		if len(group) == 0 {
+			delete(m.taps, stationID)
+		}
+	}
+	m.mu.Unlock()
+	tap.close()
+}
+
+func (m *StationSourceManager) publishTaps(stationID int64, data []byte) {
+	m.mu.Lock()
+	group := m.taps[stationID]
+	taps := make([]*stationSourceTap, 0, len(group))
+	for _, tap := range group {
+		taps = append(taps, tap)
+	}
+	m.mu.Unlock()
+	for _, tap := range taps {
+		if !tap.trySend(data) {
+			m.removeTap(stationID, tap)
+		}
+	}
+}
+
+func (m *StationSourceManager) closeStationTaps(stationID int64) {
+	m.mu.Lock()
+	group := m.taps[stationID]
+	delete(m.taps, stationID)
+	m.mu.Unlock()
+	for _, tap := range group {
+		tap.close()
+	}
+}
+
+func (m *StationSourceManager) setActive(stationID int64, active bool) {
+	m.mu.Lock()
+	if active {
+		m.active[stationID] = true
+	} else {
+		delete(m.active, stationID)
+	}
+	m.mu.Unlock()
 }
 
 func (m *StationSourceManager) Run(ctx context.Context) {
@@ -389,6 +469,19 @@ func (m *StationSourceManager) Shutdown(ctx context.Context) {
 		delete(m.fingerprints, id)
 	}
 	m.mu.Unlock()
+	// Đóng tap còn lại để relay nhận EOF ngay khi dịch vụ dừng.
+	m.mu.Lock()
+	var pending []*stationSourceTap
+	for id, group := range m.taps {
+		for _, tap := range group {
+			pending = append(pending, tap)
+		}
+		delete(m.taps, id)
+	}
+	m.mu.Unlock()
+	for _, tap := range pending {
+		tap.close()
+	}
 	done := make(chan struct{})
 	go func() {
 		m.wg.Wait()
@@ -483,7 +576,17 @@ func (m *StationSourceManager) runSession(ctx context.Context, cfg *StationSourc
 				sessionID = id
 			}
 		}
-		err := RunStationSource(ctx, cfg, m.opts, hooks)
+		err := func() error {
+			m.setActive(cfg.StationID, true)
+			defer func() {
+				m.setActive(cfg.StationID, false)
+				m.closeStationTaps(cfg.StationID)
+				if m.opts.SessionEnd != nil {
+					m.opts.SessionEnd(cfg.StationID)
+				}
+			}()
+			return RunStationSource(ctx, cfg, m.opts, hooks)
+		}()
 		if m.sessionStore != nil && sessionID > 0 {
 			if endErr := m.sessionStore.End(
 				context.Background(),

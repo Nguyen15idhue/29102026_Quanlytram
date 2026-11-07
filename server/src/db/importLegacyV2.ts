@@ -6,6 +6,7 @@ import { hashPassword } from '../lib/password';
 import { writeAudit } from '../lib/audit';
 import { endpointKey } from '../lib/endpointKey';
 import { upsertRelayCredential } from '../lib/relayCredentials';
+import { remapAllMountpointsToCompanyListeners } from '../lib/caster';
 
 /**
  * Import tài nguyên hệ thống CORS cũ (db/data) sang hệ thống hiện tại.
@@ -559,6 +560,9 @@ async function applyCorePlan(plan: ImportPlan): Promise<void> {
         );
       }
     }
+    // Đảm bảo mọi mountpoint đều được gán vào listener cùng công ty sau khi
+    // listener/mountpoint đã tạo xong (YC4).
+    await remapAllMountpointsToCompanyListeners(conn);
   });
 
   await writeAudit(

@@ -1291,7 +1291,9 @@ relayJobsRouter.post(
       : await resolveWriteOwnership(req, body.ownerWebUserId, body.companyId);
     const ownerId = ownership.ownerId;
     const companyId = ownership.companyId;
-    const upstreamKey = endpointKey(upstreamEndpoint);
+    const upstreamKey = body.upstreamStationId
+      ? `station://${body.upstreamStationId}`
+      : endpointKey(upstreamEndpoint);
     const downstreamKey = endpointKey(downstreamEndpoint);
     await assertNoCycles({
       id: null,
@@ -1479,7 +1481,9 @@ relayJobsRouter.patch(
           ssl: body.downstream?.ssl ?? Boolean(before.downstream_ssl),
           ntripVersion: body.downstream?.ntripVersion ?? before.downstream_ntrip_version
         };
-    const upstreamKey = endpointKey(upstream);
+    const upstreamKey = nextUpstreamStationId
+      ? `station://${nextUpstreamStationId}`
+      : endpointKey(upstream);
     const downstreamKey = endpointKey(downstream);
     const enabled = body.enabled ?? Boolean(before.enabled);
     const paused =

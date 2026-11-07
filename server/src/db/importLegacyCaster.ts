@@ -3,6 +3,7 @@ import path from 'node:path';
 import { RowDataPacket } from 'mysql2/promise';
 import { adminPool, query, withTransaction } from './pool';
 import { writeAudit } from '../lib/audit';
+import { remapAllMountpointsToCompanyListeners } from '../lib/caster';
 
 interface LegacyStation {
   code: string;
@@ -276,6 +277,10 @@ async function main(): Promise<void> {
         if (Number(result.affectedRows ?? 0) > 0) mappingsAdded += 1;
       }
     }
+
+    // YC4: remap toàn bộ mountpoint vào listener cùng công ty sau khi đã tạo
+    // đủ listener, xử lý trường hợp listener được tạo sau mountpoint.
+    mappingsAdded += await remapAllMountpointsToCompanyListeners(conn);
 
     await conn.query(
       "UPDATE stations SET status = 'disabled' WHERE enabled = 0 AND status = 'active'"

@@ -1375,3 +1375,61 @@ func TestRegisterRejectsNilAccountForRover(t *testing.T) {
 		t.Fatalf("register rover without account = %v, want errAuthRequired", err)
 	}
 }
+
+func TestExternalStationSourcePublishesToRoversAndTaps(t *testing.T) {
+	h := newHub(&MountpointConfig{ID: 1, StationID: 5, Name: "M", Enabled: true}, nil)
+	rover := &connection{id: 1, direction: DirectionRover, sendCh: make(chan []byte, 4), done: make(chan struct{})}
+	if !h.addRover(rover) {
+		t.Fatal("addRover failed")
+	}
+	if !h.attachExternal(5) {
+		t.Fatal("attachExternal failed")
+	}
+	tap, err := h.openTap()
+	if err != nil {
+		t.Fatalf("openTap: %v", err)
+	}
+
+	h.publishExternal(5, []byte{0x0a, 0x0b})
+	select {
+	case got := <-rover.sendCh:
+		if !bytes.Equal(got, []byte{0x0a, 0x0b}) {
+			t.Fatalf("rover payload = %x", got)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("rover không nhận byte từ station source")
+	}
+	buffer := make([]byte, 4)
+	n, err := tap.Read(buffer)
+	if err != nil {
+		t.Fatalf("tap.Read: %v", err)
+	}
+	if !bytes.Equal(buffer[:n], []byte{0x0a, 0x0b}) {
+		t.Fatalf("tap payload = %x", buffer[:n])
+	}
+
+	rovers := h.detachExternal(5)
+	if len(rovers) != 1 {
+		t.Fatalf("detachExternal phải trả rover để manager đóng, got %d", len(rovers))
+	}
+	if _, err := tap.Read(buffer); err == nil {
+		t.Fatal("tap phải EOF khi station source detach")
+	}
+	if h.hasSource() {
+		t.Fatal("hub vẫn còn source sau detach")
+	}
+}
+
+func TestExternalStationSourceSingleWriter(t *testing.T) {
+	h := newHub(&MountpointConfig{ID: 1, StationID: 5, Name: "M", Enabled: true}, nil)
+	if !h.attachExternal(5) {
+		t.Fatal("attachExternal failed")
+	}
+	if h.attachExternal(6) {
+		t.Fatal("hub không được nhận station khác khi đang bridge")
+	}
+	source := &connection{id: 9, done: make(chan struct{})}
+	if h.addSource(source) {
+		t.Fatal("source thật không được chiếm hub đang bridge station source")
+	}
+}

@@ -19,7 +19,7 @@ import {
 } from '../rbac/access';
 import { callGoInternal } from '../lib/internalApi';
 import { reconcileAffected } from '../lib/reconcile';
-import { publicConnection, type GoConnection } from '../lib/caster';
+import { publicConnection, type GoConnection, mapMountpointToCompanyListeners } from '../lib/caster';
 import { mountpointSourceState } from '../lib/mountpointExplorer';
 import { mountpointCountSql } from '../lib/mountpointList';
 import { publishEntityChange } from '../lib/entityChange';
@@ -625,29 +625,34 @@ mountpointsRouter.post(
         pausedBy = body.station_id;
       }
     }
-    let result: any;
+    let mountpointId = 0;
     try {
-      [result] = await adminPool.query<any>(
-        `INSERT INTO mountpoints
-           (name, station_id, enabled, paused_by_station_id,
-            service_type, position_mode, satellite_systems, caster_interval,
-            code_protocol, code_type, description, owner_web_user_id, company_id, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          body.name, body.station_id ?? null, enabled, pausedBy,
-          body.service_type ?? 'rtcm', body.position_mode ?? 'normal',
-          body.satellite_systems ?? '', body.caster_interval ?? 0,
-          body.code_protocol ?? '', body.code_type ?? '', body.description ?? '',
-          ownerId, companyId, req.auth!.id
-        ]
-      );
+      mountpointId = await withTransaction(async (conn) => {
+        const [result] = await conn.query<any>(
+          `INSERT INTO mountpoints
+             (name, station_id, enabled, paused_by_station_id,
+              service_type, position_mode, satellite_systems, caster_interval,
+              code_protocol, code_type, description, owner_web_user_id, company_id, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            body.name, body.station_id ?? null, enabled, pausedBy,
+            body.service_type ?? 'rtcm', body.position_mode ?? 'normal',
+            body.satellite_systems ?? '', body.caster_interval ?? 0,
+            body.code_protocol ?? '', body.code_type ?? '', body.description ?? '',
+            ownerId, companyId, req.auth!.id
+          ]
+        );
+        const id = Number(result.insertId);
+        await mapMountpointToCompanyListeners(conn, id, companyId);
+        return id;
+      });
     } catch (err) {
       duplicateMountpointGuard(err);
     }
-    const item = await getMountpoint(Number(result.insertId));
+    const item = await getMountpoint(mountpointId);
     await reconcileAfterMountpointChange([]);
-    await writeAudit(adminPool, req.auth!.id, 'create', 'mountpoint', result.insertId, null, item, ipFrom(req));
-    publishEntityChange({ entity: 'mountpoint', id: result.insertId, action: 'create' });
+    await writeAudit(adminPool, req.auth!.id, 'create', 'mountpoint', mountpointId, null, item, ipFrom(req));
+    publishEntityChange({ entity: 'mountpoint', id: mountpointId, action: 'create' });
     res.status(201).json({ item: publicMountpoint(item) });
   })
 );
@@ -730,6 +735,11 @@ mountpointsRouter.patch(
             nextEnabled ? 'resume' : 'pause'
           ))
         );
+      }
+      const beforeCompany = before.company_id === null ? null : Number(before.company_id);
+      if (companyId !== beforeCompany) {
+        await conn.query('DELETE FROM caster_listener_mountpoints WHERE mountpoint_id = ?', [id]);
+        await mapMountpointToCompanyListeners(conn, id, companyId);
       }
     });
     await reconcileAfterMountpointChange(relayJobIds);

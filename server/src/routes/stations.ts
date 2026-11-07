@@ -2730,6 +2730,15 @@ stationsRouter.put(
           );
         }
       }
+      // Đổi listener caster của trạm: gán toàn bộ mountpoint của trạm vào
+      // listener mới để caster publish được ngay (YC4).
+      if (body.source_role === 'ntrip_caster' && body.caster_listener_id) {
+        await conn.query(
+          `INSERT IGNORE INTO caster_listener_mountpoints (listener_id, mountpoint_id)
+           SELECT ?, id FROM mountpoints WHERE station_id = ?`,
+          [body.caster_listener_id, station.id]
+        );
+      }
     });
     if (managedAccount) {
       try {

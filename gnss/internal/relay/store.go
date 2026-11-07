@@ -169,9 +169,13 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 	job.Downstream.Key = EndpointKey(job.Downstream)
 	job.UpstreamStationID = upstreamStationID
 	job.UpstreamMountpointID = upstreamMountpointID
-	job.UpstreamDirect = upstreamStationID > 0 &&
-		upstreamMountpointID > 0 &&
-		upstreamStationRole == "ntrip_caster"
+	// "Chọn trạm" ở phía nguồn dùng nguồn gốc của trạm, không phụ thuộc
+	// mountpoint và không phụ thuộc source_role (ntrip_client hay ntrip_caster).
+	job.UpstreamDirect = upstreamStationID > 0
+	if job.UpstreamDirect {
+		job.Upstream.Key = fmt.Sprintf("station://%d", upstreamStationID)
+	}
+	_ = upstreamStationRole
 	_ = dbUpstreamKey
 	_ = dbDownstreamKey
 	return &job, nil

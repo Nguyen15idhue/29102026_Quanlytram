@@ -3,6 +3,7 @@ import { ApiError } from './http';
 import { encryptSecret, secretAad } from './crypto';
 import { hashPassword } from './password';
 import { uniqueMountpointName, ensureMountpointNameAvailable } from './stationNaming';
+import { mapMountpointToCompanyListeners } from './caster';
 
 export interface StationSourceInput {
   name: string;
@@ -71,6 +72,10 @@ export async function createStationResources(
     ]
   );
   const mountpointId = Number(mountpointResult.insertId);
+
+  // YC4: mountpoint mới luôn được gán vào listener cùng công ty hiện có,
+  // không phụ thuộc source_role hay listener được chọn.
+  await mapMountpointToCompanyListeners(conn, mountpointId, resolvedCompanyId ?? null);
 
   if (data.source_role === 'ntrip_caster') {
     if (!data.caster_listener_id) {
