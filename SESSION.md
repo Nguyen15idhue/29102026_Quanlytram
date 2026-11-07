@@ -2005,3 +2005,11 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
     (luồng caster) PASS.
 - Lưu ý: backend prod đang chạy code cũ nên tạo client vẫn 400 đến khi deploy.
 
+### Push commit 95480f2 lên GitHub (2026-11-07)
+
+- Đã push `main`: `798e1e6..95480f2` (22 files: map company-scope + pin rover GGA
+  + tạo trạm client không port + SESSION + tests mới).
+- File `docs/1/14_KE_HOACH_KHOA_NTRIP_THEO_CONG_TY.md` không phải của phiên này,
+  để nguyên untracked, không commit.
+- Không đụng VPS; chờ user chạy `hot_update.sh` (không migration trong commit).
+
