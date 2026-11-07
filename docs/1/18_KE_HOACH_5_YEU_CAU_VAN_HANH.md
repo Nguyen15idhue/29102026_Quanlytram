@@ -768,3 +768,43 @@ Bằng chứng test:
 - `npx playwright test tests/p18-2-listener-company-edit.spec.ts` → 2 PASS:
   admin sửa tên, port read-only, API chặn đổi port/company; user chỉ xem.
 
+### P18-3 — YC3 backend (2026-11-07)
+
+Đã triển khai:
+
+- **Migration `045_ntrip_account_all.sql**
+  - Thêm `ntrip_accounts.listener_all`, `mountpoint_all` (mặc định 0).
+  - Backfill: tài khoản cũ không có `account_listener_acl` → `listener_all=1`
+    (giữ hành vi caster cũ); tất cả → `mountpoint_all=0` (giữ deny cũ).
+- **Go caster**
+  - `AccountConfig` thêm `ListenerAll`, `MountpointAll`; `store.go` select/scan
+    2 cột mới.
+  - `authorize()`: `!MountpointAll && !ACL → 403`;
+    `!ListenerAll && !ListenerACL → 403` (bỏ ngữ nghĩa “ACL rỗng = mọi listener”).
+  - `isInvalidLocked()`: tôn trọng cả 2 cờ để ngắt kết nối khi thu hồi quyền.
+  - Test `TestAuthorizeListenerAllMountpointAll`: all/all qua; all/lẻ và
+    lẻ/all chặn đúng chiều.
+  - Sửa test cũ (`registerTestConfig`, default manager, `TestAuthACLAndMaxConnections`,
+    `TestReconcileClosesExcessConnections`) thêm `ListenerAll:true` để giữ ngữ
+    nghĩa backfill.
+- **Node `server/src/routes/ntripAccounts.ts**
+  - `createSchema` thêm `listener_all/mountpoint_all` (mặc định `true` theo D18-7).
+  - `publicAccount` trả thêm 2 cờ; `GET /:id` trả `listenerIds` hiệu dụng +
+    `effectiveMountpoints` động.
+  - `effectiveMountpoints()`: `mountpoint_all=1` → toàn bộ mountpoint cùng công
+    ty (hoặc theo listener đã chọn); `mountpoint_all=0` → giao ACL tĩnh như cũ.
+  - `POST/PATCH`: `listener_all=false` đòi ≥1 `listenerIds`;
+    `mountpoint_all=false` đòi ≥1 `mountpointIds`; `own` (user) không được đặt
+    “Tất cả” (403); bật “Tất cả” thì bỏ qua/không lưu ACL lẻ; tắt thì xóa ACL cũ.
+  - `PUT /:id/listeners` và `PUT /:id/mountpoints`: từ chối 400 khi tài khoản
+    đang bật cờ all tương ứng.
+
+Bằng chứng test:
+
+- `cd gnss && go test ./internal/caster/ ./internal/relay/ -count=1` PASS;
+  `go vet` PASS.
+- `cd server && npx tsc --noEmit` PASS; `npm test` → 44 file / 213 test PASS.
+- Migration dev: `045_ntrip_account_all.sql applied`.
+- `npx playwright test tests/p18-3-ntrip-account-all.spec.ts` → 1 PASS:
+  tạo mặc định all=true, validate thiếu ids khi tắt all, effective trả mảng.
+

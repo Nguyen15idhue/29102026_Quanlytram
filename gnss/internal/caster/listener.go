@@ -326,10 +326,10 @@ func (m *manager) authorize(req *request, mountpoint *MountpointConfig, listener
 			return nil, 403, "Forbidden"
 		}
 	}
-	if !account.ACL[mountpoint.ID] {
+	if !account.MountpointAll && !account.ACL[mountpoint.ID] {
 		return nil, 403, "Forbidden"
 	}
-	if len(account.ListenerACL) > 0 && !account.ListenerACL[listener.ID] {
+	if !account.ListenerAll && !account.ListenerACL[listener.ID] {
 		return nil, 403, "Forbidden"
 	}
 	return account, 0, ""

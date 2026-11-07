@@ -42,6 +42,8 @@ type AccountConfig struct {
 	CompanyID      *int64
 	ACL            map[int64]bool
 	ListenerACL    map[int64]bool
+	ListenerAll    bool
+	MountpointAll  bool
 }
 
 type Config struct {

@@ -359,7 +359,13 @@ func (m *manager) isInvalidLocked(conn *connection, listenerByID map[int64]*List
 	if account == nil || !account.Enabled {
 		return true
 	}
-	return !account.ACL[mountpoint.ID]
+	if !account.MountpointAll && !account.ACL[mountpoint.ID] {
+		return true
+	}
+	if !account.ListenerAll && !account.ListenerACL[conn.listenerID] {
+		return true
+	}
+	return false
 }
 
 func (m *manager) accountByUsername(username string) *AccountConfig {

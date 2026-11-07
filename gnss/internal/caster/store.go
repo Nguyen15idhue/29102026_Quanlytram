@@ -120,7 +120,8 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 	mappingRows.Close()
 
 	accountRows, err := s.db.QueryContext(ctx,
-		`SELECT id, username, password_hash, enabled, max_connections, company_id
+		`SELECT id, username, password_hash, enabled, max_connections, company_id,
+		        COALESCE(listener_all, 0), COALESCE(mountpoint_all, 0)
 		   FROM ntrip_accounts ORDER BY id`)
 	if err != nil {
 		return nil, fmt.Errorf("load ntrip accounts: %w", err)
@@ -131,6 +132,7 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 			account   AccountConfig
 			enabled   int
 			companyID sql.NullInt64
+			listenerAll, mountpointAll int
 		)
 		if err := accountRows.Scan(
 			&account.ID,
@@ -139,11 +141,15 @@ func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
 			&enabled,
 			&account.MaxConnections,
 			&companyID,
+			&listenerAll,
+			&mountpointAll,
 		); err != nil {
 			accountRows.Close()
 			return nil, err
 		}
 		account.Enabled = enabled != 0
+		account.ListenerAll = listenerAll != 0
+		account.MountpointAll = mountpointAll != 0
 		if companyID.Valid {
 			value := companyID.Int64
 			account.CompanyID = &value

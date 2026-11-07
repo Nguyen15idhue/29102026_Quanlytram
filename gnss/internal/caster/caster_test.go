@@ -86,6 +86,7 @@ func newTestManagerWithOptions(t *testing.T, cfg *Config, options Options) (*man
 			Enabled:        true,
 			MaxConnections: 100,
 			ACL:            acl,
+			ListenerAll:    true,
 		}}
 	}
 	runtime := &memoryRuntime{}
@@ -232,8 +233,8 @@ func TestAuthACLAndMaxConnections(t *testing.T) {
 			1: {ID: 1, Name: "M", Enabled: true},
 		},
 		Accounts: []*AccountConfig{
-			{ID: 1, Username: "ok", PasswordHash: hash, Enabled: true, MaxConnections: 1, ACL: map[int64]bool{1: true}},
-			{ID: 2, Username: "noacl", PasswordHash: hash, Enabled: true, MaxConnections: 2, ACL: map[int64]bool{}},
+			{ID: 1, Username: "ok", PasswordHash: hash, Enabled: true, MaxConnections: 1, ACL: map[int64]bool{1: true}, ListenerAll: true},
+			{ID: 2, Username: "noacl", PasswordHash: hash, Enabled: true, MaxConnections: 2, ACL: map[int64]bool{}, ListenerAll: true},
 		},
 		Listeners: []*ListenerConfig{
 			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: {ID: 1, Name: "M", Enabled: true}}},
@@ -792,6 +793,7 @@ func TestReconcileClosesExcessConnections(t *testing.T) {
 			Enabled:        true,
 			MaxConnections: 2,
 			ACL:            map[int64]bool{1: true},
+			ListenerAll:    true,
 		}},
 		Listeners: []*ListenerConfig{
 			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: {ID: 1, Name: "M", Enabled: true}}},
@@ -909,6 +911,7 @@ func registerTestConfig(maxConnections int) *Config {
 			Enabled:        true,
 			MaxConnections: maxConnections,
 			ACL:            map[int64]bool{1: true},
+			ListenerAll:    true,
 		}},
 		Listeners: []*ListenerConfig{
 			{ID: 1, Name: "default", Port: 0, Enabled: true, Role: RoleBoth,
@@ -1431,5 +1434,47 @@ func TestExternalStationSourceSingleWriter(t *testing.T) {
 	source := &connection{id: 9, done: make(chan struct{})}
 	if h.addSource(source) {
 		t.Fatal("source thật không được chiếm hub đang bridge station source")
+	}
+}
+
+func TestAuthorizeListenerAllMountpointAll(t *testing.T) {
+	hash := passwordHash("secret123")
+	m1 := &MountpointConfig{ID: 1, Name: "M1", Enabled: true}
+	m2 := &MountpointConfig{ID: 2, Name: "M2", Enabled: true}
+	newCfg := func(allL, allM bool) *Config {
+		return &Config{
+			Mountpoints: map[int64]*MountpointConfig{1: m1, 2: m2},
+			Accounts: []*AccountConfig{{
+				ID: 1, Username: "all", PasswordHash: hash, Enabled: true, MaxConnections: 5,
+				ACL: map[int64]bool{1: true}, ListenerACL: map[int64]bool{1: true},
+				ListenerAll: allL, MountpointAll: allM,
+			}},
+			Listeners: []*ListenerConfig{
+				{ID: 1, Name: "l1", Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{1: m1}},
+				{ID: 2, Name: "l2", Enabled: true, Role: RoleBoth, Mountpoints: map[int64]*MountpointConfig{2: m2}},
+			},
+		}
+	}
+	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte("all:secret123"))
+	cfgAll := newCfg(true, true)
+	manager, _ := newTestManager(t, cfgAll)
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, m2, cfgAll.Listeners[1], "127.0.0.1"); code != 0 {
+		t.Fatalf("all/all code = %d, want 0", code)
+	}
+	cfgL := newCfg(true, false)
+	manager, _ = newTestManager(t, cfgL)
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, m2, cfgL.Listeners[1], "127.0.0.1"); code != 403 {
+		t.Fatalf("listener-all deny code = %d, want 403", code)
+	}
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, m1, cfgL.Listeners[0], "127.0.0.1"); code != 0 {
+		t.Fatalf("listener-all allow code = %d, want 0", code)
+	}
+	cfgM := newCfg(false, true)
+	manager, _ = newTestManager(t, cfgM)
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, m2, cfgM.Listeners[1], "127.0.0.1"); code != 403 {
+		t.Fatalf("mountpoint-all deny code = %d, want 403", code)
+	}
+	if _, code, _ := manager.authorize(&request{Authorization: auth}, m1, cfgM.Listeners[0], "127.0.0.1"); code != 0 {
+		t.Fatalf("mountpoint-all allow code = %d, want 0", code)
 	}
 }

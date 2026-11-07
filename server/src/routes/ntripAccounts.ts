@@ -47,6 +47,8 @@ const createSchema = z.object({
   notes: z.string().max(500).optional(),
   owner_web_user_id: z.number().int().positive().nullable().optional(),
   company_id: z.number().int().positive().nullable().optional(),
+  listener_all: z.boolean().optional().default(true),
+  mountpoint_all: z.boolean().optional().default(true),
   listenerIds: z.array(z.number().int().positive()).max(200).optional(),
   mountpointIds: z.array(z.number().int().positive()).max(1000).optional()
 });
@@ -86,6 +88,25 @@ async function assertScopedIds(
   }
 }
 
+async function assertAllFlags(
+  req: any,
+  listenerAll: boolean | undefined,
+  mountpointAll: boolean | undefined,
+  listenerIds: number[] | undefined,
+  mountpointIds: number[] | undefined
+): Promise<void> {
+  // user (own) không được đặt “Tất cả” (D18-6/D18-7).
+  if (req.permissionScope === 'own' && (listenerAll === true || mountpointAll === true)) {
+    throw new ApiError(403, 'FORBIDDEN', 'Tài khoản của bạn không được dùng chế độ “Tất cả”');
+  }
+  if (listenerAll === false && (!listenerIds || listenerIds.length === 0)) {
+    throw new ApiError(400, 'LISTENER_REQUIRED', 'Phải chọn ít nhất 1 listener hoặc bật “Tất cả”');
+  }
+  if (mountpointAll === false && (!mountpointIds || mountpointIds.length === 0)) {
+    throw new ApiError(400, 'MOUNTPOINT_REQUIRED', 'Phải chọn ít nhất 1 mountpoint hoặc bật “Tất cả”');
+  }
+}
+
 async function listenerIdsFor(accountId: number): Promise<number[]> {
   const rows = await query<RowDataPacket[]>(
     'SELECT listener_id FROM account_listener_acl WHERE account_id = ? ORDER BY listener_id',
@@ -94,9 +115,79 @@ async function listenerIdsFor(accountId: number): Promise<number[]> {
   return rows.map((row) => Number(row.listener_id));
 }
 
+async function accountFlags(accountId: number): Promise<{
+  listenerAll: boolean;
+  mountpointAll: boolean;
+  companyId: number | null;
+}> {
+  const rows = await query<RowDataPacket[]>(
+    'SELECT listener_all, mountpoint_all, company_id FROM ntrip_accounts WHERE id = ? LIMIT 1',
+    [accountId]
+  );
+  const row = rows[0];
+  return {
+    listenerAll: Number(row?.listener_all ?? 0) === 1,
+    mountpointAll: Number(row?.mountpoint_all ?? 0) === 1,
+    companyId: row?.company_id === null || row?.company_id === undefined ? null : Number(row.company_id)
+  };
+}
+
+async function effectiveListenerIds(accountId: number): Promise<number[]> {
+  const flags = await accountFlags(accountId);
+  if (flags.listenerAll) {
+    const rows = await query<RowDataPacket[]>(
+      flags.companyId === null
+        ? 'SELECT id FROM caster_listeners ORDER BY id'
+        : 'SELECT id FROM caster_listeners WHERE company_id = ? ORDER BY id',
+      flags.companyId === null ? [] : [flags.companyId]
+    );
+    return rows.map((row) => Number(row.id));
+  }
+  return listenerIdsFor(accountId);
+}
+
 async function effectiveMountpoints(accountId: number): Promise<RowDataPacket[]> {
+  const flags = await accountFlags(accountId);
+  if (flags.mountpointAll) {
+    const listeners = await effectiveListenerIds(accountId);
+    if (flags.listenerAll) {
+      // Mọi mountpoint của mọi listener cùng công ty, động.
+      return query<RowDataPacket[]>(
+        flags.companyId === null
+          ? `SELECT m.id, m.name, m.station_id, s.name AS station_name
+               FROM mountpoints m LEFT JOIN stations s ON s.id = m.station_id
+              ORDER BY m.name`
+          : `SELECT m.id, m.name, m.station_id, s.name AS station_name
+               FROM mountpoints m LEFT JOIN stations s ON s.id = m.station_id
+              WHERE m.company_id = ? ORDER BY m.name`,
+        flags.companyId === null ? [] : [flags.companyId]
+      );
+    }
+    if (listeners.length === 0) return [];
+    return query<RowDataPacket[]>(
+      `SELECT DISTINCT m.id, m.name, m.station_id, s.name AS station_name
+         FROM caster_listener_mountpoints lm
+         JOIN mountpoints m ON m.id = lm.mountpoint_id
+         LEFT JOIN stations s ON s.id = m.station_id
+        WHERE lm.listener_id IN (${listeners.map(() => '?').join(',')})
+        ORDER BY m.name`,
+      listeners
+    );
+  }
   const listeners = await listenerIdsFor(accountId);
   if (listeners.length === 0) {
+    // listener_all=1 + mountpoint tĩnh: giao ACL tĩnh, không lọc listener.
+    const flagsOnly = flags;
+    if (flagsOnly.listenerAll) {
+      return query<RowDataPacket[]>(
+        `SELECT m.id, m.name, m.station_id, s.name AS station_name
+           FROM account_mountpoint_acl acl
+           JOIN mountpoints m ON m.id = acl.mountpoint_id
+           LEFT JOIN stations s ON s.id = m.station_id
+          WHERE acl.account_id = ? ORDER BY m.name`,
+        [accountId]
+      );
+    }
     return query<RowDataPacket[]>(
       `SELECT m.id, m.name, m.station_id, s.name AS station_name
          FROM account_mountpoint_acl acl
@@ -137,6 +228,8 @@ function publicAccount(row: RowDataPacket) {
     ownerName: row.owner_name ?? null,
     companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id),
     companyName: row.company_name ?? null,
+    listenerAll: Number(row.listener_all ?? 1) === 1,
+    mountpointAll: Number(row.mountpoint_all ?? 1) === 1,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -226,7 +319,7 @@ ntripAccountsRouter.get(
     res.json({
       item: {
         ...publicAccount(account),
-        listenerIds: await listenerIdsFor(account.id),
+        listenerIds: await effectiveListenerIds(account.id),
         effectiveMountpoints: await effectiveMountpoints(account.id)
       }
     });
@@ -248,7 +341,7 @@ ntripAccountsRouter.get(
   requirePermission('ntrip_accounts', 'view'),
   asyncHandler(async (req, res) => {
     const account = await assertAccountScope(req, Number(req.params.id));
-    const listenerIds = await listenerIdsFor(account.id);
+    const listenerIds = await effectiveListenerIds(account.id);
     const accountCompany =
       account.company_id === null ? null : Number(account.company_id);
     const companyFilter = accountCompany === null ? '' : ' AND company_id = ?';
@@ -272,6 +365,14 @@ ntripAccountsRouter.put(
   requirePermission('ntrip_accounts', 'edit'),
   asyncHandler(async (req, res) => {
     const account = await assertAccountScope(req, Number(req.params.id));
+    const flags = await accountFlags(Number(account.id));
+    if (flags.listenerAll) {
+      throw new ApiError(
+        400,
+        'LISTENER_ALL_ENABLED',
+        'Tài khoản đang dùng “Tất cả listener”; tắt chế độ này trước khi gán lẻ'
+      );
+    }
     const body = listenerAclSchema.parse(req.body);
     const ids = [...new Set(body.listenerIds)];
     await assertScopedIds(
@@ -313,6 +414,14 @@ ntripAccountsRouter.put(
   requirePermission('ntrip_accounts', 'edit'),
   asyncHandler(async (req, res) => {
     const account = await assertAccountScope(req, Number(req.params.id));
+    const flags = await accountFlags(Number(account.id));
+    if (flags.mountpointAll) {
+      throw new ApiError(
+        400,
+        'MOUNTPOINT_ALL_ENABLED',
+        'Tài khoản đang dùng “Tất cả mountpoint”; tắt chế độ này trước khi gán lẻ'
+      );
+    }
     const body = aclSchema.parse(req.body);
     const uniqueIds = [...new Set(body.mountpointIds)];
     await assertScopedIds(
@@ -351,16 +460,21 @@ ntripAccountsRouter.post(
   requirePermission('ntrip_accounts', 'add'),
   asyncHandler(async (req, res) => {
     const body = createSchema.parse(req.body);
+    const listenerAll = body.listener_all ?? true;
+    const mountpointAll = body.mountpoint_all ?? true;
+    const listenerIds = [...new Set(body.listenerIds ?? [])];
+    const mountpointIds = [...new Set(body.mountpointIds ?? [])];
+    await assertAllFlags(req, listenerAll, mountpointAll, listenerIds, mountpointIds);
     const ownership = await resolveWriteOwnership(req, body.owner_web_user_id, body.company_id);
     const ownerId = ownership.ownerId;
     const companyId = ownership.companyId;
     await assertScopedIds(
       req,
       'caster_listeners',
-      [...new Set(body.listenerIds ?? [])],
+      listenerAll ? [] : listenerIds,
       companyId
     );
-    await assertScopedIds(req, 'mountpoints', [...new Set(body.mountpointIds ?? [])], companyId);
+    await assertScopedIds(req, 'mountpoints', mountpointAll ? [] : mountpointIds, companyId);
     const passwordHash = await hashPassword(body.password);
     let accountId: number;
     try {
@@ -369,27 +483,33 @@ ntripAccountsRouter.post(
           `INSERT INTO ntrip_accounts
              (username, password_hash, enabled, max_connections,
               company, contact_name, email, phone, valid_from, valid_to,
-              available_area, auth_method, notes, owner_web_user_id, company_id, created_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              available_area, auth_method, notes, owner_web_user_id, company_id, created_by,
+              listener_all, mountpoint_all)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             body.username, passwordHash, body.enabled, body.max_connections,
             body.company ?? '', body.contact_name ?? '', body.email ?? '', body.phone ?? '',
             body.valid_from ?? null, body.valid_to ?? null, body.available_area ?? '',
-            body.auth_method ?? 'basic', body.notes ?? '', ownerId, companyId, req.auth!.id
+            body.auth_method ?? 'basic', body.notes ?? '', ownerId, companyId, req.auth!.id,
+            listenerAll ? 1 : 0, mountpointAll ? 1 : 0
           ]
         );
         const id = Number(result.insertId);
-        for (const listenerId of [...new Set(body.listenerIds ?? [])]) {
-          await conn.query(
-            'INSERT INTO account_listener_acl (account_id, listener_id) VALUES (?, ?)',
-            [id, listenerId]
-          );
+        if (!listenerAll) {
+          for (const listenerId of listenerIds) {
+            await conn.query(
+              'INSERT INTO account_listener_acl (account_id, listener_id) VALUES (?, ?)',
+              [id, listenerId]
+            );
+          }
         }
-        for (const mountpointId of [...new Set(body.mountpointIds ?? [])]) {
-          await conn.query(
-            'INSERT INTO account_mountpoint_acl (account_id, mountpoint_id) VALUES (?, ?)',
-            [id, mountpointId]
-          );
+        if (!mountpointAll) {
+          for (const mountpointId of mountpointIds) {
+            await conn.query(
+              'INSERT INTO account_mountpoint_acl (account_id, mountpoint_id) VALUES (?, ?)',
+              [id, mountpointId]
+            );
+          }
         }
         return id;
       });
@@ -436,11 +556,38 @@ ntripAccountsRouter.patch(
       ownerId = ownership.ownerId;
       companyId = ownership.companyId;
     }
-    if (body.listenerIds !== undefined) {
-      await assertScopedIds(req, 'caster_listeners', [...new Set(body.listenerIds)], companyId);
+    const beforeListenerAll = Number(before.listener_all ?? 1) === 1;
+    const beforeMountpointAll = Number(before.mountpoint_all ?? 1) === 1;
+    const nextListenerAll = body.listener_all ?? beforeListenerAll;
+    const nextMountpointAll = body.mountpoint_all ?? beforeMountpointAll;
+    const nextListenerIds =
+      body.listenerIds !== undefined ? [...new Set(body.listenerIds)] : undefined;
+    const nextMountpointIds =
+      body.mountpointIds !== undefined ? [...new Set(body.mountpointIds)] : undefined;
+    // Khi bật “Tất cả” thì bỏ qua ids; khi tắt thì bắt buộc có ids (mới hoặc cũ).
+    const effectiveListenerIdsForCheck =
+      nextListenerAll ? [0] : (nextListenerIds ?? (beforeListenerAll ? [] : await listenerIdsFor(id)));
+    const effectiveMountpointRows = nextMountpointAll
+      ? [0]
+      : (nextMountpointIds ??
+        (beforeMountpointAll
+          ? []
+          : (await query<RowDataPacket[]>(
+              'SELECT mountpoint_id FROM account_mountpoint_acl WHERE account_id = ?',
+              [id]
+            )).map((row) => Number(row.mountpoint_id))));
+    await assertAllFlags(
+      req,
+      body.listener_all,
+      body.mountpoint_all,
+      effectiveListenerIdsForCheck,
+      effectiveMountpointRows
+    );
+    if (nextListenerIds !== undefined && !nextListenerAll) {
+      await assertScopedIds(req, 'caster_listeners', nextListenerIds, companyId);
     }
-    if (body.mountpointIds !== undefined) {
-      await assertScopedIds(req, 'mountpoints', [...new Set(body.mountpointIds)], companyId);
+    if (nextMountpointIds !== undefined && !nextMountpointAll) {
+      await assertScopedIds(req, 'mountpoints', nextMountpointIds, companyId);
     }
     const passwordHash = body.password ? await hashPassword(body.password) : before.password_hash;
     try {
@@ -450,7 +597,7 @@ ntripAccountsRouter.patch(
               SET username = ?, password_hash = ?, enabled = ?, max_connections = ?,
                   company = ?, contact_name = ?, email = ?, phone = ?,
                   valid_from = ?, valid_to = ?, available_area = ?, auth_method = ?, notes = ?,
-                  owner_web_user_id = ?, company_id = ?
+                  owner_web_user_id = ?, company_id = ?, listener_all = ?, mountpoint_all = ?
             WHERE id = ?`,
           [
             body.username ?? before.username,
@@ -468,25 +615,31 @@ ntripAccountsRouter.patch(
             body.notes ?? before.notes,
             ownerId,
             companyId,
+            nextListenerAll ? 1 : 0,
+            nextMountpointAll ? 1 : 0,
             id
           ]
         );
-        if (body.listenerIds !== undefined) {
+        if (body.listener_all !== undefined || nextListenerIds !== undefined) {
           await conn.query('DELETE FROM account_listener_acl WHERE account_id = ?', [id]);
-          for (const listenerId of [...new Set(body.listenerIds)]) {
-            await conn.query(
-              'INSERT INTO account_listener_acl (account_id, listener_id) VALUES (?, ?)',
-              [id, listenerId]
-            );
+          if (!nextListenerAll && nextListenerIds !== undefined) {
+            for (const listenerId of nextListenerIds) {
+              await conn.query(
+                'INSERT INTO account_listener_acl (account_id, listener_id) VALUES (?, ?)',
+                [id, listenerId]
+              );
+            }
           }
         }
-        if (body.mountpointIds !== undefined) {
+        if (body.mountpoint_all !== undefined || nextMountpointIds !== undefined) {
           await conn.query('DELETE FROM account_mountpoint_acl WHERE account_id = ?', [id]);
-          for (const mountpointId of [...new Set(body.mountpointIds)]) {
-            await conn.query(
-              'INSERT INTO account_mountpoint_acl (account_id, mountpoint_id) VALUES (?, ?)',
-              [id, mountpointId]
-            );
+          if (!nextMountpointAll && nextMountpointIds !== undefined) {
+            for (const mountpointId of nextMountpointIds) {
+              await conn.query(
+                'INSERT INTO account_mountpoint_acl (account_id, mountpoint_id) VALUES (?, ?)',
+                [id, mountpointId]
+              );
+            }
           }
         }
       });
