@@ -1,6 +1,9 @@
 FROM golang:1.24-alpine AS build
 ARG GOPROXY=https://proxy.golang.org,direct
+ARG GOSUMDB=sum.golang.org
+RUN apk add --no-cache git
 ENV GOPROXY=$GOPROXY
+ENV GOSUMDB=$GOSUMDB
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
