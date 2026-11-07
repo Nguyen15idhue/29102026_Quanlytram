@@ -1101,6 +1101,12 @@ export interface MapAccountItem {
   mountpointId: number;
   stationId: number | null;
   hasCoords: boolean;
+  roverLat: number | null;
+  roverLon: number | null;
+  roverAlt: number | null;
+  roverSats: number | null;
+  roverFixTs: string | null;
+  roverStale: boolean;
   fixType: AccountFixStatus;
   startTs: string;
   bytesIn: number;

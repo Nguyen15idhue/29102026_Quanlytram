@@ -22,7 +22,14 @@ test.describe('lớp tài khoản trên bản đồ', () => {
     for (const account of overview.accounts) {
       expect(String(account.username).trim()).not.toBe('');
       expect(account.stationId === null || Number.isInteger(account.stationId)).toBe(true);
-      expect(account.hasCoords).toBe(account.stationId !== null);
+      // hasCoords = có GGA rover hoặc gắn được trạm.
+      const hasRover =
+        account.roverLat !== null &&
+        account.roverLon !== null &&
+        Number.isFinite(Number(account.roverLat)) &&
+        Number.isFinite(Number(account.roverLon));
+      expect(account.hasCoords).toBe(hasRover || account.stationId !== null);
+      expect(typeof account.roverStale).toBe('boolean');
     }
     expect(overview.counts.accountsOutsideStations).toBe(
       overview.accounts.filter((account: { stationId: number | null }) => account.stationId === null)

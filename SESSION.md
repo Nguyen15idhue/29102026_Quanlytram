@@ -1932,4 +1932,76 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   còn `user`; POST `super_admin`/`admin` đều **403**, POST `user` **201**;
   tài khoản tạm đã xóa sau test.
 
+### Fix 2 lỗi bản đồ NTRIP: admin thiếu kết nối + pin rover trùng trạm (2026-11-07, local only, chưa deploy)
+
+- Lỗi 1 (admin không thấy NTRIP đang kết nối): socket snapshot + map overview +
+  caster online list lọc theo `owner_web_user_id`; mountpoint do super tạo nên
+  admin cùng công ty vẫn bị loại.
+  Sửa (scope company, fallback owner cho dữ liệu cũ):
+  - `server/src/realtime/filter.ts`: thêm `companyId` vào RawMountpoint/
+    RawStation; `buildSnapshot(..., authCompanyId)` — tenant ưu tiên so
+    `companyId`, fallback owner; Connection thêm rover fields.
+  - `server/src/realtime/data.ts`: query `company_id`, passthrough rover fields.
+  - `server/src/realtime/socket.ts`: `SocketAuth.companyId`, truyền vào
+    `buildSnapshot` ở `sendSnapshot` + `tick`.
+  - `server/src/routes/map.ts`: nạp `mountpoints.company_id` (kể cả orphan),
+    orphan cùng công ty admin vẫn thấy ở `accountsOutsideStations`; mở rộng
+    username lookup; `MapAccount` thêm rover fields,
+    `hasCoords = có rover GGA hoặc gắn được trạm`.
+  - `server/src/routes/caster.ts`: `writableMountpointIds` + DELETE dùng nhánh
+    company cho tenant; `server/src/lib/caster.ts` thêm rover fields.
+- Lỗi 2 (pin rover trùng trạm): Go chỉ parse `fixType`, không có pipeline vị trí.
+  Sửa: `gnss/internal/caster/gga.go` thêm `ParseGGAPosition` (lat/lon/alt/sats);
+  `types.go` thêm `roverLat/Lon/Alt/Sats/FixTs` vào `ConnectionSnapshot`;
+  `connection.go` lưu vị trí trong `roverReadLoop`, expose qua `snapshot()`.
+  FE: `MapAccountItem` thêm rover fields; `LeafletCanvas` nhận prop `accounts`
+  (trước đây bỏ rơi), vẽ pin rover riêng tại GGA; `MaplibreCanvas` ưu tiên GGA,
+  fallback trạm. Tương thích ngược backend cũ (vẽ pin trạm như trước).
+- Test (local):
+  - `go test ./...` PASS toàn bộ; mới `gga_position_test.go` PASS.
+  - `cd server && npm test`: 45 files / 219 tests PASS (mới 3 tests tenant
+    company + rover passthrough trong `realtime.test.ts`); `npm run build` OK.
+  - `cd frontend && npx tsc --noEmit` OK.
+  - Playwright (stack live 127.0.0.1:3000, login thật): mới
+    `map-rover-pins.spec.ts` (mock overview: 1 pin trạm + 3 pin account, rover
+    đúng tọa độ GGA, không pageerror) PASS; `map + map-accounts +
+    map-account-pins + unified-map + map-maplibre + map-config` 11/11 PASS.
+    Lưu ý live caster hiện 0 kết nối nên E2E rover-shape chỉ kiểm qua mock.
+
+### Chẩn đoán "thêm trạm báo Dữ liệu không hợp lệ" với tài khoản admin (2026-11-07, chỉ kiểm tra prod)
+
+- Tái hiện trên prod bằng đúng payload form: cả admin (`docs.admin`) và superadmin
+  đều trả `400 VALIDATION_ERROR "Dữ liệu không hợp lệ"`,
+  `details=[{path:"port", message:"Too small: expected number to be >=1"}]`.
+  Kết luận: **không phải lỗi phân quyền**.
+- Chuỗi nguyên nhân:
+  - Form tạo trạm (`frontend/src/pages/Stations.tsx`) không có ô nhập Port trạm;
+    `form.port` luôn `''` ở chế độ tạo mới (chỉ `formFromStation` khi sửa mới gán).
+  - `save()` gửi `port: Number('') = 0` (`Stations.tsx:321-324`); với vai trò
+    `ntrip_client` không có fallback listener port như `ntrip_caster`.
+  - Backend `createSchema.port` (`server/src/routes/stations.ts:88`) bắt buộc
+    1–65535 → ZodError → `errorHandler` (`lib/http.ts:36-47`) trả message chung.
+  - UI gắn lỗi form-level vào field "Tên trạm" (`Stations.tsx:1129`) nên dễ hiểu nhầm.
+- Đề xuất fix (chưa làm, chờ xác nhận): FE gửi `port = client_port` khi
+  `source_role=ntrip_client` (cột `stations.port` chỉ dùng cho probe legacy;
+  kết nối client dùng `station_sources.client_host/port`).
+
+### Fix lỗi thêm trạm NTRIP client báo Dữ liệu không hợp lệ (2026-11-07, local only, chưa deploy)
+
+- Quyết định theo xác nhận user: port NTRIP client là upstream ngoài, không liên
+  quan port hệ thống → không ép `client_port` vào `stations.port`.
+- Sửa:
+  - `server/src/routes/stations.ts`: `stationBaseSchema.port` thành optional;
+    POST dùng `body.port ?? 1509` (giữ NOT NULL legacy; port upstream thật nằm ở
+    `station_sources`); export `createSchema` + `validateSourceFields` cho test.
+  - `frontend/src/pages/Stations.tsx`: tạo mới `ntrip_client` thì không gửi key
+    `port`; `ntrip_caster` giữ nguyên (port listener).
+- Test (local):
+  - Mới `server/tests/stationCreatePort.test.ts` 3/3 PASS (thiếu port OK,
+    port=0 fail đúng path, caster thiếu listener báo đúng lỗi).
+  - Full server: 46 files / 222 tests PASS; `npm run build` OK.
+  - `frontend tsc --noEmit` OK; Playwright mới `station-client-port.spec.ts`
+    PASS (payload không có key `port`, giữ `client_port`); `p1-station.spec.ts`
+    (luồng caster) PASS.
+- Lưu ý: backend prod đang chạy code cũ nên tạo client vẫn 400 đến khi deploy.
 

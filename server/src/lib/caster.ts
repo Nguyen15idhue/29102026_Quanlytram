@@ -147,6 +147,11 @@ export interface GoConnection {
   bytesIn: number;
   bytesOut: number;
   fixType?: string;
+  roverLat?: number | null;
+  roverLon?: number | null;
+  roverAlt?: number | null;
+  roverSats?: number | null;
+  roverFixTs?: string;
 }
 
 /**
@@ -196,6 +201,11 @@ export function publicConnection(
     startTs: item.startTs,
     bytesIn: Number(item.bytesIn ?? 0),
     bytesOut: Number(item.bytesOut ?? 0),
-    fixType: item.fixType ?? ''
+    fixType: item.fixType ?? '',
+    roverLat: item.roverLat ?? null,
+    roverLon: item.roverLon ?? null,
+    roverAlt: item.roverAlt ?? null,
+    roverSats: item.roverSats ?? null,
+    roverFixTs: item.roverFixTs ?? null
   };
 }

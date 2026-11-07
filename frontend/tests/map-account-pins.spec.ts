@@ -40,8 +40,20 @@ test.describe('pin tài khoản trên MapLibre', () => {
     await expect(page.locator('.maplibre-canvas')).toBeVisible();
 
     const overview = await (await page.request.get('/api/map/overview')).json();
-    const expected = (overview.accounts as Array<{ stationId: number | null }>).filter(
-      (item) => item.stationId !== null
+    // Pin hiển thị: có GGA rover (kể cả ngoài trạm) hoặc gắn được trạm.
+    const expected = (
+      overview.accounts as Array<{
+        stationId: number | null;
+        roverLat: number | null;
+        roverLon: number | null;
+      }>
+    ).filter(
+      (item) =>
+        (item.roverLat !== null &&
+          item.roverLon !== null &&
+          Number.isFinite(Number(item.roverLat)) &&
+          Number.isFinite(Number(item.roverLon))) ||
+        item.stationId !== null
     ).length;
     if (expected > 0) {
       await expect(page.locator('.map-account-pin')).toHaveCount(expected, {

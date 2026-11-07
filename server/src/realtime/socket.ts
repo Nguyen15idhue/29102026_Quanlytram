@@ -29,6 +29,7 @@ export interface SocketAuth {
   roleId: number;
   roleCode: string;
   roleLevel: number;
+  companyId: number | null;
 }
 
 interface SocketState {
@@ -122,7 +123,7 @@ export async function loadSessionByToken(token: string): Promise<SocketAuth | nu
   const tokenHash = sha256(token);
   const rows = await query<RowDataPacket[]>(
     `SELECT s.id AS session_id,
-            u.id, u.username, u.role_id,
+            u.id, u.username, u.role_id, u.company_id,
             r.code AS role_code, r.level AS role_level
        FROM web_sessions s
        JOIN web_users u ON u.id = s.web_user_id
@@ -142,14 +143,15 @@ export async function loadSessionByToken(token: string): Promise<SocketAuth | nu
     username: String(row.username),
     roleId: Number(row.role_id),
     roleCode: String(row.role_code),
-    roleLevel: Number(row.role_level)
+    roleLevel: Number(row.role_level),
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id)
   };
 }
 
 async function refreshAuth(auth: SocketAuth): Promise<SocketAuth | null> {
   const rows = await query<RowDataPacket[]>(
     `SELECT s.id AS session_id,
-            u.id, u.username, u.role_id,
+            u.id, u.username, u.role_id, u.company_id,
             r.code AS role_code, r.level AS role_level
        FROM web_sessions s
        JOIN web_users u ON u.id = s.web_user_id
@@ -169,7 +171,8 @@ async function refreshAuth(auth: SocketAuth): Promise<SocketAuth | null> {
     username: String(row.username),
     roleId: Number(row.role_id),
     roleCode: String(row.role_code),
-    roleLevel: Number(row.role_level)
+    roleLevel: Number(row.role_level),
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id)
   };
 }
 
@@ -213,7 +216,8 @@ async function sendSnapshot(
     state.permissions,
     state.auth.userId,
     state.subtreeIds,
-    state.tenantIds
+    state.tenantIds,
+    state.auth.companyId
   );
   const snapshotSig = snapshotSignature(snapshot);
   socket.emit('snapshot', snapshot);
@@ -448,7 +452,8 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
           state.permissions,
           state.auth.userId,
           state.subtreeIds,
-          state.tenantIds
+          state.tenantIds,
+          state.auth.companyId
         );
         const snapshotSig = snapshotSignature(snapshot);
         if (snapshotSig !== state.lastSnapshotSig) {

@@ -85,7 +85,10 @@ const nullableNumber = (min: number, max: number) =>
 const stationBaseSchema = z.object({
   name: z.string().trim().min(1).max(160),
   host: text(190),
-  port: z.number().int().min(1).max(65535),
+  // Port trạm chỉ có ý nghĩa với nguồn publish/probe tại chỗ (legacy).
+  // Trạm NTRIP client dial ra upstream ngoài nên port hệ thống không liên quan:
+  // cho phép bỏ trống, backend dùng 1509 mặc định để giữ NOT NULL.
+  port: z.number().int().min(1).max(65535).optional(),
   connection_type: z.string().max(32).optional().default('ntrip'),
   source_type: z.enum(['relay_caster', 'caster_ingest', 'probe_client', 'manual']).optional().default('manual'),
   ntrip_version: z.enum(['v1', 'v2']).optional().default('v1'),
@@ -118,7 +121,7 @@ const stationBaseSchema = z.object({
   company_id: z.number().int().positive().nullable().optional()
 });
 
-const createSchema = stationBaseSchema.extend({
+export const createSchema = stationBaseSchema.extend({
   mountpoint_name: z.string().trim().max(128).optional(),
   source_role: z.enum(['ntrip_client', 'ntrip_caster']).optional().default('ntrip_caster'),
   caster_listener_id: z.number().int().positive().nullable().optional(),
@@ -173,7 +176,7 @@ const updateSchema = z.object({
   company_id: z.number().int().positive().nullable().optional()
 });
 
-function validateSourceFields(data: z.infer<typeof createSchema>): string | null {
+export function validateSourceFields(data: z.infer<typeof createSchema>): string | null {
   if (data.source_role === 'ntrip_caster') {
     if (!data.caster_listener_id) return 'Caster listener là bắt buộc';
     if (!data.caster_username?.trim()) return 'Caster username là bắt buộc';
@@ -1711,6 +1714,9 @@ stationsRouter.post(
     const ownership = await resolveWriteOwnership(req, body.owner_web_user_id, body.company_id);
     const ownerId = ownership.ownerId;
     const companyId = ownership.companyId;
+    // Trạm NTRIP client không listen port hệ thống: port bỏ trống -> 1509
+    // (giữ NOT NULL legacy; port upstream thật nằm ở station_sources).
+    const stationPort = body.port ?? 1509;
     const created = await withTransaction(async (conn) => {
       const [result] = await conn.query<any>(
         `INSERT INTO stations
@@ -1723,7 +1729,7 @@ stationsRouter.post(
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                  ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
-          body.name, body.host ?? '', body.port, body.connection_type,
+          body.name, body.host ?? '', stationPort, body.connection_type,
           body.source_type, body.ntrip_version, body.ntrip_mode,
           body.lat ?? null, body.lon ?? null, body.notes ?? '', body.station_type,
           body.enabled, body.coordinate_type, body.province ?? '', body.ward ?? '',

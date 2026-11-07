@@ -36,6 +36,12 @@ interface GoConnection {
   startTs: string;
   bytesIn: number;
   bytesOut: number;
+  fixType?: string;
+  roverLat?: number | null;
+  roverLon?: number | null;
+  roverAlt?: number | null;
+  roverSats?: number | null;
+  roverFixTs?: string;
 }
 
 let baseCache: { at: number; value: RawData } | null = null;
@@ -76,22 +82,24 @@ async function fetchBaseData(): Promise<RawData> {
   }));
 
   const stationRows = await query<RowDataPacket[]>(
-    'SELECT id, enabled, status, owner_web_user_id FROM stations'
+    'SELECT id, enabled, status, owner_web_user_id, company_id FROM stations'
   );
   const stations: RawStation[] = stationRows.map((row) => ({
     id: Number(row.id),
     enabled: Boolean(row.enabled),
     status: String(row.status ?? ''),
-    ownerId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id)
+    ownerId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id)
   }));
 
   const mountpointRows = await query<RowDataPacket[]>(
-    'SELECT id, station_id, owner_web_user_id FROM mountpoints'
+    'SELECT id, station_id, owner_web_user_id, company_id FROM mountpoints'
   );
   const mountpoints: RawMountpoint[] = mountpointRows.map((row) => ({
     id: Number(row.id),
     stationId: row.station_id === null ? null : Number(row.station_id),
-    ownerId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id)
+    ownerId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
+    companyId: row.company_id === null || row.company_id === undefined ? null : Number(row.company_id)
   }));
 
   const listenerRows = await query<RowDataPacket[]>(
@@ -143,7 +151,13 @@ async function fetchBaseData(): Promise<RawData> {
       userAgent: String(item.userAgent ?? ''),
       startTs: String(item.startTs ?? ''),
       bytesIn: Number(item.bytesIn ?? 0),
-      bytesOut: Number(item.bytesOut ?? 0)
+      bytesOut: Number(item.bytesOut ?? 0),
+      fixType: item.fixType,
+      roverLat: item.roverLat ?? null,
+      roverLon: item.roverLon ?? null,
+      roverAlt: item.roverAlt ?? null,
+      roverSats: item.roverSats ?? null,
+      roverFixTs: item.roverFixTs
     }));
   } catch {
     casterOk = false;

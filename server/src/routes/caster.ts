@@ -181,9 +181,24 @@ async function writableMountpointIds(req: Request): Promise<Set<number> | null> 
   }
   if (req.permissionScope === 'all') return null;
   const subtree = req.permissionScope === 'subtree' ? await scopeIdsFor(req) : [];
-  const rows = await query<RowDataPacket[]>('SELECT id, owner_web_user_id FROM mountpoints');
+  const rows = await query<RowDataPacket[]>(
+    'SELECT id, owner_web_user_id, company_id FROM mountpoints'
+  );
   const allowed = new Set<number>();
+  const authCompanyId = req.auth.companyId;
   for (const row of rows) {
+    const companyId =
+      row.company_id === null || row.company_id === undefined ? null : Number(row.company_id);
+    // Tenant: cùng công ty là đủ (đúng chuẩn list API + ntripAccounts);
+    // fallback owner cho dữ liệu cũ chưa có company.
+    if (req.permissionScope === 'tenant' && authCompanyId !== null && companyId !== null) {
+      if (Number(companyId) === Number(authCompanyId)) {
+        allowed.add(Number(row.id));
+        continue;
+      } else {
+        continue;
+      }
+    }
     if (inScope(req.permissionScope, req.auth.id, subtree, row.owner_web_user_id)) {
       allowed.add(Number(row.id));
     }
@@ -745,7 +760,7 @@ async function deleteConnection(req: Request, res: any): Promise<void> {
   if (!target) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy kết nối');
 
   const rows = await query<RowDataPacket[]>(
-    'SELECT owner_web_user_id FROM mountpoints WHERE id = ?',
+    'SELECT owner_web_user_id, company_id FROM mountpoints WHERE id = ?',
     [target.mountpointId]
   );
   if (rows.length === 0) {
@@ -753,7 +768,14 @@ async function deleteConnection(req: Request, res: any): Promise<void> {
       throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy kết nối');
     }
   } else {
-    await assertRecordScope(req, rows[0].owner_web_user_id);
+    await assertRecordScope(
+      req,
+      rows[0].owner_web_user_id,
+      'owner_web_user_id',
+      rows[0].company_id === null || rows[0].company_id === undefined
+        ? null
+        : Number(rows[0].company_id)
+    );
   }
 
   const result = await callGoInternal<{ ok: boolean; found: boolean }>(

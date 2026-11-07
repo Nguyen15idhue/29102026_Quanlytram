@@ -88,6 +88,24 @@ function buildAccountPopup(item: MapStationItem, account: MapStationItem['connec
   ].join('<br>');
 }
 
+function buildRoverPopup(account: MapAccountItem, stationName: string | null): string {
+  const lines = [
+    `<strong>${escapeHtml(account.username)}</strong>`,
+    `Tài khoản: ${ACCOUNT_FIX_LABELS[account.fixType]}${account.roverStale ? ' (cũ)' : ''}`,
+    stationName ? `Trạm: ${escapeHtml(stationName)}` : 'Ngoài trạm'
+  ];
+  if (account.roverLat !== null && account.roverLon !== null) {
+    lines.push(
+      `Rover: ${account.roverLat.toFixed(6)}, ${account.roverLon.toFixed(6)}` +
+        (account.roverAlt !== null ? ` · cao ${Number(account.roverAlt).toFixed(1)}m` : '') +
+        (account.roverSats !== null ? ` · ${account.roverSats} vệ tinh` : '')
+    );
+  } else {
+    lines.push('Rover: chưa có GGA');
+  }
+  return lines.join('<br>');
+}
+
 function buildPopup(item: MapStationItem, permissions: MapPermissions): string {
   const lines = [
     `<strong>${escapeHtml(item.name)}</strong>`,
@@ -136,7 +154,8 @@ export function LeafletCanvas({
   retrySignal = 0,
   onSelect,
   onTileError,
-  showProvinces = false
+  showProvinces = false,
+  accounts = []
 }: MapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -144,6 +163,7 @@ export function LeafletCanvas({
   const markerLayerRef = useRef<L.LayerGroup | null>(null);
   const stationMarkersRef = useRef(new Map<number, L.Marker>());
   const accountMarkersRef = useRef(new Map<number, L.Marker[]>());
+  const roverMarkersRef = useRef(new Map<number, L.Marker>());
   const markerSignaturesRef = useRef(new Map<number, string>());
   const tempRef = useRef<L.CircleMarker | null>(null);
   const archipelagoRef = useRef<L.LayerGroup | null>(null);
@@ -183,6 +203,7 @@ export function LeafletCanvas({
       markerLayerRef.current = null;
       stationMarkersRef.current.clear();
       accountMarkersRef.current.clear();
+      roverMarkersRef.current.clear();
       markerSignaturesRef.current.clear();
       tempRef.current = null;
     };
@@ -279,6 +300,22 @@ export function LeafletCanvas({
   useEffect(() => {
     const layerGroup = markerLayerRef.current;    if (!layerGroup) return;
 
+    // Tài khoản đã có vị trí rover GGA thì chỉ vẽ pin rover, không vẽ pin
+    // trạm trùng vị trí (tránh double-render).
+    const roverAccountIds = new Set<number>();
+    if (permissions.online) {
+      for (const account of accounts) {
+        if (
+          account.roverLat !== null &&
+          account.roverLon !== null &&
+          Number.isFinite(account.roverLat) &&
+          Number.isFinite(account.roverLon)
+        ) {
+          roverAccountIds.add(account.accountId);
+        }
+      }
+    }
+
     const removeStation = (id: number) => {
       const marker = stationMarkersRef.current.get(id);
       if (marker) {
@@ -295,7 +332,9 @@ export function LeafletCanvas({
     const seen = new Set<number>();
     for (const item of items) {
       if (item.lat === null || item.lon === null) continue;
-      const accounts = permissions.online ? item.connectedAccounts : [];
+      const accounts = permissions.online
+        ? item.connectedAccounts.filter((account) => !roverAccountIds.has(account.id))
+        : [];
       const popup = buildPopup(item, permissions);
       const signature = [
         item.lat,
@@ -375,7 +414,72 @@ export function LeafletCanvas({
     for (const id of [...stationMarkersRef.current.keys()]) {
       if (!seen.has(id)) removeStation(id);
     }
-  }, [items, permissions, selectedId]);
+  }, [items, permissions, selectedId, accounts]);
+
+  // Pin rover riêng: có GGA thì vẽ tại vị trí rover, không còn trùng trạm.
+  // Không GGA + ngoài trạm thì bỏ (không có tọa độ để vẽ).
+  useEffect(() => {
+    const layerGroup = markerLayerRef.current;
+    if (!layerGroup) return;
+    const stationById = new Map(items.map((item) => [item.id, item]));
+    const seen = new Set<number>();
+    if (permissions.online) {
+      for (const account of accounts) {
+        if (account.roverLat === null || account.roverLon === null) continue;
+        if (!Number.isFinite(account.roverLat) || !Number.isFinite(account.roverLon)) continue;
+        const station = account.stationId !== null ? stationById.get(account.stationId) : undefined;
+        const popup = buildRoverPopup(account, station ? station.name : null);
+        seen.add(account.connectionId);
+        const existing = roverMarkersRef.current.get(account.connectionId);
+        const signature = [
+          account.roverLat,
+          account.roverLon,
+          account.username,
+          account.fixType,
+          account.roverStale ? 'stale' : 'fresh'
+        ].join('~');
+        if (existing && (existing as unknown as { __sig?: string }).__sig === signature) {
+          continue;
+        }
+        if (existing) {
+          layerGroup.removeLayer(existing);
+          roverMarkersRef.current.delete(account.connectionId);
+        }
+        const icon = L.divIcon({
+          className: 'map-account-wrapper',
+          html: accountPinHtml(account.fixType),
+          iconSize: [28, 34],
+          iconAnchor: [14, 34],
+          popupAnchor: [0, -32]
+        });
+        const marker = L.marker([account.roverLat, account.roverLon], {
+          icon,
+          riseOnHover: true,
+          zIndexOffset: 500
+        });
+        marker.bindTooltip(`${account.username}${account.roverStale ? ' (cũ)' : ''}`, {
+          direction: 'top',
+          offset: [0, -10],
+          opacity: 0.95,
+          className: 'map-tooltip'
+        });
+        marker.bindPopup(popup, { minWidth: 200 });
+        marker.on('click', () => {
+          marker.closeTooltip();
+          if (account.stationId !== null) onSelectRef.current(account.stationId);
+        });
+        (marker as unknown as { __sig?: string }).__sig = signature;
+        marker.addTo(layerGroup);
+        roverMarkersRef.current.set(account.connectionId, marker);
+      }
+    }
+    for (const [id, marker] of roverMarkersRef.current) {
+      if (!seen.has(id)) {
+        layerGroup.removeLayer(marker);
+        roverMarkersRef.current.delete(id);
+      }
+    }
+  }, [accounts, items, permissions.online]);
 
   useEffect(() => {
     for (const item of items) {

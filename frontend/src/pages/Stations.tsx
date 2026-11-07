@@ -325,7 +325,9 @@ export function Stations() {
       const body = {
         name: form.name,
         host: form.host,
-        port: primaryPort,
+        // Trạm NTRIP client dial ra upstream ngoài, port hệ thống không liên quan:
+        // không gửi port trạm khi tạo mới, backend dùng 1509 mặc định.
+        ...(form.source_role === 'ntrip_client' && !editing ? {} : { port: primaryPort }),
         source_type: form.source_type,
         lat: form.lat === '' ? null : Number(form.lat),
         lon: form.lon === '' ? null : Number(form.lon),

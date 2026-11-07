@@ -13,12 +13,14 @@ export interface RawStation {
   enabled: boolean;
   status: string;
   ownerId: number | null;
+  companyId?: number | null;
 }
 
 export interface RawMountpoint {
   id: number;
   stationId: number | null;
   ownerId: number | null;
+  companyId?: number | null;
 }
 
 export interface RawRelayMetric {
@@ -44,6 +46,12 @@ export interface RawConnection {
   startTs: string;
   bytesIn: number;
   bytesOut: number;
+  fixType?: string;
+  roverLat?: number | null;
+  roverLon?: number | null;
+  roverAlt?: number | null;
+  roverSats?: number | null;
+  roverFixTs?: string;
 }
 
 export interface RawAlert {
@@ -96,6 +104,12 @@ export interface SnapshotConnection {
   startTs: string;
   bytesIn: number;
   bytesOut: number;
+  fixType?: string;
+  roverLat?: number | null;
+  roverLon?: number | null;
+  roverAlt?: number | null;
+  roverSats?: number | null;
+  roverFixTs?: string;
 }
 
 export interface SnapshotAlert {
@@ -160,12 +174,28 @@ export function buildSnapshot(
   permissions: PermissionMap,
   userId: number,
   subtreeIds: number[],
-  tenantIds: number[] = subtreeIds
+  tenantIds: number[] = subtreeIds,
+  authCompanyId: number | null = null
 ): Snapshot {
   const idsFor = (scope: Scope): number[] =>
     scope === 'tenant' ? tenantIds : subtreeIds;
   const jobById = new Map(raw.jobs.map((job) => [job.id, job]));
   const mountpointById = new Map(raw.mountpoints.map((item) => [item.id, item]));
+
+  // Tenant scope ưu tiên so company_id (đúng chuẩn list API); fallback owner
+  // khi dữ liệu cũ chưa có company.
+  function connectionVisible(scope: Scope, mountpoint: RawMountpoint): boolean {
+    if (scope === 'all') return true;
+    if (scope === 'none') return false;
+    if (scope === 'own') return Number(mountpoint.ownerId) === userId;
+    if (scope === 'tenant' && authCompanyId !== null && mountpoint.companyId !== undefined) {
+      if (mountpoint.companyId !== null && Number(mountpoint.companyId) === Number(authCompanyId)) {
+        return true;
+      }
+      // Cùng công ty nhưng company_id mountpoint null (dữ liệu cũ) -> fallback owner.
+    }
+    return idsFor(scope).includes(Number(mountpoint.ownerId));
+  }
 
   const relayScope = scopeOf(permissions, 'relay.view');
   const relays: SnapshotRelay[] =
@@ -202,7 +232,7 @@ export function buildSnapshot(
           .filter((item) => {
             const mountpoint = mountpointById.get(item.mountpointId);
             if (!mountpoint) return connectionScope === 'all';
-            return inScope(connectionScope, userId, idsFor(connectionScope), mountpoint.ownerId);
+            return connectionVisible(connectionScope, mountpoint);
           })
           .map((item) => ({
             id: item.id,
@@ -213,7 +243,13 @@ export function buildSnapshot(
             remoteAddr: item.remoteAddr,
             startTs: item.startTs,
             bytesIn: item.bytesIn,
-            bytesOut: item.bytesOut
+            bytesOut: item.bytesOut,
+            fixType: item.fixType,
+            roverLat: item.roverLat ?? null,
+            roverLon: item.roverLon ?? null,
+            roverAlt: item.roverAlt ?? null,
+            roverSats: item.roverSats ?? null,
+            roverFixTs: item.roverFixTs
           }));
 
   const stationScope = scopeOf(permissions, 'stations.view');

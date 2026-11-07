@@ -238,7 +238,7 @@ mapRouter.get(
         : [],
       stationIds.length
         ? query<RowDataPacket[]>(
-            `SELECT m.id, m.station_id, m.name
+            `SELECT m.id, m.station_id, m.name, m.company_id
                FROM mountpoints m WHERE m.station_id IN (${placeholders(stationIds)})`,
             stationIds
           )
@@ -257,6 +257,7 @@ mapRouter.get(
     const mountpointCount = new Map<number, number>();
     const relayCount = new Map<number, number>();
     const stationByMountpoint = new Map<number, number>();
+    const mountpointCompany = new Map<number, number | null>();
     const mountpointIds: number[] = [];
     for (const row of mountpointRows) {
       const stationId = Number(row.station_id);
@@ -267,6 +268,10 @@ mapRouter.get(
       );
       mountpointIds.push(Number(row.id));
       stationByMountpoint.set(Number(row.id), stationId);
+      mountpointCompany.set(
+        Number(row.id),
+        row.company_id === null || row.company_id === undefined ? null : Number(row.company_id)
+      );
     }
 
     const onlineSets = new Map<number, Set<string>>();
@@ -327,11 +332,47 @@ mapRouter.get(
       }
     }
 
+    // Mountpoint của kết nối nhưng không nằm trong stations admin thấy
+    // (station_id NULL hoặc trạm khác company): nạp company để xét scope
+    // theo công ty thay vì loại thẳng.
+    if (connectionsAllowed && casterAvailable) {
+      const missing = [
+        ...new Set(
+          casterConnections
+            .filter((item) => item.direction === 'rover')
+            .map((item) => Number(item.mountpointId))
+            .filter((id) => Number.isFinite(id) && !stationByMountpoint.has(id))
+        )
+      ];
+      if (missing.length > 0) {
+        const orphanRows = await query<RowDataPacket[]>(
+          `SELECT id, company_id FROM mountpoints WHERE id IN (${placeholders(missing)})`,
+          missing
+        );
+        for (const row of orphanRows) {
+          mountpointCompany.set(
+            Number(row.id),
+            row.company_id === null || row.company_id === undefined ? null : Number(row.company_id)
+          );
+        }
+      }
+    }
+
     const accountUsernameById = new Map<number, string>();
     if (connectionsAllowed) {
       const accountIds = new Set<number>();
       for (const ids of openAccountIdsByStation.values()) {
         for (const id of ids) accountIds.add(id);
+      }
+      // Orphan (ngoài trạm) không có trong openAccountIdsByStation -> bổ sung
+      // để admin cùng công ty vẫn resolve được username.
+      if (casterAvailable) {
+        for (const item of casterConnections) {
+          if (item.direction !== 'rover') continue;
+          if (item.accountId === null || item.accountId === undefined) continue;
+          const id = Number(item.accountId);
+          if (Number.isFinite(id) && id > 0) accountIds.add(id);
+        }
       }
       if (accountIds.size > 0) {
         const values = [...accountIds];
@@ -348,6 +389,7 @@ mapRouter.get(
     // Lớp tài khoản NTRIP: mỗi kết nối rover đã xác thực là một phần tử,
     // khớp với trang "Danh sách online" (một tài khoản có thể mở nhiều
     // mountpoint/kết nối). Mountpoint không có station_id vẫn được đếm.
+    // hasCoords = có vị trí rover GGA; fallback trạm để tương thích cũ.
     interface MapAccount {
       connectionId: number;
       accountId: number;
@@ -355,6 +397,12 @@ mapRouter.get(
       mountpointId: number;
       stationId: number | null;
       hasCoords: boolean;
+      roverLat: number | null;
+      roverLon: number | null;
+      roverAlt: number | null;
+      roverSats: number | null;
+      roverFixTs: string | null;
+      roverStale: boolean;
       fixType: AccountFixStatus;
       startTs: string;
       bytesIn: number;
@@ -362,6 +410,7 @@ mapRouter.get(
     }
     const accounts: MapAccount[] = [];
     if (connectionsAllowed && casterAvailable) {
+      const authCompanyId = req.auth!.companyId;
       for (const item of casterConnections) {
         if (item.direction !== 'rover') continue;
         if (item.accountId === null || item.accountId === undefined) continue;
@@ -369,18 +418,45 @@ mapRouter.get(
         if (!Number.isFinite(accountId) || accountId <= 0) continue;
         const mountpointId = Number(item.mountpointId);
         const stationId = stationByMountpoint.get(mountpointId) ?? null;
-        // Không xác định được trạm => không kiểm chứng được scope; chỉ super
-        // admin mới thấy các tài khoản ngoài trạm.
-        if (stationId === null && !isSuper) continue;
+        // Không xác định được trạm: xét scope theo company của mountpoint.
+        // Cùng công ty (hoặc super) thì giữ ở nhóm ngoài trạm; khác công ty thì loại.
+        if (stationId === null) {
+          if (isSuper) {
+            // super thấy hết
+          } else if (authCompanyId !== null) {
+            const mpCompany = mountpointCompany.get(mountpointId) ?? null;
+            if (mpCompany === null || Number(mpCompany) !== Number(authCompanyId)) continue;
+          } else {
+            continue;
+          }
+        }
         const username = (item.accountUsername || accountUsernameById.get(accountId) || '').trim();
         if (username === '') continue;
+        const roverLat =
+          item.roverLat === null || item.roverLat === undefined ? null : Number(item.roverLat);
+        const roverLon =
+          item.roverLon === null || item.roverLon === undefined ? null : Number(item.roverLon);
+        const hasRover =
+          roverLat !== null &&
+          roverLon !== null &&
+          Number.isFinite(roverLat) &&
+          Number.isFinite(roverLon);
+        const roverFixMs = item.roverFixTs ? Date.parse(item.roverFixTs) : NaN;
         accounts.push({
           connectionId: Number(item.id),
           accountId,
           username,
           mountpointId,
           stationId,
-          hasCoords: stationId !== null,
+          hasCoords: hasRover || stationId !== null,
+          roverLat: hasRover ? roverLat : null,
+          roverLon: hasRover ? roverLon : null,
+          roverAlt:
+            item.roverAlt === null || item.roverAlt === undefined ? null : Number(item.roverAlt),
+          roverSats:
+            item.roverSats === null || item.roverSats === undefined ? null : Number(item.roverSats),
+          roverFixTs: item.roverFixTs ?? null,
+          roverStale: hasRover ? Date.now() - roverFixMs > 30_000 : true,
           fixType: normalizeFixType(item.fixType),
           startTs: item.startTs,
           bytesIn: Number(item.bytesIn ?? 0),

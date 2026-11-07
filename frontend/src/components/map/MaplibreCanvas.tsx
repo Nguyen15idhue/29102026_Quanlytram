@@ -152,6 +152,24 @@ function buildAccountPopup(
   ].join('<br>');
 }
 
+function buildRoverPopup(account: MapAccountItem, stationName: string | null): string {
+  const lines = [
+    `<strong>${escapeHtml(account.username)}</strong>`,
+    `Tài khoản: ${ACCOUNT_FIX_LABELS[account.fixType]}${account.roverStale ? ' (cũ)' : ''}`,
+    stationName ? `Trạm: ${escapeHtml(stationName)}` : 'Ngoài trạm'
+  ];
+  if (account.roverLat !== null && account.roverLon !== null) {
+    lines.push(
+      `Rover: ${account.roverLat.toFixed(6)}, ${account.roverLon.toFixed(6)}` +
+        (account.roverAlt !== null ? ` · cao ${Number(account.roverAlt).toFixed(1)}m` : '') +
+        (account.roverSats !== null ? ` · ${account.roverSats} vệ tinh` : '')
+    );
+  } else {
+    lines.push('Rover: chưa có GGA');
+  }
+  return lines.join('<br>');
+}
+
 function pointFeature(
   lon: number,
   lat: number,
@@ -372,63 +390,113 @@ export function MaplibreCanvas({
     );
   }, [items, permissions, selectedId, ready]);
 
-  // Marker tài khoản: dùng pin hình người (DOM) giống Leaflet.
+  // Marker tài khoản: ưu tiên vị trí rover GGA; không GGA mới fallback trạm.
+  // Không GGA + ngoài trạm thì bỏ (không có tọa độ để vẽ).
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
     const stationById = new Map(items.map((item) => [item.id, item]));
-    const grouped = new Map<number, MapAccountItem[]>();
+    const seen = new Set<number>();
     if (permissions.online) {
+      const withRover: MapAccountItem[] = [];
+      const grouped = new Map<number, MapAccountItem[]>();
       for (const account of accounts) {
+        const hasRover =
+          account.roverLat !== null &&
+          account.roverLon !== null &&
+          Number.isFinite(account.roverLat) &&
+          Number.isFinite(account.roverLon);
+        if (hasRover) {
+          withRover.push(account);
+          continue;
+        }
         if (account.stationId === null) continue;
         const list = grouped.get(account.stationId) ?? [];
         list.push(account);
         grouped.set(account.stationId, list);
       }
-    }
-
-    const seen = new Set<number>();
-    for (const [stationId, list] of grouped) {
-      const station = stationById.get(stationId);
-      if (!station || station.lat === null || station.lon === null) continue;
-      const lat = station.lat;
-      const lon = station.lon;
-      list.sort((a, b) => a.connectionId - b.connectionId);
-      list.forEach((account, index) => {
-        const offsetX = (index - (list.length - 1) / 2) * 22;
-        const html = accountPinMarkup(accountColor(account.fixType));
+      for (const account of withRover) {
+        const station = account.stationId !== null ? stationById.get(account.stationId) : undefined;
+        const lat = account.roverLat as number;
+        const lon = account.roverLon as number;
         const popup = new maplibregl.Popup({
           closeButton: true,
           maxWidth: '320px'
-        }).setHTML(buildAccountPopup(station, account));
+        }).setHTML(buildRoverPopup(account, station ? station.name : null));
         seen.add(account.connectionId);
+        upsertRoverMarker(map, account, lon, lat, popup);
+      }
+      for (const [stationId, list] of grouped) {
+        const station = stationById.get(stationId);
+        if (!station || station.lat === null || station.lon === null) continue;
+        const lat = station.lat;
+        const lon = station.lon;
+        list.sort((a, b) => a.connectionId - b.connectionId);
+        list.forEach((account, index) => {
+          const offsetX = (index - (list.length - 1) / 2) * 22;
+          const html = accountPinMarkup(accountColor(account.fixType));
+          const popup = new maplibregl.Popup({
+            closeButton: true,
+            maxWidth: '320px'
+          }).setHTML(buildAccountPopup(station, account));
+          seen.add(account.connectionId);
+          let marker = accountMarkersRef.current.get(account.connectionId);
+          if (!marker) {
+            const element = document.createElement('div');
+            element.className = 'map-account-pin';
+            element.innerHTML = html;
+            element.addEventListener('click', (event) => {
+              event.stopPropagation();
+              onSelectRef.current(station.id);
+            });
+            marker = new maplibregl.Marker({
+              element,
+              anchor: 'bottom',
+              offset: [offsetX, 0]
+            })
+              .setLngLat([lon, lat])
+              .setPopup(popup)
+              .addTo(map);
+            accountMarkersRef.current.set(account.connectionId, marker);
+          } else {
+            marker.setLngLat([lon, lat]);
+            marker.setOffset([offsetX, 0]);
+            const element = marker.getElement();
+            element.innerHTML = html;
+            marker.setPopup(popup);
+          }
+        });
+      }
+    }
 
-        let marker = accountMarkersRef.current.get(account.connectionId);
-        if (!marker) {
-          const element = document.createElement('div');
-          element.className = 'map-account-pin';
-          element.innerHTML = html;
-          element.addEventListener('click', (event) => {
-            event.stopPropagation();
-            onSelectRef.current(station.id);
-          });
-          marker = new maplibregl.Marker({
-            element,
-            anchor: 'bottom',
-            offset: [offsetX, 0]
-          })
-            .setLngLat([lon, lat])
-            .setPopup(popup)
-            .addTo(map);
-          accountMarkersRef.current.set(account.connectionId, marker);
-        } else {
-          marker.setLngLat([lon, lat]);
-          marker.setOffset([offsetX, 0]);
-          const element = marker.getElement();
-          element.innerHTML = html;
-          marker.setPopup(popup);
-        }
-      });
+    function upsertRoverMarker(
+      map: maplibregl.Map,
+      account: MapAccountItem,
+      lon: number,
+      lat: number,
+      popup: maplibregl.Popup
+    ): void {
+      const html = accountPinMarkup(accountColor(account.fixType));
+      let marker = accountMarkersRef.current.get(account.connectionId);
+      if (!marker) {
+        const element = document.createElement('div');
+        element.className = 'map-account-pin';
+        element.innerHTML = html;
+        element.addEventListener('click', (event) => {
+          event.stopPropagation();
+          if (account.stationId !== null) onSelectRef.current(account.stationId);
+        });
+        marker = new maplibregl.Marker({ element, anchor: 'bottom', offset: [0, 0] })
+          .setLngLat([lon, lat])
+          .setPopup(popup)
+          .addTo(map);
+        accountMarkersRef.current.set(account.connectionId, marker);
+      } else {
+        marker.setLngLat([lon, lat]);
+        marker.setOffset([0, 0]);
+        marker.getElement().innerHTML = html;
+        marker.setPopup(popup);
+      }
     }
 
     for (const [connectionId, marker] of accountMarkersRef.current) {

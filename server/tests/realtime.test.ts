@@ -50,12 +50,12 @@ const raw: RawData = {
     }
   ],
   stations: [
-    { id: 1, ownerId: 10 },
-    { id: 2, ownerId: 99 }
+    { id: 1, enabled: true, status: 'online', ownerId: 10 },
+    { id: 2, enabled: true, status: 'online', ownerId: 99 }
   ],
   mountpoints: [
-    { id: 1, ownerId: 10 },
-    { id: 2, ownerId: 99 }
+    { id: 1, stationId: 1, ownerId: 10 },
+    { id: 2, stationId: 2, ownerId: 99 }
   ],
   connections: [
     {
@@ -193,6 +193,104 @@ describe('realtime payload filtering', () => {
     expect(snapshot.relays).toHaveLength(3);
     expect(snapshot.connections).toHaveLength(2);
     expect(snapshot.summary.openAlerts).toBe(3);
+  });
+
+  it('tenant sees same-company mountpoint even when owner is super_admin', () => {
+    // Mountpoint do super (owner 99) tạo nhưng company 7; admin (id 10,
+    // company 7) phải thấy kết nối.
+    const companyRaw: RawData = {
+      ...raw,
+      mountpoints: [
+        { id: 1, stationId: 1, ownerId: 99, companyId: 7 },
+        { id: 2, stationId: 2, ownerId: 99, companyId: 8 }
+      ],
+      connections: [
+        {
+          id: 1,
+          direction: 'rover',
+          listenerId: 1,
+          mountpointId: 1,
+          accountId: 5,
+          remoteAddr: '127.0.0.1',
+          userAgent: '',
+          startTs: '2026-10-30T00:00:00.000Z',
+          bytesIn: 1,
+          bytesOut: 2
+        },
+        {
+          id: 2,
+          direction: 'rover',
+          listenerId: 1,
+          mountpointId: 2,
+          accountId: 6,
+          remoteAddr: '127.0.0.2',
+          userAgent: '',
+          startTs: '2026-10-30T00:00:00.000Z',
+          bytesIn: 3,
+          bytesOut: 4
+        }
+      ]
+    };
+    const permissions = permissionMap([{ code: 'connections.view', scope: 'tenant' }]);
+    const snapshot = buildSnapshot(companyRaw, [], permissions, 10, [], [], 7);
+    expect(snapshot.connections.map((item) => item.id)).toEqual([1]);
+  });
+
+  it('tenant without company falls back to owner check (legacy data)', () => {
+    const legacyRaw: RawData = {
+      ...raw,
+      mountpoints: [{ id: 1, stationId: 1, ownerId: 10 }],
+      connections: [
+        {
+          id: 1,
+          direction: 'rover',
+          listenerId: 1,
+          mountpointId: 1,
+          accountId: 5,
+          remoteAddr: '127.0.0.1',
+          userAgent: '',
+          startTs: '2026-10-30T00:00:00.000Z',
+          bytesIn: 1,
+          bytesOut: 2
+        }
+      ]
+    };
+    const permissions = permissionMap([{ code: 'connections.view', scope: 'tenant' }]);
+    const snapshot = buildSnapshot(legacyRaw, [], permissions, 10, [], [10, 11], 7);
+    expect(snapshot.connections.map((item) => item.id)).toEqual([1]);
+  });
+
+  it('passes rover GGA position through to snapshot connections', () => {
+    const roverRaw: RawData = {
+      ...raw,
+      mountpoints: [{ id: 1, stationId: 1, ownerId: 10, companyId: 7 }],
+      connections: [
+        {
+          id: 9,
+          direction: 'rover',
+          listenerId: 1,
+          mountpointId: 1,
+          accountId: 5,
+          remoteAddr: '127.0.0.1',
+          userAgent: '',
+          startTs: '2026-10-30T00:00:00.000Z',
+          bytesIn: 10,
+          bytesOut: 20,
+          fixType: 'fixed',
+          roverLat: 21.0285,
+          roverLon: 105.8542,
+          roverAlt: 12.5,
+          roverSats: 9,
+          roverFixTs: '2026-10-30T00:00:01.000Z'
+        }
+      ]
+    };
+    const permissions = permissionMap([{ code: 'connections.view', scope: 'all' }]);
+    const snapshot = buildSnapshot(roverRaw, [], permissions, 10, [], [], 7);
+    expect(snapshot.connections).toHaveLength(1);
+    expect(snapshot.connections[0].roverLat).toBeCloseTo(21.0285, 6);
+    expect(snapshot.connections[0].roverLon).toBeCloseTo(105.8542, 6);
+    expect(snapshot.connections[0].fixType).toBe('fixed');
   });
 });
 

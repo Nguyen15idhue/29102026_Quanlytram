@@ -36,6 +36,13 @@ type connection struct {
 	bytesOut atomic.Uint64
 	closed   atomic.Bool
 	fixType  atomic.Value
+
+	roverMu    sync.Mutex
+	roverLat   *float64
+	roverLon   *float64
+	roverAlt   *float64
+	roverSats  *int
+	roverFixTs string
 }
 
 func (c *connection) currentFixType() string {
@@ -49,7 +56,7 @@ func (c *connection) currentFixType() string {
 }
 
 func (c *connection) snapshot() ConnectionSnapshot {
-	return ConnectionSnapshot{
+	snap := ConnectionSnapshot{
 		ID:              c.id,
 		Direction:       c.direction,
 		ListenerID:      c.listenerID,
@@ -63,6 +70,16 @@ func (c *connection) snapshot() ConnectionSnapshot {
 		BytesOut:        c.bytesOut.Load(),
 		FixType:         c.currentFixType(),
 	}
+	if c.direction == "rover" {
+		c.roverMu.Lock()
+		snap.RoverLat = c.roverLat
+		snap.RoverLon = c.roverLon
+		snap.RoverAlt = c.roverAlt
+		snap.RoverSats = c.roverSats
+		snap.RoverFixTs = c.roverFixTs
+		c.roverMu.Unlock()
+	}
+	return snap
 }
 
 func (c *connection) closeWithReason(reason string) {
@@ -136,7 +153,22 @@ func (c *connection) roverReadLoop(idleTimeout time.Duration) {
 		}
 		if len(line) > 0 {
 			c.bytesIn.Add(uint64(len(line)))
-			if fixType, ok := ParseGGAFixType(string(line)); ok {
+			if pos, fixType, ok := ParseGGAPosition(string(line)); ok {
+				c.fixType.Store(fixType)
+				c.roverMu.Lock()
+				lat := pos.Lat
+				lon := pos.Lon
+				c.roverLat = &lat
+				c.roverLon = &lon
+				if pos.HasAlt {
+					alt := pos.Alt
+					c.roverAlt = &alt
+				}
+				sats := pos.Sats
+				c.roverSats = &sats
+				c.roverFixTs = time.Now().UTC().Format(time.RFC3339Nano)
+				c.roverMu.Unlock()
+			} else if fixType, ok := ParseGGAFixType(string(line)); ok {
 				c.fixType.Store(fixType)
 			}
 		}
