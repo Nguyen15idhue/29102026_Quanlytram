@@ -35,6 +35,9 @@ type StationSourceConfig struct {
 	MountpointID    int64
 	StationName     string
 	Endpoint        EndpointConfig
+	DeviceProfileID int64
+	DeviceProfile   deviceprofile.Profile
+	UAPrefix        string
 	SendGGA         bool
 	Lat             *float64
 	Lon             *float64
@@ -127,7 +130,8 @@ SELECT s.id, s.name,
        ss.client_host, ss.client_port, ss.client_mount, ss.client_tls,
        ss.client_username, COALESCE(ss.client_password_enc, ''),
        s.ntrip_version, s.lat, s.lon,
-       ss.client_send_gga, ss.client_gga_lat, ss.client_gga_lon, ss.client_nmea_interval_sec
+       ss.client_send_gga, ss.client_gga_lat, ss.client_gga_lon, ss.client_nmea_interval_sec,
+       IFNULL(ss.client_device_profile_id, 0), ss.client_ua_prefix
   FROM station_sources ss
   JOIN stations s ON s.id = ss.station_id
  WHERE ss.source_role = 'ntrip_client'
@@ -173,6 +177,8 @@ func (s *stationSourceMySQLStore) LoadAll(ctx context.Context) ([]*StationSource
 			&ggaLat,
 			&ggaLon,
 			&nmeaIntervalSec,
+			&cfg.DeviceProfileID,
+			&cfg.UAPrefix,
 		); err != nil {
 			return nil, err
 		}
@@ -206,7 +212,14 @@ func (s *stationSourceMySQLStore) LoadAll(ctx context.Context) ([]*StationSource
 		}
 		configs = append(configs, &cfg)
 	}
-	return configs, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	profiles := loadDeviceProfiles(ctx, s.db)
+	for _, cfg := range configs {
+		cfg.DeviceProfile = resolveDeviceProfile(profiles, cfg.DeviceProfileID)
+	}
+	return configs, nil
 }
 
 // RunStationSource mở một phiên GET upstream (cùng đường với relay upstream)
@@ -219,7 +232,7 @@ func RunStationSource(
 	hooks stationSessionHooks,
 ) error {
 	opts = opts.withDefaults()
-	upstream, err := ntrip.Get(ctx, toNtripEndpoint(cfg.Endpoint, "CORS-MVP-station", deviceprofile.Default()), opts.DialTimeout)
+	upstream, err := ntrip.Get(ctx, toNtripEndpoint(cfg.Endpoint, resolveStationUserAgent(cfg), cfg.DeviceProfile), opts.DialTimeout)
 	if err != nil {
 		return err
 	}

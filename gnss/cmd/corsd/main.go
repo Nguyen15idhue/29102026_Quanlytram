@@ -139,6 +139,7 @@ func main() {
 	options.StationSourceTap = stationSourceManager.OpenTap
 	manager := relay.NewManager(store, writer, options)
 
+	probeStore := probe.NewMySQLStore(adminDB, cfg.AppEncKey)
 	probeOptions := probe.DefaultOptions()
 	probeOptions.PollInterval = cfg.ProbePollInterval
 	probeOptions.DialTimeout = cfg.DialTimeout
@@ -146,10 +147,8 @@ func main() {
 	probeOptions.ReadBuffer = cfg.ProbeReadBuffer
 	probeOptions.NMEAInterval = cfg.ProbeNMEAInterval
 	probeOptions.Quality = analyzer
-	probeManager := probe.NewManager(
-		probe.NewMySQLStore(adminDB, cfg.AppEncKey),
-		probeOptions,
-	)
+	probeOptions.Profile = probeStore.LoadDeviceProfile(ctx)
+	probeManager := probe.NewManager(probeStore, probeOptions)
 
 	runCtx, runCancel := context.WithCancel(context.Background())
 	go writer.Run(runCtx)

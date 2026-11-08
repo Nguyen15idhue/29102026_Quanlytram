@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"cors/gnss/internal/deviceprofile"
 	"cors/gnss/internal/nmea"
 	"cors/gnss/internal/ntrip"
 	"cors/gnss/internal/quality"
@@ -23,6 +24,10 @@ type Options struct {
 	RetryMin     time.Duration
 	RetryMax     time.Duration
 	Quality      *quality.Analyzer
+	// Profile ngụy trang dùng chung cho mọi probe (D19-22: không xoay profile
+	// theo phiên). Zero value → deviceprofile.Default().
+	Profile  deviceprofile.Profile
+	UAPrefix string
 }
 
 func DefaultOptions() Options {
@@ -39,6 +44,9 @@ func DefaultOptions() Options {
 
 func (o Options) withDefaults() Options {
 	defaults := DefaultOptions()
+	if o.Profile.IsZero() {
+		o.Profile = deviceprofile.Default()
+	}
 	if o.PollInterval <= 0 {
 		o.PollInterval = defaults.PollInterval
 	}
@@ -223,14 +231,27 @@ func (m *Manager) runSession(ctx context.Context, cfg *Config) {
 }
 
 func (m *Manager) connectAndRead(ctx context.Context, cfg *Config) error {
+	profile := m.opts.Profile
+	if profile.IsZero() {
+		profile = deviceprofile.Default()
+	}
+	// Probe dùng chung một profile và một UA cố định cho mọi trạm (D19-22):
+	// xoay profile cùng tài khoản/IP là dấu hiệu account sharing.
+	userAgent := deviceprofile.UserAgent(
+		profile,
+		m.opts.UAPrefix,
+		deviceprofile.Seed(profile.Code, 0, deviceprofile.RoleProbe),
+	)
 	endpoint := ntrip.Endpoint{
-		Host:      cfg.Host,
-		Port:      cfg.Port,
-		Mount:     cfg.Mount,
-		Username:  cfg.Username,
-		Password:  cfg.Password,
-		Version:   "v2",
-		UserAgent: "CORS-MVP-probe",
+		Host:        cfg.Host,
+		Port:        cfg.Port,
+		Mount:       cfg.Mount,
+		Username:    cfg.Username,
+		Password:    cfg.Password,
+		Version:     profile.NtripVersion,
+		HTTPVersion: profile.HTTPVersion,
+		Connection:  profile.Connection,
+		UserAgent:   userAgent,
 	}
 	response, err := ntrip.Get(ctx, endpoint, m.opts.DialTimeout)
 	if err != nil {

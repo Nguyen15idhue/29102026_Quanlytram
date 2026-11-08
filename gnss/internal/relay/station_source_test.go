@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"cors/gnss/internal/deviceprofile"
 	"cors/gnss/internal/ntrip"
 )
 
@@ -238,6 +239,43 @@ func TestRunStationSourceRequestAndAuth(t *testing.T) {
 	}
 	if basicAuthOf(gotReq) != "nguyen:pw" {
 		t.Fatalf("basic auth = %q, want nguyen:pw", basicAuthOf(gotReq))
+	}
+}
+
+func TestRunStationSourceUsesProfileUserAgent(t *testing.T) {
+	requests := make(chan string, 1)
+	port := startCaster(t, func(_ int, conn net.Conn, req string) {
+		select {
+		case requests <- req:
+		default:
+		}
+		_, _ = conn.Write([]byte("ICY 200 OK\r\n\r\nx"))
+	})
+	profile := deviceprofile.ResolveOrDefault("chc_landstar")
+	cfg := testStationConfig(port, "pw")
+	cfg.DeviceProfileID = 3
+	cfg.DeviceProfile = profile
+	cfg.UAPrefix = "NTRIP"
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = RunStationSource(ctx, cfg, testManagerOptions(time.Second), stationSessionHooks{})
+
+	want := deviceprofile.UserAgent(
+		profile,
+		cfg.UAPrefix,
+		deviceprofile.Seed(profile.Code, cfg.StationID, deviceprofile.RoleStation),
+	)
+	select {
+	case req := <-requests:
+		if !strings.Contains(req, "User-Agent: "+want+"\r\n") {
+			t.Fatalf("User-Agent không khớp profile:\n%s", req)
+		}
+		if strings.Contains(req, "CORS-MVP") {
+			t.Fatalf("request còn UA nội bộ:\n%s", req)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for station source request")
 	}
 }
 

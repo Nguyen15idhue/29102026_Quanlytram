@@ -953,4 +953,37 @@ nhận commit gần nhất, rồi tiếp tục đúng phase kế tiếp theo quy
   - `Ntrip-Version`/`HTTP version` của endpoint tường minh vẫn thắng profile
     (tương thích dữ liệu cũ); profile chỉ điền khi endpoint để trống hoặc
     cùng họ phiên bản. Lý do: `station_sources` cũ đang ép `v1` + `HTTP/1.0`.
+- Commit: `d9f28e9` — `P19-2: noi User-Agent theo device profile vao ntrip va relay`.
+
+### P19-3 — Station source + probe dùng profile (2026-11-08)
+
+- Phạm vi đã sửa:
+  - `gnss/internal/relay/station_source.go`: `StationSourceConfig` thêm
+    `DeviceProfileID/DeviceProfile/UAPrefix`; query đọc
+    `client_device_profile_id`, `client_ua_prefix`; load profile một lần cho
+    toàn bộ danh sách; `RunStationSource` dùng `resolveStationUserAgent()`.
+  - `gnss/internal/relay/useragent.go`: thêm `resolveStationUserAgent()`
+    (profile only — D19-20; seed `RoleStation` + station ID).
+  - `gnss/internal/relay/store.go`: tách `loadDeviceProfiles(ctx, db)` dùng
+    chung cho relay job và station source.
+  - `gnss/internal/probe/manager.go`: `Options.Profile`/`UAPrefix`; bỏ
+    `UserAgent: "CORS-MVP-probe"`; endpoint dùng Ntrip-Version/HTTP/Connection
+    của profile.
+  - `gnss/internal/probe/store.go`: `LoadDeviceProfile()` đọc
+    `settings['device_profile.probe']`.
+  - `gnss/cmd/corsd/main.go`: nạp profile probe lúc khởi động.
+- Migration: không có (cột `station_sources.client_*` đã thêm ở 047).
+- Test:
+  - `cd gnss && go test ./internal/relay ./internal/probe ./internal/ntrip` → PASS.
+  - `cd gnss && go test ./...` → PASS toàn bộ.
+  - `TestRunStationSourceUsesProfileUserAgent`: mock caster nhận đúng
+    `User-Agent: NTRIP CHC LandStar/<version>`, không còn `CORS-MVP`.
+  - `TestProbeSendsConfiguredProfileUserAgent`: probe gửi UA Trimble +
+    `Ntrip-Version: Ntrip/1.0`; `TestProbeProfileStableAcrossStations`: cùng
+    seed `(code, 0, probe)` nên UA cố định giữa các trạm.
+- Playwright: không áp dụng (chưa đổi UI).
+- Sai lệch so với kế hoạch:
+  - Probe chỉ resolve được profile **builtin** (settings lưu `code`); profile
+    custom trong DB sẽ cần bổ sung ở P19-6 nếu admin tạo profile riêng.
+  - Chưa lưu UA vào `station_source_sessions` (để P19-6 theo D19-21).
 - Commit: cập nhật sau khi push.

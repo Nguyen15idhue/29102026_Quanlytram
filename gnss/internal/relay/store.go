@@ -235,8 +235,12 @@ func (s *MySQLStore) LoadJob(ctx context.Context, id int64) (*JobConfig, error) 
 // loadProfiles đọc toàn bộ device profile đang bật. Lỗi đọc (ví dụ DB chưa
 // migration) không làm hỏng relay: caller rơi về profile mặc định trong Go.
 func (s *MySQLStore) loadProfiles(ctx context.Context) map[int64]deviceprofile.Profile {
+	return loadDeviceProfiles(ctx, s.db)
+}
+
+func loadDeviceProfiles(ctx context.Context, db *sql.DB) map[int64]deviceprofile.Profile {
 	profiles := make(map[int64]deviceprofile.Profile)
-	rows, err := s.db.QueryContext(ctx, `
+	rows, err := db.QueryContext(ctx, `
 		SELECT id, code, name, vendor, version_template, ntrip_version, http_version,
 		       connection, nmea_interval_sec, nmea_jitter_sec, hdop_min, hdop_max,
 		       sats_min, sats_max, send_gsa, send_rmc, initial_delay_ms, motion,

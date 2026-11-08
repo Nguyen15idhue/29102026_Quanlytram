@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"time"
 
+	"cors/gnss/internal/deviceprofile"
 	"cors/gnss/internal/secret"
 )
 
@@ -35,6 +37,23 @@ type MySQLStore struct {
 
 func NewMySQLStore(db *sql.DB, encKey string) *MySQLStore {
 	return &MySQLStore{db: db, encKey: encKey}
+}
+
+// LoadDeviceProfile đọc settings['device_profile.probe'] (D19-11). Probe dùng
+// một profile cố định cho mọi trạm; thiếu cấu hình thì dùng profile mặc định.
+func (s *MySQLStore) LoadDeviceProfile(ctx context.Context) deviceprofile.Profile {
+	var code sql.NullString
+	err := s.db.QueryRowContext(ctx, `
+		SELECT JSON_UNQUOTE(JSON_EXTRACT(setting_value, '$.code'))
+		  FROM settings
+		 WHERE setting_key = 'device_profile.probe'`).Scan(&code)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			log.Printf("[probe] đọc device_profile.probe lỗi, dùng mặc định: %v", err)
+		}
+		return deviceprofile.Default()
+	}
+	return deviceprofile.ResolveOrDefault(code.String)
 }
 
 const query = `

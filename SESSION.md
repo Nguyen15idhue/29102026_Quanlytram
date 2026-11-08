@@ -2059,3 +2059,14 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   TestBridgeSendsProfileHeaders xac nhan header that qua mock caster.
 - station_source moi chi sua chu ky toNtripEndpoint; UA station/probe se thay
   o P19-3.
+
+### P19-3 station source + probe dung device profile (2026-11-08)
+
+- station_sources: doc client_device_profile_id/client_ua_prefix; station source
+  chon UA theo profile + seed (RoleStation, station ID), khong con
+  CORS-MVP-station.
+- probe: Options.Profile/UAPrefix; store doc settings['device_profile.probe'];
+  corsd nap profile luc khoi dong; bo CORS-MVP-probe; UA probe co dinh giua cac
+  tram (D19-22).
+- Test: go test ./... PASS; them TestRunStationSourceUsesProfileUserAgent,
+  TestProbeSendsConfiguredProfileUserAgent, TestProbeProfileStableAcrossStations.

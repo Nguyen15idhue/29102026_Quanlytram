@@ -37,3 +37,21 @@ func resolveUserAgent(cfg *JobConfig, role deviceprofile.Role, targetID int64) s
 		deviceprofile.Seed(profile.Code, targetID, role),
 	)
 }
+
+// resolveStationUserAgent chọn UA cho nguồn NTRIP client của trạm. Station
+// source chỉ dùng profile (chưa có literal mode — D19-20), seed theo station ID
+// và role riêng để không trùng UA với relay job cùng ID.
+func resolveStationUserAgent(cfg *StationSourceConfig) string {
+	if cfg == nil {
+		return ""
+	}
+	profile := cfg.DeviceProfile
+	if profile.IsZero() {
+		profile = deviceprofile.Default()
+	}
+	return deviceprofile.UserAgent(
+		profile,
+		cfg.UAPrefix,
+		deviceprofile.Seed(profile.Code, cfg.StationID, deviceprofile.RoleStation),
+	)
+}
