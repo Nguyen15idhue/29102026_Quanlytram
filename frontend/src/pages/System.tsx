@@ -2,10 +2,11 @@ import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider';
 import { Tabs } from '../components/ui';
 import { AutomationTab } from './system/AutomationTab';
+import { DeviceProfileTab } from './system/DeviceProfileTab';
 import { HealthTab } from './system/HealthTab';
 import { OptimizeTab } from './system/OptimizeTab';
 
-type SystemTab = 'health' | 'optimize' | 'automation';
+type SystemTab = 'health' | 'optimize' | 'automation' | 'device';
 
 const ALL_TABS: { value: SystemTab; label: string }[] = [
   { value: 'health', label: 'Sức khỏe' },
@@ -13,11 +14,18 @@ const ALL_TABS: { value: SystemTab; label: string }[] = [
   { value: 'automation', label: 'Tự động hóa' }
 ];
 
+const DEVICE_TAB: { value: SystemTab; label: string } = {
+  value: 'device',
+  label: 'Device profile'
+};
+
 export function System() {
   const { can } = useAuth();
   const [params, setParams] = useSearchParams();
   const canOps = can('system_ops', 'view');
-  const options = canOps ? ALL_TABS : ALL_TABS.slice(0, 1);
+  const canDevice = can('device_profiles', 'view');
+  const base = canOps ? ALL_TABS : ALL_TABS.slice(0, 1);
+  const options = canDevice ? [...base, DEVICE_TAB] : base;
   const raw = params.get('tab');
   const found = options.find((option) => option.value === raw);
   const tab: SystemTab = found ? found.value : 'health';
@@ -35,6 +43,7 @@ export function System() {
       {tab === 'health' ? <HealthTab /> : null}
       {tab === 'optimize' ? <OptimizeTab /> : null}
       {tab === 'automation' ? <AutomationTab /> : null}
+      {tab === 'device' ? <DeviceProfileTab /> : null}
     </section>
   );
 }

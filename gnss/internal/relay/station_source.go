@@ -21,7 +21,7 @@ const (
 	// và kết nối lại. Nhịp dữ liệu thực tế có trạm ~60s/lần nên mặc định 120s;
 	// tránh cắt kết nối liên tục như ngưỡng cứng 30s trước đây.
 	defaultStationIdleTimeout = 120 * time.Second
-	minStationIdleTimeout     = 30 * time.Second	// stableStreamAfter: phiên nhận dữ liệu đủ lâu mới reset backoff; tránh vòng lặp
+	minStationIdleTimeout     = 30 * time.Second // stableStreamAfter: phiên nhận dữ liệu đủ lâu mới reset backoff; tránh vòng lặp
 	// nguồn "mở rồi đóng ngay" làm kết nối lại liên tục.
 	stableStreamAfter = 10 * time.Second
 )
@@ -75,7 +75,7 @@ type StationSourceStore interface {
 }
 
 type StationSourceSessionStore interface {
-	Start(ctx context.Context, stationID int64) (int64, error)
+	Start(ctx context.Context, stationID int64, userAgent string) (int64, error)
 	End(ctx context.Context, id int64, reason, message string) error
 	CloseOpen(ctx context.Context, reason string) error
 }
@@ -88,10 +88,10 @@ func NewStationSourceSessionStore(db *sql.DB) StationSourceSessionStore {
 	return &stationSourceSessionMySQLStore{db: db}
 }
 
-func (s *stationSourceSessionMySQLStore) Start(ctx context.Context, stationID int64) (int64, error) {
+func (s *stationSourceSessionMySQLStore) Start(ctx context.Context, stationID int64, userAgent string) (int64, error) {
 	result, err := s.db.ExecContext(ctx, `
-		INSERT INTO station_source_sessions (station_id, start_ts)
-		VALUES (?, UTC_TIMESTAMP(3))`, stationID)
+		INSERT INTO station_source_sessions (station_id, start_ts, user_agent)
+		VALUES (?, UTC_TIMESTAMP(3), ?)`, stationID, userAgent)
 	if err != nil {
 		return 0, err
 	}
@@ -583,7 +583,7 @@ func (m *StationSourceManager) runSession(ctx context.Context, cfg *StationSourc
 		streamStart = time.Time{}
 		sessionID := int64(0)
 		if m.sessionStore != nil {
-			id, startErr := m.sessionStore.Start(ctx, cfg.StationID)
+			id, startErr := m.sessionStore.Start(ctx, cfg.StationID, resolveStationUserAgent(cfg))
 			if startErr != nil {
 				log.Printf("[station-source] station %d start session: %v", cfg.StationID, startErr)
 			} else {

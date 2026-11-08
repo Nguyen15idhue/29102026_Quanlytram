@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"testing"
 
+	"cors/gnss/internal/deviceprofile"
 	"cors/gnss/internal/secret"
 )
 
@@ -179,5 +180,21 @@ func TestScanJobRejectsWrongRecordAAD(t *testing.T) {
 	// Job trỏ credential 99 nhưng ciphertext gắn AAD của credential 12.
 	if _, err := store.scanJob(&fakeRow{values: jobRow(upstreamEnc, 99, "", 0)}); err == nil {
 		t.Fatal("AAD sai phải làm scanJob lỗi")
+	}
+}
+
+func TestResolveDeviceProfileUsesGlobalDefault(t *testing.T) {
+	profiles := map[int64]deviceprofile.Profile{
+		0: deviceprofile.ResolveOrDefault("trimble_da2"),
+		5: deviceprofile.ResolveOrDefault("chc_landstar"),
+	}
+	if got := resolveDeviceProfile(profiles, 5); got.Code != "chc_landstar" {
+		t.Fatalf("profile id 5 = %q, want chc_landstar", got.Code)
+	}
+	if got := resolveDeviceProfile(profiles, 0); got.Code != "trimble_da2" {
+		t.Fatalf("fallback = %q, want trimble_da2", got.Code)
+	}
+	if got := resolveDeviceProfile(profiles, 99); got.Code != "trimble_da2" {
+		t.Fatalf("profile bị tắt/xóa phải rơi về mặc định, có %q", got.Code)
 	}
 }

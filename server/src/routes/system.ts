@@ -1,5 +1,13 @@
 import { Router } from 'express';
+import { z } from 'zod';
 import { ApiError, asyncHandler, clientIp } from '../lib/http';
+import { adminPool, query } from '../db/pool';
+import { writeAudit } from '../lib/audit';
+import {
+  getDeviceProfileByCode,
+  listDeviceProfiles,
+  loadSettingProfileCode
+} from '../lib/deviceProfile';
 import {
   getSettings,
   listJobs,
@@ -37,6 +45,66 @@ systemRouter.get(
   asyncHandler(async (req, res) => {
     const fresh = ['1', 'true'].includes(String(req.query.fresh ?? '').toLowerCase());
     res.json(await getSystemOptimize({ fresh }));
+  })
+);
+
+systemRouter.get(
+  '/device-profile',
+  requirePermission('device_profiles', 'view'),
+  asyncHandler(async (_req, res) => {
+    const [defaultCode, probeCode] = await Promise.all([
+      loadSettingProfileCode('device_profile.default'),
+      loadSettingProfileCode('device_profile.probe')
+    ]);
+    res.json({
+      defaultCode,
+      probeCode,
+      profiles: await listDeviceProfiles(true)
+    });
+  })
+);
+
+const deviceProfileSettingsSchema = z.object({
+  defaultCode: z.string().trim().min(2).max(64),
+  probeCode: z.string().trim().min(2).max(64)
+});
+
+systemRouter.put(
+  '/device-profile',
+  requirePermission('device_profiles', 'edit'),
+  asyncHandler(async (req, res) => {
+    const body = deviceProfileSettingsSchema.parse(req.body ?? {});
+    for (const code of [body.defaultCode, body.probeCode]) {
+      const profile = await getDeviceProfileByCode(code);
+      if (!profile || !profile.enabled) {
+        throw new ApiError(400, 'INVALID_DEVICE_PROFILE', `Device profile "${code}" không tồn tại hoặc đã tắt`);
+      }
+    }
+    const beforeRows = await query<any>(
+      `SELECT setting_key, setting_value FROM settings
+        WHERE setting_key IN ('device_profile.default','device_profile.probe')`
+    );
+    const before = Object.fromEntries(
+      beforeRows.map((row: any) => [row.setting_key, row.setting_value])
+    );
+    await adminPool.query(
+      `INSERT INTO settings (setting_key, setting_value) VALUES
+         ('device_profile.default', JSON_OBJECT('code', ?)),
+         ('device_profile.probe', JSON_OBJECT('code', ?))
+       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+      [body.defaultCode, body.probeCode]
+    );
+    await writeAudit(
+      adminPool,
+      req.auth!.id,
+      'update',
+      'device_profile_settings',
+      'global',
+      before,
+      { 'device_profile.default': body.defaultCode, 'device_profile.probe': body.probeCode },
+      clientIp(req)
+    );
+    res.json({ defaultCode: body.defaultCode, probeCode: body.probeCode });
   })
 );
 

@@ -39,13 +39,14 @@ func TestBufferedWriterSessionLifecycleMySQL(t *testing.T) {
 
 	start := time.Date(2026, 11, 4, 21, 33, 53, 123456789, time.UTC)
 	end := time.Date(2026, 11, 4, 23, 44, 6, 987654321, time.UTC)
-	writer.SessionStart(jobID, start.Truncate(time.Millisecond))
+	writer.SessionStart(jobID, start.Truncate(time.Millisecond), "CHC LandStar/5.2.1.20240115")
 	waitFor(t, 3*time.Second, func() bool {
 		var endTS sql.NullTime
+		var userAgent string
 		err := db.QueryRowContext(ctx,
-			"SELECT end_ts FROM relay_sessions WHERE relay_job_id = ? AND start_ts = ?",
-			jobID, start.Truncate(time.Millisecond)).Scan(&endTS)
-		return err == nil && !endTS.Valid
+			"SELECT end_ts, user_agent FROM relay_sessions WHERE relay_job_id = ? AND start_ts = ?",
+			jobID, start.Truncate(time.Millisecond)).Scan(&endTS, &userAgent)
+		return err == nil && !endTS.Valid && userAgent == "CHC LandStar/5.2.1.20240115"
 	})
 
 	writer.Session(jobID, start, end, "error", "network", "broken pipe")

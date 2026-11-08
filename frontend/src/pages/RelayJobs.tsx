@@ -9,6 +9,7 @@ import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
 import type {
   Company,
+  DeviceProfile,
   RelayJob,
   RelayJobStatusResponse,
   RelayStationOption,
@@ -78,6 +79,9 @@ const emptyForm = {
   lat: '',
   lon: '',
   uaPrefix: '',
+  uaMode: 'profile' as 'profile' | 'literal',
+  deviceProfileId: 0,
+  motionEnabled: false,
   nmeaIntervalSec: 0
 };
 
@@ -159,6 +163,7 @@ export function RelayJobs() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState('');
+  const [uaPreview, setUaPreview] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [importText, setImportText] = useState('');
   const [importPreview, setImportPreview] = useState<{
@@ -195,6 +200,33 @@ export function RelayJobs() {
     queryFn: () => apiFetch<{ items: RelayStationOption[] }>('/api/relay-jobs/station-options'),
     enabled: formOpen
   });
+  const deviceProfiles = useQuery({
+    queryKey: ['device-profiles'],
+    queryFn: () => apiFetch<{ items: DeviceProfile[] }>('/api/device-profiles'),
+    enabled: formOpen || Boolean(detail)
+  });
+  useEffect(() => {
+    if (!formOpen) {
+      setUaPreview('');
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      apiFetch<{ userAgent: string }>('/api/device-profiles/preview', {
+        method: 'POST',
+        body: {
+          profileId: form.deviceProfileId || undefined,
+          uaMode: form.uaMode,
+          uaPrefix: form.uaPrefix,
+          role: 'relay',
+          targetId: editing?.id ?? 0
+        },
+        csrfToken
+      })
+        .then((result) => setUaPreview(result.userAgent))
+        .catch(() => setUaPreview(''));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [formOpen, form.uaMode, form.deviceProfileId, form.uaPrefix, editing?.id, csrfToken]);
   const stationItems = stationOptions.data?.items ?? [];
   const upstreamStation = stationItems.find((item) => item.id === form.upstreamStationId) ?? null;
   const downstreamStation =
@@ -332,6 +364,9 @@ export function RelayJobs() {
         lat: form.sendGga && form.lat !== '' ? Number(form.lat) : null,
         lon: form.sendGga && form.lon !== '' ? Number(form.lon) : null,
         uaPrefix: form.uaPrefix,
+        uaMode: form.uaMode,
+        deviceProfileId: form.deviceProfileId || null,
+        motionEnabled: form.motionEnabled,
         nmeaIntervalSec: form.sendGga ? Number(form.nmeaIntervalSec) : 0
       };
       if (editing) {
@@ -488,6 +523,9 @@ export function RelayJobs() {
       lat: job.lat == null ? '' : String(job.lat),
       lon: job.lon == null ? '' : String(job.lon),
       uaPrefix: job.uaPrefix ?? '',
+      uaMode: job.uaMode === 'literal' ? 'literal' : 'profile',
+      deviceProfileId: job.deviceProfileId ?? 0,
+      motionEnabled: Boolean(job.motionEnabled),
       nmeaIntervalSec: job.nmeaIntervalSec ?? 0
     });
     setError('');
@@ -1219,12 +1257,56 @@ export function RelayJobs() {
                   </Field>
                 </>
               )}
-              <Field label="UA prefix">
+              <Field label="Device profile">
+                <Select
+                  data-testid="relay-device-profile"
+                  value={form.deviceProfileId}
+                  onChange={(event) =>
+                    setForm({ ...form, deviceProfileId: Number(event.target.value) })
+                  }
+                  disabled={form.uaMode === 'literal'}
+                >
+                  <option value={0}>Theo mặc định hệ thống</option>
+                  {(deviceProfiles.data?.items ?? []).map((profile) => (
+                    <option key={profile.id} value={profile.id}>
+                      {profile.name} ({profile.code})
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Chế độ User-Agent">
+                <Select
+                  data-testid="relay-ua-mode"
+                  value={form.uaMode}
+                  onChange={(event) =>
+                    setForm({ ...form, uaMode: event.target.value as 'profile' | 'literal' })
+                  }
+                >
+                  <option value="profile">Theo device profile</option>
+                  <option value="literal">Chuỗi literal</option>
+                </Select>
+              </Field>
+              <Field label={form.uaMode === 'literal' ? 'User-Agent literal' : 'UA prefix (tuỳ chọn)'}>
                 <Input
+                  data-testid="relay-ua-prefix"
                   value={form.uaPrefix}
                   onChange={(event) => setForm({ ...form, uaPrefix: event.target.value })}
+                  maxLength={100}
                 />
               </Field>
+              <Field label="Xem trước User-Agent">
+                <p className="field-hint" data-testid="relay-ua-preview">
+                  {uaPreview || '—'}
+                </p>
+              </Field>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={form.motionEnabled}
+                  onChange={(event) => setForm({ ...form, motionEnabled: event.target.checked })}
+                />
+                Mô phỏng rover di chuyển (chỉ profile rover)
+              </label>
               <label className="check">
                 <input
                   type="checkbox"
@@ -1412,8 +1494,15 @@ export function RelayJobs() {
                       </dd>
                     </div>
                     <div>
-                      <dt>UA prefix</dt>
-                      <dd>{detailItem.uaPrefix || '—'}</dd>
+                      <dt>User-Agent</dt>
+                      <dd className="mono">
+                        {detailItem.uaMode === 'literal'
+                          ? detailItem.uaPrefix || '—'
+                          : deviceProfiles.data?.items.find(
+                              (profile) => profile.id === detailItem.deviceProfileId
+                            )?.name ?? 'Mặc định hệ thống'}
+                        {detailItem.motionEnabled ? ' · rover motion' : ''}
+                      </dd>
                     </div>
                     <div>
                       <dt>NMEA interval</dt>

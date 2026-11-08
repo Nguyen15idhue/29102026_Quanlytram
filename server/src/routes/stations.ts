@@ -22,6 +22,7 @@ import { createStationResources } from '../lib/stationResources';
 import { dataUptime } from '../lib/dataUptime';
 import { publishEntityChange } from '../lib/entityChange';
 import { resolveQualityAlerts } from '../lib/qualityAlerts';
+import { getDeviceProfile } from '../lib/deviceProfile';
 import {
   notifyStationStreamingChange,
   setStationStreamingInTransaction,
@@ -136,6 +137,8 @@ export const createSchema = stationBaseSchema.extend({
   client_tls: z.boolean().optional().default(false),
   client_send_gga: z.boolean().optional().default(false),
   client_nmea_interval_sec: z.number().int().min(0).max(3600).optional().default(0),
+  client_device_profile_id: z.number().int().positive().nullable().optional(),
+  client_ua_prefix: z.string().max(100).optional().default(''),
   client_gga_lat: z.number().min(-90).max(90).nullable().optional(),
   client_gga_lon: z.number().min(-180).max(180).nullable().optional()
 });
@@ -197,6 +200,8 @@ const stationColumns = `s.*, u.display_name AS owner_name, c.name AS company_nam
   (SELECT ss.client_host FROM station_sources ss WHERE ss.station_id = s.id) AS station_client_host,
   (SELECT ss.client_port FROM station_sources ss WHERE ss.station_id = s.id) AS station_client_port,
   (SELECT ss.client_mount FROM station_sources ss WHERE ss.station_id = s.id) AS station_client_mount,
+  (SELECT ss.client_device_profile_id FROM station_sources ss WHERE ss.station_id = s.id) AS station_client_device_profile_id,
+  (SELECT ss.client_ua_prefix FROM station_sources ss WHERE ss.station_id = s.id) AS station_client_ua_prefix,
   (SELECT ss.caster_listener_id FROM station_sources ss WHERE ss.station_id = s.id) AS station_caster_listener_id,
   (SELECT l.port FROM station_sources ss JOIN caster_listeners l ON l.id = ss.caster_listener_id
     WHERE ss.station_id = s.id) AS station_caster_port`;
@@ -2571,6 +2576,8 @@ const sourceSchema = z.object({
   client_tls: z.boolean().optional().default(false),
   client_send_gga: z.boolean().optional().default(false),
   client_nmea_interval_sec: z.number().int().min(0).max(3600).optional().default(0),
+  client_device_profile_id: z.number().int().positive().nullable().optional(),
+  client_ua_prefix: z.string().max(100).optional().default(''),
   client_gga_lat: z.number().min(-90).max(90).nullable().optional(),
   client_gga_lon: z.number().min(-180).max(180).nullable().optional(),
   caster_version: z.enum(['v1', 'v2']).optional().default('v2'),
@@ -2592,6 +2599,11 @@ function publicSource(row: any) {
     client_tls: Boolean(row.client_tls),
     client_send_gga: Boolean(row.client_send_gga),
     client_nmea_interval_sec: Number(row.client_nmea_interval_sec ?? 0),
+    client_device_profile_id:
+      row.client_device_profile_id === null || row.client_device_profile_id === undefined
+        ? null
+        : Number(row.client_device_profile_id),
+    client_ua_prefix: String(row.client_ua_prefix ?? ''),
     client_gga_lat: row.client_gga_lat === null ? null : Number(row.client_gga_lat),
     client_gga_lon: row.client_gga_lon === null ? null : Number(row.client_gga_lon),
     caster_version: String(row.caster_version ?? 'v2'),
@@ -2633,6 +2645,12 @@ stationsRouter.put(
     if (!station) throw new ApiError(404, 'NOT_FOUND', 'Không tìm thấy trạm');
     await assertRecordScope(req, station.owner_web_user_id, 'owner_web_user_id', station.company_id);
     const body = sourceSchema.parse(req.body);
+    if (body.client_device_profile_id) {
+      const profile = await getDeviceProfile(body.client_device_profile_id);
+      if (!profile) {
+        throw new ApiError(400, 'INVALID_DEVICE_PROFILE', 'Device profile không tồn tại');
+      }
+    }
     if (body.source_role === 'ntrip_caster' && body.caster_listener_id) {
       const listeners = await query<RowDataPacket[]>(
         'SELECT id, owner_web_user_id FROM caster_listeners WHERE id = ?',
@@ -2673,10 +2691,11 @@ stationsRouter.put(
         `INSERT INTO station_sources
            (station_id, source_role, client_host, client_port, client_mount,
             client_username, client_password_enc, client_tls, client_send_gga,
-            client_nmea_interval_sec, client_gga_lat, client_gga_lon,
+            client_nmea_interval_sec, client_device_profile_id, client_ua_prefix,
+            client_gga_lat, client_gga_lon,
             caster_version, caster_username, caster_password_enc, caster_requires_auth,
             caster_listener_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON DUPLICATE KEY UPDATE
            source_role = VALUES(source_role), client_host = VALUES(client_host),
            client_port = VALUES(client_port), client_mount = VALUES(client_mount),
@@ -2684,6 +2703,8 @@ stationsRouter.put(
            client_password_enc = COALESCE(VALUES(client_password_enc), client_password_enc),
            client_tls = VALUES(client_tls), client_send_gga = VALUES(client_send_gga),
            client_nmea_interval_sec = VALUES(client_nmea_interval_sec),
+           client_device_profile_id = VALUES(client_device_profile_id),
+           client_ua_prefix = VALUES(client_ua_prefix),
            client_gga_lat = VALUES(client_gga_lat), client_gga_lon = VALUES(client_gga_lon),
            caster_version = VALUES(caster_version), caster_username = VALUES(caster_username),
            caster_password_enc = COALESCE(VALUES(caster_password_enc), caster_password_enc),
@@ -2706,6 +2727,8 @@ stationsRouter.put(
           body.client_tls ? 1 : 0,
           body.client_send_gga ? 1 : 0,
           body.client_nmea_interval_sec,
+          body.client_device_profile_id ?? null,
+          body.client_ua_prefix ?? '',
           body.source_role === 'ntrip_client' && body.client_send_gga
             ? body.client_gga_lat ?? null
             : null,

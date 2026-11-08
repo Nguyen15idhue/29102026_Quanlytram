@@ -8,7 +8,7 @@ import { guideHref } from '../guide';
 import { bulkMessage, sendBulk } from '../lib/bulk';
 import { useDirtyGuard } from '../lib/useDirtyGuard';
 import { useListParams } from '../lib/useListParams';
-import type { CasterListener, Company, Station, StationSource } from '../types';
+import type { CasterListener, Company, DeviceProfile, Station, StationSource } from '../types';
 import {
   BulkActionBar,
   Button,
@@ -57,6 +57,7 @@ const emptyForm = {
   client_host: '', client_port: '' as string | number, client_mount: '', client_username: '',
   client_password: '', client_tls: false, client_send_gga: false,
   client_nmea_interval_sec: 0, client_gga_lat: '', client_gga_lon: '',
+  client_device_profile_id: '' as string | number, client_ua_prefix: '',
   caster_version: 'v2' as 'v1' | 'v2',
   caster_username: '', caster_password: '', caster_requires_auth: true,
   caster_listener_id: '' as string | number,
@@ -174,6 +175,7 @@ export function Stations() {
     ids: number[];
   } | null>(null);
   const [form, setForm] = useState(emptyForm);
+  const [uaPreview, setUaPreview] = useState('');
   const [error, setError] = useState('');
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importData, setImportData] = useState('');
@@ -240,6 +242,8 @@ export function Stations() {
       client_tls: source.client_tls,
       client_send_gga: source.client_send_gga,
       client_nmea_interval_sec: source.client_nmea_interval_sec,
+      client_device_profile_id: source.client_device_profile_id ?? '',
+      client_ua_prefix: source.client_ua_prefix ?? '',
       client_gga_lat: source.client_gga_lat == null ? '' : String(source.client_gga_lat),
       client_gga_lon: source.client_gga_lon == null ? '' : String(source.client_gga_lon),
       caster_version: source.caster_version,
@@ -249,6 +253,44 @@ export function Stations() {
       caster_listener_id: source.caster_listener_id ?? ''
     }));
   }, [sources.data]);
+
+  const deviceProfiles = useQuery({
+    queryKey: ['device-profiles'],
+    queryFn: () => apiFetch<{ items: DeviceProfile[] }>('/api/device-profiles'),
+    enabled: formOpen
+  });
+
+  useEffect(() => {
+    if (!formOpen || form.source_role !== 'ntrip_client') {
+      setUaPreview('');
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      apiFetch<{ userAgent: string }>('/api/device-profiles/preview', {
+        method: 'POST',
+        body: {
+          profileId: form.client_device_profile_id
+            ? Number(form.client_device_profile_id)
+            : undefined,
+          uaMode: 'profile',
+          uaPrefix: form.client_ua_prefix,
+          role: 'station',
+          targetId: editing?.id ?? 0
+        },
+        csrfToken
+      })
+        .then((result) => setUaPreview(result.userAgent))
+        .catch(() => setUaPreview(''));
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [
+    formOpen,
+    form.source_role,
+    form.client_device_profile_id,
+    form.client_ua_prefix,
+    editing?.id,
+    csrfToken
+  ]);
 
   const sourceListeners = useQuery({
     queryKey: ['caster-listeners', 'station-source'],
@@ -301,6 +343,10 @@ export function Stations() {
         client_tls: form.client_tls,
         client_send_gga: form.client_send_gga,
         client_nmea_interval_sec: Number(form.client_nmea_interval_sec),
+        client_device_profile_id: form.client_device_profile_id
+          ? Number(form.client_device_profile_id)
+          : null,
+        client_ua_prefix: form.client_ua_prefix,
         client_gga_lat:
           form.client_send_gga && form.client_gga_lat !== ''
             ? Number(form.client_gga_lat)
@@ -1551,6 +1597,37 @@ export function Stations() {
                       })
                     }
                   />
+                </Field>
+                <Field label="Device profile">
+                  <Select
+                    data-testid="station-device-profile"
+                    value={form.client_device_profile_id}
+                    onChange={(event) =>
+                      setForm({ ...form, client_device_profile_id: event.target.value })
+                    }
+                  >
+                    <option value="">Theo mặc định hệ thống</option>
+                    {(deviceProfiles.data?.items ?? []).map((profile) => (
+                      <option key={profile.id} value={profile.id}>
+                        {profile.name} ({profile.code})
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field label="UA prefix (tuỳ chọn)">
+                  <Input
+                    data-testid="station-ua-prefix"
+                    value={form.client_ua_prefix}
+                    onChange={(event) =>
+                      setForm({ ...form, client_ua_prefix: event.target.value })
+                    }
+                    maxLength={100}
+                  />
+                </Field>
+                <Field label="Xem trước User-Agent">
+                  <p className="field-hint" data-testid="station-ua-preview">
+                    {uaPreview || '—'}
+                  </p>
                 </Field>
                 {form.client_send_gga && (
                   <>

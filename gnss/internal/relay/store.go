@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"strings"
@@ -254,10 +255,10 @@ func loadDeviceProfiles(ctx context.Context, db *sql.DB) map[int64]deviceprofile
 	defer rows.Close()
 	for rows.Next() {
 		var (
-			id            int64
-			profile       deviceprofile.Profile
-			sendGSA       int
-			sendRMC       int
+			id      int64
+			profile deviceprofile.Profile
+			sendGSA int
+			sendRMC int
 		)
 		if err := rows.Scan(
 			&id,
@@ -290,12 +291,38 @@ func loadDeviceProfiles(ctx context.Context, db *sql.DB) map[int64]deviceprofile
 	if err := rows.Err(); err != nil {
 		log.Printf("[relay] đọc device_profiles lỗi: %v", err)
 	}
+	// profiles[0] là profile mặc định toàn cục (settings.device_profile.default),
+	// dùng khi job/trạm không chọn profile hoặc profile đã bị tắt/xóa.
+	profiles[0] = loadDefaultDeviceProfile(ctx, db)
 	return profiles
+}
+
+func loadDefaultDeviceProfile(ctx context.Context, db *sql.DB) deviceprofile.Profile {
+	var raw string
+	err := db.QueryRowContext(ctx,
+		`SELECT setting_value FROM settings WHERE setting_key = 'device_profile.default' LIMIT 1`,
+	).Scan(&raw)
+	if err != nil {
+		if err != sql.ErrNoRows {
+			log.Printf("[relay] không đọc được device_profile.default: %v", err)
+		}
+		return deviceprofile.Default()
+	}
+	var setting struct {
+		Code string `json:"code"`
+	}
+	if err := json.Unmarshal([]byte(raw), &setting); err != nil {
+		return deviceprofile.Default()
+	}
+	return deviceprofile.ResolveOrDefault(setting.Code)
 }
 
 func resolveDeviceProfile(profiles map[int64]deviceprofile.Profile, id int64) deviceprofile.Profile {
 	if profile, ok := profiles[id]; ok {
 		return profile
+	}
+	if fallback, ok := profiles[0]; ok {
+		return fallback
 	}
 	return deviceprofile.Default()
 }

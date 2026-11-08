@@ -36,6 +36,7 @@ import {
 } from '../rbac/access';
 import { TOMBSTONE_KEY_SQL } from '../lib/tombstone';
 import { loadStationOptions, resolveStationEndpoint } from '../lib/relayStation';
+import { getDeviceProfile } from '../lib/deviceProfile';
 import {
   allowedActions,
   assertTransition,
@@ -82,6 +83,9 @@ const createSchema = z.object({
   lat: z.number().min(-90).max(90).nullable().optional(),
   lon: z.number().min(-180).max(180).nullable().optional(),
   uaPrefix: z.string().max(100).optional().default(''),
+  uaMode: z.enum(['profile', 'literal']).optional().default('profile'),
+  deviceProfileId: z.number().int().positive().nullable().optional(),
+  motionEnabled: z.boolean().optional().default(false),
   nmeaIntervalSec: z.number().int().min(0).max(3600).optional().default(0),
   origin: z.enum(['manual', 'import', 'discover']).optional().default('manual'),
   originRef: z.string().max(190).optional().default(''),
@@ -112,6 +116,9 @@ const updateSchema = z.object({
   lat: z.number().min(-90).max(90).nullable().optional(),
   lon: z.number().min(-180).max(180).nullable().optional(),
   uaPrefix: z.string().max(100).optional(),
+  uaMode: z.enum(['profile', 'literal']).optional(),
+  deviceProfileId: z.number().int().positive().nullable().optional(),
+  motionEnabled: z.boolean().optional(),
   nmeaIntervalSec: z.number().int().min(0).max(3600).optional(),
   origin: z.enum(['manual', 'import', 'discover']).optional(),
   originRef: z.string().max(190).optional(),
@@ -119,6 +126,14 @@ const updateSchema = z.object({
   ownerWebUserId: z.number().int().positive().nullable().optional(),
   companyId: z.number().int().positive().nullable().optional()
 });
+
+async function assertDeviceProfile(id: number | null | undefined): Promise<void> {
+  if (id === null || id === undefined) return;
+  const profile = await getDeviceProfile(id);
+  if (!profile) {
+    throw new ApiError(400, 'INVALID_DEVICE_PROFILE', 'Device profile không tồn tại');
+  }
+}
 
 function jsonColumn(value: unknown): string | null {
   if (value === undefined || value === null) return null;
@@ -201,6 +216,12 @@ function publicJob(row: any, state: any) {
     lat: row.lat === null ? null : Number(row.lat),
     lon: row.lon === null ? null : Number(row.lon),
     uaPrefix: row.ua_prefix,
+    uaMode: row.ua_mode === 'literal' ? 'literal' : 'profile',
+    deviceProfileId:
+      row.device_profile_id === null || row.device_profile_id === undefined
+        ? null
+        : Number(row.device_profile_id),
+    motionEnabled: Boolean(row.motion_enabled),
     nmeaIntervalSec: Number(row.nmea_interval_sec),
     origin: row.origin,
     originRef: row.origin_ref,
@@ -1246,6 +1267,7 @@ relayJobsRouter.post(
   requirePermission('relay', 'add'),
   asyncHandler(async (req, res) => {
     const body = createSchema.parse(req.body);
+    await assertDeviceProfile(body.deviceProfileId);
     if (body.upstreamStationId && body.downstreamStationId) {
       throw new ApiError(
         400,
@@ -1332,9 +1354,9 @@ relayJobsRouter.post(
              downstream_host, downstream_port, downstream_mount, downstream_credential_id,
              downstream_proxy, downstream_ssl, downstream_ntrip_version, downstream_mode,
              downstream_station_id, downstream_mountpoint_id,
-             lat, lon, ua_prefix, nmea_interval_sec, origin, origin_ref, tags,
+             lat, lon, ua_prefix, ua_mode, device_profile_id, motion_enabled, nmea_interval_sec, origin, origin_ref, tags,
              desired_revision, upstream_key, downstream_key, owner_web_user_id, company_id, created_by
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
+           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)`,
           [
             body.externalKey ?? null,
             body.name,
@@ -1361,6 +1383,9 @@ relayJobsRouter.post(
             body.lat ?? null,
             body.lon ?? null,
             body.uaPrefix,
+            body.uaMode,
+            body.deviceProfileId ?? null,
+            body.motionEnabled ? 1 : 0,
             body.nmeaIntervalSec,
             body.origin,
             body.originRef,
@@ -1405,6 +1430,7 @@ relayJobsRouter.patch(
     }
     await assertRecordScope(req, before.owner_web_user_id, 'owner_web_user_id', before.company_id);
     const body = updateSchema.parse(req.body);
+    await assertDeviceProfile(body.deviceProfileId);
     if (body.enabled === true) {
       assertTransition(
         relayStateInput(before, await getState(id), undefined),
@@ -1548,7 +1574,8 @@ relayJobsRouter.patch(
              downstream_host = ?, downstream_port = ?, downstream_mount = ?, downstream_credential_id = ?,
              downstream_proxy = ?, downstream_ssl = ?, downstream_ntrip_version = ?, downstream_mode = ?,
              downstream_station_id = ?, downstream_mountpoint_id = ?,
-             lat = ?, lon = ?, ua_prefix = ?, nmea_interval_sec = ?, origin = ?, origin_ref = ?, tags = ?,
+             lat = ?, lon = ?, ua_prefix = ?, ua_mode = ?, device_profile_id = ?, motion_enabled = ?,
+             nmea_interval_sec = ?, origin = ?, origin_ref = ?, tags = ?,
              upstream_key = ?, downstream_key = ?, owner_web_user_id = ?,
              desired_revision = desired_revision + 1
            WHERE id = ?`,
@@ -1580,6 +1607,15 @@ relayJobsRouter.patch(
             body.lat === undefined ? before.lat : body.lat,
             body.lon === undefined ? before.lon : body.lon,
             body.uaPrefix ?? before.ua_prefix,
+            body.uaMode ?? before.ua_mode,
+            body.deviceProfileId === undefined
+              ? before.device_profile_id
+              : body.deviceProfileId,
+            body.motionEnabled === undefined
+              ? Number(before.motion_enabled)
+              : body.motionEnabled
+                ? 1
+                : 0,
             body.nmeaIntervalSec ?? Number(before.nmea_interval_sec),
             body.origin ?? before.origin,
             body.originRef ?? before.origin_ref,
@@ -1753,6 +1789,9 @@ function normalizeImportItem(raw: any): any {
     lat: raw.lat ?? null,
     lon: raw.lon ?? null,
     uaPrefix: raw.ua_prefix ?? raw.uaPrefix ?? '',
+    uaMode: raw.ua_mode ?? raw.uaMode ?? 'profile',
+    deviceProfileId: raw.device_profile_id ?? raw.deviceProfileId ?? null,
+    motionEnabled: Boolean(raw.motion_enabled ?? raw.motionEnabled ?? false),
     nmeaIntervalSec: Number(raw.nmea_interval_sec ?? raw.nmeaIntervalSec ?? 0),
     origin: 'import',
     originRef: String(raw.id ?? raw.external_key ?? ''),
@@ -1771,6 +1810,7 @@ relayJobsRouter.post(
     for (const [index, raw] of rawItems.entries()) {
       try {
         const item = createSchema.parse(normalizeImportItem(raw));
+        await assertDeviceProfile(item.deviceProfileId);
         const id = raw && typeof raw === 'object' ? Number((raw as any).id ?? 0) : 0;
         if (id > 0) {
           const existing = await getJobRow(id);
@@ -1873,7 +1913,8 @@ relayJobsRouter.post(
                  upstream_ntrip_version=?, downstream_host=?, downstream_port=?,
                  downstream_mount=?, downstream_credential_id=?, downstream_proxy=?,
                  downstream_ssl=?, downstream_ntrip_version=?, downstream_mode=?, lat=?, lon=?,
-                 ua_prefix=?, nmea_interval_sec=?, origin='import', origin_ref=?, tags=?,
+                 ua_prefix=?, ua_mode=?, device_profile_id=?, motion_enabled=?,
+                 nmea_interval_sec=?, origin='import', origin_ref=?, tags=?,
                  upstream_key=?, downstream_key=?, desired_revision=desired_revision+1
                WHERE id=?`,
               [
@@ -1884,6 +1925,8 @@ relayJobsRouter.post(
                 bodyItem.downstream.mount, downstreamCredentialId, bodyItem.downstream.proxy,
                 bodyItem.downstream.ssl ? 1 : 0, bodyItem.downstream.ntripVersion,
                 bodyItem.downstreamMode, bodyItem.lat, bodyItem.lon, bodyItem.uaPrefix,
+                bodyItem.uaMode, bodyItem.deviceProfileId ?? null,
+                bodyItem.motionEnabled ? 1 : 0,
                 bodyItem.nmeaIntervalSec, bodyItem.originRef,
                 jsonColumn(bodyItem.tags),
                 upstreamKey, downstreamKey, bodyItem.id
@@ -1898,9 +1941,10 @@ relayJobsRouter.post(
                  upstream_credential_id, upstream_proxy, upstream_ssl, upstream_ntrip_version,
                  downstream_host, downstream_port, downstream_mount, downstream_credential_id,
                  downstream_proxy, downstream_ssl, downstream_ntrip_version, downstream_mode,
-                 lat, lon, ua_prefix, nmea_interval_sec, origin, origin_ref, tags,
+                 lat, lon, ua_prefix, ua_mode, device_profile_id, motion_enabled,
+                 nmea_interval_sec, origin, origin_ref, tags,
                  desired_revision, upstream_key, downstream_key, owner_web_user_id, company_id, created_by
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?, 1, ?, ?, ?, ?, ?)`,
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?, 1, ?, ?, ?, ?, ?)`,
               [
                 bodyItem.externalKey, bodyItem.name, bodyItem.enabled ? 1 : 0,
                 bodyItem.upstream.host, bodyItem.upstream.port, bodyItem.upstream.mount,
@@ -1909,6 +1953,8 @@ relayJobsRouter.post(
                 bodyItem.downstream.mount, downstreamCredentialId, bodyItem.downstream.proxy,
                 bodyItem.downstream.ssl ? 1 : 0, bodyItem.downstream.ntripVersion,
                 bodyItem.downstreamMode, bodyItem.lat, bodyItem.lon, bodyItem.uaPrefix,
+                bodyItem.uaMode, bodyItem.deviceProfileId ?? null,
+                bodyItem.motionEnabled ? 1 : 0,
                 bodyItem.nmeaIntervalSec, bodyItem.originRef,
                 jsonColumn(bodyItem.tags),
                 upstreamKey, downstreamKey, ownerId, companyId, req.auth!.id

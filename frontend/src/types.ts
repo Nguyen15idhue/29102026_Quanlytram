@@ -119,6 +119,8 @@ export interface StationSource {
   client_tls: boolean;
   client_send_gga: boolean;
   client_nmea_interval_sec: number;
+  client_device_profile_id: number | null;
+  client_ua_prefix: string;
   client_gga_lat: number | null;
   client_gga_lon: number | null;
   caster_version: 'v1' | 'v2';
@@ -545,6 +547,31 @@ export type RelayAllowedAction =
   | 'delete'
   | 'patch_enable';
 
+export interface DeviceProfile {
+  id: number;
+  code: string;
+  name: string;
+  vendor: string;
+  versionTemplate: 'major.minor.patch' | 'major.minor.patch.date' | 'vmajor.minor.patch' | 'major.minor';
+  ntripVersion: 'v1' | 'v2';
+  httpVersion: 'HTTP/1.0' | 'HTTP/1.1';
+  connection: 'close' | 'keep-alive';
+  nmeaIntervalSec: number;
+  nmeaJitterSec: number;
+  hdopMin: number;
+  hdopMax: number;
+  satsMin: number;
+  satsMax: number;
+  sendGsa: boolean;
+  sendRmc: boolean;
+  initialDelayMs: number;
+  motion: 'static' | 'rover';
+  receiverTypeAlias: string;
+  enabled: boolean;
+  builtin: boolean;
+  updatedAt?: string | null;
+}
+
 export interface RelayJob {
   id: number;
   externalKey?: string | null;
@@ -567,6 +594,9 @@ export interface RelayJob {
   lat?: number | null;
   lon?: number | null;
   uaPrefix?: string;
+  uaMode?: 'profile' | 'literal';
+  deviceProfileId?: number | null;
+  motionEnabled?: boolean;
   nmeaIntervalSec?: number;
   origin?: string;
   originRef?: string;

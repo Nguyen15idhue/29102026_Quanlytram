@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"cors/gnss/internal/deviceprofile"
 	"cors/gnss/internal/ntrip"
 	"cors/gnss/internal/rtcm"
 )
@@ -92,6 +93,7 @@ func (j *Job) run(ctx context.Context) {
 	defer close(j.done)
 
 	backoffRetries := 0
+	userAgent := resolveUserAgent(j.cfg, deviceprofile.RoleRelay, j.cfg.ID)
 	sessionOpts := j.opts
 	sessionOpts.OnFirstByte = func() {
 		j.writer.State(j.cfg.ID, "streaming", j.cfg.DesiredRevision, "")
@@ -108,7 +110,7 @@ func (j *Job) run(ctx context.Context) {
 		start := time.Now().UTC().Truncate(time.Millisecond)
 		j.monitor.Reset()
 		if starter, ok := j.writer.(SessionStartWriter); ok {
-			starter.SessionStart(j.cfg.ID, start)
+			starter.SessionStart(j.cfg.ID, start, userAgent)
 		}
 		err := RunSession(ctx, j.cfg, sessionOpts, j.monitor, j.metrics)
 		end := time.Now()

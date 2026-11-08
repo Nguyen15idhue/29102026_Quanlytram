@@ -1069,4 +1069,61 @@ nhận commit gần nhất, rồi tiếp tục đúng phase kế tiếp theo quy
     test/khởi động đơn lẻ.
   - `go test -race` không chạy trực tiếp trên Windows do thiếu `gcc`; đã
     chạy trong container `golang:1.24` và PASS.
+- Commit: `b5c2adf` — `P19-5: transport + retry parity (proxy legacy, buffer pool, downstream probe, stagger)`.
+
+### P19-6 — Node API + UI + runtime UA (2026-11-08)
+
+- Phạm vi đã sửa:
+  - `db/migrations/runtime/010_session_user_agent.sql` (mới): thêm
+    `user_agent VARCHAR(255)` vào `relay_sessions` và
+    `station_source_sessions`, schema_version 10.
+  - Go: `relay.SessionStartWriter.SessionStart(jobID, start, userAgent)`;
+    `BufferedWriter`/`MemoryWriter` ghi UA thật khi mở phiên;
+    `stationSourceSessionMySQLStore.Start` nhận UA; job/`RunStationSource`
+    truyền `resolveUserAgent`/`resolveStationUserAgent`.
+  - `relay/store.go`: `loadDeviceProfiles` nạp thêm `profiles[0]` từ
+    `settings['device_profile.default']`; job/trạm không chọn profile (hoặc
+    profile bị tắt/xóa) rơi về profile mặc định toàn cục thay vì hard-code.
+  - `server/src/lib/deviceProfile.ts` (mới): map row, FNV-1a 64-bit,
+    xorshift64, seed/version/UA **khớp vector Go**; đọc setting profile.
+  - `server/src/routes/deviceProfiles.ts` (mới): GET list/detail,
+    POST preview, POST/PATCH/DELETE (audit; chặn xóa builtin và profile đang
+    dùng); đăng ký `/api/device-profiles` trong `app.ts`.
+  - `relayJobs.ts`: schema/response/insert/update/import thêm
+    `deviceProfileId`, `uaMode`, `motionEnabled`; validate profile tồn tại.
+  - `stations.ts`: `stationColumns`, `sourceSchema`, `publicSource` và PUT
+    `/sources` thêm `client_device_profile_id`, `client_ua_prefix`; validate
+    profile tồn tại.
+  - `system.ts`: GET/PUT `/api/system/device-profile` cho profile mặc định và
+    probe, ghi audit.
+  - Frontend: `types.ts` (`DeviceProfile`, field relay/station);
+    `RelayJobs.tsx` select profile + mode profile/literal + prefix + preview
+    debounce 300 ms + motion; `Stations.tsx` profile/prefix + preview ở nguồn
+    trạm; `system/DeviceProfileTab.tsx` + tab “Device profile” trong Hệ thống.
+- Migration:
+  - Local: `docker compose exec -T server sh -c "node dist/db/migrate.js"` →
+    `runtime 010_session_user_agent.sql applied` (`admin=0 runtime=1`).
+- Test:
+  - `cd gnss && go test ./...` → PASS; `TEST_MYSQL_DSN=... go test
+    ./internal/relay` → PASS (xác nhận `user_agent` lưu đúng).
+  - `cd server && npm run build` → PASS; `npm test` → 47 file / 238 test PASS,
+    gồm `deviceProfile.test.ts` 16 test đối chiếu vector Go/Node.
+  - `cd frontend && npx tsc --noEmit` → PASS.
+  - Playwright mới: `device-profile.spec.ts` (chọn profile + preview; tạo job
+    qua UI, PATCH literal/motion, xóa; lưu profile nguồn trạm — test này skip
+    nếu DB không có trạm `ntrip_client`), `device-profile-literal.spec.ts`,
+    `system-device-profile.spec.ts` (super admin đổi probe rồi khôi phục;
+    user chỉ GET 200, PUT 403) → PASS.
+  - `inspect.mjs` 1440/768/390 → 0 FAIL (chỉ WARN dev-server/hero-void/
+    tiny-text của trang đăng nhập).
+  - UI mobile 390 không tràn ngang; đã lưu screenshot
+    `test-results/device-profile-relay-light.png`,
+    `system-device-profile-light.png`, `system-device-profile-mobile.png`.
+- Sai lệch so với kế hoạch:
+  - `user_agent` dùng VARCHAR(255) (khớp `caster_connections.user_agent`)
+    thay vì 160 để không cắt UA khi prefix dài.
+  - Endpoint settings đặt trong `system.ts` theo đúng mô tả kế hoạch; route
+    profile CRUD tách riêng `/api/device-profiles`.
+  - Test lưu profile nguồn trạm tự skip khi DB local chưa có `ntrip_client`;
+    phần SQL đã được kiểm tra qua build + đối chiếu placeholder.
 - Commit: cập nhật sau khi push.

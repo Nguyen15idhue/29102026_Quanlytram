@@ -20,7 +20,7 @@ type RuntimeWriter interface {
 // SessionStartWriter là writer hỗ trợ mở session ngay khi bắt đầu. Writer cũ
 // chỉ ghi session lúc kết thúc vẫn tương thích qua type assertion.
 type SessionStartWriter interface {
-	SessionStart(jobID int64, start time.Time)
+	SessionStart(jobID int64, start time.Time, userAgent string)
 }
 
 type opKind int
@@ -45,6 +45,7 @@ type writeOp struct {
 	result      string
 	closeReason string
 	message     string
+	userAgent   string
 
 	eventType   string
 	durationSec int
@@ -126,11 +127,12 @@ func (w *BufferedWriter) State(jobID int64, state string, appliedRevision int64,
 	})
 }
 
-func (w *BufferedWriter) SessionStart(jobID int64, start time.Time) {
+func (w *BufferedWriter) SessionStart(jobID int64, start time.Time, userAgent string) {
 	w.enqueue(writeOp{
-		kind:  opSessionStart,
-		jobID: jobID,
-		start: start,
+		kind:      opSessionStart,
+		jobID:     jobID,
+		start:     start,
+		userAgent: userAgent,
 	})
 }
 
@@ -310,9 +312,9 @@ func (w *BufferedWriter) flushMySQL(ctx context.Context, ops []writeOp) error {
 		case opSessionStart:
 			_, err = tx.ExecContext(ctx, `
 				INSERT INTO relay_sessions
-				  (relay_job_id, start_ts, result, close_reason, message)
-				VALUES (?, ?, 'streaming', 'network', '')`,
-				op.jobID, op.start.UTC().Truncate(time.Millisecond))
+				  (relay_job_id, start_ts, result, close_reason, message, user_agent)
+				VALUES (?, ?, 'streaming', 'network', '', ?)`,
+				op.jobID, op.start.UTC().Truncate(time.Millisecond), op.userAgent)
 		case opSession:
 			duration := int(op.end.Sub(op.start).Seconds())
 			if duration < 0 {
@@ -400,9 +402,9 @@ func (m *MemoryWriter) State(jobID int64, state string, appliedRevision int64, l
 	m.mu.Unlock()
 }
 
-func (m *MemoryWriter) SessionStart(jobID int64, start time.Time) {
+func (m *MemoryWriter) SessionStart(jobID int64, start time.Time, userAgent string) {
 	m.mu.Lock()
-	m.sessionStarts = append(m.sessionStarts, writeOp{jobID: jobID, start: start})
+	m.sessionStarts = append(m.sessionStarts, writeOp{jobID: jobID, start: start, userAgent: userAgent})
 	m.mu.Unlock()
 }
 

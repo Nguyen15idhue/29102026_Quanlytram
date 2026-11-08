@@ -2096,3 +2096,20 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   go test -race ./internal/relay PASS trong golang:1.24 (host Windows thieu
   gcc). Retry 9 case, jitter 500 lan, stagger 1000 lan, proxy 4 case,
   downstream close <2s.
+
+### P19-6 Node API + UI + runtime UA (2026-11-08)
+
+- Runtime migration 010: them user_agent VARCHAR(255) vao relay_sessions va
+  station_source_sessions; Go writer ghi UA that khi mo phien (relay +
+  station source).
+- server: lib/deviceProfile.ts (FNV-1a/xorshift64/version/UA khop vector Go),
+  routes/deviceProfiles.ts (list/detail/preview/CRUD + audit), relayJobs.ts
+  (deviceProfileId/uaMode/motionEnabled + import), stations.ts (client_*),
+  system.ts (GET/PUT device_profile.default + probe).
+- Go: loadDeviceProfiles nap profiles[0] tu settings default; job/tram khong
+  chon profile roi ve mac dinh toan cuc; them test resolve fallback.
+- frontend: types, RelayJobs select profile/mode/prefix/preview debounce/motion,
+  Stations profile/prefix/preview, tab Device profile trong He thong.
+- Test: go test ./... PASS; server npm test 47 file/238 test PASS; frontend
+  tsc PASS; Playwright 3 spec moi PASS (tao/patch job that, system settings,
+  RBAC user 403). inspect.mjs 1440/768/390: 0 FAIL.
