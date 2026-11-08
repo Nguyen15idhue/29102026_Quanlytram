@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"cors/gnss/internal/deviceprofile"
 	"cors/gnss/internal/secret"
 )
 
@@ -38,7 +39,8 @@ const jobColumns = `
   IFNULL(j.upstream_station_id, 0), IFNULL(j.upstream_mountpoint_id, 0), COALESCE(uss.source_role, ''),
   j.downstream_host, j.downstream_port, j.downstream_mount, j.downstream_proxy, j.downstream_ssl, j.downstream_ntrip_version,
   COALESCE(dc.username, ''), COALESCE(dc.password_enc, ''), IFNULL(j.downstream_credential_id, 0),
-  j.downstream_mode, j.lat, j.lon, j.ua_prefix, j.nmea_interval_sec, j.origin,
+  j.downstream_mode, j.lat, j.lon, j.ua_prefix, j.device_profile_id, j.ua_mode, j.motion_enabled,
+  j.nmea_interval_sec, j.origin,
   j.upstream_key, j.downstream_key,
   j.deleted_at, j.locked, IFNULL(s.enabled, 1), IFNULL(s.status, '')
 FROM relay_jobs j
@@ -76,6 +78,8 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 		deletedAt                                    sql.NullTime
 		locked, stationEnabled                       int
 		stationStatus                                string
+		deviceProfileID                              sql.NullInt64
+		motionEnabled                                int
 	)
 	err := scanner.Scan(
 		&job.ID,
@@ -108,6 +112,9 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 		&lat,
 		&lon,
 		&job.UAPrefix,
+		&deviceProfileID,
+		&job.UAMode,
+		&motionEnabled,
 		&job.NMEAIntervalSec,
 		&job.Origin,
 		&dbUpstreamKey,
@@ -135,6 +142,10 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 	if lon.Valid {
 		value := lon.Float64
 		job.Lon = &value
+	}
+	job.MotionEnabled = motionEnabled != 0
+	if deviceProfileID.Valid {
+		job.DeviceProfileID = deviceProfileID.Int64
 	}
 
 	job.Upstream.Username = upstreamUsername
@@ -182,6 +193,7 @@ func (s *MySQLStore) scanJob(scanner rowScanner) (*JobConfig, error) {
 }
 
 func (s *MySQLStore) LoadAll(ctx context.Context) ([]*JobConfig, error) {
+	profiles := s.loadProfiles(ctx)
 	rows, err := s.db.QueryContext(ctx, `SELECT `+jobColumns+`
 		WHERE j.deleted_at IS NULL
 		ORDER BY j.id`)
@@ -200,6 +212,7 @@ func (s *MySQLStore) LoadAll(ctx context.Context) ([]*JobConfig, error) {
 			log.Printf("[relay] bỏ qua job lỗi cấu hình: %v", err)
 			continue
 		}
+		job.DeviceProfile = resolveDeviceProfile(profiles, job.DeviceProfileID)
 		jobs = append(jobs, job)
 	}
 	return jobs, rows.Err()
@@ -215,7 +228,72 @@ func (s *MySQLStore) LoadJob(ctx context.Context, id int64) (*JobConfig, error) 
 	if err != nil {
 		return nil, err
 	}
+	job.DeviceProfile = resolveDeviceProfile(s.loadProfiles(ctx), job.DeviceProfileID)
 	return job, nil
+}
+
+// loadProfiles đọc toàn bộ device profile đang bật. Lỗi đọc (ví dụ DB chưa
+// migration) không làm hỏng relay: caller rơi về profile mặc định trong Go.
+func (s *MySQLStore) loadProfiles(ctx context.Context) map[int64]deviceprofile.Profile {
+	profiles := make(map[int64]deviceprofile.Profile)
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, code, name, vendor, version_template, ntrip_version, http_version,
+		       connection, nmea_interval_sec, nmea_jitter_sec, hdop_min, hdop_max,
+		       sats_min, sats_max, send_gsa, send_rmc, initial_delay_ms, motion,
+		       receiver_type_alias
+		  FROM device_profiles
+		 WHERE enabled = 1`)
+	if err != nil {
+		log.Printf("[relay] không đọc được device_profiles, dùng profile mặc định: %v", err)
+		return profiles
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			id            int64
+			profile       deviceprofile.Profile
+			sendGSA       int
+			sendRMC       int
+		)
+		if err := rows.Scan(
+			&id,
+			&profile.Code,
+			&profile.Name,
+			&profile.Vendor,
+			&profile.VersionTemplate,
+			&profile.NtripVersion,
+			&profile.HTTPVersion,
+			&profile.Connection,
+			&profile.NMEAIntervalSec,
+			&profile.NMEAJitterSec,
+			&profile.HDOPMin,
+			&profile.HDOPMax,
+			&profile.SatsMin,
+			&profile.SatsMax,
+			&sendGSA,
+			&sendRMC,
+			&profile.InitialDelayMS,
+			&profile.Motion,
+			&profile.ReceiverTypeAlias,
+		); err != nil {
+			log.Printf("[relay] bỏ qua device profile lỗi: %v", err)
+			continue
+		}
+		profile.SendGSA = sendGSA != 0
+		profile.SendRMC = sendRMC != 0
+		profiles[id] = profile.Normalize()
+	}
+	if err := rows.Err(); err != nil {
+		log.Printf("[relay] đọc device_profiles lỗi: %v", err)
+	}
+	return profiles
+}
+
+func resolveDeviceProfile(profiles map[int64]deviceprofile.Profile, id int64) deviceprofile.Profile {
+	if profile, ok := profiles[id]; ok {
+		return profile
+	}
+	return deviceprofile.Default()
 }
 
 func EndpointKey(endpoint EndpointConfig) string {

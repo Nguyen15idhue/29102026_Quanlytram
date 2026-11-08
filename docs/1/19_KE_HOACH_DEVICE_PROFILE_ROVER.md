@@ -918,4 +918,39 @@ nhận commit gần nhất, rồi tiếp tục đúng phase kế tiếp theo quy
     `fixtures/` ở gốc repo; Node sẽ đọc qua đường dẫn này ở P19-6.
   - Không thêm cột version range vào DB: khoảng version lấy theo template,
     đúng `generateUserAgent()` của code cũ.
+- Commit: `8b527b4` — `P19-1: migration 047 device profile + goi deviceprofile baseline`.
+
+### P19-2 — Nối UA profile vào `ntrip` + `relay` (2026-11-08)
+
+- Phạm vi đã sửa:
+  - `gnss/internal/ntrip/ntrip.go`: `Endpoint` thêm `HTTPVersion`, `Connection`;
+    `userAgent()` bỏ fallback `CORS-MVP-relay`; `Get()`/`openSource()` gửi
+    `Ntrip-Version` theo v1/v2, HTTP version theo profile, `Connection` theo
+    profile; bỏ header UA nếu rỗng.
+  - `gnss/internal/relay/types.go`: `EndpointConfig` thêm `HTTPVersion`,
+    `Connection`; `JobConfig` thêm `DeviceProfileID`, `DeviceProfile`, `UAMode`,
+    `MotionEnabled`.
+  - `gnss/internal/relay/store.go`: `jobColumns`/`scanJob` đọc
+    `device_profile_id`, `ua_mode`, `motion_enabled`; thêm `loadProfiles()`
+    (đọc `device_profiles`) và `resolveDeviceProfile()` (fallback baseline).
+  - `gnss/internal/relay/useragent.go` (mới): `resolveUserAgent()` cho chế độ
+    `profile` và `literal`, không nối hậu tố `-relay`/`-relay-test`.
+  - `gnss/internal/relay/bridge.go`, `manager.go`: dùng `resolveUserAgent()` +
+    `toNtripEndpoint(endpoint, ua, profile)`.
+  - `gnss/internal/relay/station_source.go`: chỉ cập nhật chữ ký
+    `toNtripEndpoint` (giữ tạm UA cũ; P19-3 sẽ thay bằng profile của trạm).
+- Migration: không có (đã làm ở P19-1).
+- Test:
+  - `cd gnss && go test ./internal/ntrip ./internal/relay` → PASS.
+  - `cd gnss && go test ./...` → PASS toàn bộ.
+  - `TestGetSendsProfileHeaders`: mock caster nhận đúng `HTTP/1.1` +
+    `Ntrip/1.0` + `keep-alive` (Trimble) và `Ntrip/2.0` + `close` (CHC).
+  - `TestGetOmitsEmptyUserAgent`: không còn UA fallback nội bộ.
+  - `TestBridgeSendsProfileHeaders`: request thật qua bridge có
+    `User-Agent: Trimble DA2/<version>`, không có `-relay`/`CORS-MVP`.
+- Playwright: không áp dụng (chưa đổi UI).
+- Sai lệch so với kế hoạch:
+  - `Ntrip-Version`/`HTTP version` của endpoint tường minh vẫn thắng profile
+    (tương thích dữ liệu cũ); profile chỉ điền khi endpoint để trống hoặc
+    cùng họ phiên bản. Lý do: `station_sources` cũ đang ép `v1` + `HTTP/1.0`.
 - Commit: cập nhật sau khi push.

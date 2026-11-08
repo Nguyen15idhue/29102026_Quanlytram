@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"cors/gnss/internal/deviceprofile"
 	"cors/gnss/internal/nmea"
 	"cors/gnss/internal/ntrip"
 	"cors/gnss/internal/quality"
@@ -218,7 +219,7 @@ func RunStationSource(
 	hooks stationSessionHooks,
 ) error {
 	opts = opts.withDefaults()
-	upstream, err := ntrip.Get(ctx, toNtripEndpoint(cfg.Endpoint, "CORS-MVP-station"), opts.DialTimeout)
+	upstream, err := ntrip.Get(ctx, toNtripEndpoint(cfg.Endpoint, "CORS-MVP-station", deviceprofile.Default()), opts.DialTimeout)
 	if err != nil {
 		return err
 	}

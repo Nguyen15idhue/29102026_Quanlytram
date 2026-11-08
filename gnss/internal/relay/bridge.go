@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"cors/gnss/internal/deviceprofile"
 	"cors/gnss/internal/ntrip"
 	"cors/gnss/internal/quality"
 	"cors/gnss/internal/rtcm"
@@ -106,21 +108,35 @@ func (o Options) withDefaults() Options {
 	return o
 }
 
-func toNtripEndpoint(endpoint EndpointConfig, prefix string) ntrip.Endpoint {
+func toNtripEndpoint(endpoint EndpointConfig, userAgent string, profile deviceprofile.Profile) ntrip.Endpoint {
 	version := endpoint.NtripVersion
+	if version == "" {
+		version = profile.NtripVersion
+	}
 	if version == "" {
 		version = "v2"
 	}
+	httpVersion := endpoint.HTTPVersion
+	if httpVersion == "" && profile.HTTPVersion != "" &&
+		(endpoint.NtripVersion == "" || strings.EqualFold(endpoint.NtripVersion, profile.NtripVersion)) {
+		httpVersion = profile.HTTPVersion
+	}
+	connection := endpoint.Connection
+	if connection == "" {
+		connection = profile.Connection
+	}
 	return ntrip.Endpoint{
-		Host:      endpoint.Host,
-		Port:      endpoint.Port,
-		Mount:     endpoint.Mount,
-		SSL:       endpoint.SSL,
-		Version:   version,
-		Username:  endpoint.Username,
-		Password:  endpoint.Password,
-		ProxyURL:  endpoint.ProxyURL,
-		UserAgent: prefix,
+		Host:        endpoint.Host,
+		Port:        endpoint.Port,
+		Mount:       endpoint.Mount,
+		SSL:         endpoint.SSL,
+		Version:     version,
+		HTTPVersion: httpVersion,
+		Connection:  connection,
+		Username:    endpoint.Username,
+		Password:    endpoint.Password,
+		ProxyURL:    endpoint.ProxyURL,
+		UserAgent:   userAgent,
 	}
 }
 
@@ -132,11 +148,7 @@ func RunSession(
 	metrics *Metrics,
 ) error {
 	opts = opts.withDefaults()
-	userAgent := cfg.UAPrefix
-	if userAgent == "" {
-		userAgent = "CORS-MVP"
-	}
-	userAgent += "-relay"
+	userAgent := resolveUserAgent(cfg, deviceprofile.RoleRelay, cfg.ID)
 
 	var upstream *sessionUpstream
 	if cfg.UpstreamDirect {
@@ -157,7 +169,7 @@ func RunSession(
 			return fmt.Errorf("station source tap is not configured")
 		}
 	} else {
-		ntripUpstream, err := ntrip.Get(ctx, toNtripEndpoint(cfg.Upstream, userAgent), opts.DialTimeout)
+		ntripUpstream, err := ntrip.Get(ctx, toNtripEndpoint(cfg.Upstream, userAgent, cfg.DeviceProfile), opts.DialTimeout)
 		if err != nil {
 			return err
 		}
@@ -187,7 +199,7 @@ func RunSession(
 
 	downstream, err := ntrip.Source(
 		ctx,
-		toNtripEndpoint(cfg.Downstream, userAgent),
+		toNtripEndpoint(cfg.Downstream, userAgent, cfg.DeviceProfile),
 		cfg.DownstreamMode,
 		opts.DialTimeout,
 	)

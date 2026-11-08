@@ -103,8 +103,8 @@ func TestGetV1ICY(t *testing.T) {
 		if request != "GET /MOUNT HTTP/1.0" {
 			t.Errorf("request line = %q", request)
 		}
-		if headers["ntrip-version"] != "" {
-			t.Errorf("v1 must not send Ntrip-Version")
+		if headers["ntrip-version"] != "Ntrip/1.0" {
+			t.Errorf("v1 must send Ntrip-Version: Ntrip/1.0, got %q", headers["ntrip-version"])
 		}
 		expectedAuth := "Basic " + base64.StdEncoding.EncodeToString([]byte("user:pass"))
 		if headers["authorization"] != expectedAuth {
@@ -412,5 +412,112 @@ func TestGetReportsCasterErrorLine(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "User password error") {
 		t.Fatalf("error = %q", err.Error())
+	}
+}
+
+type observedRequest struct {
+	line    string
+	headers map[string]string
+}
+
+func captureRequest(t *testing.T) (*testServer, <-chan observedRequest) {
+	t.Helper()
+	observed := make(chan observedRequest, 1)
+	server := newTestServer(t, func(conn net.Conn, _ int) {
+		defer conn.Close()
+		line, headers, err := readTestHeaders(conn)
+		if err != nil {
+			return
+		}
+		select {
+		case observed <- observedRequest{line: line, headers: headers}:
+		default:
+		}
+		_, _ = io.WriteString(conn, "ICY 200 OK\r\n\r\n")
+	})
+	return server, observed
+}
+
+func TestGetSendsProfileHeaders(t *testing.T) {
+	cases := []struct {
+		name           string
+		version        string
+		httpVersion    string
+		connection     string
+		userAgent      string
+		wantLine       string
+		wantNtrip      string
+		wantConnection string
+	}{
+		{
+			name:           "trimble-v1-keepalive",
+			version:        "v1",
+			httpVersion:    "HTTP/1.1",
+			connection:     "keep-alive",
+			userAgent:      "Trimble DA2/6.12",
+			wantLine:       "GET /MOUNT HTTP/1.1",
+			wantNtrip:      "Ntrip/1.0",
+			wantConnection: "keep-alive",
+		},
+		{
+			name:           "chc-v2-close",
+			version:        "v2",
+			connection:     "close",
+			userAgent:      "CHC LandStar/8.1.2.20240712",
+			wantLine:       "GET /MOUNT HTTP/1.1",
+			wantNtrip:      "Ntrip/2.0",
+			wantConnection: "close",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			server, observed := captureRequest(t)
+			endpoint := server.endpoint("MOUNT", tc.version)
+			endpoint.HTTPVersion = tc.httpVersion
+			endpoint.Connection = tc.connection
+			endpoint.UserAgent = tc.userAgent
+
+			response, err := Get(context.Background(), endpoint, 2*time.Second)
+			if err != nil {
+				t.Fatalf("Get: %v", err)
+			}
+			_ = response.Close()
+
+			select {
+			case got := <-observed:
+				if got.line != tc.wantLine {
+					t.Errorf("request line = %q, want %q", got.line, tc.wantLine)
+				}
+				if got.headers["ntrip-version"] != tc.wantNtrip {
+					t.Errorf("Ntrip-Version = %q, want %q", got.headers["ntrip-version"], tc.wantNtrip)
+				}
+				if got.headers["connection"] != tc.wantConnection {
+					t.Errorf("Connection = %q, want %q", got.headers["connection"], tc.wantConnection)
+				}
+				if got.headers["user-agent"] != tc.userAgent {
+					t.Errorf("User-Agent = %q, want %q", got.headers["user-agent"], tc.userAgent)
+				}
+			case <-time.After(3 * time.Second):
+				t.Fatal("timed out waiting for request")
+			}
+		})
+	}
+}
+
+func TestGetOmitsEmptyUserAgent(t *testing.T) {
+	server, observed := captureRequest(t)
+	response, err := Get(context.Background(), server.endpoint("MOUNT", "v2"), 2*time.Second)
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	_ = response.Close()
+
+	select {
+	case got := <-observed:
+		if _, exists := got.headers["user-agent"]; exists {
+			t.Fatalf("không được gửi User-Agent rỗng/fallback: %q", got.headers["user-agent"])
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for request")
 	}
 }

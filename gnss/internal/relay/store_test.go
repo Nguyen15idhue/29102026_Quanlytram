@@ -60,7 +60,7 @@ func jobRow(upstreamPasswordEnc string, upstreamCredentialID int64, downstreamPa
 		int64(0), int64(0), "",
 		"down.example", 2101, "DOWN", "", 0, "v2",
 		"down-user", downstreamPasswordEnc, downstreamCredentialID,
-		"source", sql.NullFloat64{}, sql.NullFloat64{}, "", 0, "manual",
+		"source", sql.NullFloat64{}, sql.NullFloat64{}, "", sql.NullInt64{}, "profile", 0, 0, "manual",
 		"up.example:2101:UP", "down.example:2101:DOWN",
 		sql.NullTime{}, 0, 1, "",
 	}

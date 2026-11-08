@@ -1,5 +1,7 @@
 package relay
 
+import "cors/gnss/internal/deviceprofile"
+
 type EndpointConfig struct {
 	Host          string
 	Port          int
@@ -7,6 +9,8 @@ type EndpointConfig struct {
 	ProxyURL      string
 	SSL           bool
 	NtripVersion  string
+	HTTPVersion   string
+	Connection    string
 	Username      string
 	Password      string
 	HasCredential bool
@@ -32,6 +36,10 @@ type JobConfig struct {
 	Lat                  *float64
 	Lon                  *float64
 	UAPrefix             string
+	DeviceProfileID      int64
+	DeviceProfile        deviceprofile.Profile
+	UAMode               string
+	MotionEnabled        bool
 	NMEAIntervalSec      int
 	Origin               string
 }

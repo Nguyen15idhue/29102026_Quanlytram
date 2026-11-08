@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"cors/gnss/internal/deviceprofile"
 	"cors/gnss/internal/ntrip"
 )
 
@@ -263,13 +264,9 @@ func (m *Manager) Test(ctx context.Context, id int64) TestResult {
 		return result
 	}
 
-	userAgent := cfg.UAPrefix
-	if userAgent == "" {
-		userAgent = "CORS-MVP"
-	}
-	userAgent += "-relay-test"
+	userAgent := resolveUserAgent(cfg, deviceprofile.RoleRelay, cfg.ID)
 
-	upstream, err := ntrip.Get(ctx, toNtripEndpoint(cfg.Upstream, userAgent), m.opts.DialTimeout)
+	upstream, err := ntrip.Get(ctx, toNtripEndpoint(cfg.Upstream, userAgent, cfg.DeviceProfile), m.opts.DialTimeout)
 	if err != nil {
 		result.Error = err.Error()
 		result.Stage = "upstream"
@@ -279,7 +276,7 @@ func (m *Manager) Test(ctx context.Context, id int64) TestResult {
 	result.Upstream = &TestEndpoint{OK: true, Proto: upstream.Proto, Code: upstream.Code, Status: upstream.Status}
 	upstream.Close()
 
-	downstream, err := ntrip.Source(ctx, toNtripEndpoint(cfg.Downstream, userAgent), cfg.DownstreamMode, m.opts.DialTimeout)
+	downstream, err := ntrip.Source(ctx, toNtripEndpoint(cfg.Downstream, userAgent, cfg.DeviceProfile), cfg.DownstreamMode, m.opts.DialTimeout)
 	if err != nil {
 		result.Error = err.Error()
 		result.Stage = "downstream"

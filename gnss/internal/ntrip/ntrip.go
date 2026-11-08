@@ -20,16 +20,18 @@ import (
 )
 
 type Endpoint struct {
-	Host      string
-	Port      int
-	Mount     string
-	SSL       bool
-	Version   string
-	Username  string
-	Password  string
-	ProxyURL  string
-	UserAgent string
-	RootCAs   *x509.CertPool
+	Host        string
+	Port        int
+	Mount       string
+	SSL         bool
+	Version     string
+	HTTPVersion string
+	Connection  string
+	Username    string
+	Password    string
+	ProxyURL    string
+	UserAgent   string
+	RootCAs     *x509.CertPool
 }
 
 type Response struct {
@@ -240,11 +242,43 @@ func authorization(endpoint Endpoint) string {
 	return "Basic " + base64.StdEncoding.EncodeToString([]byte(raw))
 }
 
+// userAgent chỉ dùng đúng giá trị caller truyền vào (đã resolve từ device
+// profile). Không còn fallback tự khai báo "CORS-MVP-*"; rỗng thì bỏ header
+// thay vì gửi chuỗi nội bộ (D19-2).
 func userAgent(endpoint Endpoint) string {
-	if endpoint.UserAgent != "" {
-		return endpoint.UserAgent
+	return strings.TrimSpace(endpoint.UserAgent)
+}
+
+// ntripVersionHeader map cột ntrip_version sang giá trị header NTRIP.
+func ntripVersionHeader(version string) string {
+	switch strings.ToLower(strings.TrimSpace(version)) {
+	case "v1":
+		return "Ntrip/1.0"
+	case "", "v2":
+		return "Ntrip/2.0"
+	default:
+		return ""
 	}
-	return "CORS-MVP-relay"
+}
+
+// requestHTTPVersion ưu tiên HTTPVersion do profile quyết định, ngược lại giữ
+// hành vi cũ (v2 = HTTP/1.1, còn lại HTTP/1.0).
+func requestHTTPVersion(endpoint Endpoint) string {
+	if endpoint.HTTPVersion != "" {
+		return endpoint.HTTPVersion
+	}
+	if strings.EqualFold(endpoint.Version, "v2") {
+		return "HTTP/1.1"
+	}
+	return "HTTP/1.0"
+}
+
+// connectionHeader mặc định close; chỉ keep-alive khi profile yêu cầu.
+func connectionHeader(endpoint Endpoint) string {
+	if strings.EqualFold(endpoint.Connection, "keep-alive") {
+		return "keep-alive"
+	}
+	return "close"
 }
 
 func writeRequest(w io.Writer, request string) error {
@@ -258,24 +292,23 @@ func Get(ctx context.Context, endpoint Endpoint, timeout time.Duration) (*Respon
 		return nil, err
 	}
 
-	httpVersion := "HTTP/1.0"
-	if endpoint.Version == "v2" {
-		httpVersion = "HTTP/1.1"
-	}
+	httpVersion := requestHTTPVersion(endpoint)
 	mount := strings.TrimPrefix(endpoint.Mount, "/")
 	host := net.JoinHostPort(endpoint.Host, strconv.Itoa(endpoint.Port))
 
 	var builder strings.Builder
 	fmt.Fprintf(&builder, "GET /%s %s\r\n", mount, httpVersion)
 	fmt.Fprintf(&builder, "Host: %s\r\n", host)
-	fmt.Fprintf(&builder, "User-Agent: %s\r\n", userAgent(endpoint))
-	if endpoint.Version == "v2" {
-		fmt.Fprintf(&builder, "Ntrip-Version: Ntrip/2.0\r\n")
+	if ua := userAgent(endpoint); ua != "" {
+		fmt.Fprintf(&builder, "User-Agent: %s\r\n", ua)
+	}
+	if header := ntripVersionHeader(endpoint.Version); header != "" {
+		fmt.Fprintf(&builder, "Ntrip-Version: %s\r\n", header)
 	}
 	if auth := authorization(endpoint); auth != "" {
 		fmt.Fprintf(&builder, "Authorization: %s\r\n", auth)
 	}
-	fmt.Fprintf(&builder, "Connection: close\r\n\r\n")
+	fmt.Fprintf(&builder, "Connection: %s\r\n\r\n", connectionHeader(endpoint))
 
 	if err := conn.SetDeadline(time.Now().Add(timeout)); err != nil {
 		conn.Close()
@@ -348,19 +381,25 @@ func openSource(ctx context.Context, endpoint Endpoint, usePost bool, timeout ti
 
 	var builder strings.Builder
 	if usePost {
-		fmt.Fprintf(&builder, "POST /%s HTTP/1.1\r\n", mount)
+		fmt.Fprintf(&builder, "POST /%s %s\r\n", mount, requestHTTPVersion(endpoint))
 		fmt.Fprintf(&builder, "Host: %s\r\n", host)
-		fmt.Fprintf(&builder, "Ntrip-Version: Ntrip/2.0\r\n")
-		fmt.Fprintf(&builder, "User-Agent: %s\r\n", userAgent(endpoint))
+		if header := ntripVersionHeader(endpoint.Version); header != "" {
+			fmt.Fprintf(&builder, "Ntrip-Version: %s\r\n", header)
+		}
+		if ua := userAgent(endpoint); ua != "" {
+			fmt.Fprintf(&builder, "User-Agent: %s\r\n", ua)
+		}
 		if auth := authorization(endpoint); auth != "" {
 			fmt.Fprintf(&builder, "Authorization: %s\r\n", auth)
 		}
 		fmt.Fprintf(&builder, "Content-Type: application/octet-stream\r\n")
-		fmt.Fprintf(&builder, "Connection: close\r\n\r\n")
+		fmt.Fprintf(&builder, "Connection: %s\r\n\r\n", connectionHeader(endpoint))
 	} else {
 		fmt.Fprintf(&builder, "SOURCE /%s HTTP/1.0\r\n", mount)
 		fmt.Fprintf(&builder, "Host: %s\r\n", host)
-		fmt.Fprintf(&builder, "User-Agent: %s\r\n", userAgent(endpoint))
+		if ua := userAgent(endpoint); ua != "" {
+			fmt.Fprintf(&builder, "User-Agent: %s\r\n", ua)
+		}
 		if auth := authorization(endpoint); auth != "" {
 			fmt.Fprintf(&builder, "Authorization: %s\r\n", auth)
 		}

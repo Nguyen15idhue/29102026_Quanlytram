@@ -2046,3 +2046,16 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   chung Go/Node o testdata/.
 - Test: go test ./... PASS; migration chay tren DB local co du lieu va DB
   trong (47 admin + 9 runtime), chay lai idempotent. Chua doi UI.
+
+### P19-2 noi UA profile vao ntrip + relay (2026-11-08)
+
+- ntrip.Endpoint them HTTPVersion/Connection; bo fallback CORS-MVP-relay; Get
+  va openSource gui Ntrip-Version theo v1/v2, Connection theo profile.
+- relay.JobConfig them DeviceProfile/UAMode/MotionEnabled; store doc
+  device_profile_id/ua_mode/motion_enabled + loadProfiles tu DB (fallback
+  baseline); them resolveUserAgent (profile|literal), bo hau to -relay va
+  -relay-test o bridge/manager.
+- Test: go test ./... PASS; TestGetSendsProfileHeaders va
+  TestBridgeSendsProfileHeaders xac nhan header that qua mock caster.
+- station_source moi chi sua chu ky toNtripEndpoint; UA station/probe se thay
+  o P19-3.
