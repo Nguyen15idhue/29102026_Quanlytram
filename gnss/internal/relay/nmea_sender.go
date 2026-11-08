@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"strings"
 	"sync/atomic"
 	"time"
 
+	"cors/gnss/internal/deviceprofile"
 	"cors/gnss/internal/nmea"
 )
 
@@ -24,10 +26,13 @@ const (
 	fixWriteLimit = 2 * time.Second
 )
 
-// nmeaSender gửi GGA lên upstream giống rover thật:
+// nmeaSender gửi NMEA lên upstream giống rover thật:
 //   - ngay sau khi mở source, gửi 1 câu Single để caster biết vị trí;
 //   - định kỳ gửi lại GGA với trạng thái Single/Float/Fixed thay đổi theo việc
-//     có dòng RTCM mới hay không, thay vì luôn gửi Single.
+//     có dòng RTCM mới hay không, thay vì luôn gửi Single;
+//   - chu kỳ, jitter, HDOP, số vệ tinh, GSA/RMC lấy theo device profile;
+//   - altitude dao động ±0.5 m và (khi bật motion) vị trí di chuyển theo
+//     waypoint thay vì đứng yên tuyệt đối.
 //
 // Caster VRS (ví dụ rtk.taikhoandodac.vn) từ chối/không trả dữ liệu nếu không
 // nhận được GGA, nên phần này là bắt buộc chứ không chỉ là keep-alive.
@@ -35,7 +40,10 @@ type nmeaSender struct {
 	lat      float64
 	lon      float64
 	interval time.Duration
+	jitter   int // biên jitter mỗi lần gửi, giây
+	profile  deviceprofile.Profile
 	rng      *rand.Rand
+	motion   *roverMotion
 
 	quality    int
 	nextChange time.Time
@@ -43,33 +51,92 @@ type nmeaSender struct {
 	baseHDOP   float64
 }
 
-func newNMEASender(jobID int64, lat, lon float64, interval time.Duration) *nmeaSender {
-	if interval <= 0 {
-		interval = 5 * time.Second
+type nmeaSenderConfig struct {
+	JobID         int64
+	Lat           float64
+	Lon           float64
+	Interval      time.Duration
+	Profile       deviceprofile.Profile
+	MotionEnabled bool
+}
+
+func newNMEASender(cfg nmeaSenderConfig) *nmeaSender {
+	profile := cfg.Profile
+	if profile.IsZero() {
+		profile = deviceprofile.Default()
 	}
-	seed := time.Now().UnixNano() ^ (jobID * 7919)
-	sats := 10 + int(jobID%7) // 10..16
-	hdop := 0.8 + float64(jobID%5)*0.1
-	return &nmeaSender{
-		lat:      lat,
-		lon:      lon,
+	profile = profile.Normalize()
+
+	interval := cfg.Interval
+	if interval <= 0 {
+		interval = time.Duration(profile.NMEAInterval(0)) * time.Second
+	}
+
+	jitter := profile.NMEAJitterSec
+	if maxJitter := int(interval/time.Second) / 5; jitter > maxJitter {
+		jitter = maxJitter
+	}
+	if jitter < 0 {
+		jitter = 0
+	}
+
+	seed := time.Now().UnixNano() ^ (cfg.JobID * 7919)
+	rng := rand.New(rand.NewSource(seed))
+
+	sats := profile.SatsMin
+	if profile.SatsMax > profile.SatsMin {
+		sats += rng.Intn(profile.SatsMax - profile.SatsMin + 1)
+	}
+	hdop := profile.HDOPMin
+	if profile.HDOPMax > profile.HDOPMin {
+		hdop += rng.Float64() * (profile.HDOPMax - profile.HDOPMin)
+	}
+
+	sender := &nmeaSender{
+		lat:      cfg.Lat,
+		lon:      cfg.Lon,
 		interval: interval,
-		rng:      rand.New(rand.NewSource(seed)),
+		jitter:   jitter,
+		profile:  profile,
+		rng:      rng,
 		quality:  fixSingle,
 		baseSats: sats,
 		baseHDOP: hdop,
 	}
+	if cfg.MotionEnabled && profile.Motion == deviceprofile.MotionRover {
+		sender.motion = newRoverMotion(cfg.Lat, cfg.Lon, rand.New(rand.NewSource(seed^0x5eed)))
+	}
+	return sender
 }
 
 func (s *nmeaSender) sentence(at time.Time, hasData bool) []byte {
+	lat, lon := s.lat, s.lon
+	speedKnots, courseDeg := 0.0, 0.0
+	if s.motion != nil {
+		lat, lon = s.motion.PositionAt(at)
+		speedKnots, courseDeg = s.motion.Motion()
+	}
+
 	quality, sats, hdop, age := s.resolveFix(at, hasData)
-	return []byte(nmea.GGAWithFix(s.lat, s.lon, at, nmea.FixInfo{
-		Quality:    quality,
-		Satellites: sats,
-		HDOP:       hdop,
-		AgeOfDiff:  age,
-		Altitude:   100,
+	altitude := 100.0 + (s.rng.Float64() - 0.5)
+
+	var builder strings.Builder
+	builder.WriteString(nmea.GGAWithFix(lat, lon, at, nmea.FixInfo{
+		Quality:     quality,
+		Satellites:  sats,
+		HDOP:        hdop,
+		AgeOfDiff:   age,
+		Altitude:    altitude,
+		GeoidHeight: -5.0,
 	}))
+	// Thiết bị thật không phải lúc nào cũng gửi kèm GSA/RMC trên mỗi GGA.
+	if s.profile.SendGSA && s.rng.Intn(3) == 0 {
+		builder.WriteString(nmea.GSAWithDOP(hdop))
+	}
+	if s.profile.SendRMC && s.rng.Intn(4) == 0 {
+		builder.WriteString(nmea.RMCWithMotion(lat, lon, speedKnots, courseDeg, at))
+	}
+	return []byte(builder.String())
 }
 
 // sendInitial gửi GGA Single ngay sau khi kết nối upstream, trước khi mở
@@ -133,8 +200,11 @@ func (s *nmeaSender) resolveFix(now time.Time, hasData bool) (int, int, float64,
 }
 
 func (s *nmeaSender) nextInterval() time.Duration {
-	// Jitter ±10% để không tạo pattern cố định.
-	delta := time.Duration(float64(s.interval) * (s.rng.Float64()*0.2 - 0.1))
+	if s.jitter <= 0 {
+		return s.interval
+	}
+	span := int64(2*s.jitter + 1)
+	delta := time.Duration(s.rng.Int63n(span)-int64(s.jitter)) * time.Second
 	next := s.interval + delta
 	if next < time.Second {
 		next = time.Second

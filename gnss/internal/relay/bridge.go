@@ -187,11 +187,22 @@ func RunSession(
 	var lastData atomic.Int64
 	var sender *nmeaSender
 	if upstream.conn != nil && cfg.Lat != nil && cfg.Lon != nil {
-		interval := time.Duration(cfg.NMEAIntervalSec) * time.Second
-		if interval <= 0 {
-			interval = opts.NMEAInterval
+		profile := cfg.DeviceProfile
+		if profile.IsZero() {
+			profile = deviceprofile.Default()
 		}
-		sender = newNMEASender(cfg.ID, *cfg.Lat, *cfg.Lon, interval)
+		interval := time.Duration(profile.NMEAInterval(cfg.NMEAIntervalSec)) * time.Second
+		// Motion chỉ dành cho relay job và mặc định TẮT (D19-23); profile phải
+		// khai báo 'rover' mới có hiệu lực.
+		motionEnabled := cfg.MotionEnabled && profile.Motion == deviceprofile.MotionRover
+		sender = newNMEASender(nmeaSenderConfig{
+			JobID:         cfg.ID,
+			Lat:           *cfg.Lat,
+			Lon:           *cfg.Lon,
+			Interval:      interval,
+			Profile:       profile,
+			MotionEnabled: motionEnabled,
+		})
 		if err := sender.sendInitial(upstream.conn); err != nil {
 			return fmt.Errorf("nmea initial: %w", err)
 		}

@@ -986,4 +986,43 @@ nhận commit gần nhất, rồi tiếp tục đúng phase kế tiếp theo quy
   - Probe chỉ resolve được profile **builtin** (settings lưu `code`); profile
     custom trong DB sẽ cần bổ sung ở P19-6 nếu admin tạo profile riêng.
   - Chưa lưu UA vào `station_source_sessions` (để P19-6 theo D19-21).
+- Commit: `4ed3e42` — `P19-3: station source va probe dung device profile`.
+
+### P19-4 — NMEA realism (2026-11-08)
+
+- Phạm vi đã sửa:
+  - `gnss/internal/relay/rover_motion.go` (mới): port waypoint từ relay cũ
+    (bán kính 10 km, chặng ≤ 2 km, tốc độ 1–4 m/s, tới waypoint khi ≤ 40 m,
+    nghỉ 60–300 s), RNG injectable để test tất định.
+  - `gnss/internal/relay/nmea_sender.go`: `nmeaSenderConfig` + profile;
+    interval/jitter/HDOP/sats theo profile; altitude jitter ±0.5 m; geoid
+    -5.0 m; gửi GSA xác suất 1/3 khi `SendGSA`, RMC 1/4 khi `SendRMC`;
+    motion chỉ bật khi job bật **và** profile `motion='rover'`.
+  - `gnss/internal/relay/bridge.go`: truyền profile + motion vào
+    `newNMEASender`; interval lấy từ `profile.NMEAInterval(cfg.NMEAIntervalSec)`.
+  - `gnss/internal/nmea/nmea.go`: thêm `GSAWithDOP()` và `RMCWithMotion()`
+    (RMC cũ giữ nguyên chữ ký, gọi lại với speed/course = 0).
+- Migration: không có (cột `relay_jobs.motion_enabled` đã thêm ở 047).
+- Test:
+  - `cd gnss && go test ./internal/relay ./internal/nmea` → PASS.
+  - `cd gnss && go test ./...` → PASS toàn bộ.
+  - `TestNMEAProfileIntervalAndJitter`: CHC LandStar cho interval 11 s,
+    jitter ±2 s, mọi khoảng trong 9–13 s và có nhiều giá trị khác nhau.
+  - `TestNMEASendsGSAAndRMCByProfile`: CHC LandStar không gửi GSA nhưng có
+    RMC; EFIX gửi cả hai.
+  - `TestNMEAAltitudeJittersWithoutRepeat`: 50 câu GGA có altitude trong
+    [99.5, 100.5] và không lặp y hệt.
+  - `TestNMEAMotionDisabledByDefault`: profile rover nhưng job tắt motion →
+    toạ độ đứng yên.
+  - `TestRoverMotionStaysWithinRadius` (20 seed × 3600 s), `SpeedRange`,
+    `IdleBeforeMoving`, `IdleDurationRange`: bounded 10 km, tốc độ 1–4 m/s,
+    có giai đoạn nghỉ 60–300 s.
+- Playwright: không áp dụng (chưa đổi UI).
+- Sai lệch so với kế hoạch:
+  - `nmeaSender` nhận `nmeaSenderConfig` thay vì danh sách tham số dài; cùng
+    hành vi, dễ đọc hơn.
+  - GSA dùng DOP suy từ HDOP hiện tại (`PDOP=hdop*1.8`, `VDOP=hdop*1.5`) thay
+    vì hằng số 1.0 như bản cũ, để khớp GGA đang gửi.
+  - Chưa đọc `settings['device_profile.motion_allowlist']`; điều kiện hiện tại
+    là `motion_enabled` per job + profile `rover` (đúng D19-23).
 - Commit: cập nhật sau khi push.

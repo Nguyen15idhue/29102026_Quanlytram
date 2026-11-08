@@ -92,17 +92,36 @@ func GGAWithFix(lat, lon float64, at time.Time, info FixInfo) string {
 }
 
 func GSA(_ float64, _ float64, at time.Time) string {
-	return sentence("GPGSA,A,3,01,02,03,04,05,06,07,08,09,10,11,12,1.0,1.0,1.0")
+	return GSAWithDOP(1.0)
+}
+
+// GSAWithDOP tạo câu GSA với DOP suy ra từ HDOP hiện tại, giống cách thiết bị
+// thật gửi kèm GGA (PDOP/HDOP/VDOP khác nhau nhưng cùng bậc).
+func GSAWithDOP(hdop float64) string {
+	if hdop <= 0 {
+		hdop = 1.0
+	}
+	body := fmt.Sprintf(
+		"GPGSA,A,3,01,02,03,04,05,06,07,08,09,10,11,12,%.1f,%.1f,%.1f",
+		hdop*1.8, hdop, hdop*1.5,
+	)
+	return sentence(body)
 }
 
 func RMC(lat, lon float64, at time.Time) string {
-	latValue, latHemisphere := coordinate(jitter(lat), true)
-	lonValue, lonHemisphere := coordinate(jitter(lon), false)
+	return RMCWithMotion(jitter(lat), jitter(lon), 0, 0, at)
+}
+
+// RMCWithMotion tạo câu RMC kèm tốc độ (knots) và hướng (độ) thật của rover.
+func RMCWithMotion(lat, lon, speedKnots, courseDeg float64, at time.Time) string {
+	latValue, latHemisphere := coordinate(lat, true)
+	lonValue, lonHemisphere := coordinate(lon, false)
 	body := fmt.Sprintf(
-		"GPRMC,%s,A,%s,%s,%s,%s,0.0,0.0,%s,,,A",
+		"GPRMC,%s,A,%s,%s,%s,%s,%.1f,%.1f,%s,,,A",
 		at.UTC().Format("150405.00"),
 		latValue, latHemisphere,
 		lonValue, lonHemisphere,
+		speedKnots, courseDeg,
 		at.UTC().Format("020106"),
 	)
 	return sentence(body)

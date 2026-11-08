@@ -2070,3 +2070,13 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   tram (D19-22).
 - Test: go test ./... PASS; them TestRunStationSourceUsesProfileUserAgent,
   TestProbeSendsConfiguredProfileUserAgent, TestProbeProfileStableAcrossStations.
+
+### P19-4 NMEA realism + rover motion (2026-11-08)
+
+- Them relay/rover_motion.go: waypoint 10km/2km/1-4mps/40m/60-300s, RNG
+  injectable; mo phong chi bat khi relay job motion_enabled VA profile rover.
+- nmea_sender: interval/jitter/hdop/sats theo profile, altitude jitter +-0.5m,
+  geoid -5.0, GSA 1/3 neu SendGSA, RMC 1/4 neu SendRMC; bo hardcode 5s/10-16.
+- nmea: them GSAWithDOP va RMCWithMotion (RMC cu giu nguyen).
+- Test: go test ./... PASS; them 5 test NMEA + 4 test rover motion (bounded
+  10km, speed 1-4mps, idle 60-300s, motion mac dinh tat).
