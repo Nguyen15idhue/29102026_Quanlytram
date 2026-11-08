@@ -1170,4 +1170,4 @@ nhận commit gần nhất, rồi tiếp tục đúng phase kế tiếp theo quy
     `TestBridgeSendsProfileHeaders`, `TestNtripSourceSendsProfileUserAgent`).
   - Còn chuỗi `CORS-MVP` trong **test chặn UA nội bộ** (không phải UA gửi đi)
     và `CORS-MVP-Caster` ở header `Server` phía caster (ngoài phạm vi UA client).
-- Commit: cập nhật sau khi push.
+- Commit: `720a1ac` — `P19-7: tai lieu device profile + script kiem tra ua_prefix + gate`.
