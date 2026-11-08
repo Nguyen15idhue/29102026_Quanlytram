@@ -2013,3 +2013,36 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   để nguyên untracked, không commit.
 - Không đụng VPS; chờ user chạy `hot_update.sh` (không migration trong commit).
 
+### Khảo sát relay cũ + lập kế hoạch 19 device profile (2026-11-08, chỉ tài liệu)
+
+- Khảo sát bằng graphify + đọc `relayrtcm/backup` (chỉ đọc, không sửa): xác
+  nhận code cũ có cả tầng "ngụy trang rover" (12 `DeviceProfile`, version
+  random, `Ntrip-Version`/`Connection` theo thiết bị, GSA/RMC, vị trí di
+  chuyển, stagger). Hiện tại thiếu tầng này; UA đang tự khai báo
+  `CORS-MVP-relay` / `-station` / `-probe` / `-relay-test` và còn bị nối hậu
+  tố `-relay`.
+- Đã tạo `docs/1/19_KE_HOACH_DEVICE_PROFILE_ROVER.md`: kế hoạch đầy đủ
+  (migration 047, gói `gnss/internal/deviceprofile`, nối UA vào relay/station
+  source/probe, NMEA realism, transport/retry parity, Node API + UI, test
+  plan, 7 phase P19-1..P19-7, checklist nghiệm thu, rủi ro).
+- Chưa sửa code; chưa chạy migration; chưa test. Trạng thái kế hoạch: READY.
+- Quyết định của user: device-profile spoofing được phép (phi thương mại).
+- Chốt 4 điểm mở (2026-11-08): seed theo `target_id`+role_salt; station source
+  chỉ profile (chưa literal); probe 1 profile toàn cục (không xoay); UA thật
+  lưu vào bảng session ở P19-6. Đã bổ sung D19-19..D19-25 và mục 15/16/17
+  (bộ prompt thực thi + mẫu ghi kết quả) trong `docs/1/19_...md`.
+- Triển khai local only (D19-25), không deploy VPS.
+
+
+### P19-1 device profile - migration 047 + goi deviceprofile (2026-11-08)
+
+- Them db/migrations/admin/047_device_profiles.sql: bang device_profiles (12
+  profile baseline), relay_jobs.device_profile_id/ua_mode/motion_enabled,
+  station_sources.client_device_profile_id/client_ua_prefix, 3 setting
+  device_profile.*, quyen device_profiles.view/edit.
+- Them goi gnss/internal/deviceprofile: Profile/Baseline/Resolve/Normalize,
+  RNG xorshift64 tat dinh, Version theo template cu, Seed theo
+  (code,targetId,role), UserAgent khong hau to noi bo; fixture vector dung
+  chung Go/Node o testdata/.
+- Test: go test ./... PASS; migration chay tren DB local co du lieu va DB
+  trong (47 admin + 9 runtime), chay lai idempotent. Chua doi UI.

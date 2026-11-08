@@ -1,0 +1,159 @@
+{
+  "note": "Vector dùng chung Go/Node; sinh bởi DEVICE_PROFILE_UPDATE=1 go test ./internal/deviceprofile -run TestVectors",
+  "vectors": [
+    {
+      "code": "gnss_internet_radio",
+      "targetId": 1,
+      "role": "relay",
+      "seed": "13962031207608997181",
+      "prefix": "",
+      "version": "8.4.15",
+      "userAgent": "GNSSInternetRadio/8.4.15",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "close"
+    },
+    {
+      "code": "efix_efield",
+      "targetId": 2,
+      "role": "relay",
+      "seed": "11792101981404558165",
+      "prefix": "",
+      "version": "5.4.3.20240625",
+      "userAgent": "EFIX eField/5.4.3.20240625",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "close"
+    },
+    {
+      "code": "chc_landstar",
+      "targetId": 3,
+      "role": "relay",
+      "seed": "9220721648075185640",
+      "prefix": "",
+      "version": "5.2.4.20230213",
+      "userAgent": "CHC LandStar/5.2.4.20230213",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "close"
+    },
+    {
+      "code": "chc_i83",
+      "targetId": 4,
+      "role": "relay",
+      "seed": "11992739498101515472",
+      "prefix": "",
+      "version": "2.2.12",
+      "userAgent": "CHC i83/2.2.12",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "close"
+    },
+    {
+      "code": "comnav_t300",
+      "targetId": 5,
+      "role": "relay",
+      "seed": "5782078000444046194",
+      "prefix": "",
+      "version": "5.2.9",
+      "userAgent": "COMNAV T300/5.2.9",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "close"
+    },
+    {
+      "code": "trimble_da2",
+      "targetId": 6,
+      "role": "relay",
+      "seed": "11365594245002407782",
+      "prefix": "",
+      "version": "3.58",
+      "userAgent": "Trimble DA2/3.58",
+      "ntripVersion": "Ntrip/1.0",
+      "connection": "keep-alive"
+    },
+    {
+      "code": "hitarget_v90",
+      "targetId": 7,
+      "role": "relay",
+      "seed": "11856727887099362906",
+      "prefix": "",
+      "version": "7.6.3",
+      "userAgent": "Hi-Target V90/7.6.3",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "close"
+    },
+    {
+      "code": "south_s82t",
+      "targetId": 8,
+      "role": "relay",
+      "seed": "17017372146510500248",
+      "prefix": "",
+      "version": "4.8.10",
+      "userAgent": "South S82T/4.8.10",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "close"
+    },
+    {
+      "code": "stonex_s900a",
+      "targetId": 9,
+      "role": "relay",
+      "seed": "16865297231325926133",
+      "prefix": "",
+      "version": "1.1.18",
+      "userAgent": "Stonex S900A/1.1.18",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "close"
+    },
+    {
+      "code": "unistrong_g970",
+      "targetId": 10,
+      "role": "relay",
+      "seed": "17855309619622491712",
+      "prefix": "",
+      "version": "5.4.19",
+      "userAgent": "UniStrong G970/5.4.19",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "close"
+    },
+    {
+      "code": "emlid_reachrs2",
+      "targetId": 11,
+      "role": "relay",
+      "seed": "13414925776159405802",
+      "prefix": "",
+      "version": "v4.8.7",
+      "userAgent": "Emlid ReachRS2/v4.8.7",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "close"
+    },
+    {
+      "code": "leica_gs18",
+      "targetId": 12,
+      "role": "relay",
+      "seed": "12400982917913583279",
+      "prefix": "",
+      "version": "3.8.5",
+      "userAgent": "Leica GS18/3.8.5",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "keep-alive"
+    },
+    {
+      "code": "chc_landstar",
+      "targetId": 7,
+      "role": "station",
+      "seed": "12861424562344706301",
+      "prefix": "NTRIP",
+      "version": "8.6.2.20230201",
+      "userAgent": "NTRIP CHC LandStar/8.6.2.20230201",
+      "ntripVersion": "Ntrip/2.0",
+      "connection": "close"
+    },
+    {
+      "code": "trimble_da2",
+      "targetId": 1,
+      "role": "probe",
+      "seed": "9463649862350100850",
+      "prefix": "",
+      "version": "3.29",
+      "userAgent": "Trimble DA2/3.29",
+      "ntripVersion": "Ntrip/1.0",
+      "connection": "keep-alive"
+    }
+  ]
+}
