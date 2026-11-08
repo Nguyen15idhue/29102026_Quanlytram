@@ -2129,3 +2129,26 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
 - P19 specs + p1-relay-import chay rieng: 7 PASS. inspect.mjs 1440/768/390:
   0 FAIL.
 - Khong deploy VPS; local only.
+
+### P19 deploy VPS (2026-11-08)
+
+- User yeu cau cap nhat VPS (override D19-25 local-only).
+- VPS `2c10f30` -> `e7fcac5` bang `update.sh` (BUILD_GUIDE=1 o lan 2).
+  Backup: `cors-prod-20261108-115502.sql.gz` (truoc migrate) va
+  `cors-prod-20261108-120400.sql.gz` (lan build guide).
+- Migration: admin 047 + runtime 010 applied; schema admin 47 / runtime 10;
+  `device_profiles`=12; settings default/probe = `gnss_internet_radio`.
+- Container: caddy/mysql/gnss/server/web-prod healthy; HTTPS 200;
+  `/health` schema 47, db ok; Go health runtime 10, relayDegraded=false.
+- Cau hinh: 67 relay job `ua_mode=profile` + device_profile_id NULL (dung mac
+  dinh); 4 station client dung profile mac dinh; prefix CORS-MVP trong config
+  = 0.
+- Session UA: 387 relay + 22 station source co `user_agent`; chuoi CORS-MVP=0;
+  mau: GNSSInternetRadio/7.7.18, /7.3.10, /8.2.11, /5.4.0.
+- Relay: 46 streaming, 4 connecting, 3 backoff, 1 stopped, 14 disabled.
+  Caster sourcetable: 1509/2101 = 28 STR, 1508 = 5 STR.
+- Guide: `/guide` 200, trang `/guide/relay/` co muc "Nguy trang User-Agent".
+- API `/api/device-profiles` va `/api/system/device-profile` tra 401 khi chua
+  dang nhap (route da dang ky); bundle web-prod co chuoi "Device profile".
+  Khong thu dang nhap bang mat khau that (khong co trong repo, tranh khoa TK).
+- Rollback code: `git checkout 2c10f30 && bash update.sh`.

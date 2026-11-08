@@ -1171,3 +1171,21 @@ nhận commit gần nhất, rồi tiếp tục đúng phase kế tiếp theo quy
   - Còn chuỗi `CORS-MVP` trong **test chặn UA nội bộ** (không phải UA gửi đi)
     và `CORS-MVP-Caster` ở header `Server` phía caster (ngoài phạm vi UA client).
 - Commit: `720a1ac` — `P19-7: tai lieu device profile + script kiem tra ua_prefix + gate`.
+
+### Deploy VPS (2026-11-08, ngoại lệ do user yêu cầu)
+
+- VPS `2c10f30` → `e7fcac5` bằng `update.sh` (lần 2 `BUILD_GUIDE=1`).
+- Backup trước migrate: `/opt/cors/backups/cors-prod-20261108-115502.sql.gz`
+  (SHA256 `c24da4bc…137a2a`); lần build guide:
+  `cors-prod-20261108-120400.sql.gz` (SHA256 `8687ed5b…14f17`).
+- Migration áp dụng: admin 047, runtime 010; schema 47/10.
+- Smoke: 5 container healthy; HTTPS 200; `/health` schema 47, db ok; Go health
+  runtime 10, `relayDegraded=false`; 12 device profile; 67 relay job
+  `ua_mode=profile`; 4 station client profile mặc định; prefix CORS-MVP = 0;
+  relay sessions có UA thật 387, station 22, CORS-MVP = 0; relay 46 streaming,
+  4 connecting, 3 backoff; sourcetable 1509/2101 = 28 STR; `/guide/relay/` có
+  mục “Ngụy trang User-Agent”.
+- Không thử đăng nhập bằng mật khẩu production (không có trong repo, tránh
+  khóa tài khoản); API device-profile trả 401 khi chưa đăng nhập và bundle
+  web-prod chứa chuỗi “Device profile”.
+- Rollback: `git checkout 2c10f30 && bash update.sh`.
