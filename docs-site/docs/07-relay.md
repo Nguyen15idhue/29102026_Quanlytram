@@ -49,13 +49,43 @@ Form chia 3 phần: **Nguồn dữ liệu**, **Đích đến dữ liệu**, **Th
    lại bị khóa ở `Nhập thủ công` và form hiện banner giải thích — tránh relay
    vòng một trạm về chính nó.
 5. **Thông tin khác**: tên (bắt buộc), external key, tick **Có gửi GGA** (hiện
-   vĩ độ, kinh độ, NMEA interval), UA prefix, tick **Bật relay job**.
+   vĩ độ, kinh độ, NMEA interval), **Device profile**, **Chế độ User-Agent**
+   (theo profile hoặc chuỗi literal), **UA prefix**, xem trước User-Agent,
+   tick **Mô phỏng rover di chuyển** (chỉ có tác dụng với profile `rover`),
+   tick **Bật relay job**.
 6. Bấm **Thêm**.
 
 Trạm hiển thị theo quyền `stations.view`: superadmin thấy mọi trạm, admin/user
 chỉ thấy trạm thuộc công ty mình. Relay do superadmin tạo chỉ superadmin thấy.
 
 ![Hộp thoại thêm relay job](/img/docs/relay/form-light.png)
+
+## Ngụy trang User-Agent
+
+Relay gửi User-Agent giống thiết bị GNSS thật thay vì tên hệ thống nội bộ.
+
+- **Device profile**: chọn dòng thiết bị (CHC, COMNAV, Trimble, Leica…).
+  Bỏ trống để dùng profile mặc định trong **Hệ thống → Device profile**.
+- **Chế độ User-Agent**:
+  - `Theo device profile`: ghép `TênThiếtBị/Version`; version sinh tất định
+    từ profile + job, ổn định qua restart.
+  - `Chuỗi literal`: gửi đúng chuỗi nhập, không ghép thêm tên thiết bị.
+- **UA prefix**: tuỳ chọn, thêm trước tên thiết bị (ví dụ `NTRIP`).
+- **Xem trước**: hiển thị User-Agent thực tế sau 300 ms.
+- **Mô phỏng rover di chuyển**: chỉ bật khi job gửi GGA và profile là
+  `rover`; mặc định tắt.
+
+Cùng với User-Agent, profile quyết định `Ntrip-Version`, HTTP version,
+`Connection`, chu kỳ/jitter NMEA, HDOP, số vệ tinh và việc gửi GSA/RMC.
+Hệ thống không lưu User-Agent trong cấu hình job; User-Agent thật của từng
+phiên được ghi vào `relay_sessions.user_agent` để đối chiếu khi caster trả
+401/403.
+
+:::warning
+Chỉ dùng device profile cho mục đích vận hành hợp pháp, phi thương mại và khi
+được phép của chủ hệ thống/caster. Không dùng để giả mạo thiết bị nhằm vượt
+kiểm soát truy cập hoặc bán lại dịch vụ.
+:::
 
 ## Chế độ gửi dữ liệu
 

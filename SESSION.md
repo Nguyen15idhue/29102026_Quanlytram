@@ -2113,3 +2113,19 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
 - Test: go test ./... PASS; server npm test 47 file/238 test PASS; frontend
   tsc PASS; Playwright 3 spec moi PASS (tao/patch job that, system settings,
   RBAC user 403). inspect.mjs 1440/768/390: 0 FAIL.
+
+### P19-7 tai lieu + tong kiem tra (2026-11-08)
+
+- docs-site/07-relay.md: them muc Nguy trang User-Agent; AGENTS.md §9 ghi
+  D19-1 + gioi han cam thuong mai; them script check ua_prefix cu (dry-run
+  mac dinh, --apply can ALLOW_DEVICE_PROFILE_FIX=1).
+- Sua 1 placeholder thieu o INSERT import relay (loi SQL do P19-6).
+- Gate: go test ./... PASS; server npm test 47 file/238 test PASS; frontend
+  build PASS; build-guide --check PASS; graphify update xong.
+- Playwright: 93 passed, 1 skipped, 3 failed. 3 FAIL la hanh vi cu ngoai P19
+  (mountpoint impact auto-map listener cty, API listener_all=true, PUT source
+  caster client_port rong + username bat bien). KHONG sua ngoai pham vi;
+  da revert moi thay doi thu nghiem (ke ca fallback port 1509).
+- P19 specs + p1-relay-import chay rieng: 7 PASS. inspect.mjs 1440/768/390:
+  0 FAIL.
+- Khong deploy VPS; local only.

@@ -116,6 +116,16 @@ giám sát realtime và cấu hình hệ thống.
 - Kế hoạch chi tiết: `docs/0/RTCM_QUALITY_PLAN.md` (Phase 6).
 - Phân biệt rõ `HTTP 200`, `ICY 200`, `SOURCETABLE 200` theo ngữ cảnh.
 - Không test thật với mountpoint công cộng; chỉ endpoint được phép.
+- Device profile (D19-1): relay/station source/probe gửi User-Agent theo
+  thiết bị GNSS thật (12 profile baseline), version tất định từ
+  `(profile.code, target_id, role)`; fallback là profile thiết bị mặc định
+  (`gnss_internet_radio`), **không** dùng chuỗi nội bộ `CORS-MVP-*`.
+  `settings['device_profile.default']` và `['device_profile.probe']` là cấu
+  hình toàn cục; User-Agent thật lưu ở `relay_sessions.user_agent` /
+  `station_source_sessions.user_agent`.
+- Device-profile spoofing chỉ được phép cho vận hành hợp pháp, phi thương mại
+  và khi được chủ hệ thống/caster cho phép; **cấm** dùng để vượt kiểm soát
+  truy cập hoặc bán lại dịch vụ.
 - Loop guard: self-loop + cycle nội bộ; ghi rõ giới hạn với hệ thống ngoài.
 
 ## 10. Cấu trúc thư mục dự kiến

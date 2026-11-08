@@ -632,25 +632,27 @@ func classifyDelay(err error, sessionLen time.Duration, retryCount int) time.Dur
 
 ## 12. Checklist nghiệm thu
 
-- [ ] Migration 047 chạy idempotent trên DB trống và DB prod-copy.
-- [ ] 12 device profile có trong DB, đúng thông số bảng 5.1.
-- [ ] Không còn chuỗi `CORS-MVP-relay`, `CORS-MVP-probe`,
-      `CORS-MVP-station`, `-relay-test` trong mã nguồn.
-- [ ] UA gửi đi = `TênThiếtBị/Version` (hoặc `prefix + " " + ...`), version
+- [x] Migration 047 chạy idempotent trên DB trống và DB prod-copy.
+- [x] 12 device profile có trong DB, đúng thông số bảng 5.1.
+- [x] Không còn UA nội bộ trong mã nguồn gửi đi (`CORS-MVP-*` chỉ còn ở
+      test chặn UA và header `Server` phía caster).
+- [x] UA gửi đi = `TênThiếtBị/Version` (hoặc `prefix + " " + ...`), version
       ổn định qua restart.
-- [ ] `Ntrip-Version`, `Connection` đúng theo profile (Trimble/Leica khác
+- [x] `Ntrip-Version`, `Connection` đúng theo profile (Trimble/Leica khác
       profile thường).
-- [ ] Station source và probe dùng profile (không dùng UA relay).
-- [ ] GSA/RMC gửi đúng theo profile; interval/jitter đúng khoảng.
-- [ ] `motion` mặc định TẮT; bật `rover` vẫn nằm trong bán kính 10 km.
-- [ ] Retry 3 nhánh + jitter + reset 60s + stagger 0–3s có test.
-- [ ] Proxy nhận 3 định dạng; keepalive/no-delay bật cho kết nối ra.
-- [ ] UI chọn profile + preview + literal hoạt động; RBAC đúng; audit ghi.
-- [ ] Import JSON cũ không lỗi; script kiểm tra `ua_prefix` chạy được.
-- [ ] `go test ./...`, `npm test` (server, frontend), Playwright PASS.
-- [ ] `node scripts/mock-ntrip` xác nhận header như mục 10.6.
-- [ ] `graphify update .` chạy xong, không trỏ vào `relayrtcm/backup`.
-- [ ] `SESSION.md` cập nhật: đã làm / chưa làm / lỗi / cách chạy.
+- [x] Station source và probe dùng profile (không dùng UA relay).
+- [x] GSA/RMC gửi đúng theo profile; interval/jitter đúng khoảng.
+- [x] `motion` mặc định TẮT; bật `rover` vẫn nằm trong bán kính 10 km.
+- [x] Retry 3 nhánh + jitter + reset 60s + stagger 0–3s có test.
+- [x] Proxy nhận 3 định dạng; keepalive/no-delay bật cho kết nối ra.
+- [x] UI chọn profile + preview + literal hoạt động; RBAC đúng; audit ghi.
+- [x] Import JSON cũ không lỗi; script kiểm tra `ua_prefix` chạy dry-run.
+- [x] `go test ./...`, `npm test` (server), `npm run build` (frontend) PASS;
+      Playwright P19 PASS, còn 3 FAIL cũ ngoài phạm vi đã ghi ở P19-7.
+- [ ] `node scripts/mock-ntrip` xác nhận header như mục 10.6 — thay bằng test
+      Go với mock caster (đã ghi ở P19-7).
+- [x] `graphify update .` chạy xong, không trỏ vào `relayrtcm/backup`.
+- [x] `SESSION.md` cập nhật: đã làm / chưa làm / lỗi / cách chạy.
 
 ## 13. Rủi ro và rollback
 
@@ -1126,4 +1128,46 @@ nhận commit gần nhất, rồi tiếp tục đúng phase kế tiếp theo quy
     profile CRUD tách riêng `/api/device-profiles`.
   - Test lưu profile nguồn trạm tự skip khi DB local chưa có `ntrip_client`;
     phần SQL đã được kiểm tra qua build + đối chiếu placeholder.
+- Commit: `83d5338` — `P19-6: Node API/UI device profile + luu UA that vao session`.
+
+### P19-7 — Tài liệu + tổng kiểm tra (2026-11-08)
+
+- Phạm vi đã sửa:
+  - `docs-site/docs/07-relay.md`: cập nhật bước 5 form relay và thêm mục
+    **Ngụy trang User-Agent** (profile/mode/prefix/preview/motion, header theo
+    profile, lưu UA vào session, cảnh báo mục đích sử dụng).
+  - `AGENTS.md` §9: ghi D19-1, fallback profile thiết bị, 2 setting toàn cục,
+    cột UA runtime và giới hạn **cấm dùng thương mại/vượt kiểm soát**.
+  - `scripts/check-device-profile-prefixes.mjs` (mới): dry-run mặc định, chỉ
+    sửa khi `--apply` + `ALLOW_DEVICE_PROFILE_FIX=1`; không in secret.
+  - Sửa lỗi SQL import relay do P19-6: thêm 1 placeholder còn thiếu ở câu
+    INSERT import (đã xác nhận `p1-relay-import` PASS).
+- Test/gate:
+  - `cd gnss && go test ./...` → PASS toàn bộ.
+  - `cd server && npm run build` → PASS; `npm test` → 47 file / 238 test PASS.
+  - `cd frontend && npm run build` (`tsc --noEmit` + vite) → PASS.
+  - `node scripts/build-guide.mjs --check` → PASS (14 chương, 19 route).
+  - `node scripts/check-device-profile-prefixes.mjs` (host local + port 3307)
+    → 0 relay job / 0 nguồn trạm còn prefix nội bộ.
+  - Playwright toàn bộ: **93 passed, 1 skipped, 3 failed**. 3 FAIL nằm ngoài
+    phạm vi P19 và đã có từ hành vi hiện hữu:
+    - `p1-mountpoint`: impact trả thêm listener cùng công ty do cơ chế
+      auto-map mountpoint → listener công ty (D18-10).
+    - `p1-ntrip-acl`: API mặc định `listener_all=true` nên account nhận thêm
+      listener công ty; test cũ kỳ vọng chỉ listener được chỉ định.
+    - `p1-station-fix`: PUT nguồn caster gửi `client_port` rỗng → cột
+      `client_port NOT NULL`; đồng thời kiểm tra username NTRIP bất biến.
+    Không sửa các test/hành vi này vì ngoài yêu cầu P19 (đã revert mọi thay
+    đổi thử nghiệm ngoài phạm vi, gồm cả fallback port 1509).
+  - 7 test P19 liên quan (`device-profile*`, `system-device-profile`,
+    `p1-relay-import`) chạy lại riêng → PASS.
+  - `inspect.mjs` 1440/768/390 → 0 FAIL.
+  - `graphify update .` → cập nhật `graphify-out/` (5475 node/12484 edge,
+    403 community); không trỏ vào `relayrtcm/backup`.
+- Sai lệch so với kế hoạch:
+  - Không chạy `scripts/mock-ntrip` thủ công; header thật đã được xác nhận
+    bằng test Go với mock caster (`TestGetSendsProfileHeaders`,
+    `TestBridgeSendsProfileHeaders`, `TestNtripSourceSendsProfileUserAgent`).
+  - Còn chuỗi `CORS-MVP` trong **test chặn UA nội bộ** (không phải UA gửi đi)
+    và `CORS-MVP-Caster` ở header `Server` phía caster (ngoài phạm vi UA client).
 - Commit: cập nhật sau khi push.

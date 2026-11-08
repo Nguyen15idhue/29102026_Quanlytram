@@ -1944,7 +1944,7 @@ relayJobsRouter.post(
                  lat, lon, ua_prefix, ua_mode, device_profile_id, motion_enabled,
                  nmea_interval_sec, origin, origin_ref, tags,
                  desired_revision, upstream_key, downstream_key, owner_web_user_id, company_id, created_by
-               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?, 1, ?, ?, ?, ?, ?)`,
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'import', ?, ?, 1, ?, ?, ?, ?, ?)`,
               [
                 bodyItem.externalKey, bodyItem.name, bodyItem.enabled ? 1 : 0,
                 bodyItem.upstream.host, bodyItem.upstream.port, bodyItem.upstream.mount,
