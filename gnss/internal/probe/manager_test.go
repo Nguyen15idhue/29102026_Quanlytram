@@ -105,6 +105,20 @@ func TestProbeProfileStableAcrossStations(t *testing.T) {
 	}
 }
 
+func TestProbeDefaultProfileUsesDeviceName(t *testing.T) {
+	manager := NewManager(emptyStore{}, DefaultOptions())
+	profile := manager.opts.Profile
+	userAgent := deviceprofile.UserAgent(
+		profile, "", deviceprofile.Seed(profile.Code, 0, deviceprofile.RoleProbe),
+	)
+	if !strings.HasPrefix(userAgent, "GNSSInternetRadio/") {
+		t.Fatalf("probe mặc định phải dùng tên thiết bị: %q", userAgent)
+	}
+	if strings.Contains(userAgent, "CORS-MVP") {
+		t.Fatalf("probe không được dùng UA nội bộ: %q", userAgent)
+	}
+}
+
 func TestReconcileBeforeRunDoesNotPanic(t *testing.T) {
 	m := NewManager(emptyStore{}, DefaultOptions())
 	if m.rootContext() == nil {

@@ -210,7 +210,7 @@ Body tạo job:
   "downstreamMode": "auto",
   "lat": 21.0285,
   "lon": 105.8542,
-  "uaPrefix": "CORS-MVP",
+  "uaPrefix": "NTRIP",
   "nmeaIntervalSec": 0,
   "origin": "manual",
   "originRef": "",

@@ -243,8 +243,7 @@ func authorization(endpoint Endpoint) string {
 }
 
 // userAgent chỉ dùng đúng giá trị caller truyền vào (đã resolve từ device
-// profile). Không còn fallback tự khai báo "CORS-MVP-*"; rỗng thì bỏ header
-// thay vì gửi chuỗi nội bộ (D19-2).
+// profile). Rỗng thì bỏ header thay vì gửi chuỗi nội bộ (D19-2).
 func userAgent(endpoint Endpoint) string {
 	return strings.TrimSpace(endpoint.UserAgent)
 }

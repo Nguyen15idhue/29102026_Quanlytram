@@ -279,6 +279,39 @@ func TestRunStationSourceUsesProfileUserAgent(t *testing.T) {
 	}
 }
 
+func TestRunStationSourceWithoutProfileUsesDeviceName(t *testing.T) {
+	requests := make(chan string, 1)
+	port := startCaster(t, func(_ int, conn net.Conn, req string) {
+		select {
+		case requests <- req:
+		default:
+		}
+		_, _ = conn.Write([]byte("ICY 200 OK\r\n\r\nx"))
+	})
+	// Không cấu hình profile/prefix: station source phải rơi về profile thiết bị
+	// mặc định, tuyệt đối không dùng chuỗi nội bộ CORS-MVP-station.
+	cfg := testStationConfig(port, "pw")
+	cfg.DeviceProfileID = 0
+	cfg.DeviceProfile = deviceprofile.Profile{}
+	cfg.UAPrefix = ""
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = RunStationSource(ctx, cfg, testManagerOptions(time.Second), stationSessionHooks{})
+
+	select {
+	case req := <-requests:
+		if !strings.Contains(req, "User-Agent: GNSSInternetRadio/") {
+			t.Fatalf("thiếu User-Agent thiết bị mặc định:\n%s", req)
+		}
+		if strings.Contains(req, "CORS-MVP") {
+			t.Fatalf("không được gửi User-Agent nội bộ:\n%s", req)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for station source request")
+	}
+}
+
 func TestRunStationSourceAuthFailureClassifiedAsAuth(t *testing.T) {
 	port := startCaster(t, func(idx int, conn net.Conn, req string) {
 		_, _ = conn.Write([]byte("HTTP/1.1 401 Unauthorized\r\n\r\n"))
