@@ -38,11 +38,36 @@ func newJob(cfg *JobConfig, opts Options, writer RuntimeWriter) *Job {
 }
 
 func (j *Job) start(parent context.Context) {
+	j.startAfter(parent, 0)
+}
+
+// startAfter hoãn khởi động thêm delay (dùng stagger 0-3 s khi Manager start
+// nhiều job cùng lúc). Context huỷ trong lúc chờ vẫn đóng j.done đúng một lần.
+func (j *Job) startAfter(parent context.Context, delay time.Duration) {
 	ctx, cancel := context.WithCancel(parent)
 	j.cancel = cancel
+	if delay <= 0 {
+		j.markConnecting()
+		go j.run(ctx)
+		return
+	}
+	go func() {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			close(j.done)
+			return
+		case <-timer.C:
+		}
+		j.markConnecting()
+		j.run(ctx)
+	}()
+}
+
+func (j *Job) markConnecting() {
 	j.writer.State(j.cfg.ID, "connecting", j.cfg.DesiredRevision, "")
 	j.metrics.SetState("connecting", j.cfg.DesiredRevision, "")
-	go j.run(ctx)
 }
 
 func (j *Job) stop(reason string) {
@@ -66,7 +91,7 @@ func (j *Job) currentStopReason() string {
 func (j *Job) run(ctx context.Context) {
 	defer close(j.done)
 
-	backoff := NewBackoff(j.opts.RetryMin, j.opts.RetryMax)
+	backoffRetries := 0
 	sessionOpts := j.opts
 	sessionOpts.OnFirstByte = func() {
 		j.writer.State(j.cfg.ID, "streaming", j.cfg.DesiredRevision, "")
@@ -143,10 +168,12 @@ func (j *Job) run(ctx context.Context) {
 
 		j.metrics.Retry()
 		j.writer.Event(j.cfg.ID, "reconnect", reason, duration)
-		if end.Sub(start) > 30*time.Second {
-			backoff.Reset()
+		// Reset bộ đếm khi phiên đủ dài (D19-15: 60 s, không phải 30 s).
+		if end.Sub(start) >= retryStableSession {
+			backoffRetries = 0
 		}
-		wait := backoff.Next()
+		backoffRetries++
+		wait := classifyDelay(err, end.Sub(start), backoffRetries, j.opts.RetryMin, j.opts.RetryMax)
 		if delay := retryDelay(err); delay > wait {
 			wait = delay
 		}

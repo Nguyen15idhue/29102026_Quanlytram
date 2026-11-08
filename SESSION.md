@@ -2080,3 +2080,19 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
 - nmea: them GSAWithDOP va RMCWithMotion (RMC cu giu nguyen).
 - Test: go test ./... PASS; them 5 test NMEA + 4 test rover motion (bounded
   10km, speed 1-4mps, idle 60-300s, motion mac dinh tat).
+
+### P19-5 transport + retry parity (2026-11-08)
+
+- proxy: 3 dinh dang legacy (host:port:user:pass, host:port, socks5://),
+  proxy timeout 10s, keepalive 30s, NoDelay; loi khong lo user/password.
+- bridge: buffer pool 32KiB (sample copy truoc khi tra pool), goroutine doc
+  downstream phat hien caster dich dong/body loi -> ket thuc phien ngay.
+- retry: retry.go 3 nhanh delay port tu relay cu + jitter +-10%, reset khi
+  phien >=60s; job dung classifyDelay; manager stagger 0-3s khi start nhieu job.
+- Sua UA fallback: bo hoan toan CORS-MVP-station/-probe/-relay trong code, vi
+  du tai lieu; station source/probe khong profile -> UA thiet bi mac dinh
+  GNSSInternetRadio/..., them test chan chuoi noi bo.
+- Test: go test ./internal/proxy ./internal/relay PASS; go test ./... PASS;
+  go test -race ./internal/relay PASS trong golang:1.24 (host Windows thieu
+  gcc). Retry 9 case, jitter 500 lan, stagger 1000 lan, proxy 4 case,
+  downstream close <2s.

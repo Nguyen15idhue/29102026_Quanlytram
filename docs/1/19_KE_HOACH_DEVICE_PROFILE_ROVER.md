@@ -1025,4 +1025,48 @@ nhận commit gần nhất, rồi tiếp tục đúng phase kế tiếp theo quy
     vì hằng số 1.0 như bản cũ, để khớp GGA đang gửi.
   - Chưa đọc `settings['device_profile.motion_allowlist']`; điều kiện hiện tại
     là `motion_enabled` per job + profile `rover` (đúng D19-23).
+- Commit: `686412a` — `P19-4: NMEA realism theo profile + rover motion mac dinh tat`.
+
+### P19-5 — Transport + retry parity (2026-11-08)
+
+- Phạm vi đã sửa:
+  - `gnss/internal/proxy/proxy.go`: `DialWithOptions` + `DialOptions` (timeout,
+    proxy timeout 10 s, keepalive 30 s); nhận 3 định dạng cũ
+    `host:port:user:pass`, `host:port`, `socks5://`/`socks5h://`; bật
+    `SetKeepAlive` + `SetNoDelay` qua `tune()`; không để lộ user/password
+    trong thông báo lỗi.
+  - `gnss/internal/relay/bridge.go`: buffer pool 32 KiB dùng `sync.Pool`
+    (sample copy trước khi trả pool); goroutine đọc `downstream.Conn` phát
+    hiện caster đích đóng/trả body lỗi và kết thúc phiên ngay.
+  - `gnss/internal/relay/retry.go` (mới): 3 nhánh delay port từ relay cũ
+    (permanent 6×min chặn max; phiên < 60 s 4×min; temporary lũy thừa;
+    còn lại tuyến tính), jitter ±10 %, hằng số `retryStableSession = 60 s`.
+  - `gnss/internal/relay/job.go`: bỏ `NewBackoff`, dùng `classifyDelay`;
+    reset bộ đếm sau phiên ≥ 60 s; thêm `startAfter`/`markConnecting`.
+  - `gnss/internal/relay/manager.go`: stagger ngẫu nhiên 0–3 s khi
+    `Reconcile` start nhiều job cùng lúc (restart service); job đơn hoặc
+    thao tác có chủ đích start ngay.
+- Migration: không có.
+- Test:
+  - `cd gnss && go test ./internal/proxy ./internal/relay` → PASS.
+  - `cd gnss && go test ./...` → PASS toàn bộ.
+  - `go test -race ./internal/relay` → PASS (chạy trong `golang:1.24` vì
+    máy Windows không có gcc/cgo).
+  - `TestRetryBaseDelay` (9 case), `TestClassifyDelayJitterWithinTenPercent`
+    (500 lần), `TestClassifyDelayJitterVaries`,
+    `TestPermanentErrorClassification`, `TestTemporaryErrorClassification`,
+    `TestRandomStartStaggerBounds` (1000 lần).
+  - `TestProxyLegacyFormats` (4 case), `TestProxyInvalidFormatDoesNotLeakSecret`.
+  - `TestDownstreamCloseStopsSessionQuickly`: downstream đóng sau 200 OK,
+    phiên kết thúc < 2 s.
+- Playwright: không áp dụng (chưa đổi UI).
+- Sai lệch so với kế hoạch:
+  - `DefaultOptions.RetryMin/RetryMax` đổi thành 5 s/60 s; các test vẫn tự
+    đặt retry ngắn nên không chậm.
+  - `ReadBuffer` mặc định vẫn 8 KiB (test cũ yêu cầu ≤ 8192); pool cấp phát
+    32 KiB và chỉ đọc `ReadBuffer` byte mỗi lần.
+  - Stagger chỉ áp dụng khi `len(ids)==0 && len(started)>1` để tránh làm chậm
+    test/khởi động đơn lẻ.
+  - `go test -race` không chạy trực tiếp trên Windows do thiếu `gcc`; đã
+    chạy trong container `golang:1.24` và PASS.
 - Commit: cập nhật sau khi push.

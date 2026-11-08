@@ -3,6 +3,7 @@ package relay
 import (
 	"context"
 	"log"
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -77,7 +78,8 @@ func duplicateJobIDs(configs []*JobConfig) map[int64]bool {
 	return duplicates
 }
 
-func (m *Manager) Degraded() bool {	if store, ok := m.store.(interface{ Degraded() bool }); ok {
+func (m *Manager) Degraded() bool {
+	if store, ok := m.store.(interface{ Degraded() bool }); ok {
 		return store.Degraded()
 	}
 	return false
@@ -165,6 +167,7 @@ func (m *Manager) Reconcile(ctx context.Context, ids []int64) error {
 		}
 	}
 
+	var started []*Job
 	for id := range targets {
 		cfg, exists := byID[id]
 		if !exists {
@@ -221,7 +224,19 @@ func (m *Manager) Reconcile(ctx context.Context, ids []int64) error {
 
 		newJobInstance := newJob(cfg, m.opts, m.writer)
 		m.jobs[id] = newJobInstance
-		newJobInstance.start(rootCtx)
+		started = append(started, newJobInstance)
+	}
+
+	// Stagger 0-3 s khi Manager start nhiều job cùng lúc (restart service) để
+	// không dồn kết nối; job đơn lẻ hoặc thao tác có chủ đích thì start ngay.
+	if len(ids) == 0 && len(started) > 1 {
+		for _, job := range started {
+			job.startAfter(rootCtx, randomStartStagger())
+		}
+	} else {
+		for _, job := range started {
+			job.start(rootCtx)
+		}
 	}
 
 	return nil
@@ -300,6 +315,18 @@ func (m *Manager) Snapshot() []MetricsSnapshot {
 	}
 	sort.Slice(snapshots, func(i, j int) bool { return snapshots[i].JobID < snapshots[j].JobID })
 	return snapshots
+}
+
+// startStaggerMax là biên trên của độ trễ ngẫu nhiên khi Manager start nhiều
+// job cùng lúc (service restart). Port từ relay cũ (main.go L543-553).
+const startStaggerMax = 3 * time.Second
+
+// randomStartStagger trả độ trễ ngẫu nhiên trong [0, startStaggerMax].
+func randomStartStagger() time.Duration {
+	if startStaggerMax <= 0 {
+		return 0
+	}
+	return time.Duration(rand.Int63n(int64(startStaggerMax) + 1))
 }
 
 func (m *Manager) Shutdown(ctx context.Context) {

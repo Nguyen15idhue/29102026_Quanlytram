@@ -151,6 +151,50 @@ func handleSOCKS5(conn net.Conn) {
 	<-done
 }
 
+func TestProxyLegacyFormats(t *testing.T) {
+	cases := []struct {
+		name         string
+		raw          string
+		wantAddr     string
+		wantUser     string
+		wantPassword string
+		wantAuth     bool
+	}{
+		{name: "host-port-user-pass", raw: "127.0.0.1:1080:alice:secret", wantAddr: "127.0.0.1:1080", wantUser: "alice", wantPassword: "secret", wantAuth: true},
+		{name: "host-port", raw: "proxy.local:1080", wantAddr: "proxy.local:1080"},
+		{name: "uri-with-auth", raw: "socks5://bob:pw@proxy.local:1080", wantAddr: "proxy.local:1080", wantUser: "bob", wantPassword: "pw", wantAuth: true},
+		{name: "uri-without-auth", raw: "socks5h://proxy.local:1080", wantAddr: "proxy.local:1080"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			address, auth, err := parseProxy(tc.raw)
+			if err != nil {
+				t.Fatalf("parseProxy: %v", err)
+			}
+			if address != tc.wantAddr {
+				t.Fatalf("addr = %q, want %q", address, tc.wantAddr)
+			}
+			if tc.wantAuth {
+				if auth == nil || auth.User != tc.wantUser || auth.Password != tc.wantPassword {
+					t.Fatalf("auth = %+v", auth)
+				}
+			} else if auth != nil {
+				t.Fatalf("auth = %+v, want nil", auth)
+			}
+		})
+	}
+}
+
+func TestProxyInvalidFormatDoesNotLeakSecret(t *testing.T) {
+	_, _, err := parseProxy("garbage:secret")
+	if err == nil {
+		t.Fatal("expected invalid proxy error")
+	}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("error leaked credential: %v", err)
+	}
+}
+
 func TestUnsupportedProxyScheme(t *testing.T) {
 	_, err := Dial(context.Background(), "http://user:secret@127.0.0.1:1", "127.0.0.1:2", time.Second)
 	if err == nil {

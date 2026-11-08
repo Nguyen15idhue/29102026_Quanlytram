@@ -666,6 +666,62 @@ func TestUpstreamReadIsNotBlockedBySlowDownstream(t *testing.T) {
 		metrics.Snapshot(0).BytesUp, len(payload))
 }
 
+func TestDownstreamCloseStopsSessionQuickly(t *testing.T) {
+	upstream := newMockServer(t, func(_ *mockServer, conn net.Conn) {
+		defer conn.Close()
+		br := bufio.NewReader(conn)
+		if _, err := readRequest(br); err != nil {
+			return
+		}
+		if _, err := io.WriteString(conn, "ICY 200 OK\r\n\r\n"); err != nil {
+			return
+		}
+		ticker := time.NewTicker(5 * time.Millisecond)
+		defer ticker.Stop()
+		for range ticker.C {
+			if _, err := conn.Write([]byte("stream")); err != nil {
+				return
+			}
+		}
+	})
+	downstream := newMockServer(t, func(_ *mockServer, conn net.Conn) {
+		defer conn.Close()
+		br := bufio.NewReader(conn)
+		if _, err := readRequest(br); err != nil {
+			return
+		}
+		_, _ = io.WriteString(conn, "ICY 200 OK\r\n\r\n")
+		// Đóng ngay sau khi trả 200 để mô phỏng caster đích mất kết nối.
+	})
+	cfg := testConfig(upstream, downstream, "source")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	opts := Options{
+		DialTimeout:   2 * time.Second,
+		MonitorBuffer: 16,
+		ReadBuffer:    1024,
+		NMEAInterval:  time.Hour,
+	}
+	done := make(chan error, 1)
+	start := time.Now()
+	go func() {
+		done <- RunSession(ctx, cfg, opts, rtcm.NewMonitor(1<<16), &Metrics{})
+	}()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("phiên phải kết thúc bằng lỗi khi downstream đóng")
+		}
+		if elapsed := time.Since(start); elapsed > 2*time.Second {
+			t.Fatalf("phiên kết thúc sau %v, want < 2s", elapsed)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("downstream đóng nhưng phiên không kết thúc trong 2 s")
+	}
+}
+
 func TestIdleUpstreamTimesOut(t *testing.T) {
 	upstream := newMockServer(t, upstreamHandler(upstreamOptions{keepOpen: true}))
 	downstream := newMockServer(t, downstreamHandler(downstreamOptions{response: "HTTP/1.0 200 OK\r\n\r\n"}))

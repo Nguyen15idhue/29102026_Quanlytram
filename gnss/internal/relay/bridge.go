@@ -34,6 +34,17 @@ func (u *sessionUpstream) Close() error {
 	return u.closeFn()
 }
 
+// relayBufferSize là kích thước buffer tái sử dụng giữa các phiên relay.
+// Sample gửi sang monitor/quality luôn được copy trước khi trả buffer về pool.
+const relayBufferSize = 32 * 1024
+
+var relayBufferPool = sync.Pool{
+	New: func() any {
+		buffer := make([]byte, relayBufferSize)
+		return &buffer
+	},
+}
+
 type Options struct {
 	DialTimeout      time.Duration
 	IdleTimeout      time.Duration
@@ -63,8 +74,8 @@ func DefaultOptions() Options {
 		ReadBuffer:       8 * 1024,
 		DownstreamBuffer: 64,
 		NMEAInterval:     10 * time.Second,
-		RetryMin:         time.Second,
-		RetryMax:         30 * time.Second,
+		RetryMin:         5 * time.Second,
+		RetryMax:         60 * time.Second,
 		PollInterval:     10 * time.Second,
 		StopTimeout:      15 * time.Second,
 	}
@@ -248,6 +259,27 @@ func RunSession(
 	writeCh := make(chan []byte, opts.DownstreamBuffer)
 	writerErr := make(chan error, 1)
 	writerDone := make(chan struct{})
+
+	// Downstream read probe: caster đích đóng kết nối (hoặc trả body lỗi) thì
+	// kết thúc phiên ngay, không tiếp tục đẩy byte vào socket đã chết.
+	go func() {
+		if downstream.Conn == nil {
+			return
+		}
+		probe := make([]byte, 512)
+		for {
+			if _, err := downstream.Conn.Read(probe); err != nil {
+				if ctx.Err() == nil {
+					select {
+					case writerErr <- fmt.Errorf("downstream closed: %w", err):
+					default:
+					}
+				}
+				return
+			}
+		}
+	}()
+
 	go func() {
 		defer close(writerDone)
 		for data := range writeCh {
@@ -280,7 +312,6 @@ func RunSession(
 		<-writerDone
 	}()
 
-	buffer := make([]byte, opts.ReadBuffer)
 	var firstBytes sync.Once
 	for {
 		select {
@@ -293,7 +324,15 @@ func RunSession(
 		if upstream.conn != nil {
 			_ = upstream.conn.SetReadDeadline(time.Now().Add(opts.IdleTimeout))
 		}
-		n, readErr := upstream.Read(buffer)
+		pooled := relayBufferPool.Get().(*[]byte)
+		buffer := *pooled
+		if opts.ReadBuffer > 0 && opts.ReadBuffer < len(buffer) {
+			buffer = buffer[:opts.ReadBuffer]
+		}
+		n, readErr := func() (int, error) {
+			defer relayBufferPool.Put(pooled)
+			return upstream.Read(buffer)
+		}()
 		if n > 0 {
 			lastData.Store(time.Now().UnixNano())
 			metrics.AddUp(n)
