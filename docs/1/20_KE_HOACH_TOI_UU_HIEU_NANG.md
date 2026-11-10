@@ -460,3 +460,43 @@ Index: ĐỦ 4/4
 `mountpoint-explorer` (fail khi chạy cả bộ, **PASS khi chạy riêng** — phụ thuộc
 thứ tự/fixture). Không có test nào liên quan query/index/cache/tile/polling.
 
+### Deploy VPS 2026-11-10 — DONE
+
+- `update.sh`: **6e124fa → 356a089**, backup tự động, migration **runtime 011**
+  applied lúc 03:57:35 UTC; container healthy, schema runtime **11**.
+- Khởi động Go: `resolved 58 stale alerts`, `closed 83 stale connections
+  (service_restart)`.
+- Dữ liệu sau deploy: `caster_open=55`, **duplicate=0** (trước: 136 dòng, có
+  mountpoint mở 3 lần), `quality_alerts_open=2` (trước 62),
+  `score_zero_new=0` (trước 27.484 tích luỹ), `storeFailures=0`, `dropped=0`.
+- Mẫu chất lượng: **22/22 phút có đủ 29 trạm** kể từ deploy (trước: 4–6 phút
+  mất mẫu/6 giờ).
+- Tài nguyên: Go CPU **101 % → 3,7–13 %** (throttle 24,5 % → 0,35 % period;
+  throttled_usec 3.325 s → 1,7 s), load VPS 3,01 → 0,24; Go RSS 524 MB (sau 7 h
+  trước deploy) → dao động **48–106 MB** trong 22 phút đầu.
+- Query latest-sample trên dữ liệu thật: **11,8 ms** (trước **36,77 s**),
+  `EXPLAIN` dùng `idx_quality_samples_latest`.
+- API đo warm trên prod (13 lần/endpoint, loại 2 lần đầu):
+
+| Endpoint | p50 | p90 | max | Trước deploy |
+|---|---|---|---|---|
+| `/api/stations?pageSize=50` | 44 ms | **52 ms** | 144 ms | p90 1.817 ms, max 41.375 ms |
+| `/api/stations/682` | 33 ms | **37 ms** | 75 ms | p90 2.075 ms, max 20.891 ms |
+| `/api/map/overview` | 5 ms | **7 ms** | 11 ms | p90 12.879 ms |
+| `/api/connections` | 8 ms | **14 ms** | 34 ms | p90 44 ms |
+| `/health` | 3 ms | 4 ms | 8 ms | p90 7 ms |
+
+- Request đầu tiên ngay sau restart (cache/DB còn nguội): `/api/stations`
+  1.914 ms, `/api/map/overview` 841 ms — sau đó ổn định ở mức trên.
+- Asset: `/assets/index-BM3ZmHVQ.js` trả `Cache-Control: public,
+  max-age=31536000, immutable`.
+- Tile từ container: `a.tile.openstreetmap.fr` 200 (~1 s), `tile.openstreetmap.de`
+  vẫn ETIMEDOUT (chỉ còn là fallback nên không cản trở).
+- Ghi chú đo lường: mật khẩu superadmin prod không nằm trong repo nên để đo
+  tầng HTTP đã tạo **một phiên tạm 10 phút** trong `web_sessions`
+  (`user_agent=plan20-verify`, chỉ dùng GET) rồi **xoá ngay**; kiểm tra lại
+  `plan20-verify = 0`, số phiên active trở về 2 như trước.
+- Tồn đọng: chưa xác minh hết OOM trong 24 h (RSS còn dao động); đề xuất theo
+  dõi thêm và cân nhắc `mem_limit` gnss 1 GB nếu RSS vượt 500 MB.
+- Rollback: `git checkout 6e124fa && bash update.sh`.
+

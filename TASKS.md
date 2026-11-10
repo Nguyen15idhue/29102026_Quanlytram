@@ -816,3 +816,4 @@ account dùng chung. Không thay đổi kiến trúc Node/Go ownership.
 | P20-5 | Bản đồ & asset tĩnh | DONE (OSM.fr chính, cache 2048 + negative 10 phút, asset immutable; 3 test + 6 Playwright PASS) |
 | P20-6 | Frontend polling | DONE (stations 20 s, map/chi tiết 30 s, staleTime; tsc+build PASS; 10 Playwright PASS) |
 | P20-7 | Vận hành, script, tài liệu | DONE (kiem-tra-hieu-nang.ps1 tiếng Việt + OPS §11 + graphify; p90 93/23/46/18 ms; exit 0) |
+| Deploy VPS | Cập nhật prod 6e124fa → 356a089 | DONE (schema 11; p90 52/37/7/14 ms; Go CPU 101 % → 3,7–13 %; coverage 22/22 phút) |

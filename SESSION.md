@@ -2236,3 +2236,21 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   ngoài phạm vi (3 đã ghi từ P19, 1 fail khi chạy cả bộ nhưng PASS khi chạy
   riêng). Không có fail liên quan Plan 20.
 - Chưa deploy prod; cần backup + migrate runtime 011 khi deploy.
+
+### Plan 20 / Deploy VPS + kiểm thử mục tiêu (2026-11-10)
+
+- update.sh: 6e124fa → 356a089; backup tự động; migration runtime 011 applied;
+  schema runtime 11; tất cả container healthy.
+- Khởi động: resolve 58 alert cũ, đóng 83 caster_connections mồ côi; sau 22
+  phút: caster_open 55, duplicate 0, alerts_open 2, score_zero mới 0,
+  storeFailures 0, dropped 0.
+- Mẫu: 22/22 phút đủ 29 trạm (trước 4–6 phút mất/6 h).
+- Tài nguyên: Go CPU 101 % → 3,7–13 % (throttle 24,5 % → 0,35 %), load 3,01 →
+  0,24; Go RSS 524 MB/7 h → 48–106 MB trong 22 phút (chưa kết luận OOM).
+- Query latest-sample 11,8 ms (trước 36,77 s). API warm trên prod: stations p90
+  52 ms, chi tiết 37 ms, map 7 ms, connections 14 ms, health 4 ms. Request đầu
+  sau restart 1.914 ms/841 ms (nguội).
+- Asset immutable OK; OSM.fr 200, OSM.de vẫn timeout (fallback).
+- Đo bằng phiên tạm 10 phút trong web_sessions (GET-only) rồi xoá; xác nhận
+  0 phiên plan20-verify còn lại, active sessions = 2 như cũ.
+- Rollback: git checkout 6e124fa && bash update.sh.
