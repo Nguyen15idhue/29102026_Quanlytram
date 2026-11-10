@@ -113,7 +113,10 @@ export function UnifiedMap() {
   const overview = useQuery({
     queryKey: ['map-overview', query],
     queryFn: () => apiFetch<MapOverviewResponse>(`/api/map/overview?${query}`),
-    refetchInterval: 15_000,
+    // Plan 20 (D20-15): bản đồ poll 30 s, giữ marker cũ trong lúc refetch.
+    refetchInterval: 30000,
+    staleTime: 15000,
+    refetchIntervalInBackground: false,
     placeholderData: (previous) => previous
   });
   const items = overview.data?.items ?? [];

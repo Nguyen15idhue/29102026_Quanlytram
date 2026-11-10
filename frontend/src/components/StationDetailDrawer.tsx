@@ -212,7 +212,10 @@ export function StationDetailDrawer({
   const detail = useQuery({
     queryKey: ['station-detail', stationId],
     queryFn: () => apiFetch<{ item: StationDetail }>(`/api/stations/${stationId}`),
-    refetchInterval: 15_000
+    // Plan 20 (D20-15): chi tiết trạm poll 30 s thay vì 15 s.
+    refetchInterval: 30000,
+    staleTime: 15000,
+    refetchIntervalInBackground: false
   });
   const station = detail.data?.item;
 

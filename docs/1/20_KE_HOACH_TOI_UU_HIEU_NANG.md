@@ -402,3 +402,20 @@ Bằng chứng:
 - Playwright `map-maplibre` 3/3, `unified-map` 2/2, `map` 1/1 PASS (lần chạy
   đầu fail do server vừa restart, chạy lại PASS).
 
+### P20-6 — Frontend polling — DONE (2026-11-10)
+
+Đã làm:
+- `pages/Stations.tsx`: `refetchInterval` 10 s → **20 s**, `staleTime` 10 s,
+  `refetchIntervalInBackground: false`.
+- `pages/UnifiedMap.tsx`: 15 s → **30 s**, `staleTime` 15 s, giữ marker cũ khi
+  refetch (`placeholderData`).
+- `components/StationDetailDrawer.tsx`: 15 s → **30 s**, `staleTime` 15 s.
+- Không đổi bố cục/nhãn/màu; không đổi API.
+
+Bằng chứng:
+- `npx tsc --noEmit` PASS; `npm run build` PASS (12,2 s).
+- Playwright: `ui` (1440/768/390 + dark mode), `station-detail`, `timeline`
+  (1440/768/390), `unified-map` (responsive), `realtime` = **10/10 PASS**.
+- Không chạy `inspect.mjs` vì thay đổi chỉ là tần suất poll (không đổi UI) và
+  script không hỗ trợ đăng nhập; phần responsive đã được Playwright phủ.
+

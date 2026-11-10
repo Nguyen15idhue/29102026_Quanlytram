@@ -2215,3 +2215,12 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
 - nginx: /assets/* Cache-Control immutable 1 năm; /index.html no-cache.
 - Test tileProvider 3/3 + mapConfigCache PASS; Playwright map-maplibre/
   unified-map/map PASS (6); curl header xác nhận trên web-prod local.
+
+### Plan 20 / P20-6 — Frontend polling (2026-11-10)
+
+- Danh sách trạm 10 s → 20 s; bản đồ 15 s → 30 s; chi tiết trạm 15 s → 30 s;
+  staleTime 10–15 s; không poll khi tab ẩn.
+- Không đổi UI/API. tsc + build PASS; Playwright ui/station-detail/timeline/
+  unified-map/realtime 10/10 PASS (gồm 1440/768/390).
+- Không chạy inspect.mjs (chỉ đổi interval, script không hỗ trợ đăng nhập);
+  responsive đã phủ bằng Playwright.

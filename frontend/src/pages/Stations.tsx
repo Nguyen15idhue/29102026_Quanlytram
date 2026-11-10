@@ -205,7 +205,10 @@ export function Stations() {
   const list = useQuery({
     queryKey: ['stations', listQuery],
     queryFn: () => apiFetch<StationList>(`/api/stations?${listQuery}`),
-    refetchInterval: 10000
+    // Plan 20 (D20-15): giảm poll 10 s → 20 s, không refetch khi tab ẩn.
+    refetchInterval: 20000,
+    staleTime: 10000,
+    refetchIntervalInBackground: false
   });
   const owners = useQuery({
     queryKey: ['web-users', 'station-filter'],
