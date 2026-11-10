@@ -62,6 +62,10 @@ type Config struct {
 	QualityBaselineWindow  int
 	QualitySampleWindowSec int
 	QualityStoreQueueSize  int
+	// DetailInterval giới hạn tần suất tính chi tiết sky plot/observation.
+	QualityDetailInterval time.Duration
+	// PprofAddr bật pprof loopback khi khác rỗng (ví dụ 127.0.0.1:6060).
+	PprofAddr string
 }
 
 func getenv(key, fallback string) string {
@@ -162,5 +166,7 @@ func Load() Config {
 		QualityBaselineWindow:  getenvInt("QUALITY_BASELINE_WINDOW", 120),
 		QualitySampleWindowSec: getenvInt("QUALITY_SAMPLE_WINDOW_SEC", 60),
 		QualityStoreQueueSize:  getenvInt("QUALITY_STORE_QUEUE_SIZE", 4096),
+		QualityDetailInterval:  time.Duration(getenvInt("QUALITY_DETAIL_INTERVAL_MS", 2000)) * time.Millisecond,
+		PprofAddr:              getenv("PPROF_ADDR", ""),
 	}
 }

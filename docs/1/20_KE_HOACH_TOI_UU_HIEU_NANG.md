@@ -323,3 +323,35 @@ Bằng chứng test:
   tick 60 giây không biến phút đó thành no_data").
 - Playwright `timeline.spec.ts` (3) + `quality.spec.ts` (1) = **4/4 PASS**.
 
+### P20-3 — Giảm tải phân tích RTCM — DONE (2026-11-10)
+
+Đã làm:
+- Tách `snapshotMode(now, opts, detail)`:
+  - `summarySnapshot` (không sky plot, không constellations, không danh sách
+    signal) dùng cho tick đánh giá 5 s — `evaluate` đã chuyển sang bản này.
+  - `snapshot` (chi tiết) chỉ dùng cho `/internal/rtcm/snapshot` (API live) và
+    lần ghi mẫu 60 s, có **cache 2 s** (`DetailInterval`).
+- Throttle ghi observation chi tiết MSM (`satSignals`, `cellHistory`,
+  `rmsWindow`) tối đa 1 lần/`QUALITY_DETAIL_INTERVAL_MS` (mặc định 2000 ms);
+  frame/CRC/satellite/cell/CNR vẫn cập nhật mọi epoch.
+- `applyAlert` nhận `func() map[string]any` (lazy): chỉ cấp phát map khi alert
+  thực sự mở/emit, không cấp phát 7 map × 129 target × mỗi 5 s như trước.
+- Bỏ map `identities` dư trong `evaluate`; bỏ closure `Constellations` khỏi
+  summary path.
+- pprof loopback khi đặt `PPROF_ADDR` (mặc định tắt); thêm 2 biến vào
+  `.env.example`.
+
+Benchmark (129 target streaming, `go test -bench -benchmem`):
+| Benchmark | Trước (đường cũ) | Sau | Giảm |
+|---|---|---|---|
+| `evaluate` ns/op | ~338.000–457.000 | **164.000–203.000** | **~50 %** |
+| `evaluate` B/op | 436.860 | **132.422** | **~70 %** |
+| `evaluate` allocs/op | 3.102 | **1.166** | **~62 %** |
+| `summarySnapshot` | — | 352–400 ns/op, 226 B, 4 allocs | — |
+
+Test: `go vet ./...` PASS; `go test ./...` PASS; `go test -count=3
+./internal/relay` PASS (1 lần flaky do chạy song song với benchmark, không tái
+diễn); Playwright `quality.spec.ts` + `station-detail.spec.ts` 2/2 PASS.
+E2E local: restart gnss đóng 1 `caster_connections` mồ côi với
+`service_restart`; log `resolved 18 stale alerts`.
+

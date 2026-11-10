@@ -2180,3 +2180,17 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   "không có dữ liệu 1m".
 - Test: go test ./... PASS; server 245 test PASS; Playwright timeline+quality
   4/4 PASS.
+
+### Plan 20 / P20-3 — Giảm tải phân tích RTCM (2026-11-10)
+
+- Tách snapshot tổng hợp (evaluate 5 s) khỏi snapshot chi tiết (API live + ghi
+  mẫu 60 s); chi tiết có cache 2 s (QUALITY_DETAIL_INTERVAL_MS).
+- Throttle observation MSM (satSignals/cellHistory/rms) 1 lần/2 s; vẫn đếm
+  frame/CRC/satellite/cell/CNR mọi epoch.
+- applyAlert dùng details lazy → không cấp phát map khi không có alert.
+- Benchmark 129 target: evaluate 338–457 µs → 164–203 µs (-50 %),
+  3.102 → 1.166 allocs/op (-62 %), 436 KB → 132 KB (-70 %).
+- pprof loopback qua PPROF_ADDR (mặc định tắt).
+- E2E local: gnss restart đóng 1 caster_connections mồ côi (service_restart) và
+  resolve 18 alert cũ; go test ./... PASS; Playwright quality + station-detail
+  PASS.

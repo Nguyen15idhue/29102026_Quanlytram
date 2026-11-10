@@ -23,7 +23,8 @@ type execer interface {
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
-func (s *MySQLStore) CloseOpenConnections(ctx context.Context, reason string) (int64, error) {
+// CloseOpenConnections trên runtime store (đúng schema cors_runtime).
+func (s *MySQLRuntimeStore) CloseOpenConnections(ctx context.Context, reason string) (int64, error) {
 	return closeOpenConnections(ctx, s.db, reason)
 }
 

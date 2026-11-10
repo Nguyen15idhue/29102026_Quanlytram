@@ -47,7 +47,8 @@ func addState(analyzer *Analyzer, target Target) *targetState {
 
 func ingestState(state *targetState, now time.Time, chunks ...[]byte) {
 	for _, chunk := range chunks {
-		state.ingest(chunk, now, DefaultOptions().GapThreshold, DefaultOptions().ResetAfter)
+		// 0 = không throttle chi tiết, giữ nguyên ngữ nghĩa test parse.
+		state.ingest(chunk, now, DefaultOptions().GapThreshold, DefaultOptions().ResetAfter, 0)
 	}
 }
 

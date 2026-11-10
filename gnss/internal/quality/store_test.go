@@ -69,6 +69,30 @@ func TestAsyncStoreUsesLongerTimeoutForSamples(t *testing.T) {
 	}
 }
 
+func TestDetailThrottleKeepsFrameCounters(t *testing.T) {
+	state := newTargetState(Target{Type: TargetStation, ID: 41, Direction: DirectionIngest})
+	now := time.Now().UTC()
+	opts := DefaultOptions()
+	frame := readFrame(t, "1077")
+	state.ingest(frame, now, opts.GapThreshold, opts.ResetAfter, 2*time.Second)
+	framesAfterFirst := state.frames
+	observationsAfterFirst := state.observationCount
+	if observationsAfterFirst == 0 {
+		t.Fatal("first epoch must record observations")
+	}
+	// 1 s sau: chi tiết bị throttle nhưng frame/satellite vẫn phải đếm.
+	state.ingest(frame, now.Add(time.Second), opts.GapThreshold, opts.ResetAfter, 2*time.Second)
+	if state.frames <= framesAfterFirst {
+		t.Fatalf("frames = %d, want > %d", state.frames, framesAfterFirst)
+	}
+	if state.observationCount != observationsAfterFirst {
+		t.Fatalf("observations = %d, want %d (throttled)", state.observationCount, observationsAfterFirst)
+	}
+	if state.satellites == 0 {
+		t.Fatal("satellites must still be updated during throttle")
+	}
+}
+
 func TestScoreCacheInvalidatedWhenStateChanges(t *testing.T) {
 	target := Target{Type: TargetStation, ID: 1}
 	state := newTargetState(target)

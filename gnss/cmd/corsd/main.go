@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"syscall"
@@ -27,6 +28,16 @@ func main() {
 		log.Fatalf("invalid CASTER_PUBLIC_PORTS: %v", err)
 	}
 	ctx := context.Background()
+	// Plan 20 (D20-11): pprof chỉ bật khi PPROF_ADDR được đặt (loopback),
+	// phục vụ đo CPU/heap trên staging mà không mở thêm cổng công khai.
+	if cfg.PprofAddr != "" {
+		go func() {
+			log.Printf("[pprof] listening on %s", cfg.PprofAddr)
+			if err := http.ListenAndServe(cfg.PprofAddr, nil); err != nil {
+				log.Printf("[pprof] stopped: %v", err)
+			}
+		}()
+	}
 
 	runtimeDB, err := db.Open(ctx, cfg)
 	if err != nil {
@@ -100,6 +111,7 @@ func main() {
 		ScoreInterval:   cfg.QualityScoreInterval,
 		BaselineWindow:  cfg.QualityBaselineWindow,
 		SampleWindowSec: cfg.QualitySampleWindowSec,
+		DetailInterval:  cfg.QualityDetailInterval,
 	}, qualityAsync)
 
 	options := relay.DefaultOptions()
@@ -128,16 +140,18 @@ func main() {
 	casterOptions.AllowedPorts = allowedPorts
 	casterOptions.Quality = analyzer
 	casterStore := caster.NewMySQLStore(adminDB)
+	casterRuntimeStore := caster.NewMySQLRuntimeStore(runtimeDB)
 	// D20-8: đóng kết nối caster mở từ lần chạy trước để không đếm trùng
 	// "online" và không làm nặng query open-set sau mỗi lần restart.
-	if closed, err := casterStore.CloseOpenConnections(ctx, "service_restart"); err != nil {
+	// Dùng runtime store vì bảng nằm trong cors_runtime.
+	if closed, err := casterRuntimeStore.CloseOpenConnections(ctx, "service_restart"); err != nil {
 		log.Printf("[caster] close stale connections failed: %v", err)
 	} else if closed > 0 {
 		log.Printf("[caster] closed %d stale connections from previous run", closed)
 	}
 	casterManager := caster.NewManager(
 		casterStore,
-		caster.NewMySQLRuntimeStore(runtimeDB),
+		casterRuntimeStore,
 		casterOptions,
 	)
 	options.StationTap = casterManager.OpenStationTap
