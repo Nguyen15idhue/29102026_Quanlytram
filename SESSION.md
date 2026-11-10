@@ -2167,3 +2167,16 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   unified-map 3/3 PASS. Đo local 412k dòng: 0,602 s → 0,034 s (20 trạm),
   0,881 s → 0,053 s (31 trạm); HTTP p90 94 ms/39 ms.
 - Chưa deploy prod.
+
+### Plan 20 / P20-2 — Go ổn định dữ liệu (2026-11-10)
+
+- AsyncStore timeout theo loại ghi (mẫu 15 s, stats 10 s, alert 5 s) + retry 1
+  lần + log lỗi; hết cảnh mất im lặng cả batch 87 target.
+- Score cache có `scoreState`: stale → streaming tính lại ngay, hết
+  `score_zero` giả (27.269 alert/5 ngày trên prod).
+- Startup Go: resolve toàn bộ `quality_alerts` mở; đóng `caster_connections`
+  mồ côi bằng `service_restart`.
+- Timeline: dung sai sample 2× cửa sổ (≤120 s) nên thiếu 1 tick không thành
+  "không có dữ liệu 1m".
+- Test: go test ./... PASS; server 245 test PASS; Playwright timeline+quality
+  4/4 PASS.

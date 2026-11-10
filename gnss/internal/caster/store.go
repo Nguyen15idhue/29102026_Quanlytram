@@ -14,8 +14,33 @@ func NewMySQLStore(db *sql.DB) *MySQLStore {
 	return &MySQLStore{db: db}
 }
 
-func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {
-	cfg := &Config{
+// CloseOpenConnections đóng các kết nối caster còn end_ts NULL từ lần chạy
+// trước. Nếu bỏ qua, mỗi lần restart lại để lại một tập "đang mở" giả, làm
+// trang Danh sách online/bản đồ đếm trùng và query open-set ngày càng nặng
+// (D20-8, Plan 20).
+// execer tối thiểu để test được câu lệnh dọn dẹp mà không cần MySQL thật.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func (s *MySQLStore) CloseOpenConnections(ctx context.Context, reason string) (int64, error) {
+	return closeOpenConnections(ctx, s.db, reason)
+}
+
+func closeOpenConnections(ctx context.Context, db execer, reason string) (int64, error) {
+	result, err := db.ExecContext(ctx,
+		`UPDATE caster_connections
+		    SET end_ts = UTC_TIMESTAMP(3), disconnect_reason = ?
+		  WHERE end_ts IS NULL`,
+		reason,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+func (s *MySQLStore) LoadConfig(ctx context.Context) (*Config, error) {	cfg := &Config{
 		Mountpoints: make(map[int64]*MountpointConfig),
 	}
 

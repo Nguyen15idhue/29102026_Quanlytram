@@ -543,6 +543,8 @@ func (blockingStore) ResolveAlert(ctx context.Context, _ Target, _ string, _ tim
 func TestAsyncStoreAppliesTimeout(t *testing.T) {
 	async := NewAsyncStore(blockingStore{}, 4)
 	async.storeTimeout = 50 * time.Millisecond
+	// Plan 20 (D20-5): mỗi loại ghi có timeout riêng; test dùng chung mức nhỏ.
+	async.sampleTimeout = 50 * time.Millisecond
 	if err := async.SaveSamples(context.Background(), []Sample{{Score: 1}}); err != nil {
 		t.Fatalf("enqueue: %v", err)
 	}

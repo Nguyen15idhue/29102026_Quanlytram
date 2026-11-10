@@ -104,7 +104,12 @@ function framesAt(samples: TimelineSample[], atMs: number, fallbackMinFrames: nu
   const sample = samples[index - 1];
   if (!sample) return 0;
   const windowMs = sampleWindowMs(sample);
-  if (atMs - sample.ts.getTime() > windowMs) return 0;
+  // D20-7: chấp nhận sample cũ tối đa 2× cửa sổ (tối đa 120 s). Go ghi mẫu
+  // mỗi 60 s; chỉ cần trễ/mất 1 tick là cả phút thành "no_data" nếu so đúng
+  // bằng 60 s. Dung sai này không che giấu mất kết nối thật (đã có
+  // connection/downtime riêng).
+  const toleranceMs = Math.max(windowMs, Math.min(MAX_SAMPLE_GAP_MS, windowMs * 2));
+  if (atMs - sample.ts.getTime() > toleranceMs) return 0;
   if (sample.frames === null || sample.frames === undefined) {
     return sample.state === 'streaming' ? fallbackMinFrames : 0;
   }

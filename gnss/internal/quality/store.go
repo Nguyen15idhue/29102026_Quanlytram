@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -15,6 +16,11 @@ import (
 // stores raw RTCM frames or payloads.
 type MySQLStore struct {
 	db *sql.DB
+}
+
+// execer tối thiểu để test được câu lệnh dọn dẹp mà không cần MySQL thật.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
 func NewMySQLStore(db *sql.DB) *MySQLStore {
@@ -162,8 +168,26 @@ func (s *MySQLStore) ResolveAlert(ctx context.Context, target Target, code strin
 	return err
 }
 
-func (s *MySQLStore) Prune(ctx context.Context, sampleBefore time.Time, alertBefore time.Time, batch int) error {
-	if batch <= 0 {
+// ResolveAllOpen đóng mọi alert chất lượng còn mở khi Go khởi động lại.
+// Go mất state trong RAM sau restart: alert nào còn đúng sẽ được analyzer tạo
+// lại ngay; alert không còn đúng sẽ không bao giờ được resolve nếu bỏ qua bước
+// này (D20-8).
+func (s *MySQLStore) ResolveAllOpen(ctx context.Context) (int64, error) {
+	return resolveAllOpen(ctx, s.db)
+}
+
+func resolveAllOpen(ctx context.Context, db execer) (int64, error) {
+	result, err := db.ExecContext(ctx,
+		`UPDATE quality_alerts
+		    SET resolved_at = UTC_TIMESTAMP(3)
+		  WHERE resolved_at IS NULL`)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+func (s *MySQLStore) Prune(ctx context.Context, sampleBefore time.Time, alertBefore time.Time, batch int) error {	if batch <= 0 {
 		batch = 1000
 	}
 	if _, err := s.db.ExecContext(ctx,
@@ -230,6 +254,11 @@ type AsyncStore struct {
 	store        Store
 	queue        chan storeOp
 	storeTimeout time.Duration
+	// Plan 20 (D20-5): timeout riêng cho từng loại ghi. Ghi mẫu chất lượng là
+	// batch lớn nhất (mọi target) nên cần thời gian lâu hơn alert.
+	sampleTimeout time.Duration
+	statsTimeout  time.Duration
+	alertTimeout  time.Duration
 
 	dropped  atomic.Uint64
 	failures atomic.Uint64
@@ -244,10 +273,13 @@ func NewAsyncStore(store Store, queueSize int) *AsyncStore {
 		queueSize = 4096
 	}
 	return &AsyncStore{
-		store:        store,
-		queue:        make(chan storeOp, queueSize),
-		storeTimeout: 4 * time.Second,
-		done:         make(chan struct{}),
+		store:         store,
+		queue:         make(chan storeOp, queueSize),
+		storeTimeout:  4 * time.Second,
+		sampleTimeout: 15 * time.Second,
+		statsTimeout:  10 * time.Second,
+		alertTimeout:  5 * time.Second,
+		done:          make(chan struct{}),
 	}
 }
 
@@ -310,24 +342,62 @@ func (a *AsyncStore) Run(ctx context.Context) {
 	}
 }
 
-func (a *AsyncStore) apply(op storeOp) {
-	ctx, cancel := context.WithTimeout(context.Background(), a.storeTimeout)
-	defer cancel()
-
-	var err error
-	switch op.kind {
-	case opStats:
-		err = a.store.SaveMessageStats(ctx, op.stats)
+func (a *AsyncStore) timeoutFor(kind storeOpKind) time.Duration {
+	var value time.Duration
+	switch kind {
 	case opSamples:
-		err = a.store.SaveSamples(ctx, op.samples)
+		value = a.sampleTimeout
+	case opStats:
+		value = a.statsTimeout
+	case opAlert, opResolve:
+		value = a.alertTimeout
+	}
+	if value <= 0 {
+		value = a.storeTimeout
+	}
+	return value
+}
+
+func (a *AsyncStore) apply(op storeOp) {
+	var err error
+	// Retry 1 lần: MySQL có thể bận ngắn hạn; bỏ cả batch mẫu 60 s là mất dữ
+	// liệu của toàn bộ trạm nên không được bỏ ngay.
+	for attempt := 0; attempt < 2; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), a.timeoutFor(op.kind))
+		switch op.kind {
+		case opStats:
+			err = a.store.SaveMessageStats(ctx, op.stats)
+		case opSamples:
+			err = a.store.SaveSamples(ctx, op.samples)
+		case opAlert:
+			err = a.store.UpsertAlert(ctx, *op.alert)
+		case opResolve:
+			err = a.store.ResolveAlert(ctx, op.resolve.Target, op.resolve.Code, op.resolve.ResolvedAt)
+		}
+		cancel()
+		if err == nil {
+			return
+		}
+		if attempt == 0 {
+			time.Sleep(200 * time.Millisecond)
+		}
+	}
+	a.failures.Add(1)
+	log.Printf("[quality] store %s failed: %v", op.kind, err)
+}
+
+func (k storeOpKind) String() string {
+	switch k {
+	case opStats:
+		return "message_stats"
+	case opSamples:
+		return "samples"
 	case opAlert:
-		err = a.store.UpsertAlert(ctx, *op.alert)
+		return "alert"
 	case opResolve:
-		err = a.store.ResolveAlert(ctx, op.resolve.Target, op.resolve.Code, op.resolve.ResolvedAt)
+		return "resolve_alert"
 	}
-	if err != nil {
-		a.failures.Add(1)
-	}
+	return "unknown"
 }
 
 func (a *AsyncStore) Dropped() uint64 {

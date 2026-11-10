@@ -79,6 +79,13 @@ func main() {
 	serviceRuns := lifecycle.New(runtimeDB, "go", lifecycle.DefaultInterval)
 
 	qualityStore := quality.NewMySQLStore(runtimeDB)
+	// D20-8: Go mất state alert sau restart; đóng alert cũ để alert còn đúng
+	// được analyzer tạo lại, alert không còn đúng không tồn tại mãi.
+	if resolved, err := qualityStore.ResolveAllOpen(ctx); err != nil {
+		log.Printf("[quality] resolve stale alerts failed: %v", err)
+	} else if resolved > 0 {
+		log.Printf("[quality] resolved %d stale alerts from previous run", resolved)
+	}
 	qualityAsync := quality.NewAsyncStore(qualityStore, cfg.QualityStoreQueueSize)
 	analyzer := quality.NewAnalyzer(quality.Options{
 		QueueSize:       cfg.QualityQueueSize,
@@ -120,8 +127,16 @@ func main() {
 	casterOptions.MaxConnectionsPerIP = cfg.CasterMaxConnectionsPerIP
 	casterOptions.AllowedPorts = allowedPorts
 	casterOptions.Quality = analyzer
+	casterStore := caster.NewMySQLStore(adminDB)
+	// D20-8: đóng kết nối caster mở từ lần chạy trước để không đếm trùng
+	// "online" và không làm nặng query open-set sau mỗi lần restart.
+	if closed, err := casterStore.CloseOpenConnections(ctx, "service_restart"); err != nil {
+		log.Printf("[caster] close stale connections failed: %v", err)
+	} else if closed > 0 {
+		log.Printf("[caster] closed %d stale connections from previous run", closed)
+	}
 	casterManager := caster.NewManager(
-		caster.NewMySQLStore(adminDB),
+		casterStore,
 		caster.NewMySQLRuntimeStore(runtimeDB),
 		casterOptions,
 	)

@@ -298,3 +298,28 @@ Test: `server npm run build` PASS; `server npm test` 48 file/244 test PASS;
 Playwright `station-detail.spec.ts` + `unified-map.spec.ts` 3/3 PASS;
 migration chạy lại lần 2 không lỗi (idempotent).
 
+### P20-2 — Go: mất batch mẫu, cache score, dọn dữ liệu mồ côi — DONE (2026-11-10)
+
+Đã làm:
+- `AsyncStore` (`gnss/internal/quality/store.go`): timeout theo loại ghi —
+  mẫu **15 s**, stats 10 s, alert 5 s (fallback `storeTimeout`); **retry 1 lần**
+  trước khi bỏ; log `[quality] store samples failed: …` khi thất bại; mỗi op
+  chỉ tăng `failures` 1 lần.
+- Cache score: thêm `scoreState`; nếu trạng thái đổi (stale → streaming) thì
+  bỏ cache và tính lại ngay ⇒ hết `score_zero` giả 5 s (D20-6).
+- Khởi động Go: `qualityStore.ResolveAllOpen` đóng toàn bộ alert chất lượng
+  đang mở; `casterStore.CloseOpenConnections("service_restart")` đóng
+  `caster_connections` mồ côi (D20-8).
+- `server/src/lib/statusTimeline.ts`: dung sai sample = 2× cửa sổ (tối đa
+  120 s). Thiếu đúng 1 tick 60 s không còn tạo bucket "no_data" (D20-7).
+
+Bằng chứng test:
+- `go vet ./...` PASS; `go test ./...` PASS (quality 0,86 s; caster 6,17 s).
+- Test mới: `TestScoreCacheInvalidatedWhenStateChanges`,
+  `TestAsyncStoreUsesLongerTimeoutForSamples`,
+  `TestResolveAllOpenClosesEveryOpenAlert`,
+  `TestCloseOpenConnectionsSetsEndAndReason`.
+- `server npm test` **48 file / 245 test PASS** (thêm test "thiếu đúng một
+  tick 60 giây không biến phút đó thành no_data").
+- Playwright `timeline.spec.ts` (3) + `quality.spec.ts` (1) = **4/4 PASS**.
+

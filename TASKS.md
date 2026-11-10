@@ -810,3 +810,4 @@ account dùng chung. Không thay đổi kiến trúc Node/Go ownership.
 | Bước | Tên | Trạng thái |
 |---|---|---|
 | P20-1 | DB index + query mẫu mới nhất | DONE (migration 011; local 0,034 s vs 0,602 s; 244 test PASS) |
+| P20-2 | Go: mất batch mẫu, cache score, dọn mồ côi | DONE (timeout 15 s + retry; scoreState; resolve alert; caster cleanup; go test + 245 Node test + 4 Playwright PASS) |

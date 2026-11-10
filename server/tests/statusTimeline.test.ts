@@ -149,6 +149,31 @@ describe('status timeline', () => {
     expect(timeline.current).toBe('online');
   });
 
+  it('thiếu đúng một tick 60 giây không biến phút đó thành no_data', () => {
+    const timeline = buildStatusTimeline({
+      createdAt: new Date('2026-11-01T10:00:00.000Z'),
+      rangeFrom: new Date('2026-11-01T10:00:00.000Z'),
+      now: new Date('2026-11-01T10:06:00.000Z'),
+      bucketSec: 60,
+      resolutionSec: 10,
+      hasConnectionInfo: true,
+      connections: openConnection(),
+      minFramesPerWindow: 10,
+      samples: [
+        sample('2026-11-01T10:00:10.000Z'),
+        sample('2026-11-01T10:01:10.000Z'),
+        sample('2026-11-01T10:02:10.000Z'),
+        // Go mất đúng một batch mẫu của phút 10:03.
+        sample('2026-11-01T10:04:10.000Z'),
+        sample('2026-11-01T10:05:10.000Z')
+      ]
+    });
+
+    expect(timeline.buckets[3].status).toBe('online');
+    // Chỉ 1 bước 10 s đầu khung (trước sample đầu tiên) là no_data.
+    expect(timeline.noDataSec).toBeLessThanOrEqual(20);
+  });
+
   it('none trước khi tạo và segment phủ kín khung', () => {
     const timeline = buildStatusTimeline({
       createdAt: new Date('2026-11-01T10:00:00.000Z'),

@@ -171,6 +171,9 @@ type targetState struct {
 	scoreAt    time.Time
 	hasScore   bool
 	scoreAlert string
+	// scoreState ghi trạng thái lúc tính điểm. Khi trạng thái đổi (đặc biệt
+	// stale -> streaming), điểm cache 0 không còn đúng (D20-6).
+	scoreState string
 
 	has1005 bool
 	has1006 bool
@@ -412,6 +415,7 @@ func (s *targetState) resetSession() {
 	s.scoreParts = ScoreParts{}
 	s.scoreAt = time.Time{}
 	s.hasScore = false
+	s.scoreState = ""
 }
 
 func (s *targetState) ingest(data []byte, now time.Time, gapThreshold, resetAfter time.Duration) {
@@ -690,6 +694,12 @@ func (s *targetState) snapshot(now time.Time, opts Options) Snapshot {
 	}
 	score := s.score
 	parts := s.scoreParts
+	// Điểm cache chỉ dùng khi trạng thái không đổi. Trước đây stale tính điểm 0
+	// rồi cache 5 s; khi vừa có dữ liệu lại, snapshot báo streaming + score 0
+	// và sinh alert score_zero giả (D20-6).
+	if s.hasScore && s.scoreState != state {
+		s.hasScore = false
+	}
 	if !s.hasScore || now.Sub(s.scoreAt) >= opts.ScoreInterval {
 		if streaming {
 			score, parts = scoreFor(scoreInput{
@@ -720,6 +730,7 @@ func (s *targetState) snapshot(now time.Time, opts Options) Snapshot {
 		s.scoreParts = parts
 		s.scoreAt = now
 		s.hasScore = true
+		s.scoreState = state
 	}
 	types := make(map[int]uint64, len(s.messageTypes))
 	for key, value := range s.messageTypes {
