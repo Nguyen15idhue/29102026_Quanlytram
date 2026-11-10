@@ -87,10 +87,16 @@ qualityRouter.get(
     }
     const sampleRows = await runtimeQuery(
       `SELECT * FROM (
-         SELECT qs.*, ROW_NUMBER() OVER (
-           PARTITION BY target_type, target_id, mountpoint_id, direction
-           ORDER BY ts DESC
-         ) AS rn
+         SELECT qs.id, qs.target_type, qs.target_id, qs.mountpoint_id, qs.direction,
+                qs.ts, qs.window_sec, qs.score, qs.state, qs.frames, qs.bytes,
+                qs.crc_errors, qs.parse_errors, qs.unknown_messages, qs.msm_epochs,
+                qs.satellites, qs.signals, qs.cells, qs.avg_cnr, qs.reported_station_id,
+                qs.arp_x, qs.arp_y, qs.arp_z, qs.arp_delta_m, qs.antenna, qs.age_ms,
+                qs.gaps, qs.cnr_available, qs.details,
+                ROW_NUMBER() OVER (
+                  PARTITION BY target_type, target_id, mountpoint_id, direction
+                  ORDER BY ts DESC
+                ) AS rn
            FROM quality_samples qs
           WHERE ${where.join(' AND ')}
        ) ranked
@@ -286,6 +292,15 @@ qualityRouter.get(
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
       throw new ApiError(400, 'VALIDATION_ERROR', 'from/to không hợp lệ');
     }
+    // Plan 20 (D20-4): mỗi lần xuất tối đa 24 giờ để không sort toàn bộ 7 ngày.
+    const rangeSec = (to.getTime() - from.getTime()) / 1000;
+    if (rangeSec <= 0 || rangeSec > 24 * 3600) {
+      throw new ApiError(
+        400,
+        'EXPORT_RANGE_TOO_LARGE',
+        'Mỗi lần chỉ xuất tối đa 24 giờ dữ liệu chất lượng'
+      );
+    }
     const maps = await loadOwnerMaps();
     const ids = await scopeIdsFor(req);
     const scope = req.permissionScope!;
@@ -296,8 +311,9 @@ qualityRouter.get(
       params.push(targetType);
     }
     const rows = await runtimeQuery(
-      `SELECT * FROM quality_samples WHERE ${where.join(' AND ')}
-       ORDER BY ts ASC LIMIT 5000`,
+      `SELECT * FROM quality_samples FORCE INDEX (idx_quality_samples_ts)
+        WHERE ${where.join(' AND ')}
+        ORDER BY ts ASC LIMIT 5000`,
       params
     );
     const visible = (rows as any[]).filter((row) =>

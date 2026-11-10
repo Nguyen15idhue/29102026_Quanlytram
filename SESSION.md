@@ -2152,3 +2152,18 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   dang nhap (route da dang ky); bundle web-prod co chuoi "Device profile".
   Khong thu dang nhap bang mat khau that (khong co trong repo, tranh khoa TK).
 - Rollback code: `git checkout 2c10f30 && bash update.sh`.
+
+### Plan 20 / P20-1 — DB index + query mẫu mới nhất (2026-11-10)
+
+- Khảo sát prod read-only (không sửa gì): query latest-sample 36,77 s (20 trạm),
+  92,77 s (toàn bộ), `/api/map/overview` p90 12,9 s, Go OOM 2 lần, mất 4 phút
+  mẫu/6 h. Kế hoạch: `docs/1/20_KE_HOACH_TOI_UU_HIEU_NANG.md`.
+- Migration runtime 011 (idempotent): index latest, target+dir+ts, session mở,
+  alert mở; schema runtime 11.
+- `server/src/lib/latestSample.ts` cửa sổ 15 phút + fallback 1 seek/target;
+  áp dụng stations/map/mountpoints; quality overview bỏ `qs.*`; export giới hạn
+  24 giờ + FORCE INDEX ts.
+- Test: server build PASS; 48 file/244 test PASS; Playwright station-detail +
+  unified-map 3/3 PASS. Đo local 412k dòng: 0,602 s → 0,034 s (20 trạm),
+  0,881 s → 0,053 s (31 trạm); HTTP p90 94 ms/39 ms.
+- Chưa deploy prod.

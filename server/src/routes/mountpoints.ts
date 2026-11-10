@@ -4,6 +4,7 @@ import { RowDataPacket } from 'mysql2/promise';
 import { adminPool, query, withTransaction } from '../db/pool';
 import { runtimeQuery } from '../db/runtimePool';
 import { writeAudit } from '../lib/audit';
+import { loadLatestSamples } from '../lib/latestSample';
 import { bulkBodySchema, emptyBulkResult, uniqueIds } from '../lib/bulk';
 import { asyncHandler, ApiError } from '../lib/http';
 import { requireAuth, requirePermission } from '../middleware/auth';
@@ -179,17 +180,12 @@ async function enrichExplorer(rows: RowDataPacket[], includeSuperadminRelays = f
 
   const [qualityRows, messageRows, alertRows, relayRows, listenerRows, accountRows, go] =
     await Promise.all([
-      runtimeQuery<RowDataPacket[]>(
-        `SELECT mountpoint_id, score, state, ts FROM (
-           SELECT mountpoint_id, score, state, ts, ROW_NUMBER() OVER (
-             PARTITION BY mountpoint_id ORDER BY ts DESC, id DESC
-           ) AS rn
-             FROM quality_samples
-            WHERE target_type = 'station' AND direction = 'ingest'
-              AND mountpoint_id IN (${placeholdersForIds})
-         ) ranked WHERE rn = 1`,
-        ids
-      ),
+      loadLatestSamples({
+        targetType: 'station',
+        ids,
+        direction: 'ingest',
+        by: 'mountpoint'
+      }),
       runtimeQuery<RowDataPacket[]>(
         `SELECT mountpoint_id, SUM(bytes) AS total_bytes, SUM(count) AS total_count
            FROM rtcm_message_stats

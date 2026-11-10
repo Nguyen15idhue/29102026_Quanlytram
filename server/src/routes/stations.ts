@@ -22,6 +22,7 @@ import { createStationResources } from '../lib/stationResources';
 import { dataUptime } from '../lib/dataUptime';
 import { publishEntityChange } from '../lib/entityChange';
 import { resolveQualityAlerts } from '../lib/qualityAlerts';
+import { loadLatestSamples, latestSampleMap } from '../lib/latestSample';
 import { getDeviceProfile } from '../lib/deviceProfile';
 import {
   notifyStationStreamingChange,
@@ -259,20 +260,9 @@ async function deleteStationCascade(
 }
 
 async function qualityMap(ids: number[]): Promise<Map<number, any>> {
-  const map = new Map<number, any>();
-  if (ids.length === 0) return map;
-  const placeholders = ids.map(() => '?').join(',');
-  const rows = await runtimeQuery<RowDataPacket[]>(
-    `SELECT target_id, score, state, ts, arp_x, arp_y, arp_z, reported_station_id,
-            satellites, cells, msm_epochs, antenna, age_ms FROM (
-       SELECT qs.*, ROW_NUMBER() OVER (PARTITION BY target_id ORDER BY ts DESC) AS rn
-         FROM quality_samples qs
-        WHERE target_type = 'station' AND target_id IN (${placeholders})
-     ) ranked WHERE rn = 1`,
-    ids
-  );
-  for (const row of rows as any[]) map.set(Number(row.target_id), row);
-  return map;
+  if (ids.length === 0) return new Map();
+  const rows = await loadLatestSamples({ targetType: 'station', ids });
+  return latestSampleMap(rows, 'target');
 }
 
 async function relayMap(ids: number[], includeSuperadminRelays: boolean): Promise<Map<number, any>> {

@@ -804,3 +804,9 @@ account dùng chung. Không thay đổi kiến trúc Node/Go ownership.
 | P16-6 | UI Lịch sử hiển thị phiên đang chạy; current status lấy Go metrics | DONE (Playwright 8/8 targeted) |
 | P16-7 | Audit account dùng chung + Retry-After 429 | DONE (script audit; prod hiện 18/50, 14/50, 5/20) |
 | P16-8 | Local E2E + deploy VPS + verify job 461/trạm 667 | DONE (e2e relay mock PASS; VPS healthy; job 461 streaming; 0 gap/CRC; open session 1 row) |
+
+## Kế hoạch 20 — Tối ưu hiệu năng & giảm tài nguyên
+
+| Bước | Tên | Trạng thái |
+|---|---|---|
+| P20-1 | DB index + query mẫu mới nhất | DONE (migration 011; local 0,034 s vs 0,602 s; 244 test PASS) |

@@ -18,6 +18,7 @@ import {
 } from '../lib/mapAccountStatus';
 import { resolveStationCoords } from '../lib/mapCoords';
 import { fetchLiveQuality } from '../lib/quality';
+import { loadLatestSamples, latestSampleMap } from '../lib/latestSample';
 import { transportStatusFor } from '../lib/stationDetail';
 import { fetchTile, TRANSPARENT_PNG } from '../lib/tileProxy';
 import { requireAuth, requirePermission } from '../middleware/auth';
@@ -225,16 +226,11 @@ mapRouter.get(
 
     const [latestRows, mountpointRows, live] = await Promise.all([
       stationIds.length
-        ? runtimeQuery<RowDataPacket[]>(
-            `SELECT target_id, state, score, ts, arp_x, arp_y, arp_z, reported_station_id
-               FROM (
-                 SELECT qs.*, ROW_NUMBER() OVER (PARTITION BY target_id ORDER BY ts DESC, id DESC) AS rn
-                   FROM quality_samples qs
-                  WHERE target_type = 'station' AND direction = 'ingest'
-                    AND target_id IN (${placeholders(stationIds)})
-               ) ranked WHERE rn = 1`,
-            stationIds
-          )
+        ? loadLatestSamples({
+            targetType: 'station',
+            ids: stationIds,
+            direction: 'ingest'
+          })
         : [],
       stationIds.length
         ? query<RowDataPacket[]>(
@@ -246,8 +242,7 @@ mapRouter.get(
       qualityAllowed ? fetchLiveQuality(1500) : Promise.resolve({ items: [] as any[] })
     ]);
 
-    const latestMap = new Map<number, RowDataPacket>();
-    for (const row of latestRows) latestMap.set(Number(row.target_id), row);
+    const latestMap = latestSampleMap(latestRows as RowDataPacket[], 'target');
     const liveMap = new Map<number, any>();
     for (const item of live.items) {
       if (item.targetType === 'station' && item.direction === 'ingest') {
