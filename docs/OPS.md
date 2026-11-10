@@ -1,4 +1,4 @@
-# Vận hành (Phase 5)
+﻿# Vận hành (Phase 5)
 
 ## 1. Kiến trúc realtime
 
@@ -147,6 +147,7 @@ docker exec cors-mvp-server-1 node dist/db/rotateSecrets.js          # phải c�
 
 ## 9. License
 
+
 - `socket.io`, `socket.io-client`: MIT.
 - Các thư viện Phase 1–4 giữ nguyên; Phase 6 sẽ dùng `go-gnss/rtcm` (Apache-2.0).
 
@@ -187,3 +188,65 @@ Lưu ý:
 - Import idempotent theo `external_key`/tên trạm; chạy lại không tạo trùng.
 - Rollback: dừng server/gnss, restore dump `cors_admin` + `cors_runtime` bằng
   root/migrator, sau đó `docker compose restart server gnss`.
+## 11. Hiệu năng (Kế hoạch 20)
+
+### 11.1. Ngưỡng và cách đo
+
+- Ngưỡng nội bộ trên stack local: `/api/stations`, `/api/stations/:id`,
+  `/api/map/overview`, `/api/connections` có **p90 ≤ 400 ms** với 10 lần gọi.
+- Đo tự động:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kiem-tra-hieu-nang.ps1 `
+  -SoLan 10 -BangChung "C:\Temp\hieu-nang.txt"
+```
+
+- Script đăng nhập bằng `superadmin` (mật khẩu đọc từ `.env.local`, không in
+  ra), đo p50/p90/max, kiểm tra 4 index của migration runtime `011`, thoát mã 1
+  nếu vượt ngưỡng hoặc thiếu index.
+
+### 11.2. Index bắt buộc (runtime schema >= 11)
+
+| Index | Bảng | Dùng cho |
+|---|---|---|
+| `idx_quality_samples_latest` | `quality_samples` | mẫu mới nhất mỗi target |
+| `idx_quality_samples_target_dir_ts` | `quality_samples` | lọc hướng + khoảng thời gian |
+| `idx_relay_sessions_open` | `relay_sessions` | tập phiên đang mở |
+| `idx_quality_alerts_open` | `quality_alerts` | alert chưa resolve |
+
+- Query "mẫu mới nhất" chỉ đọc cửa sổ 15 phút; target không có mẫu trong cửa sổ
+  dùng fallback `ORDER BY ts DESC LIMIT 1` (1 seek index).
+- Không select cột `details` (JSON) ở đường đọc danh sách.
+
+### 11.3. Cache và polling
+
+- Node cache: mẫu mới nhất 2 s, `/api/map/overview` 2 s, open alerts 3 s,
+  `MAX(id) relay_sessions` 3 s, dedupe alert trong RAM (cooldown 5 phút).
+- Frontend poll: danh sách trạm 20 s, bản đồ 30 s, chi tiết trạm 30 s; không
+  poll khi tab ẩn.
+- Go: snapshot chi tiết (sky plot) cache 2 s; observation MSM ghi tối đa mỗi
+  2 s (`QUALITY_DETAIL_INTERVAL_MS`, 0 = tắt throttle).
+
+### 11.4. Bản đồ
+
+- Mode `streets` dùng OSM.fr làm provider chính (VPS không có IPv6 nên
+  `tile.openstreetmap.de` timeout), OSM.de là dự phòng.
+- Cache tile RAM 2048 tile/6 h; provider lỗi 3 lần liên tiếp bị bỏ qua 10 phút.
+- Asset `/assets/*` có `Cache-Control: public, max-age=31536000, immutable`;
+  `/index.html` là `no-cache`.
+
+### 11.5. Chẩn đoán Go
+
+- Đặt `PPROF_ADDR=127.0.0.1:6060` (chỉ loopback) rồi `go tool pprof` để đo
+  CPU/heap. Không bật trên prod nếu không cần.
+- Health: `curl http://127.0.0.1:7080/health` (qua container `gnss`).
+
+### 11.6. Sự cố thường gặp
+
+| Hiện tượng | Kiểm tra |
+|---|---|
+| Trang danh sách chậm lại | chạy `kiem-tra-hieu-nang.ps1`; kiểm tra migration runtime 011 |
+| Timeline hiện "không có dữ liệu" ngắn | log Go có `[quality] store samples failed` không |
+| Go bị OOM | `dmesg -T \| grep -i "killed process"`; xem RSS container `gnss` |
+| Nền bản đồ trắng | log server có `TILE_PROXY`/provider timeout; kiểm tra mạng ra OSM.fr |
+

@@ -2224,3 +2224,15 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   unified-map/realtime 10/10 PASS (gồm 1440/768/390).
 - Không chạy inspect.mjs (chỉ đổi interval, script không hỗ trợ đăng nhập);
   responsive đã phủ bằng Playwright.
+
+### Plan 20 / P20-7 — Vận hành + tổng kết (2026-11-10)
+
+- Thêm scripts/kiem-tra-hieu-nang.ps1 (UTF-8 BOM): đo p50/p90/max 5 endpoint,
+  kiểm tra 4 index runtime 011, exit 1 khi vượt 400 ms/thiếu index; không in
+  mật khẩu. Chạy local: p90 93/23/46/18/15 ms, index 4/4, exit 0.
+- docs/OPS.md thêm mục 11 "Hiệu năng"; graphify update 5.603 node/12.804 cạnh.
+- Tổng kiểm thử: go vet+test PASS; server 51 file/254 test PASS; frontend tsc +
+  build PASS; Playwright 92 passed/4 failed/1 skipped — 4 fail là hành vi cũ
+  ngoài phạm vi (3 đã ghi từ P19, 1 fail khi chạy cả bộ nhưng PASS khi chạy
+  riêng). Không có fail liên quan Plan 20.
+- Chưa deploy prod; cần backup + migrate runtime 011 khi deploy.

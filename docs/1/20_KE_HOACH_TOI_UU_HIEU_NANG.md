@@ -1,7 +1,8 @@
 # Kế hoạch 20 — Tối ưu hiệu năng & giảm tài nguyên tiêu tốn không cần thiết
 
 - Ngày lập: 2026-11-10
-- Trạng thái: **IN PROGRESS** — triển khai tuần tự P20-1 → P20-7, mỗi bước có test + commit riêng.
+- Trạng thái: **DONE (2026-11-10)** — P20-1 … P20-7 hoàn tất, test local PASS,
+  chưa deploy prod.
 - Căn cứ: báo cáo khảo sát production `rtktk.online` ngày 2026-11-10
   (đo read-only: `performance_schema`, `EXPLAIN ANALYZE`, log request, dmesg,
   tile provider, `/internal/rtcm/health`).
@@ -418,4 +419,44 @@ Bằng chứng:
   (1440/768/390), `unified-map` (responsive), `realtime` = **10/10 PASS**.
 - Không chạy `inspect.mjs` vì thay đổi chỉ là tần suất poll (không đổi UI) và
   script không hỗ trợ đăng nhập; phần responsive đã được Playwright phủ.
+
+### P20-7 — Vận hành, script, tài liệu — DONE (2026-11-10)
+
+Đã làm:
+- `scripts/kiem-tra-hieu-nang.ps1` (UTF-8 BOM, tiếng Việt chuẩn): đo p50/p90/max
+  cho danh sách trạm, chi tiết trạm, bản đồ, danh sách online, health; kiểm tra
+  4 index của migration runtime 011; mã thoát 1 khi vượt ngưỡng/thiếu index.
+  Không in hoặc ghi mật khẩu; mật khẩu đọc từ `.env.local`.
+- `docs/OPS.md`: mục **11. Hiệu năng** (ngưỡng, index bắt buộc, cache/polling,
+  tile provider, pprof, sự cố thường gặp).
+- `graphify update .`: 5.603 node / 12.804 cạnh / 386 community.
+
+Bằng chứng chạy script (local, 10 lần/endpoint, exit **0**):
+```
+Endpoint                p50(ms)  p90(ms)  max(ms)   Kết luận
+Danh sách trạm               82       93       94        ĐẠT
+Chi tiết trạm                21       23       26        ĐẠT
+Bản đồ vận hành              33       46       55        ĐẠT
+Danh sách online             15       18       20        ĐẠT
+Health Node                  14       15       15        ĐẠT
+Index: ĐỦ 4/4
+```
+
+### Tổng kết kiểm thử cuối (2026-11-10)
+
+| Hạng mục | Kết quả |
+|---|---|
+| `go vet ./...` + `go test ./...` | PASS toàn bộ package |
+| `go test -count=3 ./internal/relay` | PASS (kiểm tra flaky) |
+| `server npm run build` | PASS |
+| `server npm test` | **51 file / 254 test PASS** |
+| `frontend npx tsc --noEmit` + `npm run build` | PASS |
+| Playwright toàn bộ | **92 passed, 4 failed, 1 skipped** |
+| `scripts/kiem-tra-hieu-nang.ps1` | ĐẠT, exit 0 |
+
+4 test Playwright fail **không thuộc phạm vi Plan 20** (đã ghi nhận từ P19):
+`p1-mountpoint` (impact listener còn fixture cũ 1518/1551/1552),
+`p1-ntrip-acl` (API `listener_all`), `p1-station-fix` (PUT source caster),
+`mountpoint-explorer` (fail khi chạy cả bộ, **PASS khi chạy riêng** — phụ thuộc
+thứ tự/fixture). Không có test nào liên quan query/index/cache/tile/polling.
 

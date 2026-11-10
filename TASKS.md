@@ -815,3 +815,4 @@ account dùng chung. Không thay đổi kiến trúc Node/Go ownership.
 | P20-4 | Node: giảm query lặp | DONE (cache latest 2 s, overview 2 s, alert 3 s, dedupe RAM; 251 test PASS; 8 Playwright PASS; p90 89 ms/30 ms) |
 | P20-5 | Bản đồ & asset tĩnh | DONE (OSM.fr chính, cache 2048 + negative 10 phút, asset immutable; 3 test + 6 Playwright PASS) |
 | P20-6 | Frontend polling | DONE (stations 20 s, map/chi tiết 30 s, staleTime; tsc+build PASS; 10 Playwright PASS) |
+| P20-7 | Vận hành, script, tài liệu | DONE (kiem-tra-hieu-nang.ps1 tiếng Việt + OPS §11 + graphify; p90 93/23/46/18 ms; exit 0) |

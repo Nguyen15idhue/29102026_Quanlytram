@@ -35,9 +35,10 @@ describe('map config', () => {
   });
 
   it('uses allowlisted providers and never the OSM root', () => {
-    expect(new URL(MODE_PROVIDERS.streets.template).hostname).toBe('tile.openstreetmap.de');
+    // Plan 20 (D20-12): OSM.fr là provider chính (VPS không có IPv6).
+    expect(new URL(MODE_PROVIDERS.streets.template).hostname).toBe('a.tile.openstreetmap.fr');
     expect(new URL(MODE_PROVIDERS.streets.fallbackTemplate!).hostname).toBe(
-      'a.tile.openstreetmap.fr'
+      'tile.openstreetmap.de'
     );
     expect(new URL(MODE_PROVIDERS.satellite.template).hostname).toBe(
       'server.arcgisonline.com'
