@@ -49,9 +49,12 @@ export const MAP_MODES: MapMode[] = ['streets', 'satellite', 'terrain'];
 export const MODE_PROVIDERS: Record<MapMode, TileProviderDefinition> = {
   streets: {
     mode: 'streets',
-    provider: 'osm-de',
-    template: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
-    fallbackTemplate: 'https://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
+    // Plan 20 (D20-12): VPS không có IPv6 và tile.openstreetmap.de trả
+    // ETIMEDOUT từ container; dùng máy chủ OSM.fr (truy cập được) làm chính,
+    // giữ .de làm dự phòng. Vẫn là raster OSM công khai, attribution giữ nguyên.
+    provider: 'osm-fr',
+    template: 'https://a.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
+    fallbackTemplate: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
     attribution: '© OpenStreetMap contributors',
     maxZoom: 19
   },

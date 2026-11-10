@@ -2206,3 +2206,12 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
   8/8 PASS.
 - Không đổi shape API, không đổi quyền; đã ghi lý do không sửa 12 subquery
   tương quan (0,30 s).
+
+### Plan 20 / P20-5 — Bản đồ & asset tĩnh (2026-11-10)
+
+- streets chuyển sang OSM.fr làm chính (VPS không IPv6, OSM.de ETIMEDOUT),
+  OSM.de làm dự phòng; tile proxy cache 256 → 2048, negative cache provider
+  10 phút sau 3 lỗi.
+- nginx: /assets/* Cache-Control immutable 1 năm; /index.html no-cache.
+- Test tileProvider 3/3 + mapConfigCache PASS; Playwright map-maplibre/
+  unified-map/map PASS (6); curl header xác nhận trên web-prod local.

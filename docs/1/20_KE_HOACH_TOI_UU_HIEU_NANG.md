@@ -380,3 +380,25 @@ Bằng chứng:
   **30 ms**; `/api/connections` p90 19 ms.
 - Playwright: `unified-map`, `map`, `map-maplibre`, `realtime` = **8/8 PASS**.
 
+### P20-5 — Bản đồ & asset tĩnh — DONE (2026-11-10)
+
+Đã làm:
+- `lib/mapConfig.ts`: mode `streets` dùng **OSM.fr** làm provider chính
+  (`a.tile.openstreetmap.fr`), OSM.de làm dự phòng — vì VPS không có IPv6 và
+  `tile.openstreetmap.de` trả `ETIMEDOUT` từ container. Attribution giữ
+  `© OpenStreetMap contributors`; route tile vẫn qua proxy của Node.
+- `lib/tileProxy.ts`: cache RAM **256 → 2048 tile** (TTL 6 h); **negative
+  cache**: sau 3 lần lỗi liên tiếp tạm bỏ provider 10 phút rồi tự thử lại.
+  Thêm `tileProviderHealth()`, `resetTileProviderState()`.
+- `frontend/nginx.conf`: `/assets/*` → `Cache-Control: public,
+  max-age=31536000, immutable`; `/index.html` → `no-cache` (nhận bundle mới
+  sau deploy).
+
+Bằng chứng:
+- Test mới `tests/tileProvider.test.ts` (3 test) + `mapConfigCache` PASS;
+  `server npm run build` PASS.
+- `curl -I http://127.0.0.1:8080/assets/<hash>.js` (web-prod local):
+  `Cache-Control: public, max-age=31536000, immutable`; `/` → `no-cache`.
+- Playwright `map-maplibre` 3/3, `unified-map` 2/2, `map` 1/1 PASS (lần chạy
+  đầu fail do server vừa restart, chạy lại PASS).
+

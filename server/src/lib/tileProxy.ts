@@ -11,10 +11,12 @@ export const TRANSPARENT_PNG = Buffer.from(
   'base64'
 );
 
-const CACHE_LIMIT = 256;
+const CACHE_LIMIT = 2048;
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 8000;
 const MAX_REDIRECTS = 3;
+const PROVIDER_FAILURE_LIMIT = 3;
+const PROVIDER_COOLDOWN_MS = 10 * 60 * 1000;
 
 interface CacheEntry {
   buffer: Buffer;
@@ -23,6 +25,40 @@ interface CacheEntry {
 }
 
 const cache = new Map<string, CacheEntry>();
+
+// Plan 20 (D20-12): provider chết (ETIMEDOUT/ECONNRESET) bị bỏ qua 10 phút sau
+// 3 lần lỗi liên tiếp, để mỗi tile không phải chờ timeout rồi mới fallback.
+const providerState = new Map<string, { failures: number; skipUntil: number }>();
+
+export function providerUsable(provider: string, now = Date.now()): boolean {
+  const state = providerState.get(provider);
+  return !state || state.skipUntil <= now;
+}
+
+export function noteProviderFailure(provider: string, now = Date.now()): void {
+  const state = providerState.get(provider) ?? { failures: 0, skipUntil: 0 };
+  state.failures += 1;
+  if (state.failures >= PROVIDER_FAILURE_LIMIT) {
+    state.skipUntil = now + PROVIDER_COOLDOWN_MS;
+    state.failures = 0;
+  }
+  providerState.set(provider, state);
+}
+
+function noteProviderSuccess(provider: string): void {
+  providerState.delete(provider);
+}
+
+export function tileProviderHealth(): Array<{ provider: string; skipUntil: number }> {
+  return [...providerState.entries()].map(([provider, state]) => ({
+    provider,
+    skipUntil: state.skipUntil
+  }));
+}
+
+export function resetTileProviderState(): void {
+  providerState.clear();
+}
 
 function cacheGet(key: string): CacheEntry | null {
   const entry = cache.get(key);
@@ -125,19 +161,26 @@ export async function fetchTile(
 
   const definition = resolveModeProvider(mode);
   const primaryUrl = buildTileUrl(definition.template, z, x, y);
-  const primary = await fetchUpstream(primaryUrl, definition.provider);
-  if (primary) {
-    cacheSet(key, primary.buffer, primary.contentType);
-    return primary;
+  if (providerUsable(definition.provider)) {
+    const primary = await fetchUpstream(primaryUrl, definition.provider);
+    if (primary) {
+      noteProviderSuccess(definition.provider);
+      cacheSet(key, primary.buffer, primary.contentType);
+      return primary;
+    }
+    noteProviderFailure(definition.provider);
   }
 
-  if (definition.fallbackTemplate) {
+  const fallbackProvider = `${definition.provider}-fallback`;
+  if (definition.fallbackTemplate && providerUsable(fallbackProvider)) {
     const fallbackUrl = buildTileUrl(definition.fallbackTemplate, z, x, y);
-    const fallback = await fetchUpstream(fallbackUrl, `${definition.provider}-fallback`);
+    const fallback = await fetchUpstream(fallbackUrl, fallbackProvider);
     if (fallback) {
+      noteProviderSuccess(fallbackProvider);
       cacheSet(key, fallback.buffer, fallback.contentType);
       return { ...fallback, status: 'fallback' };
     }
+    noteProviderFailure(fallbackProvider);
   }
 
   return null;
