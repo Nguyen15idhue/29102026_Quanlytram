@@ -812,3 +812,4 @@ account dùng chung. Không thay đổi kiến trúc Node/Go ownership.
 | P20-1 | DB index + query mẫu mới nhất | DONE (migration 011; local 0,034 s vs 0,602 s; 244 test PASS) |
 | P20-2 | Go: mất batch mẫu, cache score, dọn mồ côi | DONE (timeout 15 s + retry; scoreState; resolve alert; caster cleanup; go test + 245 Node test + 4 Playwright PASS) |
 | P20-3 | Giảm tải phân tích RTCM | DONE (summary snapshot, cache detail 2 s, lazy alert details; evaluate -50 % ns, -62 % allocs; go test + 2 Playwright PASS) |
+| P20-4 | Node: giảm query lặp | DONE (cache latest 2 s, overview 2 s, alert 3 s, dedupe RAM; 251 test PASS; 8 Playwright PASS; p90 89 ms/30 ms) |

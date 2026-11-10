@@ -46,6 +46,14 @@ interface GoConnection {
 
 let baseCache: { at: number; value: RawData } | null = null;
 let baseInflight: Promise<RawData> | null = null;
+// Plan 20 (D20-16): alert mở đổi chậm; cache 3 s để tick realtime 3 s không
+// phải query lại bảng alerts mỗi lần.
+let alertsCache: { at: number; value: RawAlert[] } | null = null;
+const ALERTS_CACHE_MS = 3000;
+
+export function invalidateAlertsCache(): void {
+  alertsCache = null;
+}
 
 export function invalidateBaseDataCache(): void {
   baseCache = null;
@@ -210,6 +218,10 @@ async function fallbackRelayMetrics(jobs: RawJob[]): Promise<RawRelayMetric[]> {
 }
 
 export async function loadOpenAlerts(): Promise<RawAlert[]> {
+  const now = Date.now();
+  if (alertsCache && now - alertsCache.at < ALERTS_CACHE_MS) {
+    return alertsCache.value;
+  }
   const rows = await query<RowDataPacket[]>(
     `SELECT id, type, severity, target_type, target_id, title, message, status,
             owner_web_user_id, created_at
@@ -218,7 +230,7 @@ export async function loadOpenAlerts(): Promise<RawAlert[]> {
       ORDER BY id DESC
       LIMIT 200`
   );
-  return rows.map((row) => ({
+  const value: RawAlert[] = rows.map((row) => ({
     id: Number(row.id),
     type: String(row.type),
     severity: String(row.severity),
@@ -230,4 +242,6 @@ export async function loadOpenAlerts(): Promise<RawAlert[]> {
     ownerId: row.owner_web_user_id === null ? null : Number(row.owner_web_user_id),
     createdAt: new Date(row.created_at).toISOString()
   }));
+  alertsCache = { at: Date.now(), value };
+  return value;
 }

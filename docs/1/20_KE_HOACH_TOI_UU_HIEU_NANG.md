@@ -355,3 +355,28 @@ diễn); Playwright `quality.spec.ts` + `station-detail.spec.ts` 2/2 PASS.
 E2E local: restart gnss đóng 1 `caster_connections` mồ côi với
 `service_restart`; log `resolved 18 stale alerts`.
 
+### P20-4 — Node: giảm query lặp — DONE (2026-11-10)
+
+Đã làm:
+- `lib/latestSample.ts`: cache 2 s theo khoá `(targetType, by, direction,
+  windowMinutes, ids đã sort)` bằng `TtlLruCache` (64 entry); thêm
+  `clearLatestSampleCache()`.
+- `routes/map.ts`: cache `/overview` 2 s theo `userId|roleCode|originalUrl`
+  (giữ nguyên payload, không cache lỗi); bỏ 12 subquery tương quan khỏi
+  `stationColumns` **không thực hiện** (đo 0,30 s, không phải nút thắt — ghi
+  rõ lý do).
+- `realtime/data.ts`: cache `loadOpenAlerts` 3 s; `invalidateAlertsCache()`.
+- `realtime/socket.ts`: cache `MAX(id) relay_sessions` 3 s.
+- `lib/alerts.ts`: dedupe trong RAM theo `dedupe_key` + cooldown 5 phút, giới
+  hạn 2.000 khoá; chỉ query DB khi chưa có trong cache.
+- `stationConnectionSet` đã sẵn có guard `stationByJob.size > 0`; query
+  open-set dùng index mới từ P20-1.
+
+Bằng chứng:
+- `server npm run build` PASS; `server npm test` **50 file / 251 test PASS**
+  (thêm 6 test: cache 2 s + dedupe RAM).
+- HTTP local sau restart server (10 lần, superadmin): `/api/stations` p50 68 ms
+  / p90 **89 ms**; `/api/stations/709` p90 25 ms; `/api/map/overview` p90
+  **30 ms**; `/api/connections` p90 19 ms.
+- Playwright: `unified-map`, `map`, `map-maplibre`, `realtime` = **8/8 PASS**.
+

@@ -16,17 +16,53 @@ export interface AlertInput {
 
 const MAX_TITLE = 200;
 const MAX_MESSAGE = 500;
+const MAX_DEDUPE_ENTRIES = 2000;
+
+// Plan 20 (D20-16): nhớ dedupe_key đã tạo/gần đây để tick realtime 3 s không
+// query `alerts` lặp lại cho cùng một cảnh báo trong thời gian cooldown.
+const recentAlerts = new Map<string, number>();
+
+export function resetAlertDedupeCache(): void {
+  recentAlerts.clear();
+}
+
+export function shouldSkipAlert(dedupeKey: string, now = Date.now()): boolean {
+  const expiresAt = recentAlerts.get(dedupeKey);
+  if (expiresAt === undefined) return false;
+  if (expiresAt > now) return true;
+  recentAlerts.delete(dedupeKey);
+  return false;
+}
+
+export function rememberAlert(dedupeKey: string, now: number, cooldownMinutes: number): void {
+  if (recentAlerts.size >= MAX_DEDUPE_ENTRIES) {
+    for (const [key, expiresAt] of recentAlerts) {
+      if (expiresAt <= now) recentAlerts.delete(key);
+    }
+    while (recentAlerts.size >= MAX_DEDUPE_ENTRIES) {
+      const oldest = recentAlerts.keys().next().value;
+      if (oldest === undefined) break;
+      recentAlerts.delete(oldest);
+    }
+  }
+  recentAlerts.set(dedupeKey, now + cooldownMinutes * 60_000);
+}
 
 export async function createAlertOnce(input: AlertInput): Promise<number | null> {
   const cooldownMinutes = input.cooldownMinutes ?? 5;
-  const cutoff = new Date(Date.now() - cooldownMinutes * 60_000);
+  const now = Date.now();
+  if (shouldSkipAlert(input.dedupeKey, now)) return null;
+  const cutoff = new Date(now - cooldownMinutes * 60_000);
   const existing = await query<RowDataPacket[]>(
     `SELECT id FROM alerts
       WHERE dedupe_key = ? AND created_at > ?
       LIMIT 1`,
     [input.dedupeKey, cutoff]
   );
-  if (existing.length > 0) return null;
+  if (existing.length > 0) {
+    rememberAlert(input.dedupeKey, now, cooldownMinutes);
+    return null;
+  }
 
   const result = await query<any>(
     `INSERT INTO alerts
@@ -45,6 +81,7 @@ export async function createAlertOnce(input: AlertInput): Promise<number | null>
       input.ownerId
     ]
   );
+  rememberAlert(input.dedupeKey, now, cooldownMinutes);
   return Number(result.insertId);
 }
 

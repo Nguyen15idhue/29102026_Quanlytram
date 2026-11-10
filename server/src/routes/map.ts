@@ -19,6 +19,7 @@ import {
 import { resolveStationCoords } from '../lib/mapCoords';
 import { fetchLiveQuality } from '../lib/quality';
 import { loadLatestSamples, latestSampleMap } from '../lib/latestSample';
+import { TtlLruCache } from '../lib/ttlLruCache';
 import { transportStatusFor } from '../lib/stationDetail';
 import { fetchTile, TRANSPARENT_PNG } from '../lib/tileProxy';
 import { requireAuth, requirePermission } from '../middleware/auth';
@@ -30,6 +31,9 @@ import { inScope, Scope, scopeClause, subtreeIds, tenantIds } from '../rbac/scop
 export const mapRouter = Router();
 mapRouter.use(requireAuth);
 mapRouter.use(csrfProtection);
+
+// Plan 20 (D20-16): cache ngắn cho /overview (poll 15–30 s).
+const overviewCache = new TtlLruCache<string, unknown>(64, 2000);
 
 const tileLimiter = rateLimit({
   windowMs: 60_000,
@@ -132,6 +136,14 @@ mapRouter.get(
   '/overview',
   requirePermission('stations', 'view'),
   asyncHandler(async (req, res) => {
+    // Plan 20 (D20-16): bản đồ poll 15–30 s; cache 2 s theo user + query để
+    // nhiều tab/người dùng không chạy lại toàn bộ truy vấn.
+    const overviewKey = `${req.auth!.id}|${req.auth!.roleCode}|${req.originalUrl}`;
+    const cachedOverview = overviewCache.get(overviewKey);
+    if (cachedOverview) {
+      res.json(cachedOverview);
+      return;
+    }
     const perms = await permissionsForRole(req.auth!.roleId);
     const scopeOf = (code: string): Scope =>
       (perms.find((item) => item.code === code)?.scope ?? 'none') as Scope;
@@ -642,7 +654,7 @@ mapRouter.get(
       filtered: filtered.length
     };
 
-    res.json({
+    const payload = {
       items: filtered
         .slice(0, 1000)
         .map(({ qualityVisible: _qualityVisible, ...item }) => item),
@@ -668,6 +680,8 @@ mapRouter.get(
           ? companyIdParam
           : null
       }
-    });
+    };
+    overviewCache.set(overviewKey, payload);
+    res.json(payload);
   })
 );

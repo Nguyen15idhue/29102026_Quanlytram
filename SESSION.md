@@ -2194,3 +2194,15 @@ cd frontend; npx playwright test tests/station-mountpoint-custom.spec.ts tests/p
 - E2E local: gnss restart đóng 1 caster_connections mồ côi (service_restart) và
   resolve 18 alert cũ; go test ./... PASS; Playwright quality + station-detail
   PASS.
+
+### Plan 20 / P20-4 — Node giảm query lặp (2026-11-10)
+
+- Cache 2 s cho mẫu mới nhất (latestSample) và /api/map/overview; cache 3 s cho
+  open alerts + MAX(id) relay_sessions; dedupe alert trong RAM (cooldown 5 phút,
+  tối đa 2.000 khoá) thay vì query `alerts` mỗi 3 s.
+- Đo local sau restart: /api/stations p90 89 ms; /api/stations/709 p90 25 ms;
+  /api/map/overview p90 30 ms; /api/connections p90 19 ms.
+- Server 50 file/251 test PASS; Playwright unified-map/map/map-maplibre/realtime
+  8/8 PASS.
+- Không đổi shape API, không đổi quyền; đã ghi lý do không sửa 12 subquery
+  tương quan (0,30 s).

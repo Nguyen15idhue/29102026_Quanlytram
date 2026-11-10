@@ -1,5 +1,6 @@
 import { RowDataPacket } from 'mysql2/promise';
 import { runtimeQuery } from '../db/runtimePool';
+import { TtlLruCache } from './ttlLruCache';
 
 // Plan 20 (D20-1): mẫu mới nhất chỉ nằm trong 15 phút gần nhất với target đang
 // chạy. Cửa sổ nhỏ giúp MySQL đọc vài dòng thay vì toàn bộ 7 ngày.
@@ -89,7 +90,37 @@ export function buildLatestFallbackQuery(
  * Nạp mẫu mới nhất cho danh sách target/mountpoint.
  * Luôn trả về tối đa 1 dòng cho mỗi id; không ném lỗi khi bảng chưa migrate.
  */
+const latestCache = new TtlLruCache<string, RowDataPacket[]>(64, 2000);
+
+function latestCacheKey(options: LatestSampleOptions): string {
+  const ids = [...options.ids].sort((a, b) => a - b).join(',');
+  return [
+    options.targetType,
+    options.by ?? 'target',
+    options.direction ?? '',
+    options.windowMinutes ?? LATEST_WINDOW_MINUTES,
+    ids
+  ].join('|');
+}
+
+/** Xoá cache (dùng cho test hoặc khi cần đọc tươi ngay lập tức). */
+export function clearLatestSampleCache(): void {
+  latestCache.clear();
+}
+
 export async function loadLatestSamples(
+  options: LatestSampleOptions
+): Promise<RowDataPacket[]> {
+  if (options.ids.length === 0) return [];
+  const cacheKey = latestCacheKey(options);
+  const cached = latestCache.get(cacheKey);
+  if (cached) return cached;
+  const rows = await loadLatestSamplesUncached(options);
+  latestCache.set(cacheKey, rows);
+  return rows;
+}
+
+async function loadLatestSamplesUncached(
   options: LatestSampleOptions
 ): Promise<RowDataPacket[]> {
   if (options.ids.length === 0) return [];

@@ -399,6 +399,21 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
   let running = true;
   let ticking = false;
   let lastSessionId = 0;
+  // Plan 20 (D20-16): MAX(id) chỉ tăng; cache 3 s để mỗi tick không query lại.
+  let maxSessionCache: { at: number; value: number } | null = null;
+
+  async function fetchMaxSessionId(): Promise<number> {
+    const now = Date.now();
+    if (maxSessionCache && now - maxSessionCache.at < 3000) {
+      return maxSessionCache.value;
+    }
+    const rows = await runtimeQuery<RowDataPacket[]>(
+      'SELECT MAX(id) AS max_id FROM relay_sessions'
+    );
+    const value = Number(rows[0]?.max_id ?? 0);
+    maxSessionCache = { at: Date.now(), value };
+    return value;
+  }
 
   async function tick(): Promise<void> {
     if (!running || ticking) return;
@@ -417,10 +432,7 @@ export function initRealtime(httpServer: HttpServer): RealtimeHandle {
         )
       ]);
 
-      const maxRows = await runtimeQuery<RowDataPacket[]>(
-        'SELECT MAX(id) AS max_id FROM relay_sessions'
-      );
-      const maxSessionId = Number(maxRows[0]?.max_id ?? 0);
+      const maxSessionId = await fetchMaxSessionId();
       let newSessions: RowDataPacket[] = [];
       if (lastSessionId === 0) {
         lastSessionId = maxSessionId;
