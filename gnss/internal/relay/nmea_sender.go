@@ -23,7 +23,7 @@ const (
 
 const (
 	fixDataWindow = 30 * time.Second
-	fixWriteLimit = 2 * time.Second
+	fixWriteLimit = 5 * time.Second
 )
 
 // nmeaSender gửi NMEA lên upstream giống rover thật:

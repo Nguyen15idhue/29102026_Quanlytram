@@ -127,9 +127,9 @@ func Load() Config {
 		FlushInterval:            getenvSeconds("RELAY_FLUSH_INTERVAL_SEC", time.Second),
 		QueueSize:                getenvInt("RELAY_QUEUE_SIZE", 10000),
 		BatchSize:                getenvInt("RELAY_BATCH_SIZE", 100),
-		DialTimeout:              getenvSeconds("RELAY_DIAL_TIMEOUT_SEC", 15*time.Second),
+		DialTimeout:              getenvSeconds("RELAY_DIAL_TIMEOUT_SEC", 30*time.Second),
 		ShutdownTimeout:          getenvSeconds("RELAY_SHUTDOWN_TIMEOUT_SEC", 10*time.Second),
-		RelayIdleTimeout:         getenvSeconds("RELAY_IDLE_TIMEOUT_SEC", 60*time.Second),
+		RelayIdleTimeout:         getenvSeconds("RELAY_IDLE_TIMEOUT_SEC", 90*time.Second),
 		StationSourceIdleTimeout: getenvSecondsAtLeast("STATION_SOURCE_IDLE_TIMEOUT_SEC", 120*time.Second, 30*time.Second),
 
 		CasterBindAddr:            getenv("CASTER_BIND_ADDR", "0.0.0.0"),

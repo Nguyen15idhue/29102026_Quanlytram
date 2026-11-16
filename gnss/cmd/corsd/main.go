@@ -118,8 +118,8 @@ func main() {
 	options.DialTimeout = cfg.DialTimeout
 	options.IdleTimeout = cfg.RelayIdleTimeout
 	options.PollInterval = cfg.PollInterval
-	options.RetryMin = time.Second
-	options.RetryMax = 30 * time.Second
+	options.RetryMin = 5 * time.Second
+	options.RetryMax = 60 * time.Second
 	options.Quality = analyzer
 
 	casterOptions := caster.DefaultOptions()

@@ -68,8 +68,8 @@ type Options struct {
 
 func DefaultOptions() Options {
 	return Options{
-		DialTimeout:      15 * time.Second,
-		IdleTimeout:      60 * time.Second,
+		DialTimeout:      30 * time.Second,
+		IdleTimeout:      90 * time.Second,
 		MonitorBuffer:    32,
 		ReadBuffer:       8 * 1024,
 		DownstreamBuffer: 64,
@@ -284,7 +284,7 @@ func RunSession(
 		defer close(writerDone)
 		for data := range writeCh {
 			if downstream.Conn != nil {
-				_ = downstream.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+				_ = downstream.Conn.SetWriteDeadline(time.Now().Add(30 * time.Second))
 			}
 			_, writeErr := downstream.Write(data)
 			if downstream.Conn != nil {

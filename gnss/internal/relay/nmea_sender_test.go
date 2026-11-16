@@ -103,9 +103,16 @@ func TestNMEARunSendsWhileDataFresh(t *testing.T) {
 	done := make(chan string, 2)
 	go func() {
 		reader := bufio.NewReader(server)
-		for i := 0; i < 2; i++ {
-			line, _ := reader.ReadString('\n')
-			done <- line
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				return
+			}
+			// Payload một kỳ có thể gồm nhiều dòng (GGA + GSA/RMC tuỳ
+			// profile); test này chỉ quan tâm GGA định kỳ.
+			if strings.HasPrefix(line, "$GPGGA") {
+				done <- line
+			}
 		}
 	}()
 	go sender.run(t.Context(), client, &lastData, errCh)
