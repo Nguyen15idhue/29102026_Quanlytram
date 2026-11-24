@@ -2556,6 +2556,23 @@ stationsRouter.post(
   })
 );
 
+/**
+ * Chọn client_port ghi vào station_sources. Cột là NOT NULL nhưng form caster
+ * không gửi client_port (chỉ trạm ntrip_client mới có), nên phải lấy lại giá
+ * trị cũ thay vì ghi NULL (D-fix: "Column 'client_port' cannot be null").
+ * Trả null khi nguồn ntrip_client chưa có port hợp lệ để route báo 400.
+ */
+export function resolveSourceClientPort(input: {
+  sourceRole: 'ntrip_client' | 'ntrip_caster';
+  requestedPort?: number;
+  previousPort?: number | null;
+}): number | null {
+  if (input.requestedPort) return input.requestedPort;
+  if (input.previousPort) return input.previousPort;
+  if (input.sourceRole === 'ntrip_client') return null;
+  return 1509;
+}
+
 const sourceSchema = z.object({
   source_role: z.enum(['ntrip_client', 'ntrip_caster']).default('ntrip_caster'),
   client_host: z.string().max(190).optional().default(''),
@@ -2657,6 +2674,14 @@ stationsRouter.put(
       [station.id]
     );
     const before = beforeRows[0] ? publicSource(beforeRows[0]) : null;
+    const clientPort = resolveSourceClientPort({
+      sourceRole: body.source_role,
+      requestedPort: body.client_port,
+      previousPort: before?.client_port
+    });
+    if (clientPort === null) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Client port là bắt buộc');
+    }
     let managedAccount: any = null;
     if (body.source_role === 'ntrip_caster') {
       const accountRows = await query<RowDataPacket[]>(
@@ -2704,7 +2729,7 @@ stationsRouter.put(
           station.id,
           body.source_role,
           body.client_host,
-          body.client_port,
+          clientPort,
           body.client_mount,
           body.client_username,
           body.client_password
