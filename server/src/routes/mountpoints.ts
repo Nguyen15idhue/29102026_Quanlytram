@@ -202,16 +202,25 @@ async function enrichExplorer(rows: RowDataPacket[], includeSuperadminRelays = f
         ids
       ),
       query<RowDataPacket[]>(
-        `SELECT id, name, enabled, desired_revision, upstream_mount, upstream_host,
-                upstream_port, upstream_ssl, upstream_ntrip_version,
-                downstream_host, downstream_port, downstream_mount, downstream_ssl,
-                downstream_ntrip_version, downstream_mode, origin, updated_at,
-                upstream_credential_id, downstream_credential_id
-           FROM relay_jobs
-          WHERE deleted_at IS NULL AND upstream_mount IN (${placeholdersForNames})
-            AND (${includeSuperadminRelays ? '1=1' : 'company_id IS NOT NULL'})
-          ORDER BY name`,
-        names
+        `SELECT r.id, r.name, r.enabled, r.desired_revision, r.upstream_mount, r.upstream_host,
+                r.upstream_port, r.upstream_ssl, r.upstream_ntrip_version,
+                r.upstream_station_id, us.name AS upstream_station_name,
+                r.downstream_host, r.downstream_port, r.downstream_mount, r.downstream_ssl,
+                r.downstream_ntrip_version, r.downstream_mode, r.origin, r.updated_at,
+                r.upstream_credential_id, r.downstream_credential_id
+           FROM relay_jobs r
+           LEFT JOIN stations us ON us.id = r.upstream_station_id
+          WHERE r.deleted_at IS NULL
+            AND (
+              r.upstream_mount IN (${placeholdersForNames})
+              OR r.upstream_station_id IN (
+                SELECT m.station_id FROM mountpoints m
+                 WHERE m.name IN (${placeholdersForNames}) AND m.station_id IS NOT NULL
+              )
+            )
+            AND (${includeSuperadminRelays ? '1=1' : 'r.company_id IS NOT NULL'})
+          ORDER BY r.name`,
+        [...names, ...names]
       ),
       query<RowDataPacket[]>(
         `SELECT lm.mountpoint_id, l.id, l.name, l.port, l.enabled, l.role
@@ -267,7 +276,13 @@ async function enrichExplorer(rows: RowDataPacket[], includeSuperadminRelays = f
         port: Number(row.upstream_port),
         mount: String(row.upstream_mount),
         ssl: Boolean(row.upstream_ssl),
-        ntripVersion: String(row.upstream_ntrip_version)
+        ntripVersion: String(row.upstream_ntrip_version),
+        stationId:
+          row.upstream_station_id === null || row.upstream_station_id === undefined
+            ? null
+            : Number(row.upstream_station_id),
+        stationName: row.upstream_station_name ?? null,
+        direct: row.upstream_station_id !== null && row.upstream_station_id !== undefined
       },
       downstream: {
         host: String(row.downstream_host),

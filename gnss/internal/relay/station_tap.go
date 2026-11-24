@@ -70,6 +70,30 @@ type stationSourceTapReader struct {
 	tap       *stationSourceTap
 }
 
+// StationTapFunc mở luồng đọc source trực tiếp của một trạm.
+type StationTapFunc func(stationID int64) (io.ReadCloser, error)
+
+// CombineStationSourceTaps ghép hai nguồn tap in-process cho "Chọn trạm":
+//   - primary: trạm ntrip_client (phiên station source đang chạy);
+//   - fallback: trạm ntrip_caster (source đang publish trong caster hub).
+//
+// Relay chọn trạm nguồn chỉ đọc byte trực tiếp từ trạm, không mở kết nối
+// NTRIP tới mountpoint/caster nào. Trả lỗi của fallback khi cả hai đều không
+// có nguồn để báo station_source_offline.
+func CombineStationSourceTaps(primary, fallback StationTapFunc) StationTapFunc {
+	return func(stationID int64) (io.ReadCloser, error) {
+		if primary != nil {
+			if tap, err := primary(stationID); err == nil {
+				return tap, nil
+			}
+		}
+		if fallback != nil {
+			return fallback(stationID)
+		}
+		return nil, errStationSourceOffline
+	}
+}
+
 func (r *stationSourceTapReader) Read(p []byte) (int, error) {
 	return r.tap.Read(p)
 }

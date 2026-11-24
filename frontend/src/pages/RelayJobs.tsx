@@ -702,12 +702,20 @@ export function RelayJobs() {
               cell: (job) => (
                 <div>
                   <div className="mono">
-                    {job.upstream.host}:{job.upstream.port}/{job.upstream.mount}
+                    {job.upstream.stationId
+                      ? `Trạm: ${job.upstream.stationName ?? `#${job.upstream.stationId}`}`
+                      : `${job.upstream.host}:${job.upstream.port}/${job.upstream.mount}`}
                   </div>
                   <div className="muted table-subline">
-                    {job.upstream.ntripVersion?.toUpperCase() ?? 'V1'} ·{' '}
-                    {job.upstream.ssl ? 'TLS' : 'TCP'} ·{' '}
-                    {job.upstream.credential?.username || 'no-auth'}
+                    {job.upstream.stationId ? (
+                      'đọc trực tiếp · không qua mountpoint/caster'
+                    ) : (
+                      <>
+                        {job.upstream.ntripVersion?.toUpperCase() ?? 'V1'} ·{' '}
+                        {job.upstream.ssl ? 'TLS' : 'TCP'} ·{' '}
+                        {job.upstream.credential?.username || 'no-auth'}
+                      </>
+                    )}
                   </div>
                 </div>
               )
@@ -1456,8 +1464,9 @@ export function RelayJobs() {
                     <div>
                       <dt>Nguồn</dt>
                       <dd className="mono">
-                        {detailItem.upstream.host}:{detailItem.upstream.port}/
-                        {detailItem.upstream.mount}
+                        {detailItem.upstream.stationId
+                          ? `Trạm: ${detailItem.upstream.stationName ?? `#${detailItem.upstream.stationId}`} · đọc trực tiếp`
+                          : `${detailItem.upstream.host}:${detailItem.upstream.port}/${detailItem.upstream.mount}`}
                       </dd>
                     </div>
                     <div>

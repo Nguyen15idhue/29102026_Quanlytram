@@ -64,12 +64,26 @@ test.describe('P18-1 — relay chọn trạm dùng nguồn nội bộ', () => {
     ).json()) as {
       items: Array<{
         id: number;
-        upstream: { stationId: number | null; mountpointId: number | null };
+        upstream: {
+          stationId: number | null;
+          stationName?: string | null;
+          mountpointId: number | null;
+          host: string;
+          port: number;
+          mount: string;
+          direct?: boolean;
+        };
       }>;
     };
     const job = listed.items.find((item) => item.upstream.stationId === station!.id);
     expect(job).toBeTruthy();
     expect(job!.upstream.mountpointId).toBeNull();
+    // Chọn trạm nguồn = đọc trực tiếp, không mượn mountpoint/caster nào.
+    expect(job!.upstream.host).toBe('');
+    expect(job!.upstream.port).toBe(0);
+    expect(job!.upstream.mount).toBe('');
+    expect(job!.upstream.stationName).toBe(station!.name);
+    expect(JSON.stringify(job!.upstream)).not.toContain('127.0.0.1');
 
     await page.request.delete(`/api/relay-jobs/${job!.id}`, {
       headers: { 'X-CSRF-Token': await csrf(page) }

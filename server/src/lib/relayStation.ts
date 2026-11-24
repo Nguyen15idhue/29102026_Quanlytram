@@ -155,32 +155,45 @@ function clientEndpoint(row: StationRow): EndpointOption | null {
   };
 }
 
+/**
+ * Endpoint hiển thị cho "Chọn trạm" phía nguồn.
+ *
+ * Relay đọc trực tiếp luồng của trạm (in-process tap) nên KHÔNG có host/port/
+ * mount: không được mượn mountpoint hay caster nào làm nguồn. Giữ object rỗng
+ * thay vì null để UI biết trạm có nguồn và đang ở chế độ đọc trực tiếp.
+ */
+function directSourceEndpoint(row: StationRow): EndpointOption {
+  return {
+    host: '',
+    port: 0,
+    mount: '',
+    ssl: false,
+    ntripVersion: row.caster_version ?? row.ntrip_version ?? 'v2',
+    username: '',
+    hasPassword: false,
+    mountpointId: null,
+    direct: true
+  };
+}
+
+function hasStationSource(row: StationRow, mountpoints: StationMountpointOption[]): boolean {
+  return Boolean(clientEndpoint(row)) || mountpoints.length > 0 || row.listener_port !== null;
+}
+
 function stationOption(
   row: StationRow,
   mountpoints: StationMountpointOption[]
 ): StationOption {
-  const internal = mountpoints.filter(
-    (mountpoint) => mountpoint.port !== null || row.listener_port !== null
-  );
-  const first = internal[0] ?? null;
+  const destinationMountpoint =
+    mountpoints.find(
+      (mountpoint) => (mountpoint.port ?? row.listener_port) !== null
+    ) ?? null;
   // "Chọn trạm" phía nguồn luôn lấy nguồn gốc nội bộ của trạm:
   // - ntrip_client: tap phiên station source (Go), không mở NTRIP client ngoài.
   // - ntrip_caster: tap source đang publish trong caster (Go).
-  // Endpoint dưới đây chỉ để hiển thị/tóm tắt, không dùng để kết nối.
-  const client = clientEndpoint(row);
-  let source: EndpointOption | null;
-  if (client) {
-    source = { ...client, direct: true };
-  } else if (first && (first.port ?? row.listener_port) !== null) {
-    source = {
-      ...internalEndpoint(row, first, Number(first.port ?? row.listener_port)),
-      username: '',
-      hasPassword: false,
-      direct: true
-    };
-  } else {
-    source = null;
-  }
+  // Không gắn host/port/mountpoint vào endpoint nguồn để tránh hiểu nhầm là
+  // relay sẽ đi qua mountpoint/caster.
+  const source = hasStationSource(row, mountpoints) ? directSourceEndpoint(row) : null;
   return {
     id: Number(row.id),
     name: String(row.name),
@@ -188,8 +201,12 @@ function stationOption(
     companyName: row.company_name === null ? null : String(row.company_name),
     sourceRole: row.source_role ?? 'ntrip_caster',
     source,
-    destination: first
-      ? internalEndpoint(row, first, Number(first.port ?? row.listener_port))
+    destination: destinationMountpoint
+      ? internalEndpoint(
+          row,
+          destinationMountpoint,
+          Number(destinationMountpoint.port ?? row.listener_port)
+        )
       : null,
     mountpoints: mountpoints.map((mountpoint) => ({
       ...mountpoint,
@@ -223,44 +240,25 @@ export async function resolveStationEndpoint(
   );
   const row = rows[0];
   if (!row) throw new ApiError(404, 'STATION_NOT_FOUND', 'Không tìm thấy trạm trong phạm vi quyền');
-  if (!row.listener_port && !row.client_host) {
-    throw new ApiError(400, 'STATION_NO_ENDPOINT', 'Trạm chưa có listener hoặc cấu hình nguồn');
-  }
 
   const mountpoints = (await loadMountpoints([stationId])).get(stationId) ?? [];
 
-  // "Chọn trạm" phía nguồn: bỏ qua khái niệm mountpoint, dùng nguồn gốc của
-  // trạm (station source nội bộ hoặc source đang publish trong caster). Go sẽ
-  // tap theo stationID, không mở kết nối NTRIP client ra hệ thống ngoài.
+  // "Chọn trạm" phía nguồn: đọc trực tiếp luồng của trạm (in-process tap).
+  // Không tra mountpoint, không tạo host/port/mount và không mở kết nối NTRIP
+  // tới caster nào — kể cả khi trạm là ntrip_client.
   if (direction === 'source') {
-    const client = clientEndpoint(row);
-    const first = mountpoints[0] ?? null;
-    const display =
-      client ??
-      (first
-        ? {
-            host: '127.0.0.1',
-            port: Number(first.port ?? row.listener_port ?? 0),
-            mount: first.name,
-            ssl: false,
-            ntripVersion: row.caster_version ?? 'v2',
-            username: '',
-            hasPassword: false,
-            mountpointId: null,
-            direct: true
-          }
-        : null);
-    if (!display) {
+    if (!hasStationSource(row, mountpoints)) {
       throw new ApiError(400, 'STATION_NO_ENDPOINT', 'Trạm chưa có nguồn dữ liệu nội bộ');
     }
+    const direct = directSourceEndpoint(row);
     return {
       endpoint: {
-        host: display.host,
-        port: display.port,
-        mount: display.mount,
+        host: '',
+        port: 0,
+        mount: '',
         proxy: '',
-        ssl: display.ssl,
-        ntripVersion: display.ntripVersion,
+        ssl: false,
+        ntripVersion: direct.ntripVersion,
         direct: true
       },
       credential: null,
@@ -268,6 +266,10 @@ export async function resolveStationEndpoint(
       mountpointId: null,
       direct: true
     };
+  }
+
+  if (!row.listener_port && !row.client_host) {
+    throw new ApiError(400, 'STATION_NO_ENDPOINT', 'Trạm chưa có listener hoặc cấu hình nguồn');
   }
 
   const selected =

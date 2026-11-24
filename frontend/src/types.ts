@@ -451,6 +451,9 @@ export interface RelayEndpoint {
   ntripVersion?: string;
   key?: string;
   stationId?: number | null;
+  stationName?: string | null;
+  /** true khi nguồn chọn trạm: đọc trực tiếp luồng của trạm, không có endpoint. */
+  direct?: boolean;
   mountpointId?: number | null;
   credential?: { id: number; username: string; hasSecret: boolean } | null;
 }
@@ -1012,6 +1015,9 @@ export interface MountpointExplorerRelay {
     mount: string;
     ssl: boolean;
     ntripVersion: string;
+    stationId?: number | null;
+    stationName?: string | null;
+    direct?: boolean;
   };
   downstream: {
     host: string;

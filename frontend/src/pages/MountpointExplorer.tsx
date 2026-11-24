@@ -235,11 +235,18 @@ export function MountpointExplorerDrawer({ id, onClose }: { id: number; onClose:
                   </div>
                   <div className="muted table-subline">
                     Desired {relay.desiredRevision} · Applied {relay.appliedRevision ?? '—'} ·{' '}
-                    {relay.upstream.ntripVersion.toUpperCase()} → {relay.downstream.mode}
+                    {relay.upstream.direct
+                      ? 'đọc trực tiếp'
+                      : relay.upstream.ntripVersion.toUpperCase()}{' '}
+                    → {relay.downstream.mode}
                   </div>
                   <div className="muted table-subline mono">
-                    up {relay.upstream.host}:{relay.upstream.port}/{relay.upstream.mount} → down{' '}
-                    {relay.downstream.host}:{relay.downstream.port}/{relay.downstream.mount}
+                    up{' '}
+                    {relay.upstream.direct
+                      ? `Trạm ${relay.upstream.stationName ?? `#${relay.upstream.stationId}`}`
+                      : `${relay.upstream.host}:${relay.upstream.port}/${relay.upstream.mount}`}{' '}
+                    → down {relay.downstream.host}:{relay.downstream.port}/
+                    {relay.downstream.mount}
                   </div>
                   {relay.lastError && (
                     <div className="inline-alert">

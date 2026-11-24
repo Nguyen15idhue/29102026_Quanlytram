@@ -158,11 +158,15 @@ const JOB_SELECT = `
   SELECT j.*,
          uc.username AS upstream_credential_username,
          dc.username AS downstream_credential_username,
+         us.name AS upstream_station_name,
+         ds.name AS downstream_station_name,
          u.display_name AS owner_name,
          c.name AS company_name
     FROM relay_jobs j
     LEFT JOIN relay_credentials uc ON uc.id = j.upstream_credential_id
     LEFT JOIN relay_credentials dc ON dc.id = j.downstream_credential_id
+    LEFT JOIN stations us ON us.id = j.upstream_station_id
+    LEFT JOIN stations ds ON ds.id = j.downstream_station_id
     LEFT JOIN web_users u ON u.id = j.owner_web_user_id
     LEFT JOIN companies c ON c.id = j.company_id`;
 
@@ -183,6 +187,9 @@ function publicJob(row: any, state: any) {
       ntripVersion: row.upstream_ntrip_version,
       key: row.upstream_key,
       stationId: row.upstream_station_id == null ? null : Number(row.upstream_station_id),
+      stationName: row.upstream_station_name ?? null,
+      // Chọn trạm nguồn = đọc trực tiếp luồng của trạm, không có endpoint.
+      direct: row.upstream_station_id != null,
       mountpointId:
         row.upstream_mountpoint_id == null ? null : Number(row.upstream_mountpoint_id),
       credential: row.upstream_credential_id
@@ -202,6 +209,7 @@ function publicJob(row: any, state: any) {
       ntripVersion: row.downstream_ntrip_version,
       key: row.downstream_key,
       stationId: row.downstream_station_id == null ? null : Number(row.downstream_station_id),
+      stationName: row.downstream_station_name ?? null,
       mountpointId:
         row.downstream_mountpoint_id == null ? null : Number(row.downstream_mountpoint_id),
       credential: row.downstream_credential_id

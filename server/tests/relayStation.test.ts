@@ -50,15 +50,17 @@ describe('relayStation', () => {
     queryMock.mockReset();
   });
 
-  it('chọn trạm nguồn nội bộ: bỏ qua mountpoint, không cần credential NTRIP', async () => {
+  it('chọn trạm nguồn nội bộ: không có host/port/mount, không cần credential NTRIP', async () => {
     mockQueries([baseStation], [mountpoint]);
 
     const resolved = await resolveStationEndpoint(SCOPE, 5, 9, 'source');
 
-    expect(resolved.endpoint).toMatchObject({
-      host: '127.0.0.1',
-      port: 1509,
-      mount: 'HL_RTCM',
+    expect(resolved.endpoint).toEqual({
+      host: '',
+      port: 0,
+      mount: '',
+      proxy: '',
+      ssl: false,
       ntripVersion: 'v2',
       direct: true
     });
@@ -67,7 +69,7 @@ describe('relayStation', () => {
     expect(resolved.direct).toBe(true);
   });
 
-  it('trạm ntrip_client: nguồn chỉ hiển thị client_*, không dùng để kết nối', async () => {
+  it('trạm ntrip_client: nguồn đọc trực tiếp, không lộ host/mount caster ngoài', async () => {
     mockQueries(
       [
         {
@@ -91,13 +93,12 @@ describe('relayStation', () => {
 
     const resolved = await resolveStationEndpoint(SCOPE, 5, 9, 'source');
 
-    expect(resolved.endpoint).toMatchObject({
-      host: 'rtk.example',
-      port: 2101,
-      mount: 'EXT',
-      ssl: true,
-      direct: true
-    });
+    expect(resolved.endpoint.host).toBe('');
+    expect(resolved.endpoint.port).toBe(0);
+    expect(resolved.endpoint.mount).toBe('');
+    expect(resolved.endpoint.direct).toBe(true);
+    expect(JSON.stringify(resolved)).not.toContain('rtk.example');
+    expect(JSON.stringify(resolved)).not.toContain('EXT');
     expect(resolved.credential).toBeNull();
     expect(resolved.mountpointId).toBeNull();
     expect(resolved.direct).toBe(true);
@@ -130,7 +131,7 @@ describe('relayStation', () => {
     expect(resolved.mountpointId).toBe(9);
   });
 
-  it('trạm ntrip_client không có mountpoint: vẫn trả nguồn hiển thị nội bộ và không credential', async () => {
+  it('trạm ntrip_client không có mountpoint: nguồn vẫn đọc trực tiếp, không host/mount', async () => {
     mockQueries(
       [
         {
@@ -155,10 +156,9 @@ describe('relayStation', () => {
     const resolved = await resolveStationEndpoint(SCOPE, 5, null, 'source');
 
     expect(resolved.endpoint).toMatchObject({
-      host: 'rtk.example',
-      port: 2101,
-      mount: 'EXT',
-      ssl: true,
+      host: '',
+      port: 0,
+      mount: '',
       direct: true
     });
     expect(resolved.credential).toBeNull();
@@ -201,7 +201,7 @@ describe('relayStation', () => {
       companyId: 35,
       sourceRole: 'ntrip_caster'
     });
-    expect(items[0].source).toMatchObject({ host: '127.0.0.1', mount: 'HL_RTCM' });
+    expect(items[0].source).toMatchObject({ host: '', port: 0, mount: '', direct: true });
     expect(items[0].destination).toMatchObject({ mount: 'HL_RTCM' });
     expect(items[0].mountpoints).toEqual([
       { id: 9, name: 'HL_RTCM', port: 1509, requiresAuth: true }

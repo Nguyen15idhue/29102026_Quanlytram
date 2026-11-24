@@ -165,7 +165,13 @@ func main() {
 			SessionEnd:  casterManager.DetachStationSource,
 		},
 	)
-	options.StationSourceTap = stationSourceManager.OpenTap
+	// "Chọn trạm nguồn": đọc trực tiếp luồng của trạm, không qua mountpoint
+	// hay caster. Trạm ntrip_client đọc phiên station source; trạm ntrip_caster
+	// đọc source đang publish trong caster hub.
+	options.StationSourceTap = relay.CombineStationSourceTaps(
+		stationSourceManager.OpenTap,
+		casterManager.OpenStationSourceTap,
+	)
 	manager := relay.NewManager(store, writer, options)
 
 	probeStore := probe.NewMySQLStore(adminDB, cfg.AppEncKey)
